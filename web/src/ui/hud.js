@@ -1,4 +1,5 @@
 import { onBlock } from '../engine/knockback.js';
+import { ULTIMATE } from '../config.js';
 
 export const PLAYER_COLORS = ['#3E8A2E', '#DE621C', '#3F7FD6', '#9A5FC8', '#D64C8C', '#2FA39A', '#C9A227', '#8A5A2B'];
 export const PLAYER_MARKS = ['●', '■', '▲', '◆', '✿', '★', '⬢', '❋'];
@@ -48,10 +49,12 @@ export class HUD {
       t.style.setProperty('--pc', color);
       t.innerHTML = `<div class="tile-top"><span class="mark">${PLAYER_MARKS[f.index]}</span><span class="pname">${f.name}</span><span class="cname">${f.char.name}</span></div>
         <div class="tile-mid"><span class="pct">0%</span><span class="stocks"></span></div>
-        <div class="res"><span class="res-label"></span><span class="res-bar"><i></i></span></div>`;
+        <div class="res"><span class="res-label"></span><span class="res-bar"><i></i></span></div>
+        <div class="ult"><span class="ult-label">ULT</span><span class="ult-bar"><i></i></span><span class="ult-n">0/${ULTIMATE.hitsRequired}</span></div>`;
       if (f.source === 'kb1' || f.source === 'kb2' || f.source.startsWith('pad')) t.classList.add('local');
       this.tiles.appendChild(t);
-      this.tileEls.push({ el: t, pct: t.querySelector('.pct'), stocks: t.querySelector('.stocks'), resLabel: t.querySelector('.res-label'), resBar: t.querySelector('.res-bar i'), res: t.querySelector('.res') });
+      this.tileEls.push({ el: t, pct: t.querySelector('.pct'), stocks: t.querySelector('.stocks'), resLabel: t.querySelector('.res-label'), resBar: t.querySelector('.res-bar i'), res: t.querySelector('.res'),
+        ult: t.querySelector('.ult'), ultBar: t.querySelector('.ult-bar i'), ultN: t.querySelector('.ult-n') });
       const L = el('div', 'label'); L.style.setProperty('--pc', color); L.innerHTML = `<span class="mark">${PLAYER_MARKS[f.index]}</span><span class="lp">0%</span>`;
       this.labels.appendChild(L);
       this.labelEls.push({ el: L, pct: L.querySelector('.lp') });
@@ -93,6 +96,25 @@ export class HUD {
         if (f.effects.tangle.stacks) label += ` · Tangled ${f.effects.tangle.stacks}`;
         T.resLabel.textContent = label; T.resBar.style.width = `${Math.round((r.value || 0) * 100)}%`; T.res.classList.toggle('active', !!r.active); T.res.classList.toggle('passive', !!r.passive);
       }
+      // Ultimate meter. Hidden entirely for a loadout with no ultimate, so it never shows a bar
+      // that can't fill.
+      if (T.ult) {
+        const has = !!f.char.moves.Ultimate;
+        T.ult.classList.toggle('hidden', !has);
+        if (has) {
+          T.ultBar.style.width = `${Math.round(f.ultMeter * 100)}%`;
+          // Mid-ultimate the bar stops being a meter and becomes whatever the move is spending.
+          // Deadeye is the only one with something left to spend, so it shows its magazine.
+          if (f.ultActive && f.move && f.move.kind === 'sniper') {
+            T.ultBar.style.width = `${Math.round((f.ultShots / f.move.sniper.shots) * 100)}%`;
+            T.ultN.textContent = `${f.ultShots} ROUND${f.ultShots === 1 ? '' : 'S'}`;
+          } else {
+            T.ultN.textContent = f.ultReady ? 'READY' : `${f.ultCharge}/${ULTIMATE.hitsRequired}`;
+          }
+          T.ult.classList.toggle('ready', f.ultReady || !!f.ultActive);
+        }
+      }
+
       const L = this.labelEls[i];
       if (!f.alive || f.state === 'ko') { L.el.style.display = 'none'; }
       else {

@@ -1,18 +1,15 @@
 import { InputManager } from './engine/input.js';
 import { Match } from './engine/match.js';
-import { CHARACTER_BY_ID, CHARACTERS } from './data/characters/index.js';
-import { preload as preloadModels } from './render/models.js';
-import { preloadProps } from './render/props.js';
+import { WEAPONS } from './data/weapons/index.js';
+import { buildLoadout } from './data/loadout.js';
 import { STAGE_BY_ID } from './data/stages/index.js';
-import { SceneView } from './render/scene.js';
-import { buildRig, pose as poseAny } from './render/rigs.js';
-import { StageView } from './render/stageview.js';
-import { Effects } from './render/effects.js';
+import { Renderer2D } from './render2d/renderer2d.js';
 import { HUD, PLAYER_MARKS } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
 import { SFX } from './audio/sfx.js';
 import { Music } from './audio/music.js';
 import { FRAME } from './config.js';
+import { GO_CALL } from './data/branding.js';
 
 const SFX_FOR = { hit: 'hit', chip: 'chip', block: 'block', ko: 'ko', jump: 'jump', doublejump: 'doublejump', land: 'land', dash: 'dash', dodge: 'dodge', ledge: 'ledge', shieldbreak: 'shieldbreak', grabhit: 'grab', explosion: 'explosion', beam: 'beam', burst: 'burst', freeze: 'freeze', counter: 'counter', summon: 'summon', projectile: 'projectile', bloom: 'bloom', momentumready: 'momentum', pickup: 'pickup', throwitem: 'throwitem', tech: 'tech', vent: 'vent', count: 'count', go: 'go', suddendeath: 'suddendeath', game: 'game', teleport: 'teleport', fruiting: 'explosion', pulse: 'burst', shock: 'land' };
 
@@ -20,14 +17,14 @@ class App {
   constructor() {
     this.canvas = document.getElementById('game');
     this.ui = document.getElementById('ui');
-    this.view = new SceneView(this.canvas);
-    this.effects = new Effects(this.view.scene);
+    this.view = new Renderer2D(this.canvas);
+    window.addEventListener('resize', () => this.view.resize());
     this.input = new InputManager();
     this.hud = new HUD(this.ui);
     this.sfx = new SFX();
     this.music = new Music(this.sfx);
     this.menus = new Menus(this.ui, { onQuick: () => this.quickPlay(), onStart: (c) => this.startFromConfig(c), onTraining: (c) => this.startTraining(c), onSettings: (s) => this.applySettings(s) });
-    this.match = null; this.rigs = []; this.stageView = null;
+    this.match = null;
     this.state = 'menu';
     this.acc = 0; this.last = performance.now(); this.t = 0;
     this.applySettings(this.menus.settings);
@@ -37,29 +34,22 @@ class App {
     window.addEventListener('pointerdown', () => this.sfx.ensure(), { once: false });
     window.addEventListener('keydown', () => this.sfx.ensure(), { once: false });
     this.ui.addEventListener('click', (e) => { if (e.target.closest('button')) { this.sfx.ensure(); this.sfx.play('ui'); } });
-    // Load whatever Blender-built characters exist; anything missing falls back to primitives.
-    Promise.all([preloadModels(CHARACTERS), preloadProps()]).then(([r, propCount]) => {
-      const n = r.filter(Boolean).length;
-      console.log(`[sprout] ${n} modelled characters, ${propCount} scenery props loaded`);
-      this._buildIdleScene();
-    });
     this._buildIdleScene();
     requestAnimationFrame((n) => this.loop(n));
   }
 
   applySettings(s) {
     this.settings = s;
-    this.effects.debug = !!s.hitboxes;
-    if (this.stageView) this.stageView.setDebug(!!s.hitboxes);
+    this.view.debug = !!s.hitboxes;
     this.sfx.setVolume(s.sfx); this.music.setVolume(s.music);
   }
 
   // A calm scene behind the title: Potting Bench with two idle fighters.
   _buildIdleScene() {
-    const stage = STAGE_BY_ID.PottingBench;
+    const stage = STAGE_BY_ID.FoundryFloor;
     this.idleMatch = new Match({ mode: 'Training', stage, input: this.input, stocks: 3, items: false, fighters: [
-      { char: CHARACTER_BY_ID.Thornlock, skin: 0, source: 'bot', isBot: true, botLevel: 'normal', name: 'Thornlock', team: 0 },
-      { char: CHARACTER_BY_ID.Cacto, skin: 0, source: 'bot', isBot: true, botLevel: 'normal', name: 'Cacto', team: 1 },
+      { char: buildLoadout('Classic', 'Sword'), skin: 0, source: 'bot', isBot: true, botLevel: 'normal', name: 'Sword', team: 0 },
+      { char: buildLoadout('Noir', 'Scythe'), skin: 0, source: 'bot', isBot: true, botLevel: 'normal', name: 'Scythe', team: 1 },
     ] });
     this.idleMatch.countdown = 1;
     this._mount(this.idleMatch, true);
@@ -68,16 +58,13 @@ class App {
   _mount(match, idle) {
     this._unmount();
     this.match = match;
-    this.stageView = new StageView(this.view.scene, match.stage);
-    this.stageView.setDebug(!!this.settings.hitboxes && !idle);
-    this.rigs = match.fighters.map((f) => { const r = buildRig(f.char, f.skin); this.view.scene.add(r); return r; });
-    this.view.frame(match.fighters, match.stage, 1, true);
+    this.view.setStage(match.stage);
+    this.view.debug = !!this.settings.hitboxes && !idle;
+    this.view.frame(match, 1, this.t, true);
     this.idle = !!idle;
   }
   _unmount() {
-    if (this.stageView) this.stageView.dispose();
-    for (const r of this.rigs) this.view.scene.remove(r);
-    this.rigs = []; this.effects.clear(); this.stageView = null; this.match = null;
+    this.view.dispose(); this.match = null;
   }
 
   fightersFromConfig(c) {
@@ -86,7 +73,7 @@ class App {
     c.slots.forEach((sl, i) => {
       if (sl.type === 'off') return;
       const isBot = sl.type.startsWith('bot');
-      out.push({ char: CHARACTER_BY_ID[sl.charId] || CHARACTERS[0], skin: sl.skin || 0, source: isBot ? 'bot' : sl.type, isBot, botLevel: isBot ? sl.type.split('-')[1] : undefined, name: isBot ? `Bot ${i + 1}` : `P${i + 1}`, team: teams ? sl.team : i });
+      out.push({ char: buildLoadout(sl.avatarId, sl.weaponId), skin: 0, source: isBot ? 'bot' : sl.type, isBot, botLevel: isBot ? sl.type.split('-')[1] : undefined, name: isBot ? `Bot ${i + 1}` : `P${i + 1}`, team: teams ? sl.team : i });
     });
     return out;
   }
@@ -96,28 +83,26 @@ class App {
     if (fighters.length < 2) { alert('Turn on at least two players.'); return; }
     if (c.mode.includes('Teams') && new Set(fighters.map((f) => f.team)).size < 2) { alert('Team modes need both teams.'); return; }
     this.lastConfig = c;
-    this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.PottingBench, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', fighters });
+    this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.FoundryFloor, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', fighters });
   }
 
   quickPlay() {
     const c = this.menus.config;
-    const me = c.slots[0].charId || 'Duststorm';
-    const pool = CHARACTERS.filter((x) => x.id !== me);
+    const mine = c.slots[0];
+    const pool = WEAPONS.filter((x) => x.id !== mine.weaponId);
     const foe = pool[Math.floor(Math.random() * pool.length)];
     this.lastConfig = null;
-    this.startMatch({ mode: 'StockFFA', stage: STAGE_BY_ID.PottingBench, stocks: 3, timeLimit: 180, items: true, fighters: [
-      { char: CHARACTER_BY_ID[me], skin: c.slots[0].skin || 0, source: 'kb1', isBot: false, name: 'P1', team: 0 },
-      { char: foe, skin: 0, source: 'bot', isBot: true, botLevel: 'normal', name: 'Bot', team: 1 },
+    this.startMatch({ mode: 'StockFFA', stage: STAGE_BY_ID.FoundryFloor, stocks: 3, timeLimit: 180, items: true, fighters: [
+      { char: buildLoadout(mine.avatarId, mine.weaponId), skin: 0, source: 'kb1', isBot: false, name: 'P1', team: 0 },
+      { char: buildLoadout('Noir', foe.id), skin: 0, source: 'bot', isBot: true, botLevel: 'normal', name: 'Bot', team: 1 },
     ] });
   }
 
   startTraining(c) {
-    const me = c.slots[0].charId || 'Duststorm';
-    const dummy = c.slots[1].charId || 'Cacto';
     this.lastConfig = null;
-    this.startMatch({ mode: 'Training', stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.PottingBench, stocks: 3, timeLimit: 0, items: false, fighters: [
-      { char: CHARACTER_BY_ID[me], skin: c.slots[0].skin || 0, source: 'kb1', isBot: false, name: 'P1', team: 0 },
-      { char: CHARACTER_BY_ID[dummy], skin: 0, source: 'bot', isBot: true, botLevel: 'dummy', name: 'Dummy', team: 1 },
+    this.startMatch({ mode: 'Training', stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.FoundryFloor, stocks: 3, timeLimit: 0, items: false, fighters: [
+      { char: buildLoadout(c.slots[0].avatarId, c.slots[0].weaponId), skin: 0, source: 'kb1', isBot: false, name: 'P1', team: 0 },
+      { char: buildLoadout(c.slots[1].avatarId, c.slots[1].weaponId), skin: 0, source: 'bot', isBot: true, botLevel: 'dummy', name: 'Dummy', team: 1 },
     ] });
   }
 
@@ -163,20 +148,20 @@ class App {
     if (e.code === 'KeyH') { this.settings.hitboxes = !this.settings.hitboxes; this.applySettings(this.settings); this.menus.save(); }
     if (e.code === 'KeyM') { this.settings.music = this.settings.music > 0 ? 0 : 0.6; this.applySettings(this.settings); this.menus.save(); }
     if (this.match.training) {
-      if (e.code === 'KeyR') { this.match.resetTraining(); this.effects.clear(); }
+      if (e.code === 'KeyR') { this.match.resetTraining(); this.view.clear(); }
       if (e.code === 'KeyB') { const d = this.match.fighters[1]; d.botLevel = d.botLevel === 'dummy' ? 'normal' : 'dummy'; this.hud.message(d.botLevel === 'dummy' ? 'Dummy: still' : 'Dummy: fighting back', '', 900); }
     }
   }
 
   handleEvents(match) {
     for (const e of match.events) {
-      this.effects.handle(e, match, this.view);
+      this.view.handle(e, match);
       const s = SFX_FOR[e.type];
       if (s) this.sfx.play(s, e);
       if (e.type === 'movestart') this.sfx.play(e.heavy ? 'whiffheavy' : 'whiff');
       if (this.idle) continue;
       if (e.type === 'count') this.hud.message(String(e.n), 'count', 700);
-      if (e.type === 'go') this.hud.message('GROW!', 'go', 900);
+      if (e.type === 'go') this.hud.message(GO_CALL, 'go', 900);
       if (e.type === 'ko') { const f = match.fighters[e.fighter]; this.hud.message(`KO! <small>${PLAYER_MARKS[f.index]} ${f.name}</small>`, 'ko', 1100); }
       if (e.type === 'suddendeath') this.hud.message('SUDDEN DEATH', 'sd', 1600);
       if (e.type === 'game') { this.hud.message('GAME!', 'game', 1800); setTimeout(() => this.endMatch(true), 1700); this.music.setIntensity(0); }
@@ -197,18 +182,13 @@ class App {
     if (steps === 4) this.acc = 0;
     this.handleEvents(match);
     if (this.idle && match.frame % 3600 === 3599) { this._buildIdleScene(); return; }
-    match.fighters.forEach((f, i) => poseAny(this.rigs[i], f, this.t));
-    this.stageView.update(this.t);
-    this.effects.syncEntities(match, this.t);
-    this.effects.update(dt);
-    this.view.frame(match.fighters, match.stage, dt, false);
+    this.view.frame(match, dt, this.t, false);
     if (!this.idle) {
       this.hud.update(match, this.view);
       const last = match.fighters.some((f) => f.alive && !match.timed && !match.training && f.stocksLeft() === 1 && f.percent >= 80);
       const late = match.timed && match.timeLimit - match.time < 30;
       this.music.setIntensity(match.state === 'suddendeath' || last || late ? 1 : 0);
     }
-    this.view.render();
   }
 }
 

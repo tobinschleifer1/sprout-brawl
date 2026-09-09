@@ -1,0 +1,168 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stage layouts</title>
+<style>
+  body { margin: 0; background: #12161d; color: #cbd3de; font: 13px ui-monospace, Menlo, monospace; padding: 16px 20px 60px; }
+  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #8fa0b4; margin: 0 0 4px; }
+  p.note { color: #6c7a8c; margin: 0 0 20px; max-width: 78ch; line-height: 1.55; }
+  #out { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px 22px; }
+  .stage { margin: 0; }
+  .hd { display: flex; align-items: baseline; gap: 12px; margin: 0 0 3px; }
+  .hd h2 { font-size: 15px; margin: 0; color: #e8edf4; }
+  .hd .arch { color: #ffd37a; font-size: 12px; }
+  .hd .rank { background: #2c4a2c; color: #8fd68f; padding: 1px 7px; border-radius: 99px; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+  .blurb { color: #7f8fa3; margin: 0 0 6px; }
+  .stats { color: #5f6d80; margin: 5px 0 0; font-size: 12px; }
+  .stats b { color: #9fb0c4; font-weight: normal; }
+  canvas { image-rendering: pixelated; border-radius: 4px; display: block; background: #0d1015; max-width: 100%; }
+  .legend { color: #5f6d80; margin: 0 0 18px; font-size: 12px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; vertical-align: -1px; margin: 0 3px 0 12px; border-radius: 2px; }
+</style>
+<h1>Stage layouts</h1>
+<p class="note">
+  All six stages to a common scale, with the movement envelope drawn on top. The dashed box is the
+  blast zone; the arc at each ledge is how far a double jump reaches from it, so anything outside
+  that arc is only recoverable with an up-special. Numbers are studs — a fighter is 5.2 tall and
+  covers ~23 studs a second on the ground.
+</p>
+<p class="legend">
+  <i style="background:#8A94A6"></i> solid ground (walls + ledges)
+  <i style="background:#B8894A"></i> drop-through shelf
+  <i style="background:#E8862E"></i> ledge
+  <i style="background:#59D9F2"></i> spawn
+  <i style="background:#FF7A3C"></i> hazard
+</p>
+<div id="out"></div>
+
+<script type="module">
+import { STAGES } from './src/data/stages/index.js';
+import { StageRuntime } from './src/engine/stage.js';
+
+// Measured in test/stages.test.mjs by flying each weapon; the worst case across the roster.
+const JUMP_UP = 25.4, JUMP_ACROSS = 24.7;
+const SCALE = 1.95;                      // px per stud: sized so a whole stage fits on screen
+const out = document.getElementById('out');
+
+for (const data of STAGES) {
+  const st = new StageRuntime(data);
+  const b = st.blast;
+  const W = Math.round((b.right - b.left) * SCALE) + 2;
+  const H = Math.round((b.top - b.bottom) * SCALE) + 2;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'stage';
+  const solids = st.solids.slice().sort((a, c) => a.x1 - c.x1);
+  const gaps = [];
+  for (let i = 1; i < solids.length; i++) {
+    if (Math.abs(solids[i].top - solids[i - 1].top) > 6) continue;
+    const g = solids[i].x1 - solids[i - 1].x2;
+    if (g > 0.5) gaps.push(g.toFixed(0));
+  }
+  const left = Math.min(...solids.map((s) => s.x1)), right = Math.max(...solids.map((s) => s.x2));
+
+  wrap.innerHTML = `
+    <div class="hd"><h2>${data.name}</h2><span class="arch">${data.archetype}</span>
+      ${data.ranked ? '<span class="rank">ranked</span>' : ''}</div>
+    <div class="blurb">${data.blurb}</div>`;
+
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  c.style.width = W + 'px';
+  const x = c.getContext('2d');
+
+  // world -> canvas
+  x.setTransform(SCALE, 0, 0, -SCALE, 1 - b.left * SCALE, 1 + b.top * SCALE);
+
+  // A legibility palette, not the stage's own. This diagram exists to show SHAPE; drawing it in
+  // the stage's real colours hid grey shelves against a grey sky.
+  x.fillStyle = '#0d1015';
+  x.fillRect(b.left, b.bottom, b.right - b.left, b.top - b.bottom);
+
+  // height grid every 10 studs, so distances can be read off directly
+  x.strokeStyle = 'rgba(255,255,255,0.055)'; x.lineWidth = 0.22;
+  for (let hy = -40; hy <= b.top; hy += 10) {
+    x.beginPath(); x.moveTo(b.left, hy); x.lineTo(b.right, hy); x.stroke();
+  }
+  x.strokeStyle = 'rgba(255,255,255,0.14)';
+  x.beginPath(); x.moveTo(b.left, 0); x.lineTo(b.right, 0); x.stroke();
+
+  // blast zone
+  x.strokeStyle = 'rgba(255,90,90,0.8)'; x.lineWidth = 0.55; x.setLineDash([3, 3]);
+  x.strokeRect(b.left, b.bottom, b.right - b.left, b.top - b.bottom);
+  x.setLineDash([]);
+
+  // double-jump reach from each ledge: outside this, you need an up-special
+  for (const L of st.ledges) {
+    x.strokeStyle = 'rgba(120,220,255,0.28)'; x.lineWidth = 0.35;
+    x.beginPath(); x.arc(L.x, L.y, JUMP_ACROSS, 0, Math.PI * 2); x.stroke();
+  }
+
+  // hazards, behind the geometry
+  for (const h of data.hazards) {
+    x.fillStyle = 'rgba(255,110,60,0.30)';
+    if (h.type === 'vents') for (const px of h.positions) x.fillRect(px - h.width / 2, st.main.top, h.width, 15);
+    if (h.type === 'tide') { x.fillStyle = 'rgba(90,200,240,0.22)'; x.fillRect(b.left, b.bottom, b.right - b.left, h.high - b.bottom); }
+    if (h.type === 'dustdevil') x.fillRect(left, st.main.top, right - left, h.height);
+    if (h.type === 'sprinkler') x.fillRect(left, st.main.top, right - left, 26);
+  }
+
+  // solids: bright, with a hard outline
+  for (const sp of st.solids) {
+    const depth = sp === st.main ? (sp.top - b.bottom) : Math.max(sp.thickness, 5);
+    x.fillStyle = '#8A94A6'; x.fillRect(sp.x1, sp.top - depth, sp.x2 - sp.x1, depth);
+    x.fillStyle = '#D6DEE9'; x.fillRect(sp.x1, sp.top - 1.6, sp.x2 - sp.x1, 1.6);
+    x.strokeStyle = '#050709'; x.lineWidth = 0.3;
+    x.strokeRect(sp.x1, sp.top - depth, sp.x2 - sp.x1, depth);
+  }
+
+  // shelves: amber, so they never read as solid ground
+  for (const p of st.platforms) {
+    if (p.solid) continue;
+    const th = Math.max(p.thickness || 1, 1.6);
+    x.fillStyle = '#D8974A'; x.fillRect(p.x1, p.top - th, p.x2 - p.x1, th);
+    x.strokeStyle = '#050709'; x.lineWidth = 0.3;
+    x.strokeRect(p.x1, p.top - th, p.x2 - p.x1, th);
+    if (p.moving) {
+      const M = p.moving;
+      x.strokeStyle = 'rgba(255,220,140,0.55)'; x.lineWidth = 0.35; x.setLineDash([2, 2]);
+      if (M.x) { x.beginPath(); x.moveTo(M.x.from, p.top); x.lineTo(M.x.to, p.top); x.stroke(); }
+      if (M.y) { x.beginPath(); x.moveTo(p.cx, M.y.from); x.lineTo(p.cx, M.y.to); x.stroke(); }
+      x.setLineDash([]);
+    }
+    if (p.sinking) { x.fillStyle = '#2A1A10'; for (let i = p.x1 + 1.5; i < p.x2 - 1.5; i += 3) x.fillRect(i, p.top - th - 1.4, 1.3, 1.1); }
+  }
+
+  // ledges
+  x.fillStyle = '#E8862E';
+  for (const L of st.ledges) x.fillRect(L.x - 1.1, L.y - 3, 2.2, 3);
+
+  // spawns, drawn at fighter height so scale is obvious
+  x.fillStyle = 'rgba(89,217,242,0.85)';
+  data.spawns.slice(0, 4).forEach((sx) => x.fillRect(sx - 1.05, 0, 2.1, 5.2));
+
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  // height labels down the left edge
+  x.fillStyle = '#4d5b6d'; x.font = '8px ui-monospace, monospace';
+  for (let hy = -40; hy <= b.top; hy += 20) {
+    x.fillText(String(hy), 3, (b.top - hy) * SCALE + 4);
+  }
+  // the stage's real colours, as a swatch strip, since the diagram no longer shows them
+  const sw = [data.palette.sky, data.palette.backdrop, data.palette.ground, data.palette.groundTop, data.palette.platform, data.palette.accent];
+  sw.forEach((col, i) => { x.fillStyle = col; x.fillRect(W - 8 - (sw.length - i) * 13, 6, 12, 12); });
+  x.fillStyle = '#4d5b6d'; x.fillText('palette', W - 8 - sw.length * 13 - 44, 16);
+  wrap.appendChild(c);
+
+  const stats = document.createElement('div');
+  stats.className = 'stats';
+  stats.innerHTML =
+    `<b>width</b> ${(right - left).toFixed(0)} · ` +
+    `<b>solids</b> ${st.solids.length} · <b>shelves</b> ${st.platforms.filter((p) => !p.solid).length} · ` +
+    `<b>ledges</b> ${st.ledges.length} · ` +
+    `<b>gaps</b> ${gaps.length ? gaps.join(', ') + ' studs' : 'none'} · ` +
+    `<b>shelf heights</b> ${st.platforms.filter((p) => !p.solid).map((p) => p.top.toFixed(0)).join('/') || 'none'} · ` +
+    `<b>side room</b> ${(left - b.left).toFixed(0)}/${(b.right - right).toFixed(0)} · ` +
+    `<b>ceiling</b> ${b.top} · <b>hazard</b> ${data.hazards.map((h) => h.type).join(',') || 'none'}`;
+  wrap.appendChild(stats);
+  out.appendChild(wrap);
+}
+</script>

@@ -5,6 +5,7 @@ import { ITEMS, ITEM_LIST } from '../data/items.js';
 const overlap = (a, b) => a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
 const rectFrom = (cx, cy, w, h) => ({ x1: cx - w / 2, x2: cx + w / 2, y1: cy - h / 2, y2: cy + h / 2, cx, cy, w, h });
 const sign = (v) => (v < 0 ? -1 : 1);
+const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 const DIVE_MOVE = { id: 'GroundPound', label: 'Ground Pound', ...GROUND_POUND.dive, heavy: true, kind: 'melee', hitboxes: [{ frames: [1, 999], ...GROUND_POUND.dive.hitbox }] };
 const LEDGE_ATTACK = { id: 'LedgeAttack', label: 'Ledge Attack', damage: LEDGE.options.attack.damage, base: LEDGE.options.attack.base, growth: LEDGE.options.attack.growth, angle: LEDGE.options.attack.angle, kind: 'melee', hitboxes: [LEDGE.options.attack.hitbox] };
@@ -24,6 +25,17 @@ export class Combat {
   emit(e) { this.events.push(e); }
   sameTeam(a, b) { return a.team === b.team; }
   enemiesOf(f) { return this.fighters.filter((v) => v !== f && v.alive && !this.sameTeam(f, v)); }
+  // Nearest living enemy, by straight-line distance. Ultimates that pick their own victims all
+  // want the same answer, and all of them want it again later if that victim dies mid-move.
+  nearestEnemy(f, range = Infinity, exclude = null) {
+    let best = null, bd = range;
+    for (const v of this.enemiesOf(f)) {
+      if (v.untouchable || (exclude && exclude.includes(v))) continue;
+      const d = Math.hypot(v.x - f.x, v.cy - f.cy);
+      if (d <= bd) { bd = d; best = v; }
+    }
+    return best;
+  }
 
   hitboxRect(f, hb) {
     const rm = f.rangeMul || 1;
@@ -103,7 +115,11 @@ export class Combat {
     // Shield
     if (victim.state === 'shield' && !move.unblockable && move.kind !== 'grab' && !opts.chip) {
       const perfect = victim.sf <= SHIELD.perfectFrames;
-      victim.applyBlock({ damage, facing: opts.facing ?? attacker.facing, perfect });
+      // An ultimate costs 20 landed hits and the whole meter, and dying wipes it. Holding one
+      // button should not be a clean answer: three of the four used to be blocked for 0% with
+      // most of a shield left. They now chew through a full shield instead.
+      const shieldDmg = damage * ((hb && hb.shieldDamageMul) || move.shieldDamageMul || 1);
+      victim.applyBlock({ damage: shieldDmg, facing: opts.facing ?? attacker.facing, perfect });
       if (direct) { attacker.hitlag = hitlagFor(damage, move.heavy); attacker.moveLanded = true; }
       this.emit({ type: 'block', x: cx, y: cy, perfect, victim: victim.index });
       return true;
@@ -124,9 +140,17 @@ export class Combat {
     const angle = hb && hb.angle != null ? hb.angle : move.angle;
     let launch = launchSpeed(base, growth, damage, victim.percent + damage, victim.weight) * (direct ? (attacker.launchMul || 1) : 1);
     if (opts.fixedLaunch != null) launch = opts.fixedLaunch;
+    // An ultimate does not just hit harder in the abstract - it multiplies the knockback the
+    // victim would already have taken at their current percent, so it stays a finisher at 120%
+    // instead of flattening into a fixed launch the way a raw `base` bump would.
+    launch *= (hb && hb.knockbackMul != null ? hb.knockbackMul : move.knockbackMul) || 1;
     const facing = move.behind ? -attacker.facing : (opts.facing ?? attacker.facing);
     const hl = hitlagFor(damage, move.heavy);
     if (direct) { attacker.hitlag = hl; attacker.moveLanded = true; }
+    // A projectile connecting also counts as the move landing, but only while its owner is still
+    // executing the move that fired it. Without this a ranged light can never open a combo string,
+    // because moveLanded (which gates chaining) was set by melee contact alone.
+    else if (opts.projectile && attacker.move === move) attacker.moveLanded = true;
     attacker.stats.damageDealt += damage;
     victim.applyHit({ damage, launch, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip });
     if (direct && move.onHit) {
@@ -142,6 +166,9 @@ export class Combat {
   }
 
   onHitLanded(attacker, victim, move, isMelee) {
+    // One landed hit, one point of ultimate charge - regardless of how much damage it did, so a
+    // fast light string charges as fast as a signature and pressure is what fills the bar.
+    if (attacker.chargeUltimate && move.id !== 'Ultimate') attacker.chargeUltimate(1);
     if (attacker.mech.id === 'Bloom') attacker.mech.hits.push(attacker.frameCount);
     if (victim.mech.id === 'Spines' && isMelee) { attacker.percent = Math.min(999, attacker.percent + victim.char.mechanic.recoil); this.emit({ type: 'recoil', x: attacker.x, y: attacker.cy }); }
   }
@@ -191,6 +218,16 @@ export class Combat {
       return;
     }
     f.chargeMods = null;
+    // The sniper stance is the one ultimate that is not a single committed swing: it paints a
+    // target and then waits for the player to pull the trigger, so the target has to be chosen
+    // the moment the stance opens rather than the moment a bullet leaves.
+    if (m.kind === 'sniper') {
+      f.ultTarget = this.nearestEnemy(f, m.sniper.range);
+      f.ultShots = m.sniper.shots;
+      f.ultCooldown = 0; f.ultEndAt = 0;
+      this.emit({ type: 'mark', x: f.x, y: f.cy, victim: f.ultTarget ? f.ultTarget.index : -1 });
+      return;
+    }
     if (m.kind === 'burst') { this.emit({ type: 'burst', x: f.x, y: f.y + 3, radius: 7, frames: m.active }); return; }
     if (m.kind === 'projectile') { this.spawnProjectile(f, m); return; }
     if (m.kind === 'summon') { this.spawnSummon(f, m); return; }
@@ -220,8 +257,140 @@ export class Combat {
       const p = m.projectile;
       const k = f.mf - f.startupEff - 1;
       if (k % p.every === 0 && f.volleyCount < p.count && f.mech.spines > 0) {
-        f.mech.spines--; f.volleyCount++;
-        this.spawnProjectile(f, m, { yJitter: (f.volleyCount - 3) * 0.35 });
+        f.mech.spines--;
+        f.volleyCount++;
+        this.spawnProjectile(f, m, { yJitter: (f.volleyCount - 3) * (p.spread || 0.35) });
+      }
+    } else if (m.kind === 'slam') {
+      // The overhead slam. The blade's own hitbox is authored in the move; what happens HERE is
+      // the impact: a crater that walks outward along the ground in both directions, so the kill
+      // zone is the floor around the landing point and not just the arc of the swing.
+      const C = m.crater;
+      const k = f.mf - f.startupEff - 1;
+      if (k < C.frame || (k - C.frame) % C.every !== 0) return;
+      const step = Math.floor((k - C.frame) / C.every);
+      if (step >= C.count) return;
+      const surf = this.surfaceUnder(f.x, f.y + 1.5);
+      const y = (surf ? surf.top : f.y) + 1.0;
+      const fade = 1 - step / C.count;                       // the shockwave loses bite as it travels
+      for (const dir of [-1, 1]) {
+        if (step === 0 && dir === -1) continue;              // one crater at the centre, not two
+        const x = f.x + dir * C.step * step;
+        this.spawnBurst(f, { id: 'Crater', x, y, damage: step === 0 ? C.damage : Math.max(4, Math.round(C.damage * fade)),
+          base: C.base, growth: C.growth, angle: C.angle, frames: 4, knockbackMul: C.knockbackMul,
+          size: [C.radius * 2, C.radius * (step === 0 ? 3.0 : 2.2)], heavy: true });
+        this.emit({ type: 'crater', x, y, radius: C.radius * (step === 0 ? 1.5 : 1), first: step === 0 });
+      }
+    } else if (m.kind === 'vortex') {
+      // Reach out, take hold of the two closest fighters, drag them into one point in front of
+      // you, and detonate that point. The pull is the move: the damage is trivial until the ball
+      // closes, and everything the victims can do about it they have to do before it does.
+      const V = m.vortex;
+      const k = f.mf - f.startupEff - 1;
+      const ox = f.x + f.facing * V.orbOffset[0], oy = f.y + V.orbOffset[1];
+      if (k === 0) {
+        f.ultHeld = [];
+        for (let i = 0; i < V.targets; i++) {
+          const v = this.nearestEnemy(f, V.range, f.ultHeld);
+          if (!v) break;
+          f.ultHeld.push(v);
+        }
+        if (f.ultHeld.length) this.emit({ type: 'soulgrab', x: ox, y: oy, victims: f.ultHeld.map((v) => v.index) });
+      }
+      const held = f.ultHeld || [];
+      if (k < V.holdFrames) {
+        for (let i = held.length - 1; i >= 0; i--) {
+          const v = held[i];
+          if (!v.alive || v.untouchable) { held.splice(i, 1); continue; }
+          // Mashing buys distance back. Twenty-two frames with no agency at all, ending in a
+          // kill, is not a thing a fighting game should contain - so every button press pushes
+          // the victim back out, and clearing the burst radius frees them outright.
+          if (v.buffer.jump > 0 || v.buffer.dodge > 0 || v.buffer.light > 0) {
+            v.ultEscape = Math.min(V.escapeCap, (v.ultEscape || 0) + V.escapePerPress);
+            v.buffer.jump = 0; v.buffer.dodge = 0; v.buffer.light = 0;
+          }
+          // Hard drag, but the victim's stick still bends where in the ball they end up, which
+          // decides the angle they eat when it goes off.
+          const dx = ox - v.x, dy = oy - v.cy;
+          const d = Math.hypot(dx, dy) || 1;
+          // Enough mashing turns the pull negative and the victim starts drifting back out.
+          const rate = (V.pullSpeed - (v.ultEscape || 0) * 6) * FRAME;
+          const step = rate >= 0 ? Math.min(d, rate) : rate;
+          v.x += (dx / d) * step + v.input.x * V.diPerFrame;
+          v.y += (dy / d) * step + v.input.y * V.diPerFrame;
+          v.vx = 0; v.vy = 0; v.onGround = false; v.platform = null;
+          v.hitstun = Math.max(v.hitstun, 3);
+          if (v.state !== 'hitstun') v.setState('hitstun');
+          f.moveLanded = true;
+          // Only a victim who has actually fought their way out is released - the check cannot
+          // fire on frame one, when everyone the scythe reached for is still standing where the
+          // grab found them and is legitimately outside the ball.
+          if ((v.ultEscape || 0) > 0 && Math.hypot(ox - v.x, oy - v.cy) > V.burst.radius * 1.6) {
+            held.splice(i, 1); v.ultEscape = 0;
+            this.emit({ type: 'soulescape', x: v.x, y: v.cy, victim: v.index });
+          }
+        }
+        this.emit({ type: 'soulorb', x: ox, y: oy, k: k / V.holdFrames, held: held.length });
+      } else if (k === V.holdFrames) {
+        const B = V.burst;
+        this.spawnBurst(f, { id: 'Ultimate', x: ox, y: oy, damage: B.damage, base: B.base, growth: B.growth,
+          angle: B.angle, frames: 4, size: [B.radius * 2, B.radius * 2], heavy: true,
+          knockbackMul: B.knockbackMul, shieldDamageMul: B.shieldDamageMul });
+        this.emit({ type: 'soulburst', x: ox, y: oy, radius: B.radius });
+        f.ultHeld = [];
+      }
+    } else if (m.kind === 'sniper') {
+      // One bullet per trigger pull, three in the magazine. The stance holds until the player
+      // spends them, which is why this reads the input buffer directly instead of firing on a
+      // fixed frame the way every other projectile move does.
+      const S = m.sniper;
+      if (!f.ultTarget || !f.ultTarget.alive) f.ultTarget = this.nearestEnemy(f, S.range);
+      if (f.ultTarget) f.facing = sign(f.ultTarget.x - f.x) || f.facing;
+      if (f.ultCooldown > 0) f.ultCooldown--;
+      if (f.ultEndAt) { if (f.mf >= f.ultEndAt) f.mf = f.startupEff + m.active; return; }
+      if (f.buffer.ult > 0 && f.ultShots > 0 && f.ultCooldown <= 0) {
+        f.buffer.ult = 0;
+        f.ultShots--;
+        f.ultCooldown = S.reload;
+        const P = S.projectile;
+        const pr = {
+          owner: f, move: m, x: f.x + P.spawnOffset[0] * f.facing, y: f.y + P.spawnOffset[1],
+          vx: f.facing * P.speed, vy: 0, w: P.size[0], h: P.size[1], life: P.lifetime, shape: 'tracer',
+          grounded: false, gravity: 0, hitVictims: new Set(), facing: f.facing, item: false,
+          ghost: true,                                   // a painted target is not saved by cover
+          homing: { target: f.ultTarget, turn: P.turn, speed: P.speed },
+        };
+        pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
+        this.projectiles.push(pr);
+        this.emit({ type: 'snipe', x: pr.x, y: pr.y, facing: f.facing, shotsLeft: f.ultShots });
+        if (f.ultShots <= 0) f.ultEndAt = f.mf + S.holdAfterLast;
+      }
+    } else if (m.kind === 'starfall') {
+      // Two orbs for everyone. Aimed at where each enemy IS, not where the caster is looking, so
+      // a four-player match turns into eight tracking orbs and nowhere on the stage is quiet.
+      const S = m.starfall;
+      const k = f.mf - f.startupEff - 1;
+      if (k % S.every !== 0) return;
+      const wave = k / S.every;
+      if (wave >= S.perTarget) return;
+      for (const v of this.enemiesOf(f)) {
+        if (v.untouchable) continue;
+        const jitter = (Math.random() - 0.5) * S.jitter + (wave ? v.vx * 0.18 : 0);
+        const pr = {
+          owner: f, move: m, x: v.x + jitter, y: v.cy + S.height,
+          vx: 0, vy: -S.speed, w: S.size, h: S.size, life: 200, shape: 'orb',
+          grounded: false, gravity: 0, hitVictims: new Set(), facing: 1, item: false, falling: true,
+          homing: { target: v, turn: S.turn, speed: S.speed, axis: 'x' },
+          explode: { id: 'Ultimate', damage: S.damage, base: S.base, growth: S.growth, angle: S.angle,
+            radius: S.radius, knockbackMul: S.knockbackMul, shieldDamageMul: S.shieldDamageMul,
+            // The first wave is the shield check; the second punishes you for still being in it.
+            // Two blockable orbs left a full shield at 16/50, which made "hold guard" a clean
+            // answer to a whole meter.
+            unblockable: wave > 0, hitsOwner: false, fx: 'star' },
+        };
+        pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
+        this.projectiles.push(pr);
+        this.emit({ type: 'starfall', x: pr.x, y: pr.y, target: v.index });
       }
     } else if (m.kind === 'field') {
       const F = m.field;
@@ -277,14 +446,47 @@ export class Combat {
       const p = this.projectiles[i];
       const px = p.x, py = p.y;
       if (p.gravity) p.vy -= p.gravity * FRAME;
+      // Homing. A tracked round steers toward its mark at a fixed turn rate rather than snapping
+      // to it, so it still reads as a bullet in flight and can still be walked out of at range.
+      if (p.homing && p.homing.target) {
+        const tg = p.homing.target;
+        // Tracking expires. Without this a sniper round chased a launched victim indefinitely and
+        // every ordinary hit converted into a stock: correct DI has to be able to leave the cone.
+        if (p.homing.expireAfter !== undefined && --p.homing.expireAfter <= 0) p.homing = null;
+        else if (!tg.alive) p.homing = null;
+        else {
+          const H = p.homing;
+          if (H.axis === 'x') {
+            p.vx += clamp((tg.x - p.x) * H.turn, -H.speed * 0.6, H.speed * 0.6) - p.vx * 0.12;
+          } else {
+            const dx = tg.x - p.x, dy = tg.cy - p.y;
+            const d = Math.hypot(dx, dy) || 1;
+            const wx = (dx / d) * H.speed, wy = (dy / d) * H.speed;
+            const blend = Math.min(1, H.turn * FRAME);
+            p.vx += (wx - p.vx) * blend; p.vy += (wy - p.vy) * blend;
+          }
+        }
+      }
       p.x += p.vx * FRAME; p.y += p.vy * FRAME; p.life--;
       p.rect = rectFrom(p.x, p.y, p.w, p.h);
       this.debugBoxes.push({ rect: p.rect, kind: 'proj' });
       let dead = p.life <= 0;
-      // stage body
-      const inMain = p.x > m.x1 && p.x < m.x2 && p.y < m.top && p.y > m.bottom;
-      if (inMain && !p.grounded) { dead = true; if (p.explode) this.explode(p); }
-      // landing for lobbed items
+      // Stage body: every solid stops a shot, not just the main floor. This is what makes a tower
+      // or a mesa actual cover instead of scenery.
+      if (!p.grounded && !p.ghost) {
+        for (const sp of this.stage.solids) {
+          if (p.x > sp.x1 && p.x < sp.x2 && p.y < sp.top && p.y > sp.bottom) {
+            dead = true;
+            if (p.falling) p.y = sp.top + 0.6;             // burst ON the floor, not inside it
+            if (p.explode) this.explode(p);
+            else this.emit({ type: 'projectilebreak', x: p.x, y: p.y });
+            break;
+          }
+        }
+      }
+      // Landing for lobbed items. Falling orbs are deliberately NOT in here: a drop-through
+      // shelf is not something energy from the sky stops on, and bursting on the grating above
+      // meant nobody standing under one could ever be hit.
       if (p.gravity && p.vy <= 0) {
         for (const pl of this.stage.platforms) {
           if (p.x > pl.x1 && p.x < pl.x2 && py >= pl.top - 0.2 && p.y < pl.top + 0.2) { dead = true; if (p.explode) this.explode(p); break; }
@@ -316,13 +518,13 @@ export class Combat {
 
   explode(p) {
     const e = p.explode;
-    this.spawnBurst(p.owner, { x: p.x, y: p.y, damage: e.damage, base: e.base, growth: e.growth, angle: e.angle, frames: 3, size: [e.radius * 2, e.radius * 2], heavy: true, hitsOwner: true });
-    this.emit({ type: 'explosion', x: p.x, y: p.y, radius: e.radius });
+    this.spawnBurst(p.owner, { id: e.id, x: p.x, y: p.y, damage: e.damage, base: e.base, growth: e.growth, angle: e.angle, frames: 3, size: [e.radius * 2, e.radius * 2], heavy: true, hitsOwner: e.hitsOwner !== false, knockbackMul: e.knockbackMul, shieldDamageMul: e.shieldDamageMul, unblockable: e.unblockable });
+    this.emit({ type: 'explosion', x: p.x, y: p.y, radius: e.radius, kind: e.fx || null });
   }
 
   // ---------- bursts (instant area hits) ----------
   spawnBurst(owner, b) {
-    const burst = { owner, x: b.x, y: b.y, frames: b.frames || 3, move: { id: b.id || 'Burst', damage: b.damage, base: b.base, growth: b.growth, angle: b.angle, heavy: !!b.heavy, kind: 'melee', applies: b.applies }, hitVictims: new Set(), rect: rectFrom(b.x, b.y, b.size[0], b.size[1]), hitsOwner: !!b.hitsOwner };
+    const burst = { owner, x: b.x, y: b.y, frames: b.frames || 3, move: { id: b.id || 'Burst', damage: b.damage, base: b.base, growth: b.growth, angle: b.angle, heavy: !!b.heavy, kind: 'melee', applies: b.applies, knockbackMul: b.knockbackMul, shieldDamageMul: b.shieldDamageMul, unblockable: b.unblockable }, hitVictims: new Set(), rect: rectFrom(b.x, b.y, b.size[0], b.size[1]), hitsOwner: !!b.hitsOwner };
     this.bursts.push(burst);
     return burst;
   }
@@ -378,7 +580,8 @@ export class Combat {
       const cloud = { type: 'cloud', owner: f, x, y, r: s.radius * rm, vx: f.facing * s.speed, drift: s.driftFrames, life: s.lifetime, tickEvery: s.tickEvery, ticks: new Map(), slow: s.slow, rect: rectFrom(x, y, s.radius * 2, s.radius * 2), destructible: false };
       this.summons.push(cloud);
     } else if (s.type === 'mine') {
-      const mine = { type: 'mine', owner: f, x: f.x + s.offset[0] * f.facing, y: f.y, hp: s.hp, life: s.lifetime, trigger: s.trigger, radius: s.radius, armed: 20, destructible: true };
+      const mine = { type: 'mine', owner: f, x: f.x + s.offset[0] * f.facing, y: f.y, hp: s.hp, life: s.lifetime, trigger: s.trigger, radius: s.radius, armed: 20, destructible: true,
+        blast: { damage: 12, base: 26, growth: 4.0, angle: 70, ...(s.blast || {}) } };
       const surf = this.surfaceUnder(mine.x, f.y + 1);
       if (surf) mine.y = surf.top;
       mine.rect = rectFrom(mine.x, mine.y + 0.8, 1.6, 1.6);
@@ -432,7 +635,7 @@ export class Combat {
           for (const v of this.enemiesOf(s.owner)) {
             if (v.untouchable) continue;
             if (Math.hypot(v.x - s.x, v.cy - (s.y + 1)) <= s.trigger + v.r) {
-              this.spawnBurst(s.owner, { x: s.x, y: s.y + 1, damage: 12, base: 26, growth: 4.0, angle: 70, frames: 3, size: [s.radius * 2, s.radius * 2], heavy: true });
+              this.spawnBurst(s.owner, { x: s.x, y: s.y + 1, ...s.blast, frames: 3, size: [s.radius * 2, s.radius * 2], heavy: true });
               this.emit({ type: 'explosion', x: s.x, y: s.y + 1, radius: s.radius });
               this.removeSummon(s); break;
             }

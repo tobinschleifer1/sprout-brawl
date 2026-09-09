@@ -8,8 +8,9 @@ export class StageRuntime {
     this.blast = { ...data.blast };
     this.platforms = [];
     const m = data.main;
-    this.main = { id: 'main', solid: true, x1: m.x1, x2: m.x2, top: m.y, bottom: m.y - m.thickness, cx: (m.x1 + m.x2) / 2, w: m.x2 - m.x1, dx: 0, dy: 0 };
+    this.main = { id: 'main', solid: true, x1: m.x1, x2: m.x2, top: m.y, bottom: m.y - m.thickness, cx: (m.x1 + m.x2) / 2, w: m.x2 - m.x1, dx: 0, dy: 0, ledges: m.ledges === undefined ? true : m.ledges };
     this.platforms.push(this.main);
+    this.solids = [this.main];
     for (const p of data.platforms) {
       // A `moving` spec can carry an `x` range, a `y` range, or both, each with its own period
       // and phase, so an island can slide, bob, or drift in a slow loop. The old flat
@@ -18,16 +19,30 @@ export class StageRuntime {
       if (p.moving) {
         move = p.moving.x || p.moving.y ? p.moving : { x: p.moving };
       }
-      this.platforms.push({ id: p.id, solid: false, soft: true, cx: p.x, cy: p.y, baseY: p.y, w: p.w,
-        x1: p.x - p.w / 2, x2: p.x + p.w / 2, top: p.y, bottom: p.y - 1, dx: 0, dy: 0,
-        thickness: p.thickness || 1, tris: p.tris || null,
+      const thickness = p.thickness || (p.solid ? 5 : 1);
+      const built = { id: p.id, solid: !!p.solid, soft: !p.solid, cx: p.x, cy: p.y, baseY: p.y, w: p.w,
+        x1: p.x - p.w / 2, x2: p.x + p.w / 2, top: p.y, bottom: p.y - thickness, dx: 0, dy: 0,
+        thickness, tris: p.tris || null,
         moving: move, bobPhase: Math.random() * Math.PI * 2,
-        sinking: !!p.sinking, sink: 0, occupiedFrames: 0 });
+        sinking: !!p.sinking, sink: 0, occupiedFrames: 0,
+        // A solid can opt out of being grabbable, for blocks you are meant to fight on top of
+        // rather than hang off.
+        ledges: p.solid ? (p.ledges === undefined ? true : p.ledges) : false };
+      this.platforms.push(built);
+      if (built.solid) this.solids.push(built);
     }
-    this.ledges = [
-      { x: m.x1, y: m.y, side: -1 },
-      { x: m.x2, y: m.y, side: 1 },
-    ];
+    // Ledges, per edge. `ledges: false` gives none (a block you fight on top of); `ledges: 'outer'`
+    // gives only the edge facing away from stage centre, which is what makes a pit between two
+    // islands actually dangerous instead of the safest place to be knocked into.
+    this.ledges = [];
+    const centre = (Math.min(...this.solids.map((s) => s.x1)) + Math.max(...this.solids.map((s) => s.x2))) / 2;
+    for (const sp of this.solids) {
+      const mode = sp === this.main ? (sp.ledges === undefined ? true : sp.ledges) : sp.ledges;
+      if (!mode) continue;
+      const outerIsRight = sp.cx >= centre;
+      if (mode !== 'outer' || !outerIsRight) this.ledges.push({ x: sp.x1, y: sp.top, side: -1, platform: sp });
+      if (mode !== 'outer' || outerIsRight) this.ledges.push({ x: sp.x2, y: sp.top, side: 1, platform: sp });
+    }
     this.hazards = data.hazards.map((h) => ({ ...h, state: {} }));
     this.waterLevel = null;
     this.events = [];
@@ -84,7 +99,7 @@ export class StageRuntime {
       this.visual.vents = { phase: s.phase, positions: h.positions, width: h.width };
       if (s.phase === 'erupt') {
         for (const f of match.fighters) {
-          if (!f.alive || !f.onGround || f.platform !== this.main) continue;
+          if (!f.alive || !f.onGround || !f.platform || !f.platform.solid) continue;
           if (h.positions.some((px) => Math.abs(f.x - px) < h.width / 2 + f.r)) f.launchNoStun(0, h.launch);
         }
       }
@@ -99,7 +114,10 @@ export class StageRuntime {
         s.phase = 'sweep'; s.x = x;
         for (const f of match.fighters) {
           if (!f.alive || f.onGround) continue;
-          if (Math.abs(f.x - x) < 6) f.vx += (h.push * 4) * FRAME;
+          // Bounded to the drawn column. It used to act over 12 studs with no vertical limit at
+          // all, so it shoved players recovering far below the stage, outward, invisibly.
+          if (f.y < -6 || f.y > 22) continue;
+          if (Math.abs(f.x - x) < 3) f.vx += Math.sign(f.x - x || 1) * (h.push * 4) * FRAME;
         }
       } else if (t >= tickStart) { s.phase = 'tick'; } else { s.phase = 'idle'; }
       this.visual.sprinkler = { phase: s.phase, x: s.x || 0 };
@@ -145,8 +163,20 @@ export class StageRuntime {
   }
 
   // Sudden death: shrink all four sides toward the origin.
+  // Sudden death closes the blast box in. It must never close past the stage itself, or there is
+  // solid ground sitting outside the kill boundary and a fighter standing on it dies for nothing.
   shrink(factor) {
-    this.blast.left *= factor; this.blast.right *= factor; this.blast.top *= factor; this.blast.bottom *= factor;
+    let l = Infinity, r = -Infinity, t = -Infinity;
+    for (const sp of this.solids) { l = Math.min(l, sp.x1); r = Math.max(r, sp.x2); t = Math.max(t, sp.top); }
+    for (const p of this.platforms) t = Math.max(t, p.top);
+    const SIDE = 14;
+    // The ceiling margin has to clear a double jump (25.4 studs) or late sudden death makes
+    // jumping suicide.
+    const ROOF = 30;
+    this.blast.left = Math.min(this.blast.left * factor, l - SIDE);
+    this.blast.right = Math.max(this.blast.right * factor, r + SIDE);
+    this.blast.top = Math.max(this.blast.top * factor, t + ROOF);
+    this.blast.bottom *= factor;
   }
 
   outsideBlast(f) {
@@ -159,12 +189,19 @@ export class StageRuntime {
   collide(f, px, py, nx, ny) {
     const r = f.r, h = f.h;
     let x = nx, y = ny, landed = null, wall = false, bumped = false;
-    const m = this.main;
-    // Horizontal against the main platform's sides
+    // Horizontal against every solid's sides
     const bodyBottom = Math.min(py, ny), bodyTop = Math.max(py, ny) + h;
-    if (bodyBottom < m.top - 0.05 && bodyTop > m.bottom) {
-      if (px <= m.x1 - r + 0.001 && x > m.x1 - r) { x = m.x1 - r; wall = true; }
-      else if (px >= m.x2 + r - 0.001 && x < m.x2 + r) { x = m.x2 + r; wall = true; }
+    for (const sp of this.solids) {
+      if (!(bodyBottom < sp.top - 0.05 && bodyTop > sp.bottom)) continue;
+      if (px <= sp.x1 - r + 0.001 && x > sp.x1 - r) { x = sp.x1 - r; wall = true; }
+      else if (px >= sp.x2 + r - 0.001 && x < sp.x2 + r) { x = sp.x2 + r; wall = true; }
+      else if (sp.dx && x > sp.x1 - r && x < sp.x2 + r) {
+        // Only for a solid that MOVED this frame: it drove into a fighter who never moved into it,
+        // so nothing above catches it. Eject out the nearer face. Restricted to moving solids
+        // because a static one overlapping here is just a fighter landing on top of it.
+        x = (x - sp.cx < 0) ? sp.x1 - r : sp.x2 + r;
+        wall = true;
+      }
     }
     // Vertical
     if (f.vy <= 0 || ny < py) {
@@ -176,8 +213,10 @@ export class StageRuntime {
         if (py >= prevTop - 0.05 && y < p.top) { y = p.top; landed = p; }
       }
     } else if (f.vy > 0) {
-      const inside = x + r * 0.6 > m.x1 && x - r * 0.6 < m.x2;
-      if (inside && py + h <= m.bottom && y + h > m.bottom) { y = m.bottom - h; bumped = true; }
+      for (const sp of this.solids) {
+        const inside = x + r * 0.6 > sp.x1 && x - r * 0.6 < sp.x2;
+        if (inside && py + h <= sp.bottom && y + h > sp.bottom) { y = sp.bottom - h; bumped = true; break; }
+      }
     }
     return { x, y, landed, wall, bumped };
   }

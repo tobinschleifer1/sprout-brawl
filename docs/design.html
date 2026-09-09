@@ -1,4 +1,4 @@
-<title>Sprout Brawl</title>
+<title>Blockfall</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
@@ -98,8 +98,8 @@ pre.diagram{background:var(--sheet);color:var(--ink);border:1px solid var(--line
   <div class="masthead-inner">
     <div>
       <div class="eyebrow">Design &amp; production document · working title</div>
-      <h1>Sprout Brawl</h1>
-      <p>An original 2.5D platform fighter about plants, fungi and the small things that live among them. Modelled in Blender, shipped in Roblox Studio, played on PC, controller and touch.</p>
+      <h1>Blockfall</h1>
+      <p>A 2D platform fighter. The player&rsquo;s Roblox avatar is cosmetic; the weapon defines the moveset. Shipping in Roblox Studio, played on PC, controller and touch.</p>
     </div>
     <dl class="meta">
       <dt>Version</dt><dd>0.1 pre-production</dd>
@@ -113,6 +113,7 @@ pre.diagram{background:var(--sheet);color:var(--ink);border:1px solid var(--line
 <div class="page">
 <nav class="toc" aria-label="Contents">
   <ol>
+    <li><a href="#s0"><strong>0 · Amendment: avatar + weapon</strong></a></li>
     <li><a href="#s1">1 · Core concept and mechanics</a></li>
     <li><a href="#s2">2 · Roster</a>
       <ol>
@@ -133,6 +134,51 @@ pre.diagram{background:var(--sheet);color:var(--ink);border:1px solid var(--line
 </nav>
 
 <main>
+
+<h2 id="s0"><span class="num">0</span>Amendment: avatar + weapon</h2>
+
+<p><strong>This section supersedes the parts of &sect;1 and &sect;2 that treat a character as the unit of identity.</strong>
+The game has moved to the Brawlhalla model: the player&rsquo;s Roblox avatar is <em>cosmetic only</em>, and the
+<strong>weapon</strong> they pick defines the entire moveset, combo tree, mechanic and stat spread. The eight plant
+characters in &sect;2 are retained below as design reference and are no longer the shipping roster.</p>
+
+<p>Everything else in this document still holds. Knockback, hitstun, blockstun, hitlag, DI, teching, shields, ledges,
+grabs, stages, blast zones, items and match formats are unchanged &mdash; the weapon system is a data layer composed on top
+of the same engine, so <code>engine/fighter.js</code>, <code>combat.js</code> and <code>match.js</code> never learn that
+weapons exist.</p>
+
+<h3>What changed</h3>
+<table>
+<tr><th>Was (&sect;1&ndash;&sect;2)</th><th>Now</th></tr>
+<tr><td>Character carries stats, moves and mechanic</td><td>The weapon carries all three. Every avatar shares one stat line (<code>data/avatars.js</code>, <code>BASE</code>); weapons apply <code>stats.set</code> / <code>stats.mul</code> on top.</td></tr>
+<tr><td>Three aerials: neutral, forward, down</td><td><strong>Four.</strong> An up-air was added. Without it there is no juggle tool, so nothing sets up a vertical KO and every up-angled signature is stranded above 140%.</td></tr>
+<tr><td>Two signatures: side, down</td><td><strong>Three.</strong> A neutral signature was added (Heavy with no direction held).</td></tr>
+<tr><td>Light strings chain along one fixed path</td><td>Strings branch on the direction held for the follow-up (neutral / side / up / down), and terminal lights cash out into a signature with Heavy.</td></tr>
+<tr><td>Landing ends hitstun</td><td>Landing <strong>halves</strong> the remaining hitstun and serves it out standing. Zeroing it cut every ground-to-ground combo short by the victim&rsquo;s remaining airtime.</td></tr>
+<tr><td>Up + Light unbound on the ground</td><td>Starts the up-light. Previously the up-light was reachable only as a chain link, which stranded any weapon whose kill confirm ran through it.</td></tr>
+</table>
+
+<h3>The four weapons</h3>
+<table>
+<tr><th>Weapon</th><th>Archetype</th><th>Weight</th><th>Run / Air</th><th>Mechanic</th><th>Recovery</th><th>Signature KO</th></tr>
+<tr><td>Sword</td><td>All-rounder</td><td>100</td><td>23.0 / 18.0</td><td>Momentum &mdash; 60 frames of running buys +1 damage and &times;1.01 launch on the next <em>signature</em>; a light does not burn it</td><td>hop</td><td>Crescent Rush 111%</td></tr>
+<tr><td>Scythe</td><td>Reach / combo</td><td>96</td><td>20.7 / 16.6</td><td>Bloom &mdash; 5 hits inside 240 frames, then +3 damage and &times;1.3 range on the next heavy</td><td>tether</td><td>Reaper&rsquo;s Arc 113% at the tip, 122% at the handle</td></tr>
+<tr><td>Blasters</td><td>Zoner</td><td>90</td><td>24.4 / 19.4</td><td>Magazine &mdash; 6 rounds, one back every 45 frames; each ranged light costs 1, Full Auto costs the magazine</td><td>puff, low and wide</td><td>Scattergun 140%</td></tr>
+<tr><td>Grimoire</td><td>Heavy zoner</td><td>108</td><td>21.2 / 16.9</td><td>Light &mdash; charges only while standing perfectly still; 3 segments cut Starfall&rsquo;s 26-frame windup to 5</td><td>puff, high and narrow</td><td>Runebrand 120%</td></tr>
+</table>
+
+<h3>Rule: a confirm must be measured, not derived</h3>
+
+<p>Frame data alone does not tell you whether a cash-out connects. The engine also ends hitstun on landing, requires the
+follow-up to physically reach, and gives the victim spot-dodge invincibility on frames 3&ndash;14. An earlier pass of this
+system shipped twenty advertised light&rarr;signature routes of which <strong>ten were escapable at every percent</strong>,
+because the test compared hitstun to startup and nothing else &mdash; it certified the model against itself.</p>
+
+<p>Every confirm percentage quoted in <code>data/weapons/*.js</code> is now produced by <code>confirmsAt()</code> in
+<code>web/test/balance.mjs</code>, which runs an actual match: it lands the opener, chains the follow-up, and has the victim
+dodge on their first actionable frame. <code>web/test/combo.test.mjs</code> fails the build if any advertised route stops
+connecting, or if a weapon loses its kill confirm. A route that only lands because a projectile is still in flight, or
+because a mine armed seconds later, does not count &mdash; the follow-up must land inside its own window.</p>
 
 <h2 id="s1"><span class="num">1</span>Core concept and mechanics</h2>
 

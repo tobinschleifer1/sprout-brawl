@@ -1,8 +1,11 @@
-import { CHARACTERS } from '../data/characters/index.js';
+import { WEAPONS } from '../data/weapons/index.js';
+import { AVATARS } from '../data/avatars.js';
+import { buildLoadout } from '../data/loadout.js';
 import { STAGES } from '../data/stages/index.js';
 import { BINDINGS_TEXT } from '../engine/input.js';
 import { PLAYER_COLORS, PLAYER_MARKS } from './hud.js';
 import { onBlock } from '../engine/knockback.js';
+import { TITLE, TAGLINE, SUBTITLE, SAVE_KEY } from '../data/branding.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const SLOT_TYPES = [['off', 'Off'], ['kb1', 'Keyboard 1'], ['kb2', 'Keyboard 2'], ['pad0', 'Gamepad 1'], ['pad1', 'Gamepad 2'], ['pad2', 'Gamepad 3'], ['pad3', 'Gamepad 4'], ['bot-easy', 'Bot · Easy'], ['bot-normal', 'Bot · Normal'], ['bot-hard', 'Bot · Hard']];
@@ -24,8 +27,11 @@ export class Menus {
     this.h = handlers;
     this.config = this._defaultConfig();
     this.settings = { hitboxes: false, music: 0.6, sfx: 0.8, shake: true };
-    try { const s = JSON.parse(localStorage.getItem('sprout-settings') || 'null'); if (s) Object.assign(this.settings, s); } catch (e) { /* ignore */ }
-    try { const c = JSON.parse(localStorage.getItem('sprout-config') || 'null'); if (c && c.slots) this.config = { ...this.config, ...c }; } catch (e) { /* ignore */ }
+    try { const s = JSON.parse(localStorage.getItem(SAVE_KEY + '-settings') || 'null'); if (s) Object.assign(this.settings, s); } catch (e) { /* ignore */ }
+    try {
+      const c = JSON.parse(localStorage.getItem(SAVE_KEY + '-config') || 'null');
+      if (c && c.slots && c.slots.every((sl) => sl.weaponId)) this.config = { ...this.config, ...c };
+    } catch (e) { /* ignore */ }
     this.screen = 'title';
     this.root.addEventListener('click', (e) => this._click(e));
     this.root.addEventListener('change', (e) => this._change(e));
@@ -33,11 +39,14 @@ export class Menus {
   }
 
   _defaultConfig() {
-    return { mode: 'StockFFA', stocks: 3, time: 180, items: true, stageId: 'PottingBench',
-      slots: [ { type: 'kb1', charId: 'Duststorm', skin: 0, team: 0 }, { type: 'bot-normal', charId: 'Thornlock', skin: 0, team: 1 }, { type: 'off', charId: 'CapnSpore', skin: 0, team: 0 }, { type: 'off', charId: 'Frostbud', skin: 0, team: 1 } ] };
+    return { mode: 'StockFFA', stocks: 3, time: 180, items: true, stageId: 'FoundryFloor',
+      slots: [ { type: 'kb1', weaponId: 'Sword', avatarId: 'Classic', team: 0 },
+               { type: 'bot-normal', weaponId: 'Scythe', avatarId: 'Noir', team: 1 },
+               { type: 'off', weaponId: 'Blasters', avatarId: 'Ember', team: 0 },
+               { type: 'off', weaponId: 'Grimoire', avatarId: 'Moss', team: 1 } ] };
   }
 
-  save() { try { localStorage.setItem('sprout-config', JSON.stringify(this.config)); localStorage.setItem('sprout-settings', JSON.stringify(this.settings)); } catch (e) { /* ignore */ } }
+  save() { try { localStorage.setItem(SAVE_KEY + '-config', JSON.stringify(this.config)); localStorage.setItem(SAVE_KEY + '-settings', JSON.stringify(this.settings)); } catch (e) { /* ignore */ } }
 
   show(screen) { this.screen = screen; this.root.classList.remove('hidden'); this.render(); }
   hide() { this.root.classList.add('hidden'); }
@@ -53,14 +62,14 @@ export class Menus {
 
   _title() {
     return `<div class="screen title"><div class="title-card">
-      <div class="eyebrow">A platform fighter about plants, fungi and the small things between them</div>
-      <h1>Sprout Brawl</h1>
-      <p class="sub">Knock them off. Percent goes up, they fly further. Last one rooted wins.</p>
+      <div class="eyebrow">${TAGLINE}</div>
+      <h1>${TITLE}</h1>
+      <p class="sub">${SUBTITLE}</p>
       <div class="col">
         <button class="primary big" data-act="quick">Quick play <small>you vs a bot on Potting Bench</small></button>
         <button class="big" data-act="setup">Set up a match</button>
         <button class="big" data-act="training">Training</button>
-        <div class="row"><button data-act="roster">Roster</button><button data-act="controls">Controls</button><button data-act="settings">Settings</button></div>
+        <div class="row"><button data-act="roster">Weapons</button><button data-act="controls">Controls</button><button data-act="settings">Settings</button></div>
       </div>
       <p class="hint">Keyboard 1: WASD move · Space jump · J light · K heavy · L dodge · I guard · U grab</p>
     </div><div class="title-bg"></div></div>`;
@@ -70,19 +79,26 @@ export class Menus {
     const c = this.config;
     const teams = c.mode.includes('Teams');
     const slots = c.slots.map((sl, i) => {
-      const ch = CHARACTERS.find((x) => x.id === sl.charId) || CHARACTERS[0];
-      const pal = sl.skin > 0 ? ch.skins[sl.skin - 1] : ch.palette;
+      const L = buildLoadout(sl.avatarId, sl.weaponId);
+      const w = L.weapon, av = L.avatar;
       const off = sl.type === 'off';
+      const dots = (n) => '<i class="d on"></i>'.repeat(n) + '<i class="d"></i>'.repeat(3 - n);
       return `<div class="slot ${off ? 'off' : ''}" style="--pc:${PLAYER_COLORS[i]}">
         <div class="slot-head"><span class="mark">${PLAYER_MARKS[i]}</span><span>Player ${i + 1}</span>
           <select data-slot="${i}" data-field="type">${SLOT_TYPES.map(([v, l]) => `<option value="${v}" ${sl.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           ${teams ? `<select data-slot="${i}" data-field="team"><option value="0" ${sl.team === 0 ? 'selected' : ''}>Green</option><option value="1" ${sl.team === 1 ? 'selected' : ''}>Orange</option></select>` : ''}
         </div>
-        ${off ? '' : `<div class="chargrid">${CHARACTERS.map((x) => `<button class="chartile ${x.id === sl.charId ? 'sel' : ''}" data-slot="${i}" data-char="${x.id}" title="${x.archetype} · ${x.tagline}">
-            <span class="sw"><i style="background:${x.palette.primary}"></i><i style="background:${x.palette.secondary}"></i><i style="background:${x.palette.tertiary}"></i></span><span>${x.name}</span></button>`).join('')}</div>
-        <div class="slot-foot"><span class="swatches">${[pal.primary, pal.secondary, pal.tertiary, pal.accent].map((h) => `<i style="background:${h}"></i>`).join('')}</span>
-          <label>Skin <select data-slot="${i}" data-field="skin"><option value="0" ${sl.skin === 0 ? 'selected' : ''}>Default</option>${ch.skins.map((sk, k) => `<option value="${k + 1}" ${sl.skin === k + 1 ? 'selected' : ''}>${sk.name}</option>`).join('')}</select></label>
-          <span class="arche">${ch.archetype} · ${ch.tagline}</span></div>`}
+        ${off ? '' : `<div class="wepgrid">${WEAPONS.map((x) => `<button class="weptile ${x.id === sl.weaponId ? 'sel' : ''}" data-slot="${i}" data-weapon="${x.id}" title="${x.archetype} · ${x.tagline}">
+            <img src="assets/ui/weapons/${x.id.toLowerCase()}.png" alt="" width="32" height="32">
+            <span class="wname">${x.name}</span><span class="warch">${x.archetype}</span>
+            <span class="wdiff" title="difficulty ${x.difficulty}/3">${dots(x.difficulty)}</span></button>`).join('')}</div>
+        <div class="wepinfo"><b>${w.tagline}</b>
+          <span class="mono">Weight ${L.weight} · Run ${L.runSpeed.toFixed(1)} · Air ${L.airSpeed.toFixed(1)} · ${w.mechanic.id} · ${L.recovery.kind} recovery</span></div>
+        <div class="slot-foot">
+          <span class="avlabel">Avatar</span>
+          <span class="avrow">${AVATARS.map((a) => `<button class="avtile ${a.id === sl.avatarId ? 'sel' : ''}" data-slot="${i}" data-avatar="${a.id}" title="${a.name}">
+            <i style="background:${a.palette.primary}"></i><i style="background:${a.palette.secondary}"></i></button>`).join('')}</span>
+          <span class="arche">${av.name}</span></div>`}
       </div>`;
     }).join('');
     const stages = STAGES.map((s) => `<button class="stagetile ${s.id === c.stageId ? 'sel' : ''}" data-stage="${s.id}">${stageSVG(s)}<span>${s.name}${s.ranked ? ' <em>ranked</em>' : ''}</span><small>${s.theme}${s.hazards.length ? ' · ' + s.hazards.map((h) => h.type).join(', ') : ' · no hazards'}</small></button>`).join('');
@@ -135,20 +151,33 @@ export class Menus {
   }
 
   _roster() {
-    const cards = CHARACTERS.map((c) => {
-      const moves = Object.values(c.moves).map((m) => `<tr><td>${m.label}</td><td class="mono">${m.startup}/${m.active}/${m.recovery}</td><td class="mono">${m.damage}%</td><td class="mono">${m.kind === 'melee' || m.kind === 'beam' || m.kind === 'burst' ? onBlock(m) : '—'}</td></tr>`).join('');
-      return `<div class="card roster-card" style="--pc:${c.palette.primary}"><div class="roster-head"><span class="swatches">${[c.palette.primary, c.palette.secondary, c.palette.tertiary, c.palette.accent].map((h) => `<i style="background:${h}"></i>`).join('')}</span><h3>${c.name}</h3><span class="arche">${c.theme} · ${c.archetype}</span></div>
-        <p>${c.bio}</p>
-        <p class="mono small">Weight ${c.weight} · Run ${c.runSpeed} · Jumps ${c.jumps} · Fall ${c.fallSpeed} · ${c.mechanic ? c.mechanic.id : ''}</p>
+    const cards = WEAPONS.map((w) => {
+      const L = buildLoadout('Classic', w.id);
+      const moves = Object.values(w.moves).map((m) => `<tr><td>${m.label}</td><td class="mono">${m.startup}/${m.active}/${m.recovery}</td><td class="mono">${m.damage}%</td><td class="mono">${m.kind === 'melee' || m.kind === 'beam' || m.kind === 'burst' ? onBlock(m) : '—'}</td></tr>`).join('');
+      // The combo tree is read straight off the data, so this screen can never drift from the game.
+      const strings = [];
+      for (const [id, m] of Object.entries(w.moves)) {
+        for (const [dir, t] of Object.entries(m.chains || {})) strings.push(`${m.label} <em>+${dir}</em> → ${w.moves[t].label}`);
+        const ch = m.chainsHeavy;
+        if (ch) for (const [dir, t] of (typeof ch === 'string' ? [['', ch]] : Object.entries(ch))) strings.push(`<b>${m.label} <em>+Heavy${dir && dir !== '*' ? ' ' + dir : ''}</em> → ${w.moves[t].label}</b>`);
+      }
+      return `<div class="card roster-card" style="--pc:${w.palette.primary}">
+        <div class="roster-head"><img src="assets/ui/weapons/${w.id.toLowerCase()}.png" alt="" width="32" height="32"><h3>${w.name}</h3><span class="arche">${w.archetype} · ${w.tagline}</span></div>
+        <p>${w.blurb}</p>
+        <p class="mono small">Weight ${L.weight} · Run ${L.runSpeed.toFixed(1)} · Air ${L.airSpeed.toFixed(1)} · Fall ${L.fallSpeed.toFixed(1)} · Jumps ${L.jumps} · ${w.mechanic.id} · ${L.recovery.kind} recovery · signature ${w.moves[w.signature].label}</p>
+        <h4 class="small">Combo tree</h4><ul class="strings small">${strings.map((x) => `<li>${x}</li>`).join('')}</ul>
         <table class="ctl small"><tr><th>Move</th><th>S/A/R</th><th>Dmg</th><th>On block</th></tr>${moves}</table></div>`;
     }).join('');
-    return `<div class="screen simple wide"><button data-act="title">← Back</button><h2>Roster</h2><div class="cards roster">${cards}</div></div>`;
+    return `<div class="screen simple wide"><button data-act="title">← Back</button><h2>Weapons</h2>
+      <p class="sub">Your avatar is who you look like. Your weapon is how you play.</p>
+      <div class="cards roster">${cards}</div></div>`;
   }
 
   _click(e) {
-    const t = e.target.closest('[data-act],[data-char],[data-stage]');
+    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage]');
     if (!t) return;
-    if (t.dataset.char) { this.config.slots[+t.dataset.slot].charId = t.dataset.char; this.config.slots[+t.dataset.slot].skin = 0; this.save(); this.render(); return; }
+    if (t.dataset.weapon) { this.config.slots[+t.dataset.slot].weaponId = t.dataset.weapon; this.save(); this.render(); return; }
+    if (t.dataset.avatar) { this.config.slots[+t.dataset.slot].avatarId = t.dataset.avatar; this.save(); this.render(); return; }
     if (t.dataset.stage) { this.config.stageId = t.dataset.stage; this.save(); this.render(); return; }
     const a = t.dataset.act;
     if (a === 'title' || a === 'setup' || a === 'controls' || a === 'settings' || a === 'roster') { this.show(a); return; }

@@ -1,14 +1,21 @@
-# Sprout Brawl
+# Blockfall
 
-An original 2.5D platform fighter about plants, fungi and the small things that live among them.
-Eight characters, six stages, percent-based knockback, ring-outs on four sides.
+A **2D** platform fighter. Your Roblox avatar is who you look like; the **weapon** you pick is how
+you play. Four weapons, six avatars, six stages, percent-based knockback, ring-outs on four sides.
 
-The full design document is in [`docs/sprout-brawl-design.html`](docs/sprout-brawl-design.html).
-Every number in the game (frame data, knockback, stage layouts, blast zones) comes from that document.
+The avatar is cosmetic — every avatar shares one stat line, so a match is decided by the weapon and
+by how you use it.
+
+The name lives in [`web/src/data/branding.js`](web/src/data/branding.js); change it there and the
+title screen, browser tab and round-start callout all follow.
+
+The full design document is in [`docs/design.html`](docs/design.html). Section 0 covers the weapon
+system and supersedes the earlier character-based sections.
 
 ## Play it now (web build)
 
-The `web/` folder is a complete, playable Three.js build. It needs Node and a browser, nothing else.
+The `web/` folder is a complete, playable build. Pure 2D canvas — no engine, no build step, no
+dependencies. It needs Node (to serve the files) and a browser, nothing else.
 
 ```bash
 cd web && node serve.cjs
@@ -35,71 +42,86 @@ Then open http://localhost:5173
 
 Up + Heavy in the air is the recovery. Down + Heavy in the air is the ground pound. Esc or P pauses. M mutes music.
 
-### Characters
+### Weapons
 
-The eight fighters are Blender-built models loaded as glTF. Each is a Python script under
-`blender/characters/` that composes real geometry, binds every part rigidly to an R15-named bone,
-renders turnaround previews, and exports `.glb` into `web/assets/characters/`.
+| Weapon | Archetype | Weight | Run / Air | Mechanic | Signature KO |
+|---|---|---|---|---|---|
+| **Sword** | All-rounder | 100 | 23.0 / 18.0 | Momentum — a second of running buys a stronger signature | Crescent Rush 111% |
+| **Scythe** | Reach / combo | 96 | 20.7 / 16.6 | Bloom — 5 hits in 4s, then a longer, harder next heavy | Reaper's Arc 113% at the tip, 122% at the handle |
+| **Blasters** | Zoner | 90 | 24.4 / 19.4 | Magazine — 6 rounds, one back every 0.75s | Scattergun 140% |
+| **Grimoire** | Heavy zoner | 108 | 21.2 / 16.9 | Light — charges only while standing still | Runebrand 120% |
+
+Each has 14 moves: a light string that branches on the direction held for the follow-up, four
+aerials, and three signatures. A landed string cashes out into a signature by holding Heavy.
+
+Every confirm percentage quoted in `web/src/data/weapons/*.js` is **measured in the engine**, not
+derived from frame data: `confirmsAt()` in `web/test/balance.mjs` runs a real match, lands the
+opener, chains the follow-up, and has the victim spot-dodge on their first actionable frame.
+`npm test` fails if any advertised route stops connecting.
 
 ```bash
-/Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
-  --python blender/characters/thornlock.py
+cd web && npm test        # 63 assertions: engine, weapons, combo validity
+cd web && npm run balance # KO percents and stat spread
+cd web && npm run test:soak
 ```
 
-Rebuild all eight:
+Weapon icons and swing effects are generated as real `.piskel` documents — see [`pixel/`](pixel/).
 
-```bash
-for c in thornlock capnspore sunbeam kelpin cacto duststorm mycel frostbud; do \
-  /Applications/Blender.app/Contents/MacOS/Blender --background --factory-startup \
-  --python blender/characters/$c.py; done
-```
+### How it is drawn
 
-Each build writes three things:
+Everything is painted into a 480x270-ish backbuffer and scaled up with nearest-neighbour sampling,
+which is what makes it read as pixel art at any window size. The backbuffer's *height* is fixed so
+one game pixel is always the same size; its width follows the window's aspect.
 
-| Where | What |
+- `src/render2d/renderer2d.js` — camera, parallax, stage, fighters, projectiles, particles, debug
+- `src/render2d/weapons2d.js` — the weapons themselves, and how each one animates per move
+- `src/render2d/channels.js` — the pose of a fighter for one frame, as plain numbers
+
+Fighters are drawn as jointed 2D puppets rather than sprite sheets, so a new move animates without
+new art. Weapon swings are keyframed as `[windup, contact, follow-through]` and interpolated across
+each move's real startup / active / recovery, so the arc always lines up with the frames that hit.
+
+**Weapon animations**, per the four archetypes:
+
+| Weapon | Attack animation |
 |---|---|
-| `blender/blends/<name>.blend` | Openable Blender scene: mesh, armature, materials, camera, lights |
-| `web/assets/characters/<name>.glb` | The model the game loads |
-| `blender/previews/<name>_*.png` | Side, three-quarter and front renders |
+| Sword | swing arcs with a bright smear trail; heavier arcs on signatures |
+| Scythe | wider, slower crescent arcs with a long trail |
+| Blasters | aim, muzzle flash on the firing frame, recoil kick, bullet tracers |
+| Grimoire | a rune ring blooms at the cast point, then a glowing orb travels out |
 
-The `.blend` files are an output, not the source. Editing one by hand works, but the next script
-run overwrites it. The Python script is the source of truth.
+Signatures add an impact ring and a shower of weapon-coloured sparks on contact, plus screen shake.
 
-**To work on a character inside Blender's interface** rather than headless: open Blender, go to the
-Scripting workspace, open `blender/characters/<name>.py`, and press Run. It builds the character
-live in the viewport, and you can keep editing and re-running.
-
-Previews are rendered side view first, because the game is played side-on and the
-profile is the silhouette that matters. Colour is carried by material NAME, not baked pixels, so
-the web build swaps palettes per skin at load time. Roles: `primary`, `secondary`, `tertiary`,
-`accent`, `glow`, `dark`, `eyeWhite`, `eyeDark`.
-
-The art direction these follow — silhouette rules, proportion budgets, the colour system, the
-stage plan — is in the art bible, published as an artifact and summarised in `docs/`.
-
-Every character stays inside an 8,000-triangle budget; the build prints `OVER_BUDGET` if not.
+To see every attack as a filmstrip at 15x, open <http://localhost:5173/anim.html>. It draws from the
+same `weapons2d.js` the match uses, so it cannot drift from the game.
 
 ### What is in the web build
 
 - `src/config.js` – global constants (frame rate, gravity, shield, ledge, dodge, grab and throw numbers)
 - `src/engine/knockback.js` – the launch, hitstun, blockstun and hitlag formulas
-- `src/data/characters/*.js` – one file per character: stats, moves with frame data and hitboxes, mechanic, palette and skins
+- `src/data/weapons/*.js` – one file per weapon: moves with frame data and hitboxes, combo tree, mechanic, stat spread, palette
+- `src/data/avatars.js` – the shared base stat line and the cosmetic avatar presets
+- `src/data/loadout.js` – composes avatar + weapon into the character-shaped object the engine consumes
 - `src/data/stages/index.js` – platform layouts, blast zones, hazards, spawns
 - `src/data/items.js` – Seed Bomb, Trowel, Watering Can
+- `src/data/branding.js` – the game's name and callouts, in one place
 - `src/engine/fighter.js` – the fighter state machine (movement, jumps, shield, dodges, ledge, grabs, recovery, hitstun, tech, mechanics)
 - `src/engine/combat.js` – hit resolution, projectiles, summons, bursts, fields, counters, items
 - `src/engine/stage.js` – platform collision, ledges, blast zones, hazards (vents, sinking leaves, moving planters, sprinkler, dust devil, tide)
 - `src/engine/match.js` – countdown, KOs, respawns, stocks and team pools, timer, sudden death, results
 - `src/engine/ai.js` – bots
-- `src/render/models.js` – loads the Blender `.glb` characters, swaps palettes by material name, builds the outline shell
-- `src/render/toon.js` – banded toon ramp, fresnel rim light, inverted-hull outline
-- `src/render/rigs.js` – skeletal posing driven by the animation channels, plus primitive fallback rigs for anything without a model
-- `src/render/*` – Three.js scene, stage geometry, effects
+- `src/render2d/*` – the 2D renderer, weapons and animation channels
 - `src/ui/*` – HUD and menus
 - `src/audio/*` – synthesised sound effects and a procedural chiptune sequencer with the final-stock intensity layer
 
-Balance changes are data changes: edit a character file and reload.
+Balance changes are data changes: edit a weapon file and reload. Then run `npm test` — the combo
+suite re-measures every advertised confirm against the engine and fails if a route stopped working.
 
-## Roblox build (paused)
+## Roblox build
 
-The `roblox/` folder holds the plan and the toolchain install steps for shipping the same design in Roblox Studio with Blender-made assets. See [`roblox/README.md`](roblox/README.md). Nothing in the web build depends on it.
+The `roblox/` folder holds the port plan and a self-contained copy of the simulation engine for
+translation to Luau. See [`roblox/README.md`](roblox/README.md). Nothing in the web build depends on it.
+
+The toolchain is installed: Rokit 1.2.0, Rojo 7.7.0, luau-lsp 1.69.0, Lune 0.10.5 (on `PATH` via
+`~/.zshrc`). Two steps still need Studio's UI: `rojo plugin install`, and Game Settings → Security →
+"Enable Studio Access to API Services".

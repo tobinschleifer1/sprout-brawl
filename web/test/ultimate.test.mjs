@@ -1,0 +1,364 @@
+// Ultimates: the meter rules, and the per-weapon moves once they exist.
+//
+// The meter is the part that has to be exactly right, because it is shared by every weapon and it
+// is the only resource in the game that survives across moves. The rules under test:
+//   - one landed hit is one charge, regardless of damage, so pressure fills it and not just big hits
+//   - chip and tick damage does not charge it
+//   - losing a stock wipes it
+//   - activation spends the whole bar and cannot happen below the threshold
+import { makeMatch, skipCountdown } from './harness.mjs';
+import { WEAPONS } from '../src/data/weapons/index.js';
+import { ULTIMATE } from '../src/config.js';
+
+let pass = 0, fail = 0;
+const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
+const EMPTY_IN = { x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false,
+  grab: false, taunt: false, pickup: false, ult: false, jumpHeld: false, guardHeld: false,
+  heavyHeld: false, lightHeld: false, downTap: false, anyPress: false };
+
+function duel(weaponId, foe = 'Sword') {
+  const m = makeMatch({ loadouts: [['Classic', weaponId], ['Noir', foe]] });
+  skipCountdown(m);
+  for (let i = 0; i < 200; i++) m.step();
+  const [a, v] = m.fighters;
+  const place = () => {
+    a.x = -1.2; v.x = 1.2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; }
+    v.setState('idle');
+  };
+  place();
+  return { m, a, v, place };
+}
+
+// Land `n` clean hits with the jab, resetting between each so they all connect.
+function landHits(ctx, n) {
+  const { m, a, v, place } = ctx;
+  for (let i = 0; i < n; i++) {
+    place(); v.percent = 0; v.invincible = 0; a.setState('idle'); a.hitVictims = new Map();
+    a.startMove('LightNeutral1');
+    for (let k = 0; k < 60 && (a.state === 'attack' || a.hitlag > 0); k++) m.step();
+  }
+}
+
+// ---- 1. landed hits charge the meter, one per hit ----
+{
+  const ctx = duel('Sword');
+  landHits(ctx, 5);
+  check('a landed hit charges the meter', ctx.a.ultCharge === 5,
+    `5 jabs -> ${ctx.a.ultCharge} charge (want 5 of ${ULTIMATE.hitsRequired})`);
+}
+
+// ---- 2. the meter caps at the requirement and reports ready ----
+{
+  const ctx = duel('Sword');
+  landHits(ctx, ULTIMATE.hitsRequired + 4);
+  check('the meter caps and reports ready', ctx.a.ultCharge === ULTIMATE.hitsRequired,
+    `${ULTIMATE.hitsRequired + 4} hits -> ${ctx.a.ultCharge} charge, ultMeter ${ctx.a.ultMeter.toFixed(2)}, ready ${ctx.a.ultReady}`);
+}
+
+// ---- 3. taking a hit does not charge YOUR meter ----
+{
+  const ctx = duel('Sword');
+  const { m, a, v, place } = ctx;
+  for (let i = 0; i < 4; i++) {
+    place(); a.percent = 0; a.invincible = 0; v.setState('idle'); v.hitVictims = new Map();
+    v.startMove('LightNeutral1');
+    for (let k = 0; k < 60 && (v.state === 'attack' || v.hitlag > 0); k++) m.step();
+  }
+  check('being hit does not charge your own meter', a.ultCharge === 0 && v.ultCharge > 0,
+    `attacker ${v.ultCharge}, victim ${a.ultCharge} — the meter belongs to whoever landed the hit`);
+}
+
+// ---- 4. losing a stock wipes the meter ----
+{
+  const ctx = duel('Sword');
+  landHits(ctx, 8);
+  const before = ctx.a.ultCharge;
+  const { m, a } = ctx;
+  a.onGround = false; a.platform = null; a.y = m.stage.blast.bottom - 60; a.setState('air');
+  for (let i = 0; i < 200 && a.alive; i++) m.step();
+  for (let i = 0; i < 200 && !a.alive; i++) m.step();
+  check('losing a stock wipes the meter', before === 8 && a.ultCharge === 0,
+    `${before} charge before the KO, ${a.ultCharge} after respawn — dying costs your progress`);
+}
+
+// ---- 5. a weapon with no Ultimate never charges and never fires ----
+{
+  const missing = WEAPONS.filter((w) => !w.moves.Ultimate).map((w) => w.id);
+  if (missing.length === WEAPONS.length) {
+    console.log(`SKIP  per-weapon ultimates\n      no weapon defines an Ultimate move yet — meter rules tested above still apply`);
+  } else if (missing.length) {
+    check('every weapon has an Ultimate', false, `missing on: ${missing.join(', ')}`);
+  } else {
+    check('every weapon has an Ultimate', true, WEAPONS.map((w) => `${w.id}:${w.moves.Ultimate.label}`).join('  '));
+  }
+}
+
+// ---- 6. activation: below the threshold nothing happens, at it the bar empties ----
+if (WEAPONS.some((w) => w.moves.Ultimate)) {
+  const wid = WEAPONS.find((w) => w.moves.Ultimate).id;
+  {
+    const ctx = duel(wid);
+    landHits(ctx, 5);
+    ctx.place(); ctx.a.setState('idle');
+    ctx.m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    ctx.m.step();
+    check(`${wid}: cannot fire below ${ULTIMATE.hitsRequired} hits`, ctx.a.moveId !== 'Ultimate',
+      `5 charge, pressed ult -> moveId '${ctx.a.moveId}' (want anything but Ultimate)`);
+  }
+  {
+    const ctx = duel(wid);
+    landHits(ctx, ULTIMATE.hitsRequired);
+    ctx.place(); ctx.a.setState('idle');
+    ctx.m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    ctx.m.step();
+    check(`${wid}: fires at full meter and spends it`, ctx.a.moveId === 'Ultimate' && ctx.a.ultCharge === 0,
+      `moveId '${ctx.a.moveId}', charge left ${ctx.a.ultCharge}, invincible ${ctx.a.invincible}f`);
+  }
+  // ---- 7. every weapon's ultimate runs to completion and deals damage ----
+  // Distance matters: a gun's muzzle sits 2.7 studs out, so point-blank is exactly where its
+  // bullets spawn PAST you. Each ultimate is tested at the range it is meant to be used at.
+  const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9 };
+  for (const w of WEAPONS) {
+    if (!w.moves.Ultimate) continue;
+    const ctx = duel(w.id);
+    const { m, a, v } = ctx;
+    const d = RANGE[w.id] ?? 4;
+    a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+    v.setState('idle'); v.percent = 0;
+    a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    m.step(); m._input.clear('p0');
+    let frames = 0;
+    for (let i = 0; i < 400 && (a.state === 'attack' || a.hitlag > 0); i++) {
+      // Deadeye is a stance, not a swing: it holds three rounds and fires one per press of the
+      // ultimate key. Every other ultimate ignores the button once it has started, so pressing
+      // it on a timer here tests the one that reads it without changing the other three.
+      if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+      else m._input.clear('p0');
+      m.step(); frames++;
+      // keep the victim on stage, so the number read is damage and not how far they flew
+      if (v.y < -4) { v.y = 0; v.vy = 0; v.onGround = true; v.platform = m.stage.main; }
+    }
+    check(`${w.id}: the ultimate resolves and connects`, frames > 0 && a.state !== 'attack' && v.percent >= 18,
+      `${w.moves.Ultimate.label}: ran ${frames}f from ${d} studs, dealt ${v.percent}% (want 18+), ended '${a.state}'`);
+  }
+}
+
+
+// ---- 8. the knockback multiplier is real, and it multiplies rather than replaces ----
+// Each ultimate is specified as "the knockback they already have, times N". That is a different
+// promise from "a big fixed launch": it has to scale with the victim's percent, so the same move
+// is a knock-back at 0% and a kill at 90%. Measured, not read off the data.
+{
+  const { Combat } = await import('../src/engine/combat.js');
+  // Capture the launch speed the engine actually hands the victim, at two very different percents.
+  function launchOf(weaponId, percent) {
+    const ctx = duel(weaponId);
+    const { m, a, v } = ctx;
+    const d = RANGE_FOR[weaponId];
+    a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+    v.setState('idle'); v.percent = percent;
+    a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+    let biggest = 0;
+    const seen = [];
+    m.subscribe ? null : null;
+    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    m.step();
+    for (let i = 0; i < 400 && (a.state === 'attack' || a.hitlag > 0); i++) {
+      if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+      else m._input.clear('p0');
+      m.step();
+      for (const e of m.events) if (e.type === 'hit' && e.victim === v.index) { biggest = Math.max(biggest, e.launch); seen.push(e.launch); }
+      m.events.length = 0;
+      if (v.y < -4) { v.y = 0; v.vy = 0; v.onGround = true; v.platform = m.stage.main; }
+    }
+    return biggest;
+  }
+  const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9 };
+  const rows = [];
+  let ok = true;
+  for (const w of WEAPONS) {
+    const lo = launchOf(w.id, 0), hi = launchOf(w.id, 90);
+    const ratio = hi / Math.max(0.01, lo);
+    // 1.4x is the floor. A fixed launch would sit at 1.00 no matter the percent; the four
+    // land between 1.45 and 1.89, which is the whole difference between a finisher and a shove.
+    if (!(lo > 0 && hi > lo * 1.4)) ok = false;
+    rows.push(`${w.id} ${lo.toFixed(0)}->${hi.toFixed(0)} (x${ratio.toFixed(2)})`);
+  }
+  check('ultimate knockback scales with the victim percent', ok,
+    `launch at 0% vs 90%: ${rows.join(', ')} — a multiplier, not a fixed launch`);
+}
+
+// ---- 9. Colossus: the crater reaches well past the blade ----
+{
+  const ctx = duel('Sword');
+  const { m, a, v } = ctx;
+  const U = a.char.moves.Ultimate;
+  const reach = U.crater.step * (U.crater.count - 1);
+  // stand a victim out past the sword's own arc but inside the shockwave
+  a.x = -reach + 2; v.x = 2; a.facing = 1; v.facing = -1;
+  for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+  v.setState('idle'); v.percent = 0;
+  a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+  m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+  m.step(); m._input.clear('p0');
+  for (let i = 0; i < 200 && (a.state === 'attack' || a.hitlag > 0); i++) m.step();
+  const gap = Math.abs(v.x - a.x);
+  check('Colossus: the crater reaches past the blade', v.percent > 0 && U.weaponScale === 2,
+    `victim ${gap.toFixed(0)} studs away (blade reaches ~5) took ${v.percent}%, blade drawn at ${U.weaponScale}x`);
+}
+
+// ---- 10. Soul Harvest: exactly the two nearest, dragged to one point ----
+{
+  const m = makeMatch({ loadouts: [['Classic', 'Scythe'], ['Noir', 'Sword'], ['Ember', 'Sword'], ['Moss', 'Sword']] });
+  skipCountdown(m);
+  for (let i = 0; i < 200; i++) m.step();
+  const [a, n1, n2, far] = m.fighters;
+  const put = (f, x) => { f.x = x; f.y = 0; f.vx = 0; f.vy = 0; f.onGround = true; f.platform = m.stage.main; f.setState('idle'); f.invincible = 0; f.percent = 0; };
+  put(a, 0); put(n1, 6); put(n2, -7); put(far, 27);
+  a.facing = 1; a.ultCharge = ULTIMATE.hitsRequired;
+  m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+  m.step(); m._input.clear('p0');
+  let minSpread = 999;
+  for (let i = 0; i < 200 && (a.state === 'attack' || a.hitlag > 0); i++) {
+    m.step();
+    if (a.ultHeld && a.ultHeld.length === 2) minSpread = Math.min(minSpread, Math.hypot(n1.x - n2.x, n1.cy - n2.cy));
+  }
+  check('Soul Harvest: takes the two nearest and crushes them together', minSpread < 3 && far.percent === 0 && n1.percent > 15 && n2.percent > 15,
+    `the two nearest closed to ${minSpread.toFixed(1)} studs apart and took ${n1.percent}% / ${n2.percent}%; the fighter 27 studs away took ${far.percent}%`);
+}
+
+// ---- 11. Deadeye: three rounds, one per press, and they track through cover ----
+{
+  const m = makeMatch({ stageId: 'Saltflat', loadouts: [['Classic', 'Blasters'], ['Noir', 'Sword']] });
+  skipCountdown(m);
+  for (let i = 0; i < 200; i++) m.step();
+  const [a, v] = m.fighters;
+  // the bunker on Saltflat sits at x=-16: put the shooter on one side of it and the mark on the other
+  a.x = -34; v.x = 2; a.facing = 1; v.facing = -1;
+  for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+  v.setState('idle'); v.percent = 0;
+  a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+  m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+  m.step(); m._input.clear('p0');
+  let shots = 0, marked = false;
+  for (let i = 0; i < 300 && (a.state === 'attack' || a.hitlag > 0 || m.combat.projectiles.length); i++) {
+    if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    else m._input.clear('p0');
+    m.step();
+    if (a.ultTarget === v) marked = true;
+    for (const e of m.events) if (e.type === 'snipe') shots++;
+    m.events.length = 0;
+    if (v.y < -4) { v.y = 0; v.vy = 0; v.onGround = true; v.platform = m.stage.main; }
+  }
+  check('Deadeye: three tracked rounds, and cover does not stop them', shots === 3 && marked && v.percent >= 39,
+    `painted the nearest fighter, fired ${shots} rounds (want 3) across the Saltflat bunker for ${v.percent}%`);
+}
+
+// ---- 12. Starfall: two orbs for every living opponent ----
+{
+  const m = makeMatch({ loadouts: [['Classic', 'Grimoire'], ['Noir', 'Sword'], ['Ember', 'Sword'], ['Moss', 'Sword']] });
+  skipCountdown(m);
+  for (let i = 0; i < 200; i++) m.step();
+  const a = m.fighters[0];
+  const foes = m.fighters.slice(1);
+  a.x = 0; a.y = 0; a.onGround = true; a.platform = m.stage.main; a.setState('idle');
+  foes.forEach((f, i) => { f.x = -18 + i * 16; f.y = 0; f.vx = 0; f.vy = 0; f.onGround = true; f.platform = m.stage.main; f.setState('idle'); f.percent = 0; f.invincible = 0; });
+  a.ultCharge = ULTIMATE.hitsRequired;
+  m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+  m.step(); m._input.clear('p0');
+  const perTarget = new Map();
+  for (let i = 0; i < 300 && (a.state === 'attack' || a.hitlag > 0 || m.combat.projectiles.length); i++) {
+    m.step();
+    for (const e of m.events) if (e.type === 'starfall') perTarget.set(e.target, (perTarget.get(e.target) || 0) + 1);
+    m.events.length = 0;
+  }
+  const counts = foes.map((f) => perTarget.get(f.index) || 0);
+  const hurt = foes.filter((f) => f.percent > 0).length;
+  check('Starfall: two orbs for every opponent, wherever they are standing', counts.every((c) => c === 2) && hurt === 3,
+    `orbs per opponent: ${counts.join('/')} (want 2 each); ${hurt} of 3 were hit, spread across 34 studs`);
+}
+
+
+// ---- 13. KILL PERCENT, pinned ----
+// Every other assertion in this file measures plumbing, and all sixteen of them passed while
+// Colossus killed at 226% (a same-frame crater was overwriting its own blade's launch) and Soul
+// Harvest killed two people at 17%. Damage thresholds cannot catch that. Kill percent can, so it
+// is pinned here per move, with knockbackMul applied - which is the whole point, since a KO
+// percent measured without the multiplier describes a move the game does not contain.
+{
+  const { koPercent } = await import('./balance.mjs');
+  // [what it is, expected KO% at weight 100, tolerance]  — measured, then pinned.
+  const rows = [];
+  const ko = (b, g, d, ang, mul) => koPercent(b, g, d, 100, { angle: ang, launchMul: mul });
+  const S = WEAPONS.find((w) => w.id === 'Sword').moves.Ultimate;
+  const C = WEAPONS.find((w) => w.id === 'Scythe').moves.Ultimate;
+  const B = WEAPONS.find((w) => w.id === 'Blasters').moves.Ultimate;
+  const G = WEAPONS.find((w) => w.id === 'Grimoire').moves.Ultimate;
+  rows.push(['Colossus blade', ko(S.base, S.growth, S.damage, S.angle, S.knockbackMul), 80, 110]);
+  rows.push(['Colossus crater', ko(S.crater.base, S.crater.growth, S.crater.damage, S.crater.angle, S.crater.knockbackMul), 95, 135]);
+  rows.push(['Soul Harvest', ko(C.vortex.burst.base, C.vortex.burst.growth, C.vortex.burst.damage, C.vortex.burst.angle, C.vortex.burst.knockbackMul), 95, 135]);
+  rows.push(['Deadeye round', ko(B.base, B.growth, B.damage, B.angle, B.knockbackMul), 115, 155]);
+  rows.push(['Astral Rain orb', ko(G.starfall.base, G.starfall.growth, G.starfall.damage, G.starfall.angle, G.starfall.knockbackMul), 115, 155]);
+  const bad = rows.filter(([, v, lo, hi]) => v === null || v < lo || v > hi);
+  check('every ultimate kills in its intended band', bad.length === 0,
+    rows.map(([n, v, lo, hi]) => `${n} ${v === null ? 'NEVER' : v + '%'} [${lo}-${hi}]`).join(', '));
+}
+
+// ---- 14. the vortex hold is escapable ----
+// 26 frames of no agency ending in a kill is only acceptable if the victim can fight it. A player
+// mashing must get out; a player doing nothing must not.
+{
+  const still = (mash) => {
+    const m = makeMatch({ loadouts: [['Classic', 'Scythe'], ['Noir', 'Sword']] });
+    skipCountdown(m);
+    for (let i = 0; i < 200; i++) m.step();
+    const [a, v] = m.fighters;
+    a.x = -3; v.x = 3; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+    v.setState('idle'); v.percent = 0; a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    m.step(); m._input.clear('p0');
+    for (let i = 0; i < 220 && (a.state === 'attack' || a.hitlag > 0); i++) {
+      if (mash) m._input.set('p1', Object.assign({}, EMPTY_IN, { jump: i % 2 === 0, dodge: i % 2 === 1, anyPress: true }));
+      m.step();
+    }
+    return v.percent;
+  };
+  const passive = still(false), mashing = still(true);
+  check('Soul Harvest: mashing breaks the hold, standing still does not', passive >= 18 && mashing === 0,
+    `a victim who does nothing takes ${passive}%; a victim mashing jump and dodge takes ${mashing}% — the hold is a grab, not a cutscene`);
+}
+
+// ---- 15. an ultimate is not answered by holding one button ----
+{
+  const blocked = [];
+  for (const w of WEAPONS) {
+    const m = makeMatch({ loadouts: [['Classic', w.id], ['Noir', 'Sword']] });
+    skipCountdown(m);
+    for (let i = 0; i < 200; i++) m.step();
+    const [a, v] = m.fighters;
+    const d = { Sword: 3.0, Scythe: 3.0, Blasters: 12, Grimoire: 6 }[w.id];
+    a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+    v.setState('idle'); v.percent = 0; a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    m.step();
+    let broke = false;
+    for (let i = 0; i < 320 && (a.state === 'attack' || a.hitlag > 0 || m.combat.projectiles.length); i++) {
+      m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: i % 20 === 0, anyPress: i % 20 === 0 }));
+      m._input.set('p1', Object.assign({}, EMPTY_IN, { guard: true, guardHeld: true, anyPress: true }));
+      m.step();
+      if (v.shield <= 0 || v.state === 'shieldbreak' || v.state === 'stun') broke = true;
+    }
+    if (!broke && v.percent === 0) blocked.push(`${w.id} (shield ${v.shield.toFixed(0)}/50 left)`);
+  }
+  check('holding shield is not a free answer to an ultimate', blocked.length === 0,
+    blocked.length ? `blocked clean by a held shield: ${blocked.join(', ')}` : 'all four either break a full shield or get through it');
+}
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

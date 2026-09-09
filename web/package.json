@@ -4,7 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node serve.cjs"
+    "start": "node serve.cjs",
+    "test": "node test/engine.test.mjs && node test/weapons.test.mjs && node test/combo.test.mjs && node test/stages.test.mjs && node test/ultimate.test.mjs && node test/render.test.mjs",
+    "test:engine": "node test/engine.test.mjs",
+    "test:render": "node test/render.test.mjs",
+    "test:weapons": "node test/weapons.test.mjs",
+    "test:combo": "node test/combo.test.mjs",
+    "test:stages": "node test/stages.test.mjs",
+    "test:ult": "node test/ultimate.test.mjs",
+    "balance": "node test/balance.mjs",
+    "test:soak": "node test/soak.test.mjs"
   },
   "keywords": [],
   "author": "",

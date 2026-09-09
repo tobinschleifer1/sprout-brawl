@@ -1,0 +1,122 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Weapon animation sheet</title>
+<style>
+  body { margin: 0; background: #171b22; color: #cbd3de; font: 13px ui-monospace, Menlo, monospace; padding: 16px 20px 40px; }
+  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #8fa0b4; margin: 0 0 4px; }
+  p.note { color: #6c7a8c; margin: 0 0 18px; max-width: 70ch; line-height: 1.5; }
+  h2 { font-size: 14px; margin: 22px 0 2px; color: #e8edf4; }
+  .row { margin: 0 0 6px; }
+  .lbl { color: #7f8fa3; margin: 6px 0 2px; }
+  canvas { image-rendering: pixelated; background: #232935; border-radius: 3px; display: block; }
+</style>
+<h1>Weapon animation sheet</h1>
+<p class="note">
+  Every attack in the game, one filmstrip per move, drawn by the same <code>weapons2d.js</code> the
+  match uses. Frames run left to right across startup, active (marked) and recovery. This exists so
+  a swing can be judged as an animation instead of as a blur at gameplay size.
+</p>
+<div id="out"></div>
+
+<script type="module">
+import { WEAPONS } from './src/data/weapons/index.js';
+import { buildLoadout } from './src/data/loadout.js';
+import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, REACH } from './src/render2d/weapons2d.js';
+
+const SCALE = 15;              // pixels per stud in this sheet
+const CW = 108, CH = 132;      // cell size in pixels
+
+// The minimum a fighter needs to look like one to weaponPose().
+function fakeFighter(loadout, moveId, mf) {
+  const m = loadout.moves[moveId];
+  return {
+    char: loadout, index: 0, facing: 1, sf: mf, mf, charge: 0,
+    state: 'attack', move: m, startupEff: m.startup,
+    onGround: true, vy: 0, vx: 0,
+  };
+}
+
+function drawCell(ctx, loadout, moveId, mf, t) {
+  const m = loadout.moves[moveId];
+  const f = fakeFighter(loadout, moveId, mf);
+  const pose = weaponPose(f, t);
+  const active = mf > m.startup && mf <= m.startup + m.active;
+
+  ctx.save();
+  ctx.fillStyle = active ? '#2c3647' : '#232935';
+  ctx.fillRect(0, 0, CW, CH);
+
+  // a ghost of the fighter for scale: shoulder is where the weapon hangs from
+  const ox = CW * 0.42, oy = CH * 0.66;
+  ctx.fillStyle = '#39445a';
+  ctx.fillRect(ox - 0.8 * SCALE, oy - 2.0 * SCALE, 1.6 * SCALE, 2.0 * SCALE);   // torso
+  ctx.fillRect(ox - 0.6 * SCALE, oy - 3.3 * SCALE, 1.2 * SCALE, 1.2 * SCALE);   // head
+  ctx.fillRect(ox - 0.55 * SCALE, oy, 0.45 * SCALE, 1.7 * SCALE);               // legs
+  ctx.fillRect(ox + 0.12 * SCALE, oy, 0.45 * SCALE, 1.7 * SCALE);
+
+  const pal = loadout.weaponPalette;
+  const shoulder = { x: ox + 0.55 * SCALE, y: oy - 1.9 * SCALE };
+
+  ctx.translate(shoulder.x, shoulder.y);
+  ctx.scale(SCALE, SCALE);
+
+  if (pose.trail) drawTrail(ctx, loadout.weapon.id, pal, pose.trail, 1);
+
+  // arm out to the grip, then the weapon at the hand
+  const AL = 1.55;
+  const hx = Math.cos(pose.angle) * AL, hy = -Math.sin(pose.angle) * AL;
+  ctx.strokeStyle = loadout.palette.primary;
+  ctx.lineWidth = 0.34;
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hx, hy); ctx.stroke();
+
+  ctx.save();
+  ctx.translate(hx, hy);
+  drawUltimate(ctx, loadout.weapon.id, pal, pose, t);
+  drawWeapon(ctx, loadout.weapon.id, pal, pose);
+  drawMuzzle(ctx, loadout.weapon.id, pal, pose, t);
+  ctx.restore();
+  ctx.restore();
+
+  // frame number, and a marker on active frames
+  ctx.fillStyle = active ? '#ffd37a' : '#5b6779';
+  ctx.font = '9px ui-monospace, monospace';
+  ctx.fillText(String(mf), 4, 12);
+  if (active) { ctx.fillStyle = '#ffd37a'; ctx.fillRect(0, CH - 2, CW, 2); }
+}
+
+const out = document.getElementById('out');
+const MOVES = ['LightNeutral1', 'LightSide1', 'LightUp', 'LightDown', 'AirNeutral', 'AirForward', 'AirUp', 'AirDown', 'SigSide', 'SigDown', 'SigNeutral', 'Ultimate'];
+
+for (const w of WEAPONS) {
+  const L = buildLoadout('Classic', w.id);
+  const h = document.createElement('h2');
+  h.textContent = `${w.name} — ${w.archetype}`;
+  h.style.color = w.palette.primary;
+  out.appendChild(h);
+
+  for (const id of MOVES) {
+    const m = L.moves[id];
+    if (!m) continue;
+    const total = m.startup + m.active + m.recovery;
+    // sample the move evenly, but always include every active frame
+    const frames = [];
+    const step = Math.max(1, Math.round(total / (id === 'Ultimate' ? 13 : 9)));
+    for (let i = 1; i <= total; i += step) frames.push(i);
+    for (let i = m.startup + 1; i <= m.startup + m.active; i++) if (!frames.includes(i)) frames.push(i);
+    frames.sort((a, b) => a - b);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = `${m.label}  (${id})   ${m.startup}/${m.active}/${m.recovery}   ${m.damage}%`;
+    out.appendChild(lbl);
+
+    const c = document.createElement('canvas');
+    c.width = CW * frames.length; c.height = CH;
+    c.style.width = (CW * frames.length) + 'px';
+    const ctx = c.getContext('2d');
+    frames.forEach((mf, i) => { ctx.save(); ctx.translate(i * CW, 0); drawCell(ctx, L, id, mf, 0); ctx.restore(); });
+    const row = document.createElement('div'); row.className = 'row'; row.appendChild(c);
+    out.appendChild(row);
+  }
+}
+</script>

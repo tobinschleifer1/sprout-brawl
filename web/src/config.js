@@ -65,4 +65,9 @@ export const ITEMS = { spawnEvery: 25, despawnAfter: 20, knockOutDamage: 12 };
 export const SUDDEN_DEATH = { percent: 300, shrinkEvery: 10, shrinkFactor: 0.8 };
 export const INPUT_BUFFER = 6;
 
+// Ultimates. Charge by landing hits; spend the whole meter in one activation. The meter is wiped
+// when you lose a stock, so an ultimate is a reward for a run of pressure, not a consolation prize
+// for dying. Chip damage (node ticks, cloud ticks) does not count - only real connections do.
+export const ULTIMATE = { hitsRequired: 20, freezeFrames: 26, invincibleFrames: 30 };
+
 export const WEIGHT_CLASS = (w) => (w <= 90 ? 'Light' : w <= 105 ? 'Mid' : 'Heavy');

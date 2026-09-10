@@ -10,8 +10,8 @@ const KB1 = {
 const KB1_ARROWS = { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], jump: ['ArrowUp'] };
 const KB2 = {
   left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
-  jump: ['ArrowUp', 'Enter'], light: ['Comma'], heavy: ['Period'], dodge: ['Slash'],
-  guard: ['ShiftRight'], grab: ['KeyM'], taunt: ['KeyN'], ult: ['ControlRight'],
+  jump: ['ArrowUp', 'Enter'], light: ['Numpad4'], heavy: ['Numpad5'], dodge: ['Numpad6'],
+  guard: ['Numpad8'], grab: ['Numpad7'], taunt: ['Numpad3'], ult: ['Numpad9'],
 };
 
 export const BINDINGS_TEXT = {

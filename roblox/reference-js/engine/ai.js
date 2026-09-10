@@ -5,6 +5,7 @@ const LEVELS = {
   easy: { reaction: 22, aggression: 0.35, defence: 0.15, kill: 0.5, dodge: 0.1 },
   normal: { reaction: 12, aggression: 0.55, defence: 0.35, kill: 0.7, dodge: 0.25 },
   hard: { reaction: 6, aggression: 0.7, defence: 0.55, kill: 0.9, dodge: 0.4 },
+  Elite: { reaction: 3, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6 },
 };
 const sign = (v) => (v < 0 ? -1 : 1);
 const chance = (p) => Math.random() < p;

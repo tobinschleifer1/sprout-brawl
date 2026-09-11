@@ -392,12 +392,16 @@ export class Renderer2D {
       return;
     }
 
-    if (m.kind === 'slam' && f.mf > f.startupEff + 5) {
-      // A glowing split in the floor, widening as the shockwave walks outward.
+    if (m.kind === 'slam' && f.mf > f.startupEff) {
+      // A glowing split in the floor, widening as the shockwave walks outward. The reach is driven
+      // off the CRATER's own schedule, not the active window: pacing it over `active` left the
+      // outermost burst 8.8 studs ahead of the drawn crack, so players were being hit by floor
+      // that had not visibly opened yet.
       const C = m.crater;
-      const k = Math.min(1, (f.mf - f.startupEff - 5) / Math.max(1, m.active - 5));
+      const span = C.every * (C.count - 1);
+      const k = Math.min(1, Math.max(0, f.mf - f.startupEff - 1) / Math.max(1, span));
       const y = f.platform ? f.platform.top : f.y;
-      const reach = C.step * C.count * k;
+      const reach = C.step * (C.count - 1) * k;
       b.globalAlpha = 0.55 * (1 - k * 0.5);
       b.fillStyle = pal.glow || '#FFB43C';
       b.fillRect(f.x - reach, y - 0.1, reach * 2, 0.55);

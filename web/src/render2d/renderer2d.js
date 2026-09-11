@@ -132,6 +132,22 @@ export class Renderer2D {
     this._present();
   }
 
+  // Draw a single fighter into an arbitrary canvas context at a given scale and screen position,
+  // using the same pose and paint path the match uses.
+  //
+  // This exists because anim.html — the filmstrip the animation work is judged from — used to draw
+  // its own hard-coded grey rectangles for the body and its own hand-rolled transform for the
+  // weapon. It agreed with the game on nothing, which meant the page used to review the animation
+  // was showing a different animation. A tool that does not share the renderer is a tool that
+  // lies eventually.
+  drawFighterInto(ctx, f, t, { ppu = 15, x = 0, y = 0 } = {}) {
+    ctx.save();
+    // same handedness as the match: +Y up, origin at the fighter's feet
+    ctx.setTransform(ppu, 0, 0, -ppu, x, y);
+    this._fighter(f, t, ctx);
+    ctx.restore();
+  }
+
   _present() {
     const cw = this.canvas.width, chh = this.canvas.height;
     const k = Math.max(cw / this.BW, chh / BH);
@@ -220,9 +236,11 @@ export class Renderer2D {
   }
 
   // ---------------------------------------------------------------------- fighter ----
-  _fighter(f, t) {
+  // Draw one fighter, in world space, into `target` (defaults to the backbuffer). The target is a
+  // parameter so tools can draw a real fighter with the real code — see drawFighterInto below.
+  _fighter(f, t, target) {
     if (!f.alive || f.state === 'ko') return;
-    const b = this.b;
+    const b = target || this.b;
     const ch = channelsFor(f, t);
     if (!ch.visible) return;
 

@@ -141,8 +141,15 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
       // keep the victim on stage, so the number read is damage and not how far they flew
       if (v.y < -4) { v.y = 0; v.vy = 0; v.onGround = true; v.platform = m.stage.main; }
     }
-    check(`${w.id}: the ultimate resolves and connects`, frames > 0 && a.state !== 'attack' && v.percent >= 18,
-      `${w.moves.Ultimate.label}: ran ${frames}f from ${d} studs, dealt ${v.percent}% (want 18+), ended '${a.state}'`);
+    // The floor is one connected component of the move, not all of it. Astral Rain spreads its
+    // orbs with `jitter` and its blast radius is deliberately small enough that a sprinting
+    // fighter can leave it, so "both orbs always land" is not a property the game has — asserting
+    // it made this test fail roughly one run in six. What this check is for is that the ultimate
+    // runs to completion and reaches the victim at all; the full-damage numbers are pinned by the
+    // kill-percent bands in check 13 and the per-opponent orb count in check 12.
+    const floor = w.id === 'Grimoire' ? 13 : 18;
+    check(`${w.id}: the ultimate resolves and connects`, frames > 0 && a.state !== 'attack' && v.percent >= floor,
+      `${w.moves.Ultimate.label}: ran ${frames}f from ${d} studs, dealt ${v.percent}% (want ${floor}+), ended '${a.state}'`);
   }
 }
 
@@ -299,7 +306,10 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   const B = WEAPONS.find((w) => w.id === 'Blasters').moves.Ultimate;
   const G = WEAPONS.find((w) => w.id === 'Grimoire').moves.Ultimate;
   rows.push(['Colossus blade', ko(S.base, S.growth, S.damage, S.angle, S.knockbackMul), 80, 110]);
-  rows.push(['Colossus crater', ko(S.crater.base, S.crater.growth, S.crater.damage, S.crater.angle, S.crater.knockbackMul), 95, 135]);
+  // The epicentre and the outward ring throw at different angles, so they are different moves as
+  // far as kill percent is concerned and both have to be pinned.
+  rows.push(['Colossus crater centre', ko(S.crater.base, S.crater.growth, S.crater.damage, S.crater.centreAngle, S.crater.knockbackMul), 80, 110]);
+  rows.push(['Colossus crater ring', ko(S.crater.base, S.crater.growth, S.crater.minDamage, S.crater.angle, S.crater.knockbackMul), 110, 170]);
   rows.push(['Soul Harvest', ko(C.vortex.burst.base, C.vortex.burst.growth, C.vortex.burst.damage, C.vortex.burst.angle, C.vortex.burst.knockbackMul), 95, 135]);
   rows.push(['Deadeye round', ko(B.base, B.growth, B.damage, B.angle, B.knockbackMul), 115, 155]);
   rows.push(['Astral Rain orb', ko(G.starfall.base, G.starfall.growth, G.starfall.damage, G.starfall.angle, G.starfall.knockbackMul), 115, 155]);
@@ -323,7 +333,10 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
     m.step(); m._input.clear('p0');
     for (let i = 0; i < 220 && (a.state === 'attack' || a.hitlag > 0); i++) {
-      if (mash) m._input.set('p1', Object.assign({}, EMPTY_IN, { jump: i % 2 === 0, dodge: i % 2 === 1, anyPress: true }));
+      // ~8.5 presses a second, which is a fast human mash. The first version of this test
+      // alternated every single frame - 30 Hz, four times what a person can do - and so it
+      // certified an escape that did not exist at any rate anyone could actually produce.
+      if (mash) m._input.set('p1', Object.assign({}, EMPTY_IN, { jump: i % 14 === 0, dodge: i % 14 === 7, anyPress: i % 7 === 0 }));
       m.step();
     }
     return v.percent;
@@ -333,31 +346,46 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     `a victim who does nothing takes ${passive}%; a victim mashing jump and dodge takes ${mashing}% — the hold is a grab, not a cutscene`);
 }
 
-// ---- 15. an ultimate is not answered by holding one button ----
+// ---- 15. an ultimate is not answered by holding one button, at ANY range ----
+// The first version of this test asked "did the shield break OR did they take damage", once, at
+// one distance. Colossus broke a shield at point blank and passed it — while at 9 to 17 studs its
+// crater took 0% and left 34.9/50 shield, because the burst was never handed the move's
+// shieldDamageMul. One distance is not a test; the outer half of a move is where the plumbing
+// gets forgotten.
 {
+  const RANGES = { Sword: [2.5, 9, 17], Scythe: [2.5, 8, 14], Blasters: [8, 20, 40], Grimoire: [0, 6, 14] };
   const blocked = [];
+  const rows = [];
   for (const w of WEAPONS) {
-    const m = makeMatch({ loadouts: [['Classic', w.id], ['Noir', 'Sword']] });
-    skipCountdown(m);
-    for (let i = 0; i < 200; i++) m.step();
-    const [a, v] = m.fighters;
-    const d = { Sword: 3.0, Scythe: 3.0, Blasters: 12, Grimoire: 6 }[w.id];
-    a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
-    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
-    v.setState('idle'); v.percent = 0; a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
-    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
-    m.step();
-    let broke = false;
-    for (let i = 0; i < 320 && (a.state === 'attack' || a.hitlag > 0 || m.combat.projectiles.length); i++) {
-      m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: i % 20 === 0, anyPress: i % 20 === 0 }));
-      m._input.set('p1', Object.assign({}, EMPTY_IN, { guard: true, guardHeld: true, anyPress: true }));
+    for (const d of RANGES[w.id]) {
+      const m = makeMatch({ loadouts: [['Classic', w.id], ['Noir', 'Sword']] });
+      skipCountdown(m);
+      for (let i = 0; i < 200; i++) m.step();
+      const [a, v] = m.fighters;
+      a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
+      for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+      v.setState('idle'); v.percent = 0; a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+      m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
       m.step();
-      if (v.shield <= 0 || v.state === 'shieldbreak' || v.state === 'stun') broke = true;
+      let broke = false, lowest = 50;
+      for (let i = 0; i < 340 && (a.state === 'attack' || a.hitlag > 0 || m.combat.projectiles.length); i++) {
+        m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: i % 20 === 0, anyPress: i % 20 === 0 }));
+        m._input.set('p1', Object.assign({}, EMPTY_IN, { guard: true, guardHeld: true, anyPress: true }));
+        m.step();
+        lowest = Math.min(lowest, v.shield);
+        if (v.shield <= 0 || v.state === 'shieldbreak' || v.state === 'stun') broke = true;
+      }
+      // "Not a clean answer" means one of: the shield broke, it got through anyway, or holding it
+      // cost at least half the bar. The outer ring of a shockwave should not break a full shield
+      // - but it should not be free either, and 34.9/50 (what the unplumbed crater used to leave)
+      // is free. 25 is the line: blocking any part of an ultimate costs you half your shield.
+      const ok = broke || v.percent > 0 || lowest < 25;
+      rows.push(`${w.id}@${d}: ${v.percent}% shield ${lowest.toFixed(0)}${broke ? ' BROKE' : ''}`);
+      if (!ok) blocked.push(`${w.id} at ${d} studs (0%, shield ${lowest.toFixed(0)}/50)`);
     }
-    if (!broke && v.percent === 0) blocked.push(`${w.id} (shield ${v.shield.toFixed(0)}/50 left)`);
   }
-  check('holding shield is not a free answer to an ultimate', blocked.length === 0,
-    blocked.length ? `blocked clean by a held shield: ${blocked.join(', ')}` : 'all four either break a full shield or get through it');
+  check('holding shield is not a free answer to an ultimate, at any range', blocked.length === 0,
+    blocked.length ? `blocked clean: ${blocked.join('; ')}` : rows.join('  '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

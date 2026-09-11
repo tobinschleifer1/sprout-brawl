@@ -90,7 +90,7 @@ export default {
       // the starfall branch in combat.js: the first wave is the shield check, the second is the
       // punish for still being in it.
       starfall: { perTarget: 2, every: 26, height: 20, speed: 30, turn: 1.4, jitter: 3.0, size: 1.5,
-        radius: 4.8, damage: 13, base: 31, growth: 4.2, angle: 76, knockbackMul: 1.25, shieldDamageMul: 3.0 },
+        radius: 3.2, damage: 13, base: 31, growth: 4.2, angle: 76, knockbackMul: 1.25, shieldDamageMul: 3.0 },
     },
   },
 };

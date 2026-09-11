@@ -169,17 +169,22 @@ function ultimatePose(f, m, wid, out, t) {
       out.ult.glow = 1; out.ult.chop = c;
       return out;
     }
-    // planted in the floor while the crater runs outward
-    out.scale = FULL;
-    out.ult.glow = 1;
+    // Planted in the floor while the crater runs outward. The blade SINKS: at full scale a 2x
+    // sword held at -84 degrees is a 5-stud bar reaching well below the fighter's feet, and with
+    // the edge glow on top of it that drew as a solid white rectangle through the character for
+    // eight straight frames. Sinking it over six frames reads as buried, and the crater debris
+    // at the floor carries the impact instead.
     const since = inActive ? ak : act + (mf - st - act);
+    const sink = Math.min(1, since / 6);
+    out.scale = FULL - (FULL - 1.05) * sink;
+    out.ult.glow = 1 - sink * 0.75;                     // the edge cools once it is in the ground
     out.angle = D(-84) + Math.sin(since * 0.55) * 0.035;
-    out.ult.planted = Math.min(1, since / 10);
+    out.ult.planted = sink;
     out.ult.shock = inActive ? ak / Math.max(1, act) : 1;
-    if (!inActive) {                                    // recovery: shoulder it, and it shrinks
+    if (!inActive) {                                    // recovery: shoulder it, back to normal
       out.angle = D(-84) + ((REST[wid] ?? 0) - D(-84)) * recK;
-      out.scale = FULL - (FULL - 1) * recK;
-      out.ult.glow = 1 - recK;
+      out.scale = 1.05 + (FULL - 1.05) * 0 + (1 - 1.05) * recK;
+      out.ult.glow = (1 - sink * 0.75) * (1 - recK);
     }
     return out;
   }
@@ -365,13 +370,15 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
     ctx.rotate(-pose.angle);
     ctx.translate(pose.ox, pose.oy);
     const L = (REACH.Sword || 2.6) * sc;
-    // the edge itself burns
-    ctx.globalAlpha = 0.30 + U.glow * 0.45;
+    // The edge burns - along the EDGE, not across the whole blade. Filling the full width washed
+    // an already-doubled sword into one white rectangle at 480x270.
+    ctx.globalAlpha = 0.22 + U.glow * 0.38;
     ctx.fillStyle = glow;
-    ctx.fillRect(0.2, -0.30 * sc, L, 0.60 * sc);
-    ctx.globalAlpha = 0.85 * U.glow;
+    ctx.fillRect(0.2, -0.24 * sc, L, 0.14 * sc);
+    ctx.fillRect(0.2, 0.10 * sc, L, 0.14 * sc);
+    ctx.globalAlpha = 0.55 * U.glow;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0.2, -0.10 * sc, L, 0.20 * sc);
+    ctx.fillRect(0.2, -0.05 * sc, L, 0.10 * sc);
     // sparks climbing the blade while it is held overhead
     if (U.rise !== undefined) {
       ctx.fillStyle = '#FFFFFF';

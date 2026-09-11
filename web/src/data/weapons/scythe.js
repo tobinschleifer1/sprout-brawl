@@ -99,8 +99,8 @@ export default {
       grounded: true, heavy: true, kind: 'vortex', ultimate: true, knockbackMul: 1.5, shieldDamageMul: 3.0,
       hitboxes: [],
       vortex: { targets: 2, range: 17, holdFrames: 26, pullSpeed: 46, orbOffset: [3.4, 3.6],
-        escapePerPress: 1.2, escapeCap: 14, diPerFrame: 0.17,
-        burst: { damage: 18, base: 26, growth: 3.3, angle: 58, radius: 5.6, knockbackMul: 1.5, shieldDamageMul: 3.0 } },
+        escapePerPress: 4.0, escapeCap: 16, escapeBite: 8, diPerFrame: 0.17,
+        burst: { damage: 18, base: 26, growth: 3.3, angle: 58, radius: 4.0, knockbackMul: 1.5, shieldDamageMul: 3.0 } },
     },
   },
 };

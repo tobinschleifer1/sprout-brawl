@@ -86,20 +86,22 @@ export default {
     // opens, and a crater of rock and energy walks outward from the impact in both directions.
     // Everything it touches takes 1.5x the knockback it would otherwise have taken, so this is a
     // finisher - at 0% it is a big hit, at 90% it is the end of a stock.
-    Ultimate: { label: 'Colossus', startup: 24, active: 26, recovery: 32, damage: 16, base: 26, growth: 3.4, angle: 46,
+    Ultimate: { label: 'Colossus', startup: 24, active: 16, recovery: 32, damage: 16, base: 26, growth: 3.4, angle: 46,
       grounded: true, heavy: true, kind: 'slam', ultimate: true, knockbackMul: 1.5, weaponScale: 2, shieldDamageMul: 3.0,
       // the descending blade: a tall box in front, live for the four frames of the stroke
       hitboxes: [
-        { frames: [25, 28], offset: [2.4, 4.2], size: [6.4, 10.0] },
+        { frames: [25, 28], offset: [2.4, 4.2], size: [6.4, 10.0] },   // the descending blade
       ],
       // And the impact. It fires on the SAME frame the blade lands, not after it: hitlag freezes
       // the attacker too, so a crater even three frames later arrives after the victim has already
       // launched. The chop animation is timed to finish on the last startup frame to match.
       //
       // Five steps of 4.2 studs, not seven of 3.6: the old shape advertised 21.6 studs of lethal
-      // floor and delivered a 4-damage nudge past the third step. Shorter, and all of it kills.
+      // floor and delivered a 4-damage nudge past the third step. Shorter, and all of it kills -
+      // `minDamage` is the floor the fade cannot go under, and at 10 the outermost ring still KOs
+      // at 149% instead of 201%, which is the difference between a threat and a decoration.
       crater: { frame: 0, every: 3, count: 5, step: 4.2, radius: 3.4,
-        damage: 12, base: 32, growth: 4.4, angle: 64, knockbackMul: 1.5, shieldDamageMul: 3.0 },
+        damage: 12, minDamage: 10, base: 32, growth: 4.4, angle: 64, centreAngle: 46, knockbackMul: 1.5, shieldDamageMul: 3.0 },
     },
   },
 };

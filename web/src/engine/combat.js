@@ -276,8 +276,13 @@ export class Combat {
       for (const dir of [-1, 1]) {
         if (step === 0 && dir === -1) continue;              // one crater at the centre, not two
         const x = f.x + dir * C.step * step;
-        this.spawnBurst(f, { id: 'Crater', x, y, damage: step === 0 ? C.damage : Math.max(4, Math.round(C.damage * fade)),
-          base: C.base, growth: C.growth, angle: C.angle, frames: 4, knockbackMul: C.knockbackMul,
+        this.spawnBurst(f, { id: 'Crater', x, y, damage: step === 0 ? C.damage : Math.max(C.minDamage, Math.round(C.damage * fade)),
+          base: C.base, growth: C.growth, frames: 4, knockbackMul: C.knockbackMul,
+          shieldDamageMul: C.shieldDamageMul,
+          // The epicentre throws along the BLADE's angle, the outward steps pop upward. Without
+          // this the crater's larger launch won the same-frame comparison and every Colossus kill
+          // went out at the shockwave's 64 degrees - the sword's own 46 was dead data.
+          angle: step === 0 ? (C.centreAngle ?? C.angle) : C.angle,
           size: [C.radius * 2, C.radius * (step === 0 ? 3.0 : 2.2)], heavy: true });
         this.emit({ type: 'crater', x, y, radius: C.radius * (step === 0 ? 1.5 : 1), first: step === 0 });
       }

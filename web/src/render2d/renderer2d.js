@@ -238,14 +238,23 @@ export class Renderer2D {
     // more than it is on them. The channel bag asks for it; without this it was being computed
     // and thrown away.
     if (ch.smear > 0.02 && ch.visible) {
-      const dir = Math.abs(f.vx) > 1 ? Math.sign(f.vx) : -f.facing;
+      // Ghosts trail. Standing still this used -facing, which put both of them IN FRONT of the
+      // fighter, so the streak led the swing instead of following it.
+      const dir = Math.abs(f.vx) > 1 ? Math.sign(f.vx) : f.facing;
       const dist = Math.min(2.6, 0.7 + Math.abs(f.vx) * 0.035) * ch.smear;
       for (let g = 1; g <= 2; g++) {
         b.save();
-        b.globalAlpha = ch.opacity * ch.smear * (0.26 / g);
+        b.globalAlpha = ch.opacity * ch.smear * (0.45 / g);
         b.translate(f.x - dir * dist * g * 0.55, f.y + ch.yOff);
         b.scale(f.facing, 1);
-        b.rotate(ch.rigRotZ * f.facing);
+        // Rotate about the body's centre, not its feet. Pivoting at the origin swung the whole
+    // drawing out of its own hurtbox: a tech roll at frame 6 spanned y -4.5..0.3, a full body
+    // height below the floor, and an air dodge's centre swung 4.5 studs across. `rotPivot` is the
+    // fraction of height to pivot at, so knockdown can keep its deliberate feet-pivot.
+    if (ch.rigRotZ) {
+      const pv = h * (ch.rotPivot ?? 0.5);
+      b.translate(0, pv); b.rotate(ch.rigRotZ * f.facing); b.translate(0, -pv);
+    }
         b.fillStyle = pal.primary;
         b.fillRect(-r * 0.82, h * 0.06, r * 1.64, h * 0.72);
         b.restore();
@@ -349,7 +358,16 @@ export class Renderer2D {
     const w = r * 0.34, L = h * 0.30;
     b.save();
     b.translate(front ? r * 0.55 : -r * 0.35, len);
-    b.rotate(-(a.z - PI / 2));
+    // Arm channels are "direction the limb points, +X forward, +Y up", the same convention the
+    // weapon uses. The limb is drawn along local -Y, so pointing it at angle A needs rotate(A +
+    // PI/2) — which is exactly what `a.z` already holds. The old `-(a.z - PI/2)` mirrored it, so
+    // the arm and the weapon sat a permanent 90 degrees apart and the prop floated up to 3 studs
+    // from the hand. It also inverted every channel-driven arm: a ledge hang (armL.z 2.9, meant to
+    // be overhead) drew pointing backwards and down.
+    // `a.x` is the across-the-body component: the run writes its whole arm swing into it and
+    // nothing read it, so the front arm sat at a constant angle and the run had no arm animation
+    // at all. Folded in as a forward/back bias on the same joint.
+    b.rotate(a.z + (a.x || 0));
     b.fillStyle = colour;
     b.fillRect(-w / 2, -L, w, L);
     b.fillRect(-w * 0.7, -L - w * 0.8, w * 1.4, w * 1.1);   // hand

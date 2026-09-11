@@ -52,7 +52,7 @@ const settle = (k, freq = 3.2, d = 5) => (k >= 1 ? 1 : 1 - Math.cos(k * freq * P
 
 // Where a move is, with all the easing already applied. Every attack reads from this rather than
 // working out its own phase, so timing is consistent across the whole moveset.
-function swing(f, m) {
+export function swing(f, m) {
   const st = f.startupEff, act = m.active, rec = m.recovery, mf = f.mf;
   if (mf <= st) {
     const k = st ? mf / st : 1;
@@ -63,15 +63,24 @@ function swing(f, m) {
     const k = act ? (mf - st) / act : 1;
     // The strike itself: the first two frames cover most of the distance, then a moving hold.
     const snap = clamp(k * 3.2, 0, 1);
-    return { phase: 'strike', k, e: easeIn(snap), hold: false, smear: 1 - clamp(k * 2.2, 0, 1) };
+    // `1 - k*2.2` reached zero a fifth of the way in, so a two-frame active window — every jab in
+    // the game — got exactly 0 on both of its frames and never smeared at all.
+    return { phase: 'strike', k, e: easeIn(snap), hold: false, smear: 1 - clamp(k, 0, 1) };
   }
   const k = rec ? (mf - st - act) / rec : 1;
   return { phase: 'settle', k, e: 1 - settle(k, m.heavy ? 2.6 : 3.4, m.heavy ? 3.4 : 6), hold: false, smear: 0 };
 }
 
-// Overlapping action: sample a channel a few frames back along its own curve. Cheap stand-in for
-// a real lag rig — the limb is simply further behind on the same motion.
-const lag = (e, amount) => clamp(e - amount, 0, 1);
+// Overlapping action, done properly: re-evaluate the swing a few FRAMES earlier and use that
+// value. The first version subtracted a constant from the eased value, which is an amplitude
+// offset rather than a delay — because the master curve reaches 1.0 within a frame or two and then
+// holds, the trailing limbs spent the whole move at a fixed offset and never actually lagged.
+function lagged(f, m, frames) {
+  if (f.mf <= frames) return f.mf <= f.startupEff ? 0 : 1;
+  const shadow = { mf: f.mf - frames, startupEff: f.startupEff, move: m };
+  const s2 = swing(shadow, m);
+  return s2.phase === 'wind' ? -s2.e : s2.e;
+}
 
 function attackChannels(ch, f, t) {
   const m = f.move; if (!m) return;
@@ -94,7 +103,9 @@ function attackChannels(ch, f, t) {
 
   // A small tremble through a loaded wind-up, and a hard contact flash on the strike's first
   // frames. Both are shared by every move so the whole roster reads the same way.
-  if (s.hold) { ch.shakeX = Math.sin(t * 90) * 0.05; }
+  // Driven off the move's own frame counter, not wall-clock: at t*90 it aliased against 60Hz into
+  // a shimmer, and 0.05 studs is a quarter of a pixel anyway.
+  if (s.hold) { ch.shakeX = (f.mf % 2 ? 1 : -1) * 0.22; }
   if (s.phase === 'strike' && s.k < 0.25 && m.heavy) ch.tint = '#FFFFFF';
 
   // `w` walks from rest (0) through the cocked pose and out to full extension (1), so each move
@@ -104,22 +115,24 @@ function attackChannels(ch, f, t) {
   // started recovery at rest and travelled OUT to full extension, which is why nothing ever
   // crossed rest and the follow-through test failed on every move.
   const w = s.phase === 'wind' ? -s.e : s.e;
+  // the same walk, two and three frames behind, for the limbs that trail the torso
+  const wLag2 = lagged(f, m, 2), wLag3 = lagged(f, m, 3), wLag4 = lagged(f, m, 4);
 
   switch (cat) {
     case 'jab':
       ch.armR.z = w < 0 ? -0.55 * -w : F * w;
-      ch.armL.z = -0.25 - 0.5 * lag(Math.abs(w), 0.15);
+      ch.armL.z = -0.25 - 0.5 * Math.abs(wLag2);
       ch.lean = w < 0 ? -0.12 * -w : 0.2 * w;
       ch.legR = 0.18 * w; ch.legL = -0.1 * w;
       ch.sx = 1 + 0.06 * Math.max(0, w);
       break;
     case 'side':
       ch.armR.z = w < 0 ? -1.1 * -w : (F + 0.25) * w;
-      ch.armL.z = 0.25 - 0.9 * lag(Math.max(0, w), 0.2);
+      ch.armL.z = 0.25 - 0.9 * Math.max(0, wLag3);
       ch.lean = w < 0 ? -0.32 * -w : 0.42 * w;
       ch.legR = 0.5 * Math.max(0, w); ch.legL = -0.35 * Math.max(0, w);
       ch.sx = 1 + 0.14 * Math.max(0, w); ch.sy = 1 - 0.06 * Math.max(0, w);
-      ch.head = -0.18 * lag(Math.max(0, w), 0.25);
+      ch.head = -0.18 * Math.max(0, wLag3);
       break;
     case 'down':
       ch.sy = 1 - 0.28 * Math.abs(w); ch.sx = 1 + 0.22 * Math.abs(w);
@@ -130,7 +143,7 @@ function attackChannels(ch, f, t) {
       break;
     case 'up':
       ch.armR.z = w < 0 ? -0.7 * -w : (F + 0.9) * w;
-      ch.armL.z = -0.3 - 0.7 * lag(Math.max(0, w), 0.2);
+      ch.armL.z = -0.3 - 0.7 * Math.max(0, wLag3);
       ch.lean = -0.2 * Math.max(0, w);
       ch.sy = 1 + 0.12 * Math.max(0, w); ch.sx = 1 - 0.07 * Math.max(0, w);
       ch.legL = -0.3 * Math.max(0, w); ch.legR = 0.2 * Math.max(0, w);
@@ -144,10 +157,10 @@ function attackChannels(ch, f, t) {
       break;
     case 'fair':
       ch.armR.z = w < 0 ? -1.15 * -w : (F + 0.15) * w;
-      ch.armL.z = 0.2 - 0.8 * lag(Math.max(0, w), 0.2);
+      ch.armL.z = 0.2 - 0.8 * Math.max(0, wLag3);
       ch.lean = 0.45 * w;
       ch.legL = -0.55 - 0.2 * Math.max(0, w); ch.legR = -0.7 + 0.35 * Math.max(0, w);
-      ch.head = -0.2 * lag(Math.max(0, w), 0.3);
+      ch.head = -0.2 * Math.max(0, wLag4);
       break;
     case 'dair':
       if (w < 0) { ch.armL.z = 2.9 * -w; ch.armR.z = -2.9 * -w; ch.sy = 1 - 0.1 * -w; ch.legL = -0.4 * -w; ch.legR = -0.4 * -w; }
@@ -155,7 +168,7 @@ function attackChannels(ch, f, t) {
       break;
     case 'uair':
       ch.armR.z = w < 0 ? -0.5 * -w : (F + 1.1) * w;
-      ch.armL.z = -0.3 - 0.9 * lag(Math.max(0, w), 0.18);
+      ch.armL.z = -0.3 - 0.9 * Math.max(0, wLag2);
       ch.sy = 1 + 0.16 * Math.max(0, w); ch.sx = 1 - 0.09 * Math.max(0, w);
       ch.legL = -0.7 * Math.max(0, w); ch.legR = -0.5 * Math.max(0, w);
       ch.lean = -0.25 * Math.max(0, w);
@@ -163,11 +176,11 @@ function attackChannels(ch, f, t) {
     case 'sigside':
       ch.lean = w < 0 ? -0.55 * -w : 0.55 * w;
       ch.armR.z = w < 0 ? -1.6 * -w : (F + 0.35) * w;
-      ch.armL.z = 0.3 - 1.1 * lag(Math.max(0, w), 0.22);
+      ch.armL.z = 0.3 - 1.1 * Math.max(0, wLag3);
       ch.sx = 1 + 0.24 * Math.max(0, w) - 0.12 * Math.max(0, -w);
       ch.sy = 1 - 0.08 * Math.max(0, w) + 0.12 * Math.max(0, -w);
       ch.legR = 0.75 * Math.max(0, w); ch.legL = -0.5 * Math.max(0, w);
-      ch.head = -0.25 * lag(Math.max(0, w), 0.3);
+      ch.head = -0.25 * Math.max(0, wLag4);
       ch.bob = -0.12 * Math.max(0, -w);
       break;
     case 'sigdown':
@@ -181,11 +194,11 @@ function attackChannels(ch, f, t) {
       ch.legL = 0.3 * Math.max(0, -w) - 0.5 * Math.max(0, w);
       ch.legR = -0.3 * Math.max(0, -w) + 0.5 * Math.max(0, w);
       ch.bob = 0.3 * Math.max(0, -w) - 0.22 * Math.max(0, w);
-      ch.head = 0.3 * lag(Math.max(0, w), 0.25) - 0.2 * Math.max(0, -w);
+      ch.head = 0.3 * Math.max(0, wLag3) - 0.2 * Math.max(0, -w);
       break;
     case 'signeut':
       ch.armR.z = w < 0 ? -1.2 * -w : (F + 0.8) * w;
-      ch.armL.z = -0.3 - 1.0 * lag(Math.max(0, w), 0.2);
+      ch.armL.z = -0.3 - 1.0 * Math.max(0, wLag3);
       ch.sy = 1 + 0.2 * Math.max(0, w) - 0.14 * Math.max(0, -w);
       ch.sx = 1 - 0.1 * Math.max(0, w) + 0.16 * Math.max(0, -w);
       ch.lean = -0.3 * Math.max(0, w);
@@ -220,10 +233,13 @@ export function channelsFor(f, t) {
     case 'idle': {
       // Two breathing rates slightly out of step, so an idle fighter never looks like a loop.
       const b1 = Math.sin(t * 2.6 + f.index), b2 = Math.sin(t * 1.7 + f.index * 2.1);
-      ch.bob = b1 * 0.05 + b2 * 0.02;
-      ch.armL.z = 0.3 + b1 * 0.06; ch.armR.z = -0.3 - lag(b1, 0.1) * 0.06;
+      // Amplitudes are for a 480x270 backbuffer at ~5 px per stud, and at four players it drops
+      // to ~3. Anything under about 0.2 studs is a sub-pixel no-op: the old idle bob of 0.07 studs
+      // was a third of a pixel. These are the smallest values that actually move.
+      ch.bob = b1 * 0.26 + b2 * 0.1;
+      ch.armL.z = 0.3 + b1 * 0.06; ch.armR.z = -0.3 - Math.sin(t * 2.6 + f.index - 0.35) * 0.06;
       ch.head = b2 * 0.05;
-      ch.sy = 1 + b1 * 0.012; ch.sx = 1 - b1 * 0.012;
+      ch.sy = 1 + b1 * 0.04; ch.sx = 1 - b1 * 0.04;
       break;
     }
     case 'run': {
@@ -266,7 +282,11 @@ export function channelsFor(f, t) {
         ch.lean = f.fastFalling ? 0.15 : 0;
       } else {
         // the apex: the moment worth holding, so it gets its own pose
-        ch.armL.z = 1.7; ch.armR.z = -1.7; ch.legL = -0.2; ch.legR = 0.15; ch.sy = 0.98; ch.sx = 1.02;
+        // The apex had no time term at all — zero motion for as long as a fighter hung there.
+        const hang = Math.sin(t * 4.5 + f.index);
+        ch.armL.z = 1.7 + hang * 0.12; ch.armR.z = -1.7 - hang * 0.1;
+        ch.legL = -0.2 + hang * 0.1; ch.legR = 0.15 - hang * 0.08;
+        ch.sy = 0.98 + hang * 0.02; ch.sx = 1.02 - hang * 0.02; ch.head = hang * 0.1;
       }
       if (s === 'helpless') { ch.spinZ = t * 5; ch.armL.z = 2.2; ch.armR.z = -2.2; ch.opacity = 0.9; }
       if (s === 'recovery') { ch.spinY = sf * 0.5; ch.armL.z = 3; ch.armR.z = -3; ch.sy = 1.12; ch.smear = clamp(1 - sf / 12, 0, 1); }
@@ -295,7 +315,15 @@ export function channelsFor(f, t) {
       ch.smear = fresh * 0.6;
       break;
     }
-    case 'knockdown': ch.rigRotZ = -PI / 2 + 0.1; ch.yOff = 0.7; ch.armL.z = 1.2; ch.armR.z = -1.2; ch.sy = 0.95; break;
+    case 'knockdown': {
+      // Was a single frozen frame for its whole duration. A downed fighter still breathes, and a
+      // stirring body is how a player reads that the wake-up is coming.
+      ch.rigRotZ = -PI / 2 + 0.1; ch.rotPivot = 0; ch.yOff = 0.7;
+      const br = Math.sin(sf * 0.22);
+      ch.armL.z = 1.2 + br * 0.18; ch.armR.z = -1.2 - br * 0.14;
+      ch.sy = 0.95 + br * 0.03; ch.head = br * 0.2; ch.bob = br * 0.1;
+      break;
+    }
     case 'tech': ch.opacity = 0.6; if (f.techRoll) { ch.spinZ = -sf * 0.42; ch.smear = clamp(1 - sf / 10, 0, 1); } else { const k = clamp(sf / 8, 0, 1); const q = 1 - settle(k, 3, 7); ch.sy = 1 - 0.16 * q; ch.sx = 1 + 0.12 * q; } break;
     case 'shield': case 'shielddrop': {
       const k = clamp(sf / 4, 0, 1);
@@ -308,10 +336,10 @@ export function channelsFor(f, t) {
     case 'stunned': ch.lean = Math.sin(sf * 0.3) * 0.3; ch.head = Math.sin(sf * 0.5) * 0.35; ch.armL.z = 1.0 + Math.sin(sf * 0.4) * 0.3; ch.armR.z = -1.0 - Math.sin(sf * 0.4 + 2) * 0.3; ch.spinY = Math.sin(sf * 0.12) * 0.6; ch.tint = sf % 12 < 6 ? '#F4C531' : null; break;
     case 'spotdodge': { const k = clamp(sf / 10, 0, 1); const q = Math.sin(k * PI); ch.opacity = 1 - 0.65 * q; ch.sy = 1 - 0.14 * q; ch.sx = 1 + 0.1 * q; ch.lean = -0.35 * q; break; }
     case 'airdodge': ch.opacity = 0.35; ch.spinZ = sf * 0.45; ch.smear = clamp(1 - sf / 14, 0, 1); break;
-    case 'ledge': ch.armL.z = 2.9; ch.armR.z = -2.9; ch.legL = 0.35 + Math.sin(t * 3) * 0.06; ch.legR = -0.2; ch.head = -0.3; ch.bob = Math.sin(t * 4) * 0.05; ch.lean = -0.12; break;
+    case 'ledge': ch.armL.z = 2.9; ch.armR.z = -2.9; ch.legL = 0.35 + Math.sin(t * 3) * 0.06; ch.legR = -0.2; ch.head = -0.3; ch.bob = Math.sin(t * 4) * 0.22; ch.lean = -0.12 + Math.sin(t * 2.2) * 0.05; break;
     case 'ledgeaction': { const k = f.la?.kind; if (k === 'attack') { ch.armR.z = sf > 8 ? PI / 2 : -0.8; ch.lean = 0.3; ch.smear = sf > 8 ? 0.6 : 0; } else if (k === 'roll') { ch.spinZ = -sf * 0.34; ch.opacity = 0.7; ch.smear = 0.5; } else { ch.lean = -0.2; ch.armL.z = 1.4; ch.armR.z = -1.4; ch.sy = 1.06; } break; }
     case 'grab': { const k = clamp(sf / 8, 0, 1); ch.armL.z = 1.4 + F * easeIn(k); ch.armR.z = -1.4 + (F + 1.4) * easeIn(k); ch.lean = 0.1 + 0.25 * easeIn(k); ch.smear = sf > 6 && sf < 11 ? 0.7 : 0; break; }
-    case 'holding': ch.armL.z = PI / 2; ch.armR.z = PI / 2; ch.lean = 0.15; ch.sx = 1.05; ch.bob = Math.sin(t * 6) * 0.03; break;
+    case 'holding': ch.armL.z = PI / 2; ch.armR.z = PI / 2; ch.lean = 0.15; ch.sx = 1.05; ch.bob = Math.sin(t * 6) * 0.16; break;
     case 'grabbed': ch.armL.z = 1.6; ch.armR.z = -1.6; ch.legL = Math.sin(sf * 0.6) * 0.85; ch.legR = -Math.sin(sf * 0.6 + 0.8) * 0.85; ch.head = -0.2 + Math.sin(sf * 0.9) * 0.12; break;
     case 'groundpound': if (sf <= 8) { const k = clamp(sf / 8, 0, 1); ch.sy = 1 - 0.2 * back(k, 1.2); ch.sx = 1 + 0.15 * back(k, 1.2); ch.armL.z = 2.9 * k; ch.armR.z = -2.9 * k; ch.bob = 0.2 * k; } else { ch.sy = 1.28; ch.sx = 0.84; ch.armL.z = 3.1; ch.armR.z = -3.1; ch.legL = 0; ch.legR = 0; ch.smear = 0.8; } break;
     case 'tether': ch.armL.z = 2.9; ch.armR.z = -2.9; ch.sy = 1.15; ch.sx = 0.9; ch.lean = Math.sin(t * 7) * 0.08; break;

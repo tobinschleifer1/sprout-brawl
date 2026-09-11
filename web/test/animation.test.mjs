@@ -17,6 +17,7 @@
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { channelsFor } from '../src/render2d/channels.js';
 import { WEAPONS } from '../src/data/weapons/index.js';
+import { weaponPose } from '../src/render2d/weapons2d.js';
 import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
@@ -44,6 +45,12 @@ function poseAt(f, moveId, at, t = 0) {
   return flat(channelsFor(f, t));
 }
 const startupOf = (f, id) => { f.setState('idle'); f.startMove(id); const st = f.startupEff; f.setState('idle'); return st; };
+// The drawn weapon angle at a given move-frame.
+function angleAt(f, id, at) {
+  f.setState('idle'); f.startMove(id);
+  f.mf = typeof at === 'function' ? at(f.startupEff, f.move) : at;
+  return weaponPose(f, f.mf / 60).angle;
+}
 
 // ---- 1. every state a real match produces yields finite channels ----
 {
@@ -78,11 +85,22 @@ const startupOf = (f, id) => { f.setState('idle'); f.startMove(id); const st = f
   const ch = channelsFor(m.fighters[0], 0);
   // spinY and spinZ are deliberately folded into sx / rigRotZ inside channelsFor itself, so they
   // are consumed there rather than by the renderer.
+  const arm = readFileSync(new URL('../src/render2d/renderer2d.js', import.meta.url), 'utf8');
   const foldedInternally = new Set(['spinY', 'spinZ']);
-  const unread = Object.keys(ch).filter((k) => !foldedInternally.has(k) && !src.includes(`ch.${k}`));
+  // SUB-KEYS TOO. The first version matched `ch.armL` as a string, which is present — while
+  // `armL.x` and `armR.x` were read by nothing, so the run wrote its entire arm swing into a
+  // channel the renderer discarded and this check stayed green. A grep for the parent object is
+  // not a test that the data is used.
+  const leaves = [];
+  for (const [k, v] of Object.entries(ch)) {
+    if (foldedInternally.has(k)) continue;
+    if (v && typeof v === 'object') for (const k2 of Object.keys(v)) leaves.push([`${k}.${k2}`, `a.${k2}`, `ch.${k}`]);
+    else leaves.push([k, `ch.${k}`, null]);
+  }
+  const unread = leaves.filter(([, direct, parent]) => !arm.includes(direct) && !(parent && arm.includes(`${parent}.`))).map(([n]) => n);
   check('every animation channel is consumed by the renderer', unread.length === 0,
     unread.length ? `produced but never read: ${unread.join(', ')} — the pose is computed and discarded`
-      : `${Object.keys(ch).length} channels, all consumed (spinY folds into sx, spinZ into rigRotZ)`);
+      : `${leaves.length} channel leaves, all consumed (spinY folds into sx, spinZ into rigRotZ)`);
 }
 
 // ---- 3. every attack anticipates before it strikes ----
@@ -94,6 +112,7 @@ const startupOf = (f, id) => { f.setState('idle'); f.startMove(id); const st = f
   skipCountdown(m);
   const f = m.fighters[0];
   const rest = flat(channelsFor(f, 0));
+  const restAngle = (f.setState('idle'), weaponPose(f, 0).angle);
   const noAnticipation = [], rows = [];
   const MOVES = ['LightNeutral1', 'LightSide1', 'LightUp', 'LightDown', 'SigSide', 'SigDown', 'SigNeutral', 'AirForward', 'AirUp'];
   for (const id of MOVES) {
@@ -102,12 +121,26 @@ const startupOf = (f, id) => { f.setState('idle'); f.startMove(id); const st = f
     const cocked = poseAt(f, id, (st) => st);
     const struck = poseAt(f, id, (st, m2) => st + Math.max(1, Math.ceil(m2.active * 0.6)));
     const cockDist = dist(cocked, rest);
-    // the arm is the channel every attack moves, so it is the one measured for direction
-    const cockArm = cocked['armR.z'] - rest['armR.z'];
-    const strikeArm = struck['armR.z'] - rest['armR.z'];
-    const opposed = cockArm * strikeArm < 0;
-    rows.push(`${id} cock ${cockArm.toFixed(2)} strike ${strikeArm.toFixed(2)}`);
-    if (cockDist < 0.1 || !opposed) noAnticipation.push(`${id} (cock ${cockArm.toFixed(2)}, strike ${strikeArm.toFixed(2)})`);
+    // Measured on the WEAPON ANGLE — the biggest, most visible thing on the character, drawn
+    // every frame, and the one channel every attack moves.
+    //
+    // These checks used to key on `armR.z`, which `_fighter` reads only in a fallback branch that
+    // never fires (every fighter carries a weapon, so the front arm is entirely weapon-driven):
+    // three checks green on a discarded number. `lean` was no better — several moves never lean,
+    // so half the roster measured a flat zero against itself.
+    const cockA = angleAt(f, id, (st2) => st2);
+    const strikeA = angleAt(f, id, (st2, m2) => st2 + Math.max(1, Math.ceil(m2.active * 0.6)));
+    // Anticipation on a rotational swing, stated so it survives wraparound: the wind-up displaces
+    // the weapon from rest in the direction OPPOSITE to the way the swing then travels. Two
+    // earlier formulations were wrong — a sign flip about rest fails because a sword cocks at 140
+    // and contacts at -25, both "one side" of a -78 rest; and "further from contact than rest is"
+    // breaks down for the rising attacks, whose rest angle is already nearly antipodal to their
+    // contact, where no cock can be further away. Direction of travel is the thing that is
+    // actually being asserted, and it is well defined everywhere.
+    const away = Math.sign(cockA - restAngle), toward = Math.sign(strikeA - cockA);
+    const wound = away !== 0 && toward !== 0 && away !== toward;
+    rows.push(`${id} rest ${(restAngle * 57).toFixed(0)}° cock ${(cockA * 57).toFixed(0)}° contact ${(strikeA * 57).toFixed(0)}°`);
+    if (cockDist < 0.1 || !wound) noAnticipation.push(`${id}: rest ${(restAngle * 57).toFixed(0)}°, cock ${(cockA * 57).toFixed(0)}°, contact ${(strikeA * 57).toFixed(0)}° — the cock sits between rest and contact`);
   }
   check('every attack winds up before it swings', noAnticipation.length === 0,
     noAnticipation.length ? `no anticipation: ${noAnticipation.join('; ')}` : rows.join('  |  '));
@@ -178,10 +211,10 @@ const startupOf = (f, id) => { f.setState('idle'); f.startMove(id); const st = f
   for (const id of ['SigSide', 'SigDown', 'LightSide1']) {
     const mv = f.char.moves[id]; if (!mv) continue;
     const st = startupOf(f, id);
-    const rest = poseAt(f, id, (s2, m2) => s2 + m2.active + m2.recovery)['armR.z'];
+    const rest = angleAt(f, id, (s2, m2) => s2 + m2.active + m2.recovery);
     let signs = 0, prev = null;
     for (let i = 0; i <= mv.recovery; i++) {
-      const d = poseAt(f, id, st + mv.active + i)['armR.z'] - rest;
+      const d = angleAt(f, id, st + mv.active + i) - rest;
       const sgn = Math.sign(d);
       if (prev !== null && sgn !== 0 && sgn !== prev) signs++;
       if (sgn !== 0) prev = sgn;

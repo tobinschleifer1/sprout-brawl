@@ -11,6 +11,8 @@
 // Swings are keyframed as [windup, contact, follow-through] and interpolated across the move's
 // startup / active / recovery, so a swing always lines up with the frames that actually hit.
 
+import { swing as swingPhase } from './channels.js';
+
 const PI = Math.PI;
 const D = (deg) => (deg * PI) / 180;
 
@@ -21,14 +23,17 @@ const SWINGS = {
   jab:      { arc: [D(70), D(5), D(25)], trail: D(45), thrust: 0.35 },
   side:     { arc: [D(140), D(-25), D(-5)], trail: D(110) },
   down:     { arc: [D(35), D(-70), D(-50)], trail: D(80) },
-  up:       { arc: [D(-50), D(105), D(80)], trail: D(100) },
+  // Rising attacks cock BELOW the resting angle (-78) before they come up. They used to start at
+  // -50, -40 and -30 — above rest, already on their way to the target — so the wind-up was the
+  // weapon travelling toward you. There was nothing to read.
+  up:       { arc: [D(-115), D(105), D(80)], trail: D(100) },
   nair:     { arc: [D(0), D(720), D(720)], trail: D(150), spin: true },
   fair:     { arc: [D(130), D(-15), D(5)], trail: D(105) },
   dair:     { arc: [D(-60), D(-95), D(-90)], trail: D(50) },
-  uair:     { arc: [D(-30), D(115), D(95)], trail: D(110) },
+  uair:     { arc: [D(-110), D(115), D(95)], trail: D(110) },
   sigside:  { arc: [D(175), D(-40), D(-15)], trail: D(150), heavy: true },
   sigdown:  { arc: [D(150), D(-85), D(-65)], trail: D(140), heavy: true },
-  signeut:  { arc: [D(-40), D(130), D(110)], trail: D(140), heavy: true },
+  signeut:  { arc: [D(-120), D(130), D(110)], trail: D(140), heavy: true },
 };
 
 function categoryOf(id) {
@@ -111,12 +116,23 @@ export function weaponPose(f, t) {
     return out;
   }
 
-  // A swing: windup across startup, contact across the active frames, settle across recovery.
-  const total = st + act + rec;
+  // A swing: windup across startup, contact across the active frames, settle across recovery —
+  // timed by the SAME curve the body uses.
+  //
+  // This file used to run its own easing: k*k on the wind-up, 1-(1-k)^2 on the strike, and raw
+  // linear k on the recovery. Against channels.js's back(easeOut(k)) that put the torso and the
+  // weapon up to fifteen frames out of phase — on Crescent Rush the body was fully loaded on
+  // frame 5 and held for sixteen frames while the sword was six percent of the way back, then the
+  // sword arrived at its cocked pose one frame before the hitbox came out. Two animations played
+  // over each other. And the linear recovery meant the follow-through spring existed in the torso
+  // only; the prop slid home in a straight line.
+  const ph = swingPhase(f, m);
   let from, to, k;
-  if (mf <= st) { from = REST[wid] ?? 0; to = swing.arc[0]; k = st ? mf / st : 1; k = k * k; }
-  else if (mf <= st + act) { from = swing.arc[0]; to = swing.arc[1]; k = act ? (mf - st) / act : 1; k = 1 - (1 - k) * (1 - k); }
-  else { from = swing.arc[1]; to = swing.arc[2]; k = rec ? (mf - st - act) / rec : 1; }
+  if (ph.phase === 'wind') { from = REST[wid] ?? 0; to = swing.arc[0]; k = ph.e; }
+  else if (ph.phase === 'strike') { from = swing.arc[0]; to = swing.arc[1]; k = ph.e; }
+  // during the settle `e` already runs 1 -> 0 with an overshoot, so the weapon springs past its
+  // end pose and comes back exactly as the body does
+  else { from = swing.arc[1]; to = swing.arc[2]; k = 1 - ph.e; }
   out.angle = from + (to - from) * k;
 
   if (swing.thrust) out.ox = swing.thrust * (mf > st && mf <= st + act ? 1 : 0);
@@ -322,7 +338,12 @@ export function drawWeapon(ctx, weaponId, palette, pose) {
   const shape = SHAPES[weaponId];
   if (!shape || pose.hide) return;
   ctx.save();
-  ctx.rotate(-pose.angle);            // canvas y is down, world angles are y-up
+  // The world transform already flips Y (setTransform(ppu,0,0,-ppu,...)), so negating here flipped
+  // it a second time and every weapon in the game was drawn vertically mirrored. Measured against
+  // each move's own hitbox on the swings where up and down are unambiguous, the blade averaged
+  // 120 degrees away from the thing it was about to hit; without the negation, 36. The spike
+  // (AirDown, hitbox below the feet) was drawn pointing overhead.
+  ctx.rotate(pose.angle);
   ctx.translate(pose.ox, pose.oy);
   if (pose.scale && pose.scale !== 1) ctx.scale(pose.scale, pose.scale);   // Colossus doubles the blade
   shape(ctx, palette);
@@ -347,7 +368,7 @@ export function drawTrail(ctx, weaponId, palette, trail, scale) {
     const w = (trail.heavy ? 0.42 : 0.26) * (0.35 + 0.65 * u);
     ctx.globalAlpha = trail.alpha * (0.10 + 0.75 * u * u);
     ctx.beginPath();
-    ctx.arc(0, 0, r * (0.55 + 0.45 * u), -a - w * 0.5, -a + w * 0.5);
+    ctx.arc(0, 0, r * (0.55 + 0.45 * u), a - w * 0.5, a + w * 0.5);
     ctx.lineWidth = (trail.heavy ? 0.9 : 0.55) * (0.4 + 0.6 * u);
     ctx.strokeStyle = u > 0.82 ? '#FFFFFF' : (palette.glow || palette.accent || '#FFFFFF');
     ctx.stroke();
@@ -367,7 +388,7 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
   // ---- Sword: energy running the length of an oversized blade ----
   if (weaponId === 'Sword' && U.glow) {
     ctx.save();
-    ctx.rotate(-pose.angle);
+    ctx.rotate(pose.angle);
     ctx.translate(pose.ox, pose.oy);
     const L = (REACH.Sword || 2.6) * sc;
     // The edge burns - along the EDGE, not across the whole blade. Filling the full width washed
@@ -403,7 +424,7 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
     const closing = U.crush === undefined ? U.pull : 1;
     const burst = U.crush !== undefined ? U.crush : 0;
     ctx.save();
-    ctx.rotate(-pose.angle);
+    ctx.rotate(pose.angle);
     ctx.translate((REACH.Scythe || 3.4) * 0.75, 0);
     const R = (1.0 + closing * 1.9) * (1 - burst * 0.55) + burst * 5.5;
     // black core with a violet corona: the corona is what reads at 480x270, the core is what
@@ -433,7 +454,7 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
   if (U.rifle) {
     const r = U.rifle;
     ctx.save();
-    ctx.rotate(-pose.angle);
+    ctx.rotate(pose.angle);
     ctx.translate(pose.ox, pose.oy);
     // barrel extension
     poly(ctx, [[0.85, -0.17], [0.85 + 1.9 * r, -0.17], [0.85 + 1.9 * r, 0.02], [0.85, 0.02]], palette.secondary || '#6B7382');
@@ -464,7 +485,7 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
   // ---- Grimoire: three rune rings, three speeds ----
   if (U.runes !== undefined) {
     ctx.save();
-    ctx.rotate(-pose.angle);
+    ctx.rotate(pose.angle);
     ctx.translate(1.1, 0);
     for (let i = 0; i < 3; i++) {
       const r = 1.5 + i * 1.25;
@@ -491,7 +512,7 @@ export function drawMuzzle(ctx, weaponId, palette, pose, t = 0) {
   const k = pose.flash;
   const reach = REACH[weaponId] || 1;
   ctx.save();
-  ctx.rotate(-pose.angle);
+  ctx.rotate(pose.angle);
   ctx.translate(reach + pose.ox, pose.oy);
   ctx.globalAlpha = k;
   if (weaponId === 'Grimoire') {

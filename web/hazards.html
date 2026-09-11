@@ -1,0 +1,161 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stage hazards</title>
+<style>
+  body { margin: 0; background: #11151b; color: #cbd3de; font: 13px ui-monospace, Menlo, monospace; padding: 16px 20px 60px; }
+  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #8fa0b4; margin: 0 0 4px; }
+  p.note { color: #6c7a8c; margin: 0 0 18px; max-width: 90ch; line-height: 1.55; }
+  h2 { font-size: 14px; margin: 22px 0 2px; color: #e8edf4; }
+  h2 .arch { color: #ffd37a; font-weight: normal; font-size: 12px; margin-left: 8px; }
+  .haz { color: #7f8fa3; margin: 0 0 6px; }
+  .haz b { color: #9fd6ff; font-weight: normal; }
+  .strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  figure { margin: 0; }
+  figcaption { color: #5f6d80; font-size: 11px; margin-top: 2px; text-align: center; }
+  figcaption b { color: #ffb4a0; font-weight: normal; }
+  canvas { image-rendering: pixelated; border-radius: 3px; display: block; background: #0d1015; }
+  .shot canvas { width: 460px; height: 290px; }
+  .live { width: 960px; height: 330px; }
+  .live { margin-top: 6px; }
+</style>
+<h1>Stage hazards</h1>
+<p class="note">
+  Every hazard in the game, drawn by the same <code>hazards2d.js</code> the match uses, from a real
+  simulation stepped to each phase. The left strip is frozen frames through one full cycle — idle,
+  the warning, and the event — so the wind-up can be judged on its own. The wide canvas on the
+  right runs live. Two fighters stand in the hazard's path at all times so scale is honest.
+</p>
+<div id="out"></div>
+
+<script type="module">
+import { STAGES } from './src/data/stages/index.js';
+import { Renderer2D } from './src/render2d/renderer2d.js';
+import { Match } from './src/engine/match.js';
+import { buildLoadout } from './src/data/loadout.js';
+
+// A Match wants an input source. This page drives nobody, so it gets the same do-nothing stub the
+// test harness uses — the fighters are posed by hand rather than played.
+const EMPTY = () => ({ x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false,
+  grab: false, taunt: false, pickup: false, ult: false, jumpHeld: false, guardHeld: false,
+  heavyHeld: false, lightHeld: false, downTap: false, anyPress: false });
+class NullInput {
+  constructor() { this.kb2Active = false; }
+  poll() {} get() { return EMPTY(); }
+}
+
+const out = document.getElementById('out');
+
+function newMatch(stageId) {
+  const fighters = [['Classic', 'Sword'], ['Ember', 'Scythe']].map(([a, w], i) => {
+    const L = buildLoadout(a, w);
+    return { char: L, skin: 0, team: i, source: 'p' + i, isBot: false, name: L.weapon.id };
+  });
+  const m = new Match({ mode: 'StockFFA', stocks: 3, timeLimit: 0, items: false,
+    input: new NullInput(), stage: STAGES.find((s) => s.id === stageId), fighters });
+  while (m.state === 'countdown') m.step();
+  for (let i = 0; i < 60; i++) m.step();
+  m.events.length = 0;
+  return m;
+}
+
+// Park the two fighters where the hazard actually happens, so every shot shows the thing at
+// fighter scale rather than as an abstract pattern.
+function park(m, x1, x2) {
+  const [a, b] = m.fighters;
+  a.x = x1; b.x = x2;
+  for (const f of [a, b]) {
+    f.y = 0; f.vx = 0; f.vy = 0; f.onGround = true; f.platform = m.stage.main;
+    f.setState('idle'); f.invincible = 999; f.percent = 0;
+  }
+}
+
+const PARK = {
+  FoundryFloor: [-30, 30], TheSpan: [-14, 14], Smeltworks: [-20, -26],
+  Rooftops: [-6, 6], Saltflat: [-6, 6], Undertow: [-8, 8],
+};
+
+// Step until the named hazard is in the phase we want AND halfway through it.
+//
+// Stopping on the first frame of a phase is useless for judging one: every hazard here ramps in
+// from nothing, so frame one of an eruption is an invisible eruption. The peak is the frame a
+// player actually has to read, so that is the frame this captures.
+function seek(m, key, want, cap = 60 * 90) {
+  const phaseOf = (v) => v.phase || (v.active ? 'active' : v.warn ? 'warn' : 'idle');
+  for (let i = 0; i < cap; i++) {
+    m.step(); m.events.length = 0;
+    const v = (m.stage.visual || {})[key];
+    if (!v || phaseOf(v) !== want) continue;
+    // now run on to the middle of it
+    for (let j = 0; j < 600; j++) {
+      const cur = (m.stage.visual || {})[key];
+      if (!cur || phaseOf(cur) !== want) break;
+      const k = cur.k !== undefined ? cur.k : cur.warnK;
+      if (k === undefined || k >= 0.45) return true;
+      m.step(); m.events.length = 0;
+    }
+    return true;
+  }
+  return false;
+}
+
+const PHASES = ['idle', 'warn', 'active'];
+const LABEL = { idle: 'quiet', warn: 'WARNING', active: 'EVENT' };
+
+for (const data of STAGES) {
+  const head = document.createElement('h2');
+  head.innerHTML = `${data.name}<span class="arch">${data.archetype}</span>`;
+  out.appendChild(head);
+
+  const list = document.createElement('div');
+  list.className = 'haz';
+  list.innerHTML = data.hazards.map((h) => `<b>${h.type}</b>`).join(' · ') +
+    (data.ambient ? ` · ambient <b>${data.ambient.kind}</b>` : '');
+  out.appendChild(list);
+
+  for (const h of data.hazards) {
+    const strip = document.createElement('div');
+    strip.className = 'strip';
+    for (const phase of PHASES) {
+      const m = newMatch(data.id);
+      park(m, ...PARK[data.id]);
+      const found = seek(m, h.type, phase);
+      // some hazards have no discrete idle/warn (tide, ember drift); skip what does not exist
+      if (!found && phase !== 'active') continue;
+      park(m, ...PARK[data.id]);
+
+      // The canvas has to be IN the document before the renderer sees it: Renderer2D sizes its
+      // backbuffer from getBoundingClientRect, and a detached canvas measures 0x0.
+      const fig = document.createElement('figure');
+      fig.className = 'shot';
+      const c = document.createElement('canvas');
+      fig.appendChild(c);
+      const cap = document.createElement('figcaption');
+      cap.innerHTML = `${h.type} — <b>${LABEL[phase]}</b>`;
+      fig.appendChild(cap);
+      strip.appendChild(fig);
+      out.appendChild(strip);
+
+      const view = new Renderer2D(c);
+      view.setStage(m.stage);
+      view.frame(m, 1 / 60, performance.now() / 1000, true);
+    }
+  }
+
+  // ---- and one live canvas per stage, running everything at once ----
+  const m = newMatch(data.id);
+  park(m, ...PARK[data.id]);
+  const c = document.createElement('canvas');
+  c.className = 'live';
+  out.appendChild(c);
+  const view = new Renderer2D(c);
+  view.setStage(m.stage);
+
+  const t0 = performance.now();
+  (function loop() {
+    m.step(); m.events.length = 0;
+    park(m, ...PARK[data.id]);
+    view.frame(m, 1 / 60, (performance.now() - t0) / 1000, false);
+    requestAnimationFrame(loop);
+  })();
+}
+</script>

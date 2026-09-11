@@ -11,6 +11,8 @@
 
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, REACH } from './weapons2d.js';
+import { drawHazards } from './hazards2d.js';
+import { drawAmbient } from './ambient2d.js';
 
 const PI = Math.PI;
 const BH = 270;                       // backbuffer HEIGHT is fixed, so one world pixel is always
@@ -105,13 +107,20 @@ export class Renderer2D {
     this._world();
     this._backdrop(match.stage);
     this._stage(match.stage);
+    // Distant weather and the hazards a fighter stands IN FRONT of (water, wind, embers).
+    drawAmbient(this.b, match.stage, t, 'back');
+    drawHazards(this.b, match.stage, t, 'back');
     this._summons(match.combat);
     this._orbMarks(match);
     this._items(match.combat);
     for (const f of fighters) this._fighter(f, t);
+    // Hazards a fighter is INSIDE — steam, dust, water jets — draw over them, so the fighter is
+    // swallowed by the column rather than pasted on top of it.
+    drawHazards(this.b, match.stage, t, 'front');
     this._projectiles(match.combat);
     this._bursts(match.combat);
     this._particles(dt);
+    drawAmbient(this.b, match.stage, t, 'front');
     for (const f of fighters) if (f.ultActive && f.alive) this._ultWorld(f, t);
     // Every caster gets a ring - `break` here meant that when two players activated on the same
     // frame only one of them was marked. The screen wash is still drawn once, from the first.
@@ -208,36 +217,6 @@ export class Renderer2D {
       }
     }
 
-    // hazards the stage exposes as renderer hints
-    const v = stage.visual || {};
-    if (v.vents && v.vents.phase !== 'idle') {
-      const erupt = v.vents.phase === 'erupt';
-      b.fillStyle = erupt ? 'rgba(255,180,90,0.75)' : 'rgba(255,220,150,0.30)';
-      // drawn at the real hit width: hitbox is width/2 + the fighter's 1.1 radius
-      const vw = v.vents.width + 2.2;
-      for (const px of v.vents.positions) b.fillRect(px - vw / 2, m.top, vw, erupt ? 16 : 3.0);
-    }
-    if (v.sprinkler && v.sprinkler.phase === 'sweep') {
-      b.fillStyle = 'rgba(160,215,240,0.5)';
-      // the jet acts over 12 studs; it used to be drawn 2.4 wide, so you were shoved by something
-      // five studs away from a thin line
-      b.fillRect(v.sprinkler.x - 6, m.top - 4, 12, 26);
-    }
-    if (v.dustdevil) {
-      b.fillStyle = 'rgba(200,180,140,0.45)';
-      const dw = v.dustdevil.w + 2.2;
-      b.fillRect(v.dustdevil.x - dw / 2, m.top - 5.2, dw, v.dustdevil.h + 5.2);
-    }
-    if (v.tide) {
-      // Only where it actually acts. It used to be painted from x=-200 to 400, so fighters stood
-      // waist-deep in water that could not touch them.
-      b.fillStyle = 'rgba(120,190,215,0.45)';
-      const e = v.tide.edge;
-      b.fillRect(-200, v.tide.level - 60, 200 - e, 60);
-      b.fillRect(e, v.tide.level - 60, 200, 60);
-      b.fillStyle = 'rgba(120,190,215,0.22)';
-      b.fillRect(-e, Math.min(v.tide.level, m.bottom) - 60, e * 2, 60);   // under the floor only
-    }
   }
 
   // ---------------------------------------------------------------------- fighter ----

@@ -10,6 +10,11 @@
 // hazard phase, and fail on any thrown error. A test suite for a game has to draw at least once.
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { STAGES } from '../src/data/stages/index.js';
+import { HAZARDS } from '../src/engine/hazards.js';
+
+// Read the registry rather than a hand-written list, so a hazard added later cannot be silently
+// left out of the only test that draws it.
+const HAZARD_KEYS = Object.keys(HAZARDS);
 
 let pass = 0, fail = 0;
 const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
@@ -63,8 +68,8 @@ for (const data of STAGES) {
     for (const e of m.events) { try { view.handle(e, m); } catch (err) { error = `handle(${e.type}): ${err.message}`; } }
     m.events.length = 0;
     const v = m.stage.visual || {};
-    for (const key of ['vents', 'sprinkler', 'dustdevil', 'tide']) {
-      if (v[key]) phasesSeen.add(`${key}:${v[key].phase || 'on'}`);
+    for (const key of HAZARD_KEYS) {
+      if (v[key]) phasesSeen.add(`${key}:${v[key].phase || (v[key].active ? 'active' : v[key].warn ? 'warn' : 'on')}`);
     }
     try { view.frame(m, 1 / 60, i / 60, false); frames++; }
     catch (err) { error = `frame ${i}: ${err.message}`; }
@@ -86,7 +91,7 @@ for (const data of STAGES) {
     m.step();
     m.events.length = 0;
     const v = m.stage.visual || {};
-    for (const key of ['vents', 'sprinkler', 'dustdevil', 'tide']) if (v[key]) seen.add(key);
+    for (const key of HAZARD_KEYS) if (v[key]) seen.add(key);
     view.frame(m, 1 / 60, i / 60, false);
   }
   const declared = data.hazards.map((h) => h.type);

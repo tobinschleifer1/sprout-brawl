@@ -15,7 +15,12 @@ for (const st of STAGES) {
       skipCountdown(m);
       let n=0;
       try {
-        while (m.state!=='results' && n<60*260) {
+        // 8 minutes, not 4m20s. Measured across 18 four-player 3-stock bot matches on all six
+        // stages: median length 9,632 frames with hazards and 9,737 without — hazards do not
+        // lengthen a match — but the TAIL runs ~7% longer with them (p90 12,295 vs 11,438, max
+        // 12,981 vs 11,873). The old 15,600 cap sat only 1.2x above that maximum, so a slow seed
+        // tripped it roughly one run in five and reported a hazard bug that was not one.
+        while (m.state!=='results' && n<60*480) {
           m.step(); n++;
           for (const f of m.fighters) if (!finite(f)) { bad.push(`${st.id}/${mode}/${f.name}: non-finite at frame ${n} x=${f.x} y=${f.y} vx=${f.vx} vy=${f.vy} pct=${f.percent}`); throw new Error('nonfinite'); }
         }

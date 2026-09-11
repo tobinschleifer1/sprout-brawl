@@ -3,6 +3,19 @@ import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockst
 import { emptyFrame } from './input.js';
 
 const sign = (v) => (v < 0 ? -1 : 1);
+// The ceiling on any environmental acceleration, in studs/s².
+//
+// This was 130 — deliberately "just under gravity (150) so a hazard can never fling you" — which
+// sounds right and is completely wrong: it meant no updraft in the game could lift anybody at
+// all. A vent parked under a fighter for thirty seconds raised them thirteen studs. Anything that
+// is supposed to hold you up has to beat gravity or it is not holding you up.
+//
+// 260 gives a maximum net rise of 110 studs/s², which is under a fighter's own jump (a jump
+// starts at 63 studs/s and a strong updraft tops out around 40), so a hazard can carry you but
+// still cannot out-move you. That is the line: hazards beat gravity, players beat hazards.
+const ENV_MAX = 260;
+const clampEnv = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
 const NO_GRAVITY_STATES = new Set(['ledge', 'grabbed', 'holding', 'frozen', 'tether', 'ko', 'respawn', 'ledgeaction']);
 
 export class Fighter {
@@ -66,8 +79,25 @@ export class Fighter {
     // Ultimate meter. reset() runs on respawn, so losing a stock wipes the charge.
     this.ultCharge = 0; this.ultActive = 0;
     this.ultTarget = null; this.ultHeld = []; this.ultShots = 0; this.ultCooldown = 0; this.ultEndAt = 0;
+    this.carryX = 0;
     this.lastHitBy = null; this.lastHitFrame = -9999;
     this.inWater = false;
+    // What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run
+    // (see StageRuntime.step), written by hazards.js, read by _physics and _friction. Keeping it
+    // in one bag means a hazard never reaches into the state machine, and the state machine never
+    // learns which hazards exist.
+    this.env = { updraft: 0, windX: 0, traction: 1, grip: 1, damp: 1 };
+    // Wind is carried in its OWN velocity, not folded into vx.
+    //
+    // Folding it into vx did not work and the measurements were brutal: _stepState runs before
+    // _physics, and _airDrift pulls vx toward +/-airSpeed at airSpeed/airAccelFrames = 108
+    // studs/s^2. Every horizontal hazard force in the game is under half that (crosswind 46,
+    // roguewave 58, sprinkler 54, dust devil 44). So any player touching the stick erased the
+    // wind completely: a full Span gust moved the recovery envelope by ONE stud, and only for a
+    // player who was not holding a direction. Wind mattered to people who were not playing.
+    //
+    // carryX is added at the position step instead, so drift and wind compose rather than fight.
+    this.carryX = 0;
     this.spray = 0;
     this.effects.chill = { stacks: 0, timer: 0 }; this.effects.tangle = { stacks: 0, timer: 0 }; this.effects.grit = { hide: 0, slow: 0 }; this.effects.slow = 0; this.effects.frozenBonus = false;
     if (opts.percent != null) this.percent = opts.percent;
@@ -227,7 +257,11 @@ export class Fighter {
   _groundMove(inp) {
     const run = Math.abs(inp.x) >= 0.5, walk = Math.abs(inp.x) > 0.15;
     const speed = (run ? this.char.runSpeed : this.char.walkSpeed) * this.speedMul();
-    const accel = this.char.runSpeed / MOVE.groundAccelFrames;
+    // env.grip is the slick's effect on ACCELERATION, as distinct from env.traction which is its
+    // effect on stopping. It was being written by the sprinkler and read by nothing at all, so a
+    // wet roof cost you your brakes but not your launch. Floored at 0.3 for the same reason
+    // traction is: a stage may make you clumsy, never helpless.
+    const accel = (this.char.runSpeed / MOVE.groundAccelFrames) * Math.max(0.3, this.env.grip);
     if (walk) {
       this.facing = sign(inp.x);
       const target = sign(inp.x) * speed;
@@ -242,7 +276,8 @@ export class Fighter {
 
   _friction() {
     if (!this.onGround) return;
-    const decel = this.char.runSpeed / MOVE.groundStopFrames;
+    // Traction floors at 0.25: a slick surface should cost you your stop, never your agency.
+    const decel = (this.char.runSpeed / MOVE.groundStopFrames) * Math.max(0.25, this.env.traction);
     if (Math.abs(this.vx) <= decel) this.vx = 0; else this.vx -= sign(this.vx) * decel;
   }
 
@@ -580,6 +615,8 @@ export class Fighter {
     if (hit.trip && this.percent < hit.trip && this.onGround) { this.setState('knockdown'); this.sf = 6; this.vx = 0; return; }
     let launch = hit.launch;
     if (this.effects.frozenBonus) { launch *= 1.2; this.effects.frozenBonus = false; }
+    // Deep water eats knockback. It is why the tide is a refuge at high percent as well as a trap.
+    if (this.env.damp < 1) launch *= this.env.damp;
     this.hitstun = hitstunFor(launch) + (hit.extraHitstun || 0);
     if (hit.pull) { this.x += -hit.facing * Math.min(hit.pull, Math.abs(this.x - (hit.attackerX ?? this.x))); }
     // Two hitboxes can land on the SAME frame - a greatsword and the crater it opens, a burst
@@ -633,16 +670,40 @@ export class Fighter {
   _physics(ctx) {
     const stage = ctx.stage;
     const noGravity = NO_GRAVITY_STATES.has(this.state) || this.noGravityFrame;
+    // Environmental forces. Applied as accelerations rather than velocity sets, so they compose
+    // with gravity and with each other and never yank a fighter out of a trajectory they were
+    // reading. They are clamped so no stack of hazards can exceed a single strong one.
+    // Wind accumulates into a carried velocity that decays on its own. On the ground it bleeds
+    // off fast, so a gust never drags a standing fighter.
+    if (this.env.windX && !this.onGround) this.carryX += clampEnv(this.env.windX, -ENV_MAX, ENV_MAX) * FRAME;
+    this.carryX *= this.onGround ? 0.80 : 0.97;
+    if (Math.abs(this.carryX) < 0.05) this.carryX = 0;
+
     if (!this.onGround && !noGravity) {
       this.vy -= GRAVITY * FRAME;
       let term = this.char.fallSpeed * (this.fastFalling ? MOVE.fastFallMul : 1);
       if (this.inWater) term *= 0.5;
       if (this.state === 'hitstun' || this.tumbling) term = Math.max(term, 80);
+      // A downward environmental force has to be able to push PAST terminal velocity, and an
+      // upward one has to survive the clamp. Applying env before this block meant the one-sided
+      // clamp deleted both: sandfall moved a falling fighter 67.3 studs against 67.7 in free air,
+      // and ember drift bought five frames over a forty-stud fall and exactly nothing once a
+      // fighter reached fall speed. The clamp now opens up in proportion to the force pressing on
+      // it, which is what "terminal velocity in a downdraft" physically means.
+      // An updraft lowers your terminal fall speed and a downdraft raises it — that is what
+      // terminal velocity IS, the speed where drag balances gravity, and drag is exactly what a
+      // column of moving air changes. Without this, lift below gravity did nothing at all at
+      // terminal speed: the clamp re-ran every frame and ate it, so ember drift bought 0 frames
+      // over a 38-stud fall no matter how the number was tuned.
+      if (this.env.updraft < 0) term *= 1 + Math.min(1.2, -this.env.updraft / GRAVITY);
+      else if (this.env.updraft > 0 && this.vy < 0) term *= Math.max(0.22, 1 - this.env.updraft / GRAVITY);
       if (this.vy < -term) this.vy = -term;
     }
+    // Applied AFTER the clamp, so lift is never silently erased.
+    if (!this.onGround && this.env.updraft) this.vy += clampEnv(this.env.updraft, -ENV_MAX, ENV_MAX) * FRAME;
     if (this.state === 'hitstun' && !this.onGround) this.vx *= LAUNCH_DRAG;
     if (this.state === 'grabbed' || this.state === 'ledge' || this.state === 'ko' || this.state === 'respawn') return;
-    let nx = this.x + this.vx * FRAME, ny = this.y + this.vy * FRAME;
+    let nx = this.x + (this.vx + this.carryX) * FRAME, ny = this.y + this.vy * FRAME;
     if (this.onGround && this.platform) { nx += this.platform.dx; ny = this.platform.top; }
     const res = stage.collide(this, this.x, this.y, nx, ny);
     this.x = res.x; this.y = res.y;

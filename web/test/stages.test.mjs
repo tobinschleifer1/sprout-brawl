@@ -160,12 +160,33 @@ for (const data of STAGES) {
     [...archetypes].join(', '));
 }
 
-// ---- 5. a ranked stage must be hazardless, and there must be at least one ----
+// ---- 5. a ranked stage may have weather, but weather must never HIT ----
+// The rule used to be "ranked stages have no hazards at all", which is one way to keep a
+// tournament layout neutral and a boring one: the two ranked stages were the two with nothing to
+// look at. The rule now is about what a hazard is allowed to DO. On a ranked stage it may apply
+// environmental force — lift, wind, drag — and nothing else: no damage, no launch, no stun. A
+// gust changes a recovery; it never takes a stock off you. That is checked here by reading the
+// data, so no future hazard can quietly arrive on a ranked layout with a damage field on it.
 {
   const ranked = STAGES.filter((d) => d.ranked);
-  const dirty = ranked.filter((d) => d.hazards.length);
-  check('ranked stages are hazardless', ranked.length >= 1 && dirty.length === 0,
-    ranked.length ? `${ranked.length} ranked (${ranked.map((d) => d.name).join(', ')})${dirty.length ? ' but ' + dirty.map((d) => d.name).join(',') + ' has hazards' : ''}` : 'no ranked stage');
+  const offenders = [];
+  for (const d of ranked) {
+    for (const h of d.hazards) {
+      const hits = ['damage', 'launch', 'angle'].filter((k) => h[k] != null);
+      if (hits.length) offenders.push(`${d.name}/${h.type} declares ${hits.join(', ')}`);
+    }
+  }
+  check('ranked stages have weather, never weapons', ranked.length >= 1 && offenders.length === 0,
+    offenders.length ? offenders.join('; ')
+      : `${ranked.length} ranked (${ranked.map((d) => `${d.name}: ${d.hazards.map((h) => h.type).join('+') || 'none'}`).join(', ')}) — force only, no damage or launch`);
+}
+
+// ---- 5b. every stage has something environmental going on ----
+{
+  const bare = STAGES.filter((d) => !d.hazards.length && !d.ambient);
+  check('every stage has an environment', bare.length === 0,
+    bare.length ? `nothing happening on: ${bare.map((d) => d.name).join(', ')}`
+      : STAGES.map((d) => `${d.name} ${d.hazards.length}h+${d.ambient ? d.ambient.kind : 'none'}`).join(', '));
 }
 
 // ---- 6. blast zones must be far enough that a ledge-side hit is not an instant KO ----

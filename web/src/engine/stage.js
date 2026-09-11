@@ -1,3 +1,4 @@
+import { stepHazard } from './hazards.js';
 import { FRAME, LEDGE } from '../config.js';
 
 // Runtime stage: platforms (including moving and sinking ones), ledges, blast zones and hazards.
@@ -49,6 +50,18 @@ export class StageRuntime {
     this.visual = {}; // renderer hints: vent phase, sprinkler x, dust devil, tide
   }
 
+  // Highest platform at or below `yMax` under `x`. Hazards need this to know where their drops
+  // land and where their slicks lie; combat.js has its own copy for projectiles.
+  surfaceUnder(x, yMax) {
+    let best = null;
+    for (const p of this.platforms) {
+      if (x < p.x1 || x > p.x2) continue;
+      if (p.top > yMax + 0.5) continue;
+      if (!best || p.top > best.top) best = p;
+    }
+    return best;
+  }
+
   step(match) {
     this.time += FRAME;
     // Moving platforms
@@ -84,83 +97,16 @@ export class StageRuntime {
         }
       }
     }
-    for (const h of this.hazards) this._stepHazard(h, match);
+    // Hazards write into each fighter's `env` bag, so it is cleared here, once, immediately
+    // before they run. Doing it anywhere else lets a force from last frame leak into this one.
+    for (const f of match.fighters) {
+      f.env.updraft = 0; f.env.windX = 0; f.env.traction = 1; f.env.grip = 1; f.env.damp = 1;
+    }
+    this.visual = {};
+    const ctx = { stage: this, match, fighters: match.fighters, visual: this.visual };
+    for (const h of this.hazards) stepHazard(h, ctx);
   }
 
-  _stepHazard(h, match) {
-    const s = h.state;
-    if (h.type === 'vents') {
-      s.timer = (s.timer || 0) + FRAME;
-      const cycle = h.period;
-      const t = s.timer % cycle;
-      const warnStart = cycle - (h.warn + h.erupt) / 60;
-      const eruptStart = cycle - h.erupt / 60;
-      s.phase = t >= eruptStart ? 'erupt' : t >= warnStart ? 'warn' : 'idle';
-      this.visual.vents = { phase: s.phase, positions: h.positions, width: h.width };
-      if (s.phase === 'erupt') {
-        for (const f of match.fighters) {
-          if (!f.alive || !f.onGround || !f.platform || !f.platform.solid) continue;
-          if (h.positions.some((px) => Math.abs(f.x - px) < h.width / 2 + f.r)) f.launchNoStun(0, h.launch);
-        }
-      }
-    } else if (h.type === 'sprinkler') {
-      s.timer = (s.timer || 0) + FRAME;
-      const t = s.timer % h.period;
-      const tickStart = h.period - h.tick / 60 - h.sweepSeconds;
-      const sweepStart = h.period - h.sweepSeconds;
-      if (t >= sweepStart) {
-        const k = (t - sweepStart) / h.sweepSeconds;
-        const x = this.main.x1 - 10 + k * (this.main.w + 20);
-        s.phase = 'sweep'; s.x = x;
-        for (const f of match.fighters) {
-          if (!f.alive || f.onGround) continue;
-          // Bounded to the drawn column. It used to act over 12 studs with no vertical limit at
-          // all, so it shoved players recovering far below the stage, outward, invisibly.
-          if (f.y < -6 || f.y > 22) continue;
-          if (Math.abs(f.x - x) < 3) f.vx += Math.sign(f.x - x || 1) * (h.push * 4) * FRAME;
-        }
-      } else if (t >= tickStart) { s.phase = 'tick'; } else { s.phase = 'idle'; }
-      this.visual.sprinkler = { phase: s.phase, x: s.x || 0 };
-    } else if (h.type === 'dustdevil') {
-      s.timer = (s.timer || 0) + FRAME;
-      const t = s.timer % h.period;
-      const start = h.period - h.crossSeconds;
-      if (t >= start) {
-        if (!s.active) { s.active = true; s.dir = Math.random() < 0.5 ? 1 : -1; s.hits = new Map(); }
-        const k = (t - start) / h.crossSeconds;
-        const from = s.dir > 0 ? this.main.x1 - 12 : this.main.x2 + 12;
-        const to = s.dir > 0 ? this.main.x2 + 12 : this.main.x1 - 12;
-        s.x = from + (to - from) * k;
-        for (const f of match.fighters) {
-          if (!f.alive) continue;
-          const last = s.hits.get(f.index) || -999;
-          if (match.frame - last < 60) continue;
-          if (Math.abs(f.x - s.x) < h.width / 2 + f.r && f.y < h.height && f.y + f.h > 0) {
-            s.hits.set(f.index, match.frame);
-            match.combat.hazardHit(f, { damage: h.damage, launch: h.launch, angle: h.angle, x: s.x, y: f.y + 2 });
-          }
-        }
-      } else { s.active = false; }
-      this.visual.dustdevil = s.active ? { x: s.x, w: h.width, h: h.height } : null;
-    } else if (h.type === 'tide') {
-      s.timer = (s.timer || 0) + FRAME;
-      const t = s.timer % h.period;
-      const riseStart = h.period - (h.rise + h.hold + h.fall);
-      let level = h.low;
-      if (t >= riseStart && t < riseStart + h.rise) level = h.low + (h.high - h.low) * ((t - riseStart) / h.rise);
-      else if (t >= riseStart + h.rise && t < riseStart + h.rise + h.hold) level = h.high;
-      else if (t >= riseStart + h.rise + h.hold) level = h.high - (h.high - h.low) * ((t - riseStart - h.rise - h.hold) / h.fall);
-      this.waterLevel = level;
-      this.visual.tide = { level, edge: h.edge };
-      for (const f of match.fighters) {
-        if (!f.alive) continue;
-        const inWater = f.y < level && (Math.abs(f.x) > h.edge || f.y < this.main.bottom);
-        if (inWater && !f.inWater) { /* entering: jumps are not consumed */ }
-        f.inWater = inWater;
-        if (inWater) f.vx += Math.sign(f.x || 1) * 6 * FRAME * 4;
-      }
-    }
-  }
 
   // Sudden death: shrink all four sides toward the origin.
   // Sudden death closes the blast box in. It must never close past the stage itself, or there is

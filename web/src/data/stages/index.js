@@ -33,7 +33,16 @@ export const STAGES = [
     ],
     blast: { left: -96, right: 96, top: 85, bottom: -50 },
     spawns: [-24, 24, -10, 10, -30, 30, -4, 4],
-    hazards: [],
+    // Ranked, so the one environmental element is a piece of LAYOUT rather than an event: two
+    // fixed columns of rising heat off the pour below, sitting just OUTSIDE each ledge. Neutral is
+    // untouched; what changes is the edgeguard. Always there, always in the same place, never
+    // damages, and it only slows a fall — it can never push you upward past where you already were.
+    hazards: [
+      { type: 'emberdrift', positions: [-41, 41], width: 9, from: -34, to: 10, lift: 96 },
+    ],
+    // Ash, not embers: the hazard on this stage is rising orange sparks, so the ambient has to
+    // fall and has to be grey. See the note on `ash` in render2d/ambient2d.js.
+    ambient: { kind: 'ash', rate: 0.55, tint: 'rgba(196,200,208,0.9)', drift: 2.4 },
     palette: { ground: '#3E4450', groundTop: '#8A94A6', platform: '#6E7788', backdrop: '#8E9BB0', accent: '#E8862E', sky: '#C9D3E0',
       skyStops: [[0, '#38414F'], [0.45, '#6C788C'], [0.8, '#A9B5C6'], [1, '#C6D0DC']],
       glows: [{ y: 120, r: 150, color: 'rgba(255,180,90,0.30)' }] },
@@ -55,7 +64,18 @@ export const STAGES = [
     platforms: [],
     blast: { left: -98, right: 98, top: 94, bottom: -48 },
     spawns: [-30, 30, -12, 12, -40, 40, -4, 4],
-    hazards: [],
+    // Ranked, so this never touches grounded play. A bridge in the open gets wind; the wind
+    // changes every recovery and every edgeguard and nothing else. Strictly alternating direction
+    // on a 16-second cycle with a 2-second warning, so it is learnable rather than random.
+    hazards: [
+      // push 18, measured: a full gust displaces an airborne fighter 9.5 studs over its 2 seconds,
+      // and it displaces them 9.5 studs whether or not they are holding the stick against it —
+      // which only became true once wind was carried in its own velocity instead of being folded
+      // into vx, where air drift out-accelerated it three to one and erased it. At 46 the same
+      // gust moved a recovery 17.5 studs, which is a coin flip rather than a read.
+      { type: 'crosswind', period: 16, warn: 2, gustSeconds: 3.4, push: 18 },
+    ],
+    ambient: { kind: 'gulls', rate: 0.12, tint: 'rgba(255,255,255,0.5)', streaks: true },
     palette: { ground: '#4A4E58', groundTop: '#9AA6B4', platform: '#7C8695', backdrop: '#9FB4C4', accent: '#D9534F', sky: '#D6E4EE',
       skyStops: [[0, '#5C7A96'], [0.42, '#93AFC4'], [0.78, '#C8DCE8'], [1, '#E2EDF3']],
       glows: [{ y: 140, r: 170, color: 'rgba(255,240,220,0.45)' }] },
@@ -85,7 +105,17 @@ export const STAGES = [
     // 15.4 to 24.6 out once a fighter's 1.1 radius is added to the 7-stud vent mouth.
     spawns: [-30, 28, -14, 14, -26, 27, -32, 32],
     // launch 62 was a 12.8-stud pop with no damage and no stun: a free extra jump, not a punish.
-    hazards: [{ type: 'vents', period: 9, warn: 46, erupt: 26, launch: 96, width: 7, positions: [-20, 20] }],
+    hazards: [
+      // A sustained column, not a pop. `lift` is an acceleration held for the whole eruption, so
+      // standing on a grate peels you off it and falling through one catches you: the hazard and
+      // the recovery route are the same object. `reach` gives the column a top.
+      { type: 'vents', period: 9, warn: 46, erupt: 34, lift: 232, reach: 26, width: 7, positions: [-20, 20] },
+      // And the gantry leaks. Small, constant, and only over the crossing — where the vents make
+      // the islands unsafe, the slag makes the free route cost something.
+      { type: 'slagfall', x: -1, spread: 9, from: 14, every: 1.1, damage: 4, launch: 22 },
+    ],
+    // shimmer 1.4: at 0.55 the wobble came out at 1.1 units of luminance, which is nothing.
+    ambient: { kind: 'heat', rate: 0.9, tint: 'rgba(255,140,60,0.8)', shimmer: 1.4, glow: true },
     palette: { ground: '#3A2E2A', groundTop: '#8C5A3C', platform: '#6E4A38', backdrop: '#7A5A52', accent: '#FF7A3C', sky: '#E0A878',
       skyStops: [[0, '#2E2320'], [0.38, '#6B443A'], [0.74, '#B87452'], [1, '#E8A870']],
       glows: [{ y: 40, r: 190, color: 'rgba(255,140,60,0.40)' }] },
@@ -121,7 +151,23 @@ export const STAGES = [
     // player fell straight past the stage and lost a stock in three seconds. Slot 3 at x=-34 landed
     // on the west tier instead of the floor, starting that player 13 studs above everyone else.
     spawns: [-16, 16, -24, 24, -6, 6, -20, 20],
-    hazards: [{ type: 'sprinkler', period: 15, tick: 40, sweepSeconds: 3.0, push: 12 }],
+    hazards: [
+      // The jet sweeps for 3.4 seconds and leaves the roof wet for ten. Long after the water has
+      // gone the fight is still being shaped by where it went, which is what turns a shove into a
+      // stage feature. It alternates direction so neither side is the safe side.
+      // push 18, not 54: wind now composes with air control instead of being fought by it, so
+      // every horizontal force in the game needed roughly a third of its old number.
+      { type: 'sprinkler', period: 15, tick: 75, sweepSeconds: 3.4, push: 40, radius: 4.2,
+        height: 30, wetSeconds: 10, slip: 0.62 },
+      // Electricity between the masts, high up. It exists so the top of a vertical stage is not
+      // simply the safest place to stand.
+      // y=44, not 40. The crane tier tops out at 33, and a fighter standing on it reaches 38.2 —
+      // inside a 2.2-thick band centred on 40. At 44 the band starts at 41.8 and the crane is
+      // clear by three and a half studs, so standing on the highest platform is never a hit.
+      { type: 'antennaarc', period: 13, warn: 54, arc: 22, x1: -21, x2: 16, y: 44, thickness: 2.2,
+        damage: 6, launch: 30 },
+    ],
+    ambient: { kind: 'rain', rate: 1.4, tint: 'rgba(180,215,240,0.55)', wind: -7 },
     palette: { ground: '#2E3440', groundTop: '#5A6478', platform: '#4A5464', backdrop: '#5E6E86', accent: '#7DE8FF', sky: '#B8C8DC',
       skyStops: [[0, '#1E2430'], [0.4, '#3E4C62'], [0.76, '#7E90A8'], [1, '#B6C6D8']],
       glows: [{ y: 110, r: 150, color: 'rgba(125,232,255,0.28)' }] },
@@ -150,7 +196,30 @@ export const STAGES = [
     spawns: [-34, 18, -6, 6, -42, 24, -24, 2],
     // crossSeconds 4.2 over ~100 studs was 23.3 studs/s - exactly run speed, so running was never
     // an escape. 6.5 seconds brings it to 15 studs/s: you can outrun it, or jump it, or eat it.
-    hazards: [{ type: 'dustdevil', period: 19, crossSeconds: 6.5, width: 9, height: 18, damage: 7, launch: 26, angle: 62 }],
+    hazards: [
+      // It CARRIES. Step inside and you are drawn to the core, lifted, and spun up the funnel
+      // until it throws you out of the top. Almost no damage; you keep air control the whole way,
+      // so a good player rides it across the stage and a panicking one gets thrown over the pit.
+      // It reverses direction every pass, and warns for two seconds before it arrives.
+      // eastStop 8 puts the funnel's measured east reach at x=25 and the sandfall's west reach at
+      // x=25 — adjacent, not overlapping. The funnel gives up the last seven studs of the island
+      // to the sandfall, which is the price of the two being readable as separate threats.
+      //
+      // eastStop/westStop keep the funnel's turnaround ON the island at both ends. eastStop was 9,
+      // which put the east turnaround at x=22 — four studs INSIDE the right ledge — and a passive
+      // rider was being set down in the 3-stud gap between the floor (ends 26) and the mesa
+      // (starts 29). A hazard that deposits a 0% fighter who never touched the stick into a pit is
+      // the one thing "pressure, never an execution" is supposed to rule out.
+      { type: 'dustdevil', period: 19, warn: 2, crossSeconds: 6.5, radius: 5.5, height: 20, eastStop: 8, westStop: 5,
+        pull: 44, lift: 225, drag: 26, throwAfter: 46, damage: 4, launch: 24, angle: 80 },
+      // Sand pours off the lip of the mesa. It does not hurt; it makes the space under the mesa
+      // a bad place to be, and that is exactly the space an edgeguarder wants.
+      { type: 'sandfall', x: 29.5, width: 7, from: 17, to: -30, period: 11, warn: 48,
+        pourSeconds: 3.2, push: 62 },
+    ],
+    // The sand ambient measured 2.7 units of luminance against this stage's own sky — on the one
+    // stage that most needs visible blowing sand. Darker and denser.
+    ambient: { kind: 'sand', rate: 1.1, tint: 'rgba(150,124,86,0.75)', wind: 11 },
     palette: { ground: '#7A6448', groundTop: '#C9A87A', platform: '#A88A62', backdrop: '#D8C0A0', accent: '#E8B04A', sky: '#F0DCB8',
       skyStops: [[0, '#8FA8C0'], [0.4, '#CFC0A8'], [0.76, '#EEDCBC'], [1, '#F6E8CE']],
       glows: [{ y: 130, r: 180, color: 'rgba(255,240,200,0.50)' }] },
@@ -181,7 +250,28 @@ export const STAGES = [
     // Slots 7 and 8 were both x=0 - two fighters at the identical point - and 3/4 started on the
     // moving raft while 1/2 started on the floor.
     spawns: [-14, 14, -7, 7, -18, 18, -11, 11],
-    hazards: [{ type: 'tide', period: 34, rise: 3, hold: 10, fall: 3, low: -9, high: 8, edge: 21 }],
+    hazards: [
+      // Water is a second set of physics rather than a hazard: slow, buoyant, and it DAMPS
+      // knockback. At 140% the water is the safest place on the stage and also the place you
+      // cannot fight from. Choosing when to be in it is the whole layout.
+      { type: 'tide', period: 34, rise: 3, hold: 10, fall: 3, low: -9, high: 8, edge: 21,
+        swell: 0.9, buoyancy: 205, drift: 5, damp: 0.55, depth: 12 },
+      // And once per high tide, a crest rolls the length of the stage. It is the reason high
+      // tide is tense rather than just wet.
+      // 2.4s of warning, not 1.6: it fires while the tide is also mid-phase, so a player is
+      // already reading one thing when it arrives and needs longer to process a second.
+      // `at: 23.5` pins the crossing INSIDE the tide's hold (t=21..31). Hanging it off the end of
+      // the period put it at 30.4, so the crest entered as the tide was already falling and spent
+      // 83% of its travel below the island's bottom edge, hidden behind the stage — measured at
+      // 108 of 648 active frames during high tide. It is the high-tide payoff hazard; it has to
+      // happen at high tide.
+      { type: 'roguewave', period: 34, at: 23.5, warn: 2.4, crossSeconds: 3.6, width: 13, crest: 7,
+        // push 60: measured, the crest carries a fighter 9.7 studs across the 48 frames it is
+        // actually on top of them. At 34 it was 4.6 — a passing wave you could ignore.
+        push: 60, lift: 40 },
+    ],
+    // Spray sits over dark water, so it has to brighten rather than darken to be seen.
+    ambient: { kind: 'spray', rate: 0.8, tint: 'rgba(240,252,255,0.9)', wind: 4 },
     palette: { ground: '#33454E', groundTop: '#4FA0A8', platform: '#4A6470', backdrop: '#8FC0CE', accent: '#59D9F2', sky: '#D2ECF2',
       skyStops: [[0, '#33566E'], [0.4, '#6E9CB4'], [0.76, '#B4DAE6'], [1, '#D8EEF4']],
       glows: [{ y: 150, r: 160, color: 'rgba(200,244,255,0.45)' }] },

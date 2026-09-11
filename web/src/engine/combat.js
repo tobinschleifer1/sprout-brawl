@@ -301,7 +301,14 @@ export class Combat {
       if (k < V.holdFrames) {
         for (let i = held.length - 1; i >= 0; i--) {
           const v = held[i];
-          if (!v.alive || v.untouchable) { held.splice(i, 1); continue; }
+          // A dodge started AFTER the grab used to be cancelled by the forced hitstun state, so
+          // there was no timing at all that beat this. Rolling out of a grab is a fighting-game
+          // fundamental; invincibility frees you.
+          if (!v.alive || v.untouchable) {
+            held.splice(i, 1);
+            if (v.alive) this.emit({ type: 'soulescape', x: v.x, y: v.cy, victim: v.index });
+            continue;
+          }
           // Mashing buys distance back. Twenty-two frames with no agency at all, ending in a
           // kill, is not a thing a fighting game should contain - so every button press pushes
           // the victim back out, and clearing the burst radius frees them outright.
@@ -314,7 +321,7 @@ export class Combat {
           const dx = ox - v.x, dy = oy - v.cy;
           const d = Math.hypot(dx, dy) || 1;
           // Enough mashing turns the pull negative and the victim starts drifting back out.
-          const rate = (V.pullSpeed - (v.ultEscape || 0) * 6) * FRAME;
+          const rate = (V.pullSpeed - (v.ultEscape || 0) * V.escapeBite) * FRAME;
           const step = rate >= 0 ? Math.min(d, rate) : rate;
           v.x += (dx / d) * step + v.input.x * V.diPerFrame;
           v.y += (dy / d) * step + v.input.y * V.diPerFrame;
@@ -358,7 +365,7 @@ export class Combat {
           vx: f.facing * P.speed, vy: 0, w: P.size[0], h: P.size[1], life: P.lifetime, shape: 'tracer',
           grounded: false, gravity: 0, hitVictims: new Set(), facing: f.facing, item: false,
           ghost: true,                                   // a painted target is not saved by cover
-          homing: { target: f.ultTarget, turn: P.turn, speed: P.speed },
+          homing: { target: f.ultTarget, turn: P.turn, speed: P.speed, expireAfter: P.expireAfter },
         };
         pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
         this.projectiles.push(pr);

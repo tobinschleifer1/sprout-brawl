@@ -1,4 +1,4 @@
-// Zero-dependency static server for the Sprout Brawl web build.
+// Zero-dependency static server for the Blockfall web build.
 // Usage: node serve.js [port]   (default 5173)
 const http = require('http');
 const fs = require('fs');
@@ -27,4 +27,4 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     res.end(data);
   });
-}).listen(port, () => console.log(`Sprout Brawl dev server: http://localhost:${port}`));
+}).listen(port, () => console.log(`Blockfall dev server: http://localhost:${port}`));

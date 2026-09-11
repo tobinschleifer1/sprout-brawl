@@ -9,8 +9,11 @@ by how you use it.
 The name lives in [`web/src/data/branding.js`](web/src/data/branding.js); change it there and the
 title screen, browser tab and round-start callout all follow.
 
-The full design document is in [`docs/design.html`](docs/design.html). Section 0 covers the weapon
-system and supersedes the earlier character-based sections.
+The full design document is in [`docs/design.html`](docs/design.html).
+
+This project began as **Sprout Brawl**, a 3D fighter with a plant-and-fungus roster. That game
+still exists and still plays — it lives in its own folder at `../sprout ball`, with its own copy of
+everything. Nothing is shared between the two.
 
 ## Play it now (web build)
 
@@ -23,7 +26,7 @@ cd web && node serve.cjs
 
 Then open http://localhost:5173
 
-- **Quick play**: you against a bot on Potting Bench.
+- **Quick play**: you against a bot on Foundry Floor.
 - **Set up a match**: 2–4 players, stock or timed, free-for-all or 2v2, items on or off, any stage. Slots can be Keyboard 1, Keyboard 2, a gamepad, or a bot at three difficulties.
 - **Training**: a still dummy, frame data readout, hitbox display (H), reset (R), and B to make the dummy fight back.
 
@@ -95,6 +98,14 @@ Signatures add an impact ring and a shower of weapon-coloured sparks on contact,
 To see every attack as a filmstrip at 15x, open <http://localhost:5173/anim.html>. It draws from the
 same `weapons2d.js` the match uses, so it cannot drift from the game.
 
+### Repository layout
+
+- `web/` – the playable 2D build. No dependencies, no build step; `node serve.cjs` and a browser.
+- `roblox/` – the Luau port: project file, shared modules, a parity test, and a copy of the
+  simulation engine kept in sync for translation.
+- `pixel/` – the `.piskel` asset pipeline (standard-library Python, no dependencies).
+- `docs/design.html` – the design and production document.
+
 ### What is in the web build
 
 - `src/config.js` – global constants (frame rate, gravity, shield, ledge, dodge, grab and throw numbers)
@@ -107,7 +118,7 @@ same `weapons2d.js` the match uses, so it cannot drift from the game.
 - `src/data/branding.js` – the game's name and callouts, in one place
 - `src/engine/fighter.js` – the fighter state machine (movement, jumps, shield, dodges, ledge, grabs, recovery, hitstun, tech, mechanics)
 - `src/engine/combat.js` – hit resolution, projectiles, summons, bursts, fields, counters, items
-- `src/engine/stage.js` – platform collision, ledges, blast zones, hazards (vents, sinking leaves, moving planters, sprinkler, dust devil, tide)
+- `src/engine/stage.js` – platform collision, walls, ledges, blast zones, hazards (vents, sinking gantry, moving raft, sprinkler, dust devil, tide)
 - `src/engine/match.js` – countdown, KOs, respawns, stocks and team pools, timer, sudden death, results
 - `src/engine/ai.js` – bots
 - `src/render2d/*` – the 2D renderer, weapons and animation channels

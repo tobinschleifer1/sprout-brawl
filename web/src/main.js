@@ -44,7 +44,7 @@ class App {
     this.sfx.setVolume(s.sfx); this.music.setVolume(s.music);
   }
 
-  // A calm scene behind the title: Potting Bench with two idle fighters.
+  // A calm scene behind the title: Foundry Floor with two idle fighters.
   _buildIdleScene() {
     const stage = STAGE_BY_ID.FoundryFloor;
     this.idleMatch = new Match({ mode: 'Training', stage, input: this.input, stocks: 3, items: false, fighters: [

@@ -17,7 +17,7 @@ export const BASE = {
 };
 
 // Presets shown in the avatar column of the select screen. `rig` picks the placeholder geometry
-// until real R15 avatars are loaded; `palette` drives the material swap in render/models.js.
+// until real R15 avatars are loaded; `palette` is what render2d/renderer2d.js draws the body in.
 export const AVATARS = [
   { id: 'Classic',  name: 'Classic',   rig: 'avatar', palette: { primary: '#F2C94C', secondary: '#4A90D9', tertiary: '#2E5F8A', accent: '#FFF3D0', glow: '#8ED8FF' } },
   { id: 'Noir',     name: 'Noir',      rig: 'avatar', palette: { primary: '#E8E8EC', secondary: '#23232B', tertiary: '#3A3A46', accent: '#FFFFFF', glow: '#9AA6FF' } },

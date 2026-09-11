@@ -1,26 +1,26 @@
 // Turns keyboard and gamepad state into one input frame per player source, once per sim frame.
-// Frame shape: { x, y, jump, light, heavy, dodge, guard, grab, taunt, pickup, jumpHeld, guardHeld, heavyHeld, lightHeld, downTap, anyPress }
+// Frame shape: { x, y, jump, light, heavy, dodge, guard, grab, taunt, pickup, ult, jumpHeld, guardHeld, heavyHeld, lightHeld, downTap, anyPress }
 // "jump/light/..." are press edges for this frame; "*Held" are levels.
 
 const KB1 = {
   left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS'],
   jump: ['Space', 'KeyW'], light: ['KeyJ'], heavy: ['KeyK'], dodge: ['KeyL', 'ShiftLeft'],
-  guard: ['KeyI', 'ControlLeft'], grab: ['KeyU'], taunt: ['KeyT'],
+  guard: ['KeyI', 'ControlLeft'], grab: ['KeyU'], taunt: ['KeyT'], ult: ['KeyO'],
 };
 const KB1_ARROWS = { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], jump: ['ArrowUp'] };
 const KB2 = {
   left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
-  jump: ['ArrowUp', 'Enter'], light: ['Comma'], heavy: ['Period'], dodge: ['Slash'],
-  guard: ['ShiftRight'], grab: ['KeyM'], taunt: ['KeyN'],
+  jump: ['ArrowUp', 'Enter'], light: ['Numpad4'], heavy: ['Numpad5'], dodge: ['Numpad6'],
+  guard: ['Numpad8'], grab: ['Numpad7'], taunt: ['Numpad3'], ult: ['Numpad9'],
 };
 
 export const BINDINGS_TEXT = {
-  kb1: 'Move WASD · Jump Space/W · Light J · Heavy K · Dodge L · Guard I · Grab U · Taunt T',
-  kb2: 'Move Arrows · Jump Up/Enter · Light , · Heavy . · Dodge / · Guard RShift · Grab M · Taunt N',
-  pad: 'Move Stick · Jump A · Light X · Heavy Y · Dodge B · Guard RB · Grab LB',
+  kb1: 'Move WASD · Jump Space/W · Light J · Heavy K · Dodge L · Guard I · Grab U · Taunt T · Ultimate O',
+  kb2: 'Move Arrows · Jump Up/Enter · Light , · Heavy . · Dodge / · Guard RShift · Grab M · Taunt N · Ultimate RCtrl',
+  pad: 'Move Stick · Jump A · Light X · Heavy Y · Dodge B · Guard RB · Grab LB · Ultimate stick-click',
 };
 
-const EMPTY = () => ({ x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false, grab: false, taunt: false, pickup: false,
+const EMPTY = () => ({ x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false, grab: false, taunt: false, pickup: false, ult: false,
   jumpHeld: false, guardHeld: false, heavyHeld: false, lightHeld: false, downTap: false, anyPress: false });
 
 export class InputManager {
@@ -33,7 +33,7 @@ export class InputManager {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'Tab'].includes(e.code)) e.preventDefault();
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'Tab', 'ControlRight'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -49,6 +49,7 @@ export class InputManager {
       jump: down(map.jump) || (extra && down(extra.jump)),
       light: down(map.light), heavy: down(map.heavy), dodge: down(map.dodge),
       guard: down(map.guard), grab: down(map.grab), taunt: down(map.taunt),
+      ult: map.ult ? down(map.ult) : false,
     };
     return l;
   }
@@ -64,6 +65,7 @@ export class InputManager {
       left: ax < -dead || b(14), right: ax > dead || b(15), up: ay > dead || b(12), down: ay < -dead || b(13),
       ax: Math.abs(ax) > dead ? ax : 0, ay: Math.abs(ay) > dead ? ay : 0,
       jump: b(0), light: b(2), heavy: b(3), dodge: b(1), guard: b(5) || b(7), grab: b(4) || b(6), taunt: b(9),
+      ult: b(10) || b(11),
     };
   }
 
@@ -74,10 +76,10 @@ export class InputManager {
     f.x = levels.ax !== undefined && levels.ax !== 0 ? levels.ax : (levels.right ? 1 : 0) - (levels.left ? 1 : 0);
     f.y = levels.ay !== undefined && levels.ay !== 0 ? levels.ay : (levels.up ? 1 : 0) - (levels.down ? 1 : 0);
     f.jump = edge('jump'); f.light = edge('light'); f.heavy = edge('heavy'); f.dodge = edge('dodge');
-    f.guard = edge('guard'); f.grab = edge('grab'); f.taunt = edge('taunt');
+    f.guard = edge('guard'); f.grab = edge('grab'); f.taunt = edge('taunt'); f.ult = edge('ult');
     f.downTap = edge('down');
     f.jumpHeld = !!levels.jump; f.guardHeld = !!levels.guard; f.heavyHeld = !!levels.heavy; f.lightHeld = !!levels.light;
-    f.anyPress = f.jump || f.light || f.heavy || f.dodge || f.guard || f.grab;
+    f.anyPress = f.jump || f.light || f.heavy || f.dodge || f.guard || f.grab || f.ult;
     this.prevLevels.set(source, { ...levels });
     return f;
   }

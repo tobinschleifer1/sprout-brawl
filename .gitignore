@@ -30,3 +30,6 @@ roblox/sourcemap.json
 roblox/globalTypes.d.luau
 roblox/*.rbxl
 roblox/*.rbxlx
+
+# Scratch space for throwaway measurement scripts (agents and humans both use it).
+.tmp/

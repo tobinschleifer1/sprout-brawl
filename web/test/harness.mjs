@@ -1,5 +1,4 @@
 import { Match } from '../src/engine/match.js';
-import { CHARACTER_BY_ID } from '../src/data/characters/index.js';
 import { buildLoadout } from '../src/data/loadout.js';
 import { STAGES } from '../src/data/stages/index.js';
 export const EMPTY = () => ({ x:0,y:0,jump:false,light:false,heavy:false,dodge:false,guard:false,grab:false,taunt:false,pickup:false,
@@ -16,7 +15,7 @@ export function makeMatch(o={}){
     // `loadouts` takes [avatarId, weaponId] pairs; `fighters` still takes legacy character ids.
     fighters:(o.loadouts
       ? o.loadouts.map(([a,w],i)=>{ const L=buildLoadout(a,w); return {char:L,skin:0,team:i,source:'p'+i,isBot:false,name:L.weapon.id}; })
-      : (o.fighters||['Thornlock','Cacto']).map((id,i)=>({char:CHARACTER_BY_ID[id],skin:0,team:i,source:'p'+i,isBot:false,name:id}))) });
+      : (o.fighters||[['Classic','Sword'],['Noir','Sword']]).map(([a,w],i)=>{ const L=buildLoadout(a,w); return {char:L,skin:0,team:i,source:'p'+i,isBot:false,name:L.weapon.id}; })) });
   m._input=input; return m;
 }
 export const skipCountdown=(m)=>{ while(m.state==='countdown') m.step(); return m; };

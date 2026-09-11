@@ -115,15 +115,15 @@ pre.diagram{background:var(--sheet);color:var(--ink);border:1px solid var(--line
   <ol>
     <li><a href="#s0"><strong>0 · Amendment: avatar + weapon</strong></a></li>
     <li><a href="#s1">1 · Core concept and mechanics</a></li>
-    <li><a href="#s2">2 · Roster</a>
+    <li><a href="#s2">2 · Weapons</a>
       <ol>
-        <li><a href="#thornlock">Thornlock</a></li><li><a href="#capnspore">Cap'n Spore</a></li><li><a href="#sunbeam">Sunbeam</a></li><li><a href="#kelpin">Kelpin</a></li>
-        <li><a href="#cacto">Cacto</a></li><li><a href="#duststorm">Duststorm</a></li><li><a href="#mycel">Mycel</a></li><li><a href="#frostbud">Frostbud</a></li>
-        <li><a href="#postlaunch">Post-launch four</a></li>
+        <li><a href="#w-sword">Sword</a></li><li><a href="#w-scythe">Scythe</a></li>
+        <li><a href="#w-blasters">Blasters</a></li><li><a href="#w-grimoire">Grimoire</a></li>
+        <li><a href="#ultimates">Ultimates</a></li>
       </ol>
     </li>
     <li><a href="#s3">3 · Stages</a></li>
-    <li><a href="#s4">4 · Blender pipeline</a></li>
+    <li><a href="#s4">4 · Pixel art pipeline</a></li>
     <li><a href="#s5">5 · Roblox Studio implementation</a></li>
     <li><a href="#s6">6 · Robux monetisation</a></li>
     <li><a href="#s7">7 · Music and audio</a></li>
@@ -137,10 +137,10 @@ pre.diagram{background:var(--sheet);color:var(--ink);border:1px solid var(--line
 
 <h2 id="s0"><span class="num">0</span>Amendment: avatar + weapon</h2>
 
-<p><strong>This section supersedes the parts of &sect;1 and &sect;2 that treat a character as the unit of identity.</strong>
+<p><strong>This section is the amendment that turned the game from a character fighter into a weapon fighter.</strong>
 The game has moved to the Brawlhalla model: the player&rsquo;s Roblox avatar is <em>cosmetic only</em>, and the
 <strong>weapon</strong> they pick defines the entire moveset, combo tree, mechanic and stat spread. The eight plant
-characters in &sect;2 are retained below as design reference and are no longer the shipping roster.</p>
+plant characters that were the original roster are gone; &sect;2 is now the four weapons, and the game they belonged to lives on as its own project. Everything below this section was written before the change and has been brought in line with it.</p>
 
 <p>Everything else in this document still holds. Knockback, hitstun, blockstun, hitlag, DI, teching, shields, ledges,
 grabs, stages, blast zones, items and match formats are unchanged &mdash; the weapon system is a data layer composed on top
@@ -182,7 +182,7 @@ because a mine armed seconds later, does not count &mdash; the follow-up must la
 
 <h2 id="s1"><span class="num">1</span>Core concept and mechanics</h2>
 
-<p>Sprout Brawl is a knock-them-off-the-stage fighter. Damage is a percentage that only goes up; the higher it climbs, the further a hit sends you. Nobody dies from a health bar. You lose a stock when you cross a blast zone. The whole design is tuned so that a match reads clearly with eight players on a phone screen, and so that a first-day player can land hits while a ranked player still has real decisions every frame.</p>
+<p>Blockfall is a knock-them-off-the-stage fighter. Damage is a percentage that only goes up; the higher it climbs, the further a hit sends you. Nobody dies from a health bar. You lose a stock when you cross a blast zone. The whole design is tuned so that a match reads clearly with eight players on a phone screen, and so that a first-day player can land hits while a ranked player still has real decisions every frame.</p>
 
 <h3>Match formats</h3>
 <div class="tbl"><table>
@@ -214,9 +214,9 @@ because a mine armed seconds later, does not count &mdash; the follow-up must la
 <h3>The full mechanics set</h3>
 <div class="tbl"><table>
 <tr><th>Mechanic</th><th>Input</th><th>Rule</th></tr>
-<tr><td>Light attacks</td><td>Light, plus Neutral / Side / Down</td><td>Every character has three ground strings. A string is 2–3 hits; each hit is a separate move with its own frames. Hits chain only on hit or block, so mashing on whiff leaves you in recovery.</td></tr>
-<tr><td>Aerials</td><td>Light in air, Neutral / Forward / Down</td><td>Three per character. Landing during an aerial's active or recovery frames adds a landing lag of 6–14 frames (per move). Aerials auto-cancel if the active window has already ended before landing.</td></tr>
-<tr><td>Signatures (heavy)</td><td>Heavy, Side / Down on the ground</td><td>Two per character. Big commit, big reward. Every signature is at least −12 on block and has a wind-up of 14 frames or more. Signatures cannot be cancelled once started.</td></tr>
+<tr><td>Light attacks</td><td>Light, plus Neutral / Side / Down</td><td>Every weapon has three ground strings. A string is 2–3 hits; each hit is a separate move with its own frames. Hits chain only on hit or block, so mashing on whiff leaves you in recovery.</td></tr>
+<tr><td>Aerials</td><td>Light in air, Neutral / Forward / Down</td><td>Four per weapon (neutral, forward, up, down). Landing during an aerial's active or recovery frames adds a landing lag of 6–14 frames (per move). Aerials auto-cancel if the active window has already ended before landing.</td></tr>
+<tr><td>Signatures (heavy)</td><td>Heavy, Side / Down on the ground</td><td>Three per weapon (side, down, neutral). Big commit, big reward. Every signature is at least −12 on block and has a wind-up of 14 frames or more. Signatures cannot be cancelled once started.</td></tr>
 <tr><td>Dash</td><td>Dodge on the ground with a direction</td><td>18-frame burst at 1.6× run speed, no invincibility. Cancels into any Light from frame 6, or into shield from frame 10. This is how you approach.</td></tr>
 <tr><td>Spot dodge</td><td>Dodge on the ground, no direction</td><td>24 frames total, invincible on frames 3–14. Not cancellable.</td></tr>
 <tr><td>Air dodge</td><td>Dodge in the air, optional direction</td><td>28 frames, invincible 3–13, moves 6 studs in the held direction. One per air time; a second press does nothing. Landing resets it.</td></tr>
@@ -232,7 +232,7 @@ because a mine armed seconds later, does not count &mdash; the follow-up must la
 </table></div>
 
 <h3>Shield, not parry</h3>
-<p>Sprout Brawl uses a <strong>hold shield</strong> with a small perfect-shield bonus, not a parry. Three reasons, and they are all about the platform.</p>
+<p>Blockfall uses a <strong>hold shield</strong> with a small perfect-shield bonus, not a parry. Three reasons, and they are all about the platform.</p>
 <ul>
 <li><strong>Latency.</strong> Hits are resolved on the server. A parry needs a 4–6 frame timing window on the client to feel right, and at 80–150 ms round trip that window either lands on the server too late or has to be predicted, which is a cheating surface. A shield is a state, not an instant, so the server can hold it authoritatively.</li>
 <li><strong>Touch.</strong> Thumb taps on glass have more jitter than key presses. A hold action is fair on all three inputs; a strict timing action is not.</li>
@@ -271,7 +271,7 @@ Worked examples (weight 100, blast zone ~90 studs from centre)
 <p>Every stage has a rectangular blast zone with four sides. A player whose root part crosses any side is KO'd instantly, with the burst effect drawn at the crossing point. There is no bounce off the top and no "survive if you're moving slowly" rule: the top zone is simply set high enough that jumps and recoveries cannot reach it, so only a launched player crosses it. Left and right zones sit 50–70 studs past the ledge depending on the stage; the bottom is 40–55 studs below the main platform so a missed recovery is a clean decision, not a long fall. Sudden death shrinks all four sides.</p>
 
 <h3>Pickup weapons</h3>
-<p>Items are original and generic; every character uses them the same way. One item is on stage at a time in lobbies of 2–4 and two in lobbies of 5–8. A spawn lands on a random platform every 25 seconds and despawns after 20 seconds if untouched. Ranked disables items.</p>
+<p>Items are original and generic; every weapon uses them the same way. One item is on stage at a time in lobbies of 2–4 and two in lobbies of 5–8. A spawn lands on a random platform every 25 seconds and despawns after 20 seconds if untouched. Ranked disables items.</p>
 <div class="tbl"><table>
 <tr><th>Item</th><th>Type</th><th>Uses</th><th>Behaviour</th></tr>
 <tr><td>Seed Bomb</td><td>Thrown</td><td>1</td><td>Arcs 24 studs, explodes on contact or after 2 s. 12%, base 24, growth 3, 4-stud radius. Can be caught out of the air by tapping Guard.</td></tr>
@@ -279,445 +279,59 @@ Worked examples (weight 100, blast zone ~90 studs from centre)
 <tr><td>Watering Can</td><td>Spray</td><td>3 s of spray</td><td>Cone of water pushes opponents 10 studs/s with no damage or hitstun. Edge-guard and shield-pressure tool. Thrown when empty for 4%.</td></tr>
 </table></div>
 
-<h2 id="s2"><span class="num">2</span>Roster</h2>
-<p>Eight characters at launch, four more across the first two seasons. Everything on the roster is a plant, a fungus, a mineral, a bit of weather or a small creature. Each silhouette is designed to be told apart at 40 pixels tall: a rose head with trailing vines, a wide cap and a coat, a heavy disc on a stalk, a swaying ribbon, a barrel with arms, a ball of twigs, a soft body trailing threads, a bell-shaped bud.</p>
-
-<div class="callout green"><p><strong>Two balance rules apply to every kit.</strong> Every character carries at least one weakness written into the kit itself, not just a low number on a stat. And no launcher is safe on block: any move that sends an opponent into tumble at mid percent is at least −8 on block, and most signatures are −12 or worse.</p></div>
-
-<h3>Stat sheet</h3>
-<p>Run speed and fall speed are in studs per second. Recovery distance is the horizontal reach of the up special from a standstill in the air. Weight classes: Light 80–90, Mid 91–105, Heavy 106–130.</p>
+<h2 id="s2"><span class="num">2</span>Weapons</h2>
+<p>Four weapons. The avatar you pick is cosmetic &mdash; every avatar starts from one stat line (weight 100, run 23, 2 jumps, 5.2 studs tall) and the weapon applies the whole spread on top of it. A match is decided by the weapon and by how you use it, never by which body you are wearing. Difficulty is 1&ndash;3, lowest first.</p>
 <div class="tbl"><table>
-<tr><th>Character</th><th>Theme</th><th>Archetype</th><th class="n">Weight</th><th class="n">Run</th><th class="n">Jumps</th><th class="n">Fall</th><th class="n">Recovery</th></tr>
-<tr><td>Thornlock</td><td>Bramble rose</td><td>Zoner, ranged vine whips</td><td class="n">95</td><td class="n">22</td><td class="n">2</td><td class="n">38</td><td class="n">22 (tether)</td></tr>
-<tr><td>Cap'n Spore</td><td>Chanterelle mushroom</td><td>Trap and area denial</td><td class="n">100</td><td class="n">20</td><td class="n">2</td><td class="n">34</td><td class="n">18</td></tr>
-<tr><td>Sunbeam</td><td>Sunflower</td><td>Long-range charge, slow</td><td class="n">110</td><td class="n">17</td><td class="n">2</td><td class="n">36</td><td class="n">16</td></tr>
-<tr><td>Kelpin</td><td>Kelp frond</td><td>Grappler</td><td class="n">105</td><td class="n">21</td><td class="n">2</td><td class="n">40</td><td class="n">24 (tether)</td></tr>
-<tr><td>Cacto</td><td>Barrel cactus</td><td>Heavyweight, counters</td><td class="n">130</td><td class="n">16</td><td class="n">2</td><td class="n">52</td><td class="n">14</td></tr>
-<tr><td>Duststorm</td><td>Tumbleweed</td><td>Rushdown</td><td class="n">80</td><td class="n">30</td><td class="n">3</td><td class="n">30</td><td class="n">26</td></tr>
-<tr><td>Mycel</td><td>Fungal network</td><td>Summoner, node placement</td><td class="n">90</td><td class="n">19</td><td class="n">2</td><td class="n">33</td><td class="n">20 with a node · 10 without</td></tr>
-<tr><td>Frostbud</td><td>Snowdrop</td><td>Control, slows and freezes</td><td class="n">95</td><td class="n">20</td><td class="n">2</td><td class="n">35</td><td class="n">20</td></tr>
-<tr><td>Squall <span class="tag">S1</span></td><td>Storm cloud</td><td>Aerial mix-up</td><td class="n">85</td><td class="n">24</td><td class="n">3</td><td class="n">26</td><td class="n">28</td></tr>
-<tr><td>Agate <span class="tag">S1</span></td><td>Geode</td><td>Armoured heavy</td><td class="n">125</td><td class="n">15</td><td class="n">2</td><td class="n">50</td><td class="n">12</td></tr>
-<tr><td>Rollo <span class="tag">S2</span></td><td>Pill bug</td><td>Roll-cancel rushdown</td><td class="n">100</td><td class="n">26</td><td class="n">2</td><td class="n">42</td><td class="n">18</td></tr>
-<tr><td>Glimmer <span class="tag">S2</span></td><td>Firefly</td><td>Glass cannon</td><td class="n">82</td><td class="n">25</td><td class="n">4</td><td class="n">24</td><td class="n">30</td></tr>
+<tr><th>Weapon</th><th>Archetype</th><th>Weight</th><th>Run</th><th>Diff.</th><th>Moves</th><th>Signature</th><th>Ultimate</th></tr>
+<tr><td><strong>Sword</strong></td><td>All-rounder</td><td class="n">100</td><td class="n">23.0</td><td class="n">1</td><td class="n">15</td><td>Crescent Rush</td><td>Colossus</td></tr>
+<tr><td><strong>Scythe</strong></td><td>Reach / combo</td><td class="n">96</td><td class="n">20.7</td><td class="n">3</td><td class="n">15</td><td>Reaper's Arc</td><td>Soul Harvest</td></tr>
+<tr><td><strong>Blasters</strong></td><td>Zoner</td><td class="n">90</td><td class="n">24.4</td><td class="n">2</td><td class="n">15</td><td>Scattergun</td><td>Deadeye</td></tr>
+<tr><td><strong>Grimoire</strong></td><td>Heavy zoner</td><td class="n">108</td><td class="n">21.2</td><td class="n">3</td><td class="n">15</td><td>Starfall</td><td>Astral Rain</td></tr>
 </table></div>
-<p>How to read the move tables: S / A / R are startup, active and recovery frames. "On block" assumes the hit lands on its first active frame against a normal shield. Negative means the defender acts first by that many frames. Landing lag is listed for aerials.</p>
-
-<!-- ===================== THORNLOCK ===================== -->
-<section class="sheet" id="thornlock">
-<header class="sheet-head">
-  <div><h3>Thornlock</h3><p class="sheet-sub">Bramble rose · Zoner · Mid weight</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#C8365E"></span><span style="--c:#3F7D3A"></span><span style="--c:#5A3A2E"></span><span style="--c:#F7EBDD"></span></div>
-</header>
-<p>A rambling rose that grew over an abandoned garden gate and, after a few seasons, decided the gate was hers. Thornlock treats the whole stage as her fence line: polite, formal, and entirely unwilling to let anyone through. She speaks in etiquette ("You will find the exit behind you") and considers a well-placed thorn the height of manners. Her taunt is a curtsy that drops a petal.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>95</dd></div><div><dt>Run</dt><dd>22<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>38<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>22<small>studs</small></dd></div>
-</dl>
+<h3 id="w-sword">Sword <span class="tag">All-rounder</span></h3>
+<p><em>Clean combos, no excuses.</em> Mid range, mid speed, mid weight. The sword rewards knowing your string better than the other player knows theirs.</p>
+<h3 id="w-scythe">Scythe <span class="tag">Reach / combo</span></h3>
+<p><em>Nothing is out of range.</em> Enormous horizontal reach and hits that drag opponents back to you. Slow enough that a whiff is a free punish for them.</p>
+<h3 id="w-blasters">Blasters <span class="tag">Zoner</span></h3>
+<p><em>Win neutral, pray at 120%.</em> Fast, light, ranged. Chips from a distance on a six-round magazine and dies earlier than anything else on the roster.</p>
+<h3 id="w-grimoire">Grimoire <span class="tag">Heavy zoner</span></h3>
+<p><em>Own the ground you stand on.</em> Slow, heavy and floaty. Controls space with summons and a chargeable beam, and hits hard enough that one read ends a stock.</p>
+<h3 id="ultimates">Ultimates</h3>
+<p>One per weapon, unlocked by landing <strong>20 hits</strong> and spent with a single key. The meter is wiped when you lose a stock, so it rewards sustained pressure rather than being an inevitability. Activation freezes every fighter for 26 frames &mdash; the caster included, so it is a beat of theatre and not an advantage &mdash; and the caster is invincible for 22 frames, which runs out before the largest of them connects so the commitment can still be traded with. All four cut through a held shield.</p>
 <div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Snip · Snip · Snap</td><td>Neutral light ×3</td><td class="n mono">5/2/8 · 4/2/9 · 6/3/16</td><td class="n">3 · 3 · 5</td><td class="n">−3 · −4 · −10</td><td>Third hit lunges 2 studs. Angle 45°.</td></tr>
-<tr><td>Vine Lash</td><td>Side light ×2</td><td class="n mono">9/3/12 · 7/3/18</td><td class="n">4 · 6</td><td class="n">−7 · −12</td><td>9-stud reach. Hitbox exists only on the outer 4 studs of the vine.</td></tr>
-<tr><td>Root Sweep</td><td>Down light</td><td class="n mono">8/4/17</td><td class="n">6</td><td class="n">−12</td><td>Low. Trips a grounded opponent under 60% (they must tech).</td></tr>
-<tr><td>Petal Spin</td><td>Neutral air</td><td class="n mono">9/12/14 · LL 8</td><td class="n">7</td><td class="n">−16</td><td>Her only get-off-me move, and it is slow for one.</td></tr>
-<tr><td>Whip Crack</td><td>Forward air</td><td class="n mono">11/4/16 · LL 10</td><td class="n">8</td><td class="n">−9</td><td>Horizontal, 8 studs. Angle 30°. Tip-only hitbox again.</td></tr>
-<tr><td>Thorn Drop</td><td>Down air</td><td class="n mono">14/6/20 · LL 14</td><td class="n">10</td><td class="n">−13</td><td>Spike (angle 275°) on the tip; body hit sends 60°.</td></tr>
-<tr><td>Bramble Bolt</td><td>Side signature</td><td class="n mono">22/4/30</td><td class="n">14</td><td class="n">−18</td><td>Thorn projectile, 30 studs, base 32, growth 5.0. Punish window 18 frames if blocked inside 6 studs; from further away she cannot be punished, which is the point of a zoner.</td></tr>
-<tr><td>Trellis</td><td>Down signature</td><td class="n mono">18/—/26</td><td class="n">5</td><td class="n">n/a</td><td>Grows a 6-stud thorn wall 3 studs ahead that lasts 90 frames. Touching it deals 5% and 12 frames of stun. Blocks projectiles. Thornlock is rooted for the 26 recovery frames: that is the punish window, from behind or above.</td></tr>
+<tr><th>Weapon</th><th>Ultimate</th><th>Start/active/recovery</th><th>Knockback</th><th>What it does</th></tr>
+<tr><td>Sword</td><td><strong>Colossus</strong></td><td class="n mono">24/16/32</td><td class="n">&times;1.5</td><td>The blade doubles in length, goes overhead, and comes down once. Where it lands the floor opens and a crater of rock and energy walks outward in both directions.</td></tr>
+<tr><td>Scythe</td><td><strong>Soul Harvest</strong></td><td class="n mono">20/30/34</td><td class="n">&times;1.5</td><td>Reaches out, takes hold of the two nearest fighters, drags them into one point and crushes them into a ball of purple-black energy before it detonates. The hold is a grab, not a cutscene: mashing breaks it.</td></tr>
+<tr><td>Blasters</td><td><strong>Deadeye</strong></td><td class="n mono">18/96/26</td><td class="n">&times;1.25</td><td>The pistols fold into a scoped rifle and paint the nearest fighter red, visible through the stage. Three rounds, one per press of the ultimate key, each steering into the mark.</td></tr>
+<tr><td>Grimoire</td><td><strong>Astral Rain</strong></td><td class="n mono">22/56/32</td><td class="n">&times;1.25</td><td>The book goes overhead and the sky opens: two energy orbs per living opponent, aimed at wherever each of them is standing. The first wave is the shield check; the second is unblockable.</td></tr>
 </table></div>
-<p><strong>Unique mechanic: Bloom.</strong> Landing five hits inside four seconds opens the rose on her head. While bloomed, the next signature has 30% more range and +3 damage, and her vine tips glow so opponents can see it coming. Bloom lasts until spent or for 8 seconds, then wilts with a 10-second cooldown. It rewards the poke-and-confirm pattern she is built for without adding a resource bar to the HUD: the flower is the bar.</p>
-<p><strong>Counterplay.</strong> Get inside 4 studs and stay there. Both whips only hit at the tip, so a dashing opponent who closes the gap is standing in a hole in her kit, and her fastest answer at that range is a 9-frame Nair that is −16 on block. Her recovery is a vine tether to the ledge: any opponent holding the ledge as she tethers takes the ledge from her, and a spiked vine (any hit on the vine part) cuts it. Duststorm and Rollo are her hardest match-ups. The written-in weakness: no move under 8 frames of startup at close range, and Trellis roots her.</p>
-<p><strong>Palette and skins.</strong> Deep rose <code>#C8365E</code>, leaf green <code>#3F7D3A</code>, thorn brown <code>#5A3A2E</code>, cream petals <code>#F7EBDD</code>. Alternates: <em>Winter Rose</em> (white petals, ice-blue vines), <em>Wild Briar</em> (orange hips, dusty olive), <em>Nightshade</em> (violet petals, near-black vines, purple thorn glow), <em>Gilded Trellis</em> (gold-wire vines, burgundy petals; the legendary).</p>
-</section>
-
-<!-- ===================== CAP'N SPORE ===================== -->
-<section class="sheet" id="capnspore">
-<header class="sheet-head">
-  <div><h3>Cap'n Spore</h3><p class="sheet-sub">Chanterelle mushroom · Trap and area denial · Mid weight</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#E39B2C"></span><span style="--c:#F3E3C3"></span><span style="--c:#22345A"></span><span style="--c:#8C5A2B"></span></div>
-</header>
-<p>A golden chanterelle who once sailed a bit of bark down the creek during a storm and has been retelling the voyage ever since. His cap is tilted like a captain's hat and his coat is stitched from a lost glove. Gruff, generous, permanently mid-anecdote. He does not chase; he sets the table and waits for you to sit down. His taunt is a salute that releases a puff of spores which do nothing but sparkle.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>100</dd></div><div><dt>Run</dt><dd>20<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>34<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>18<small>studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Cap Bonk · Bonk · Headbutt</td><td>Neutral light ×3</td><td class="n mono">4/2/9 · 5/2/10 · 8/3/18</td><td class="n">3 · 3 · 6</td><td class="n">−4 · −5 · −12</td><td>Headbutt sends 50°, pushes him back a stud.</td></tr>
-<tr><td>Gill Slap</td><td>Side light ×2</td><td class="n mono">8/4/14 · 6/4/19</td><td class="n">5 · 6</td><td class="n">−9 · −14</td><td>Spinning cap, 5-stud reach. Second hit launches 40°.</td></tr>
-<tr><td>Stomp Puff</td><td>Down light</td><td class="n mono">7/5/15</td><td class="n">6</td><td class="n">−11</td><td>Leaves a 2-stud puff for 20 frames that does 1% on touch. Covers his get-up.</td></tr>
-<tr><td>Cap Spin</td><td>Neutral air</td><td class="n mono">7/10/12 · LL 7</td><td class="n">6</td><td class="n">−13</td><td>Rounded hitbox the size of his cap.</td></tr>
-<tr><td>Anchor Swing</td><td>Forward air</td><td class="n mono">15/4/18 · LL 12</td><td class="n">11</td><td class="n">−9</td><td>Delayed, strong, 35°. His kill aerial near the edge.</td></tr>
-<tr><td>Bounce</td><td>Down air</td><td class="n mono">10/8/14 · LL 10</td><td class="n">8</td><td class="n">−11</td><td>Stomp. On hit he pops 12 studs up and regains his air dodge.</td></tr>
-<tr><td>Spore Cannon</td><td>Side signature</td><td class="n mono">20/2/34</td><td class="n">2 per tick</td><td class="n">n/a</td><td>Fires a cloud that drifts 15 studs and lingers 180 frames, ticking 2% every 30 frames with fixed tiny knockback and a 20% slow. Clouds do not touch shields. Punish window 34 frames.</td></tr>
-<tr><td>Puffball Mine</td><td>Down signature</td><td class="n mono">14/—/26</td><td class="n">12</td><td class="n">n/a</td><td>Places a mine (max 2, 12-second life, 10 HP). Detonates when an opponent is within 3 studs: base 26, growth 4.0, angle 70°. Punish window 26 frames while he places it.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: Fruiting.</strong> Every tick of cloud damage and every mine placed fills a small spore ring under his HUD tile. At full (about 20 seconds of active play), Down signature becomes <em>Fruiting</em>: all live clouds and mines detonate at once for 12% each with full knockback, and the ring empties. It converts patient setup into one big swing, and it is telegraphed by his cap glowing for two seconds before it is ready.</p>
-<p><strong>Counterplay.</strong> Everything he places can be destroyed: any attack with 4% or more pops a mine, and a Watering Can or any wind hazard clears clouds. Approach through the gaps rather than over the traps, because his aerial answers are slow (Fair is 15 frames) and his run speed is below average. Off stage he has a strong vertical puff but almost no horizontal drift, so knocking him out at a low angle is how he dies. The written-in weakness: both signatures leave him unable to act for 26–34 frames, and he has no disjointed melee, so a character with reach (Thornlock, Sunbeam) can poke him out of his own setups.</p>
-<p><strong>Palette and skins.</strong> Chanterelle amber <code>#E39B2C</code>, cream gills <code>#F3E3C3</code>, navy coat <code>#22345A</code>, bark brown <code>#8C5A2B</code>. Alternates: <em>Inky Cap</em> (charcoal cap dripping violet), <em>Morel Marine</em> (honeycomb brown cap, khaki coat), <em>Glow Cap</em> (teal bioluminescent gills, dark coat, glowing spores), <em>Admiral Porcini</em> (white dress coat, gold braid, broad tan cap; legendary).</p>
-</section>
-
-<!-- ===================== SUNBEAM ===================== -->
-<section class="sheet" id="sunbeam">
-<header class="sheet-head">
-  <div><h3>Sunbeam</h3><p class="sheet-sub">Sunflower · Long-range charge · Heavy</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#F4C531"></span><span style="--c:#5C3B1E"></span><span style="--c:#4E8F3B"></span><span style="--c:#FFF6DC"></span></div>
-</header>
-<p>Sunbeam follows the sun, and believes in it so hard that she can focus it. She is cheerful, literal, and slow to turn around, both physically and in conversation. She is also the tallest thing on any stage and knows it, which is why she is always a little surprised to be hit. Her taunt is a slow turn to face the stage's brightest light source.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>110</dd></div><div><dt>Run</dt><dd>17<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>36<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>16<small>studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Leaf Pat · Pat</td><td>Neutral light ×2</td><td class="n mono">6/2/9 · 6/3/14</td><td class="n">3 · 4</td><td class="n">−4 · −9</td><td>Two-hit string, her fastest move.</td></tr>
-<tr><td>Stalk Lean</td><td>Side light</td><td class="n mono">12/4/20</td><td class="n">8</td><td class="n">−13</td><td>Leans her whole head 8 studs forward. Her hurtbox moves with it.</td></tr>
-<tr><td>Seed Scatter</td><td>Down light</td><td class="n mono">9/9/16</td><td class="n">2 ×3</td><td class="n">−14</td><td>Three low hits in a 3-stud arc around her feet. Keeps people out.</td></tr>
-<tr><td>Petal Halo</td><td>Neutral air</td><td class="n mono">10/10/14 · LL 9</td><td class="n">8</td><td class="n">−13</td><td>Ring around her head; does not cover her stem.</td></tr>
-<tr><td>Head Bob</td><td>Forward air</td><td class="n mono">17/4/22 · LL 14</td><td class="n">13</td><td class="n">−11</td><td>Heavy, 40°, base 24, growth 3.2. Kills at the ledge from about 95%.</td></tr>
-<tr><td>Sunspot</td><td>Down air</td><td class="n mono">13/6/18 · LL 12</td><td class="n">9</td><td class="n">−12</td><td>Short beam straight down, 6 studs. Spike on the first 2 active frames.</td></tr>
-<tr><td>Solar Lance</td><td>Side signature</td><td class="n mono">28/6/34 (hold up to 90)</td><td class="n">12–18</td><td class="n">−21</td><td>40-stud beam. Uncharged 12%, base 26, growth 4.2; full charge 18%, base 34, growth 5.5. No hitbox inside 4 studs. Spending Light shortens the wind-up (below). Punish window 21 frames if blocked inside the beam's blind spot or from a platform above.</td></tr>
-<tr><td>Heliostat</td><td>Down signature</td><td class="n mono">24/5/30</td><td class="n">14</td><td class="n">−19</td><td>Tilts her head up and releases a radial burst, 7 studs, angle 80°, base 28, growth 4.5. Holding the button up to 60 frames charges Light instead of firing early.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: Light.</strong> A meter with three segments fills while she is standing still and not attacking, one segment per 1.5 seconds. Taking a hit removes one segment. Each segment spent on Solar Lance removes 6 frames of wind-up (28 down to 10 at three segments), which turns her slowest move into a genuine punish. The trade is explicit: to get fast, she has to stand still, and standing still is exactly what her opponents want.</p>
-<p><strong>Counterplay.</strong> She has the worst run speed and second-worst air speed in the cast. Approach from above: the beam is horizontal, Petal Halo does not protect her stem, and every launcher she has is −11 or worse on block. Off stage she is easy to keep out because her recovery is a 16-stud hop with no hitbox. Charging Light is visible (her petals brighten), so any player who sees three bright segments should expect a fast Lance and stay off the ground line. The written-in weakness: mobility, and a blind spot at point-blank on her best move.</p>
-<p><strong>Palette and skins.</strong> Petal yellow <code>#F4C531</code>, seed-head brown <code>#5C3B1E</code>, stem green <code>#4E8F3B</code>, pollen cream <code>#FFF6DC</code>. Alternates: <em>Moonflower</em> (silver-white petals, blue-grey centre, beams tinted pale blue), <em>Black-Eyed Susan</em> (orange petals, black centre), <em>Harvest</em> (rust and ochre, dried-look leaves), <em>Seedling</em> (a smaller sprouting head with two leaves; her legendary, same hurtbox).</p>
-</section>
-
-<!-- ===================== KELPIN ===================== -->
-<section class="sheet" id="kelpin">
-<header class="sheet-head">
-  <div><h3>Kelpin</h3><p class="sheet-sub">Kelp frond · Grappler · Mid weight</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#6B8E23"></span><span style="--c:#1F6F78"></span><span style="--c:#D9C9A3"></span><span style="--c:#2B3A2A"></span></div>
-</header>
-<p>A kelp frond that got tangled in a fishing net, learned to enjoy tangling, and was eventually returned to the shallows with the net still on. Kelpin is unhurried and laconic and sways when standing still. He wants exactly one thing: for you to be closer. His taunt is a slow, full-body ripple from holdfast to tip.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>105</dd></div><div><dt>Run</dt><dd>21<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>40<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>24<small>studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Frond Flick · Flick · Snag</td><td>Neutral light ×3</td><td class="n mono">5/2/8 · 5/2/9 · 7/3/17</td><td class="n">3 · 3 · 6</td><td class="n">−3 · −4 · −11</td><td>Snag pulls the victim 1 stud closer instead of pushing them away.</td></tr>
-<tr><td>Drift Punch</td><td>Side light ×2</td><td class="n mono">9/4/16 · 8/4/18</td><td class="n">7 · 7</td><td class="n">−10 · −13</td><td>Each hit lunges 5 studs. The second is a 45° launcher.</td></tr>
-<tr><td>Undertow</td><td>Down light</td><td class="n mono">10/5/16</td><td class="n">5</td><td class="n">−12</td><td>Low sweep that drags the victim 3 studs toward him. Sets up grab.</td></tr>
-<tr><td>Sway</td><td>Neutral air</td><td class="n mono">8/9/12 · LL 8</td><td class="n">7</td><td class="n">−11</td><td>Whole-body hitbox.</td></tr>
-<tr><td>Wrap Slap</td><td>Forward air</td><td class="n mono">12/4/15 · LL 10</td><td class="n">9</td><td class="n">−7</td><td>His safest move. 6-stud reach, 35°.</td></tr>
-<tr><td>Anchor</td><td>Down air</td><td class="n mono">16/6/20 · LL 14</td><td class="n">11</td><td class="n">−13</td><td>Stalls 8 frames then drops. Spike on the holdfast.</td></tr>
-<tr><td>Kelp Lasso</td><td>Side signature</td><td class="n mono">16/4/32 whiff</td><td class="n">14</td><td class="n">unblockable</td><td>Command grab, 12 studs. Reels the victim in and slams them behind him: base 30, growth 4.5, angle 45°. On whiff he is open for 32 frames. Grounded targets only.</td></tr>
-<tr><td>Riptide</td><td>Down signature</td><td class="n mono">18/40/28</td><td class="n">10</td><td class="n">n/a</td><td>A 10-stud pull field on the ground for 40 frames that drags grounded opponents at 12 studs/s. Anyone reaching 2 studs is auto-thrown up (10%, base 22, growth 3). Airborne opponents are unaffected. Punish window 28 frames after the field ends, or any aerial during it.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: Tangle.</strong> Every successful grab or Lasso wraps the victim in kelp for 10 seconds, up to two stacks. Each stack shortens their air dodge invincibility by 4 frames and their spot dodge by 3. It means his grabs get better the more he lands them, so a Kelpin who is winning neutral is a threat that keeps growing. The stacks show as a green band on the victim's HUD tile.</p>
-<p><strong>Counterplay.</strong> Stay off the ground. His grabs, Lasso, Undertow and Riptide are all ground-only, and his aerial pokes are ordinary. Zoners beat him badly: he has no projectile and no reflector, so Thornlock and Sunbeam can make him walk through fire to get a grab. He falls fast and is mid-heavy, so he is combo food at low percent. His recovery is a tether that can be intercepted like Thornlock's. The written-in weakness: 32 open frames on a missed Lasso, the longest whiff in the cast.</p>
-<p><strong>Palette and skins.</strong> Kelp olive <code>#6B8E23</code>, deep teal <code>#1F6F78</code>, sand <code>#D9C9A3</code>, holdfast dark <code>#2B3A2A</code>. Alternates: <em>Red Algae</em> (crimson fronds, rose net), <em>Bull Kelp</em> (brown-gold, thick bulb head), <em>Abyssal</em> (navy with cyan glow lines), <em>Nori Sheet</em> (matte black-green, paper-flat look; legendary).</p>
-</section>
-
-<!-- ===================== CACTO ===================== -->
-<section class="sheet" id="cacto">
-<header class="sheet-head">
-  <div><h3>Cacto</h3><p class="sheet-sub">Barrel cactus · Heavyweight, counters · Heavy</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#7BA05B"></span><span style="--c:#E8D9A8"></span><span style="--c:#D64C8C"></span><span style="--c:#3E4F2E"></span></div>
-</header>
-<p>A barrel cactus who was bumped once, forty years ago, and has been holding the grudge with great patience. Cacto is stoic and genuinely kind, and dangerous to hug. He does not move much because he does not need to: you will come to him, and he will be ready. His taunt is a single flower opening on top of his head, which closes again if he is hit during it.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>130</dd></div><div><dt>Run</dt><dd>16<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>52<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>14<small>studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Prickle · Prickle · Shove</td><td>Neutral light ×3</td><td class="n mono">6/2/10 · 6/2/11 · 9/3/19</td><td class="n">4 · 4 · 7</td><td class="n">−4 · −5 · −12</td><td>Shove sends 30°, pushes 4 studs. Slow for a jab, hits hard for one.</td></tr>
-<tr><td>Barrel Roll</td><td>Side light</td><td class="n mono">11/8/20</td><td class="n">9</td><td class="n">−16</td><td>Rolls 8 studs. Armour: absorbs one hit under 8% during active frames.</td></tr>
-<tr><td>Root Stomp</td><td>Down light</td><td class="n mono">10/4/18</td><td class="n">8</td><td class="n">−11</td><td>Two-sided, 3 studs each way. Launches 80°.</td></tr>
-<tr><td>Spin</td><td>Neutral air</td><td class="n mono">9/10/14 · LL 10</td><td class="n">8</td><td class="n">−13</td><td>Spines out. Big, slow, whole body.</td></tr>
-<tr><td>Arm Swing</td><td>Forward air</td><td class="n mono">16/5/22 · LL 14</td><td class="n">14</td><td class="n">−11</td><td>Base 26, growth 3.6, 40°. His kill aerial. Kills from mid-stage at ~105%.</td></tr>
-<tr><td>Drop</td><td>Down air</td><td class="n mono">14/8/22 · LL 16</td><td class="n">13</td><td class="n">−15</td><td>Spike on his base. Falls at full fall speed during active frames.</td></tr>
-<tr><td>Needle Volley</td><td>Side signature</td><td class="n mono">16/10/28</td><td class="n">3 ×5</td><td class="n">−22</td><td>Spits up to five spines, 12-stud range, 1.5 studs apart. Costs one Spine stock per spine fired (below). Each spine has tiny fixed knockback: it is a keep-away and edge-guard tool, not a kill move.</td></tr>
-<tr><td>Spine Guard</td><td>Down signature</td><td class="n mono">6/20/40 whiff</td><td class="n">10+</td><td class="n">n/a</td><td>Counter stance. If hit during the 20-frame window, he releases a spine burst for 1.5× the incoming damage (minimum 10%), base 28, growth 4.0, angle 55°. On whiff he is open for 40 frames. Grabs and throws go straight through it.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: Spines.</strong> Cacto passively carries up to five spines, visible on his body. Any opponent who hits him with a non-disjointed melee attack takes 1% recoil with no knockback. Needle Volley spends spines; they regrow one every 3 seconds. A landed Spine Guard instantly regrows all five. So a Cacto who has just fired a volley has a weaker counter reward and no recoil, and a patient one is a hedgehog.</p>
-<p><strong>Counterplay.</strong> Never hit him with your body; hit him with a projectile, a vine, a beam or a grab. Bait the counter with empty jumps and dash-ins, then grab, because the counter cannot stop a grab and a whiff leaves him open for 40 frames. He falls at 52 studs/s and weighs 130, which makes him the easiest character to juggle and the easiest to keep at ledge: his recovery is 14 studs with no hitbox, so holding the ledge as he approaches is often enough. Multi-hit moves chew through his roll armour. The written-in weakness: worst air mobility in the game, and his two big commits (Arm Swing, Spine Guard) are both heavily punishable.</p>
-<p><strong>Palette and skins.</strong> Sage green <code>#7BA05B</code>, spine tan <code>#E8D9A8</code>, flower magenta <code>#D64C8C</code>, shadow green <code>#3E4F2E</code>. Alternates: <em>Golden Barrel</em> (yellow-green body, gold spines), <em>Prickly Pear</em> (flat-paddled body silhouette variant, purple fruit), <em>Saguaro Elder</em> (grey-green, taller crown, weathered), <em>Potted</em> (sits in a glazed pot with a saucer; the pot is part of the mesh; legendary).</p>
-</section>
-
-<!-- ===================== DUSTSTORM ===================== -->
-<section class="sheet" id="duststorm">
-<header class="sheet-head">
-  <div><h3>Duststorm</h3><p class="sheet-sub">Tumbleweed · Rushdown · Light</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#C9A85C"></span><span style="--c:#8A7350"></span><span style="--c:#B8B0A0"></span><span style="--c:#A0522D"></span></div>
-</header>
-<p>A tumbleweed who has never stayed anywhere long enough to be from there. Duststorm talks constantly, mostly to himself, mostly about places he has rolled through and would like to see again if he could remember which way they were. He fights the way he travels: fast, in every direction, and gone before the reply. His taunt is a spin that kicks up dust and a small sneeze.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>80</dd></div><div><dt>Run</dt><dd>30<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>3</dd></div><div><dt>Fall</dt><dd>30<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>26<small>studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Scratch · Scratch · Rake</td><td>Neutral light ×3</td><td class="n mono">3/2/6 · 3/2/7 · 5/3/14</td><td class="n">2 · 2 · 4</td><td class="n">−2 · −3 · −9</td><td>Fastest jab in the game. Also the weakest.</td></tr>
-<tr><td>Tumble</td><td>Side light</td><td class="n mono">7/8/14</td><td class="n">6</td><td class="n">−13</td><td>Rolls 9 studs and crosses up. Ends on the far side of a shield.</td></tr>
-<tr><td>Kick-up</td><td>Down light</td><td class="n mono">6/3/15</td><td class="n">5</td><td class="n">−9</td><td>Launcher, 80°. Starts every combo he has. Not safe on block, by rule.</td></tr>
-<tr><td>Whirl</td><td>Neutral air</td><td class="n mono">5/8/10 · LL 6</td><td class="n">5</td><td class="n">−9</td><td>Quick spin, small.</td></tr>
-<tr><td>Twig Jab</td><td>Forward air</td><td class="n mono">6/3/12 · LL 7</td><td class="n">6</td><td class="n">−6</td><td>His safest and most-used move. 4-stud reach.</td></tr>
-<tr><td>Bounce Stomp</td><td>Down air</td><td class="n mono">9/6/14 · LL 9</td><td class="n">7</td><td class="n">−10</td><td>On hit he bounces 10 studs up and regains one jump.</td></tr>
-<tr><td>Dust Devil</td><td>Side signature</td><td class="n mono">10/16/28</td><td class="n">3 ×4</td><td class="n">−20</td><td>Spinning dash, 18 studs, four hits that drag the victim along; final hit base 24, growth 3.8, angle 40°. His kill move, and it kills late (~130% mid-stage). Blocked, he ends up next to the shield with 28 frames of nothing.</td></tr>
-<tr><td>Sandblast</td><td>Down signature</td><td class="n mono">12/6/26</td><td class="n">8</td><td class="n">−21</td><td>6-stud cone. Applies <em>Grit</em>: the victim's own percent readout is hidden for 3 seconds and their run speed drops 10% for 2 seconds. Base 20, growth 2.5.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: Momentum.</strong> After 1.5 seconds of uninterrupted running or dashing (no attack, no jump, no stop) he leaves a dust trail and his next attack gains +2% damage and +10% launch. Taking a hit or stopping clears it. It pushes him to actually tumble across the stage rather than hover at one spot, and it makes his kill move reach a little earlier when he earns it.</p>
-<p><strong>Counterplay.</strong> He weighs 80 and dies at 90% to any real kill move. His hits are small and short, so every disjoint out-prioritises him, and his combos do 6–8% each. Shield and grab: Tumble and Dust Devil both end beside you at −13 and −20, and Kick-up is −9. His three jumps make him hard to edge-guard, but his recovery has no hitbox, so a well-timed ledge attack still works. The written-in weakness: no range at all and nothing that kills before 130% without Momentum.</p>
-<p><strong>Palette and skins.</strong> Straw <code>#C9A85C</code>, dry twig <code>#8A7350</code>, dust grey <code>#B8B0A0</code>, rust wire <code>#A0522D</code>. Alternates: <em>Rust</em> (red-brown twigs wrapped in old wire), <em>Snowball</em> (frosted white, blue shadows), <em>Sea Wrack</em> (dark green-brown, a bit of net), <em>Tinsel</em> (silver and gold strands; a seasonal legendary).</p>
-</section>
-
-<!-- ===================== MYCEL ===================== -->
-<section class="sheet" id="mycel">
-<header class="sheet-head">
-  <div><h3>Mycel</h3><p class="sheet-sub">Fungal network · Summoner · Light</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#EDE6D2"></span><span style="--c:#9A7FB8"></span><span style="--c:#4A3728"></span><span style="--c:#C6B8E0"></span></div>
-</header>
-<p>Mycel is less an individual than a committee. A network of hyphae under the forest floor assembled a body out of spare threads to see what all the fuss up top was about, and it has not yet reached a consensus on whether to go back. It refers to itself as "we", is curious about everything and frightened of nothing, and treats the stage as soil to be colonised. Its taunt is the whole body briefly unravelling into threads and knitting back together.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>90</dd></div><div><dt>Run</dt><dd>19<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>33<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>20<small>/ 10 studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Thread Tap · Tap · Knot</td><td>Neutral light ×3</td><td class="n mono">5/2/8 · 5/2/9 · 7/3/16</td><td class="n">3 · 3 · 5</td><td class="n">−3 · −4 · −10</td><td>Knot briefly tethers the victim (adds 4 frames of hitstun).</td></tr>
-<tr><td>Hyphal Reach</td><td>Side light ×2</td><td class="n mono">9/4/16 · 6/3/16</td><td class="n">6 · 5</td><td class="n">−11 · −10</td><td>Arm stretches 8 studs. The stretched arm is a hurtbox.</td></tr>
-<tr><td>Sprout</td><td>Down light</td><td class="n mono">8/4/15</td><td class="n">6</td><td class="n">−10</td><td>A tiny mushroom pops from the ground under its feet, launching 85°.</td></tr>
-<tr><td>Net</td><td>Neutral air</td><td class="n mono">8/10/12 · LL 8</td><td class="n">6</td><td class="n">−13</td><td>Threads fan out around the body.</td></tr>
-<tr><td>Filament Whip</td><td>Forward air</td><td class="n mono">11/4/15 · LL 10</td><td class="n">8</td><td class="n">−8</td><td>7 studs, 35°.</td></tr>
-<tr><td>Fruit Drop</td><td>Down air</td><td class="n mono">12/6/18 · LL 12</td><td class="n">9</td><td class="n">−12</td><td>Drops a fruiting body straight down. Meteor on the first 3 frames.</td></tr>
-<tr><td>Node</td><td>Side signature</td><td class="n mono">16/2/22</td><td class="n">—</td><td class="n">n/a</td><td>Lobs a node up to 10 studs onto the nearest surface. Max 3 alive; a fourth replaces the oldest. Nodes have 10 HP and tick 1% every 60 frames to enemies within 3 studs. Punish window 22 frames.</td></tr>
-<tr><td>Network Pulse</td><td>Down signature</td><td class="n mono">20/4/30</td><td class="n">9 per node</td><td class="n">−22</td><td>Every live node emits a 5-stud shockwave: base 22, growth 3.5, angle 75°. A victim inside two overlapping nodes takes only the stronger. With no nodes the animation plays anyway and Mycel has wasted 54 frames.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: the Network.</strong> Mycel's recovery is <em>Thread</em>: it dissolves and re-forms at the nearest node within 40 studs, consuming that node. With no node in range it gets a weak 10-stud puff. Nodes are also its combo tool (Pulse), its stage control (ticking damage) and its safety net (teleport), so each one it places is a choice about which of those it wants. Opponents can see every node and count to three.</p>
-<p><strong>Counterplay.</strong> Kill the nodes. Any 4% hit destroys one, and a Mycel with no nodes is the worst-recovering character in the cast, with a 10-stud puff and a light body. Its placement animation is slow and its Pulse is −22, so a player who watches for the lob and dashes in during the 22 recovery frames gets a free hit every time. Zoners clear nodes from range; rushdown never lets it place them. The written-in weakness: everything depends on setup, and its own recovery eats the setup.</p>
-<p><strong>Palette and skins.</strong> Ivory thread <code>#EDE6D2</code>, lilac fruiting bodies <code>#9A7FB8</code>, soil brown <code>#4A3728</code>, pale spore <code>#C6B8E0</code>. Alternates: <em>Honey Fungus</em> (amber threads, gold caps), <em>Cordyceps</em> (pale grey body, orange-red spikes; slightly unsettling), <em>Mint Glow</em> (dark body, bioluminescent mint threads and nodes), <em>Truffle</em> (dark chocolate body, gold-flecked nodes; legendary).</p>
-</section>
-
-<!-- ===================== FROSTBUD ===================== -->
-<section class="sheet" id="frostbud">
-<header class="sheet-head">
-  <div><h3>Frostbud</h3><p class="sheet-sub">Snowdrop · Control · Mid weight</p></div>
-  <div class="swatches" aria-label="Palette"><span style="--c:#A9D8F0"></span><span style="--c:#FFFFFF"></span><span style="--c:#5E9E62"></span><span style="--c:#E9D98A"></span></div>
-</header>
-<p>A snowdrop who blooms first every year and is annoyed, every year, that nobody else is ready. Frostbud is precise, dry and punctual, and fights like an appointment: she tells you what is going to happen, and then it happens. Her taunt is checking a tiny frost-crystal watch.</p>
-<dl class="stats">
-<div><dt>Weight</dt><dd>95</dd></div><div><dt>Run</dt><dd>20<small>st/s</small></dd></div><div><dt>Jumps</dt><dd>2</dd></div><div><dt>Fall</dt><dd>35<small>st/s</small></dd></div><div><dt>Recovery</dt><dd>20<small>studs</small></dd></div>
-</dl>
-<div class="tbl"><table>
-<tr><th>Move</th><th>Input</th><th class="n">S/A/R</th><th class="n">Dmg</th><th class="n">On block</th><th>Notes</th></tr>
-<tr><td>Frost Tap · Tap · Chime</td><td>Neutral light ×3</td><td class="n mono">5/2/8 · 4/2/9 · 6/3/15</td><td class="n">3 · 3 · 4</td><td class="n">−3 · −4 · −10</td><td>Chime applies one Chill.</td></tr>
-<tr><td>Icicle Lunge</td><td>Side light ×2</td><td class="n mono">8/4/15 · 7/3/17</td><td class="n">6 · 5</td><td class="n">−10 · −11</td><td>Each hit applies one Chill. 5-stud lunge.</td></tr>
-<tr><td>Rime</td><td class="">Down light</td><td class="n mono">7/5/15</td><td class="n">4</td><td class="n">−12</td><td>Low frost patch, 4 studs. One Chill.</td></tr>
-<tr><td>Snowflake</td><td>Neutral air</td><td class="n mono">7/9/12 · LL 8</td><td class="n">6</td><td class="n">−12</td><td>Six-pointed hitbox around her.</td></tr>
-<tr><td>Petal Slash</td><td>Forward air</td><td class="n mono">10/4/14 · LL 9</td><td class="n">7</td><td class="n">−8</td><td>6 studs, 40°.</td></tr>
-<tr><td>Icicle</td><td>Down air</td><td class="n mono">13/5/18 · LL 12</td><td class="n">9</td><td class="n">−11</td><td>Spike. The one strong move in her kit and it is a read.</td></tr>
-<tr><td>Cold Snap</td><td>Side signature</td><td class="n mono">18/20/26</td><td class="n">8</td><td class="n">−14</td><td>Ice wave along the ground, 14 studs, applies two Chill. Base 20, growth 2.8, 40°. Jumps over it beat it cleanly.</td></tr>
-<tr><td>Deep Freeze</td><td>Down signature</td><td class="n mono">22/4/30</td><td class="n">6</td><td class="n">n/a</td><td>If an opponent at three Chill is within 5 studs, they freeze in place for 40 frames (mashing reduces it to 20). No knockback. The next hit on a frozen target gets +20% launch. Without a valid target the full 56-frame animation still plays: that is the punish window.</td></tr>
-</table></div>
-<p><strong>Unique mechanic: Chill.</strong> Most of her hits apply a stack of Chill, up to three. Each stack reduces the victim's run speed and jump height by 8% for 5 seconds, refreshed by every new stack. Three stacks unlock Deep Freeze. Stacks are visible as frost creeping up the victim's model and as a blue tint on their HUD tile, so a player at three stacks knows the freeze is coming.</p>
-<p><strong>Counterplay.</strong> Her damage is the lowest in the game: an average hit is 5–6% and her only launchers are Icicle (a read) and Cold Snap (−14, jumpable). She kills after 130% mid-stage and depends on the freeze-then-hit routine to get there, which means every freeze is a 56-frame commitment that a dodge or a jump turns into a free punish. Chill decays if she stops hitting, so a defender who resets to neutral clears it. The written-in weakness: no kill move under 130% and a signature that does nothing without a three-stack target.</p>
-<p><strong>Palette and skins.</strong> Ice blue <code>#A9D8F0</code>, petal white <code>#FFFFFF</code>, stem green <code>#5E9E62</code>, stamen gold <code>#E9D98A</code>. Alternates: <em>Frost Fern</em> (green-white fronds), <em>Aurora</em> (violet-to-teal gradient petals, glow), <em>Hoarfrost</em> (grey silver, crystalline edges), <em>Thaw</em> (pink blush, dripping outline; legendary).</p>
-</section>
-
-<h3 id="postlaunch">Planned post-launch characters</h3>
-<p>Two per season, one per six-week half. Each is defined enough here to schedule concept and blockout; full frame data is written during the content phase against the live balance numbers.</p>
-<div class="tbl"><table>
-<tr><th>Character</th><th>Theme · archetype</th><th>Personality</th><th>Unique mechanic</th><th>Counterplay and written-in weakness</th></tr>
-<tr><td><strong>Squall</strong> <span class="tag">Season 1</span></td><td>Storm cloud · aerial mix-up, light</td><td>A small thundercloud that wandered away from the front and is enjoying the freedom a little too much. Excitable, crackly.</td><td><em>Charge</em>: every aerial that connects adds static; at three static the next Heavy is a lightning strike straight down from wherever Squall is, 40 studs long. Static clears on landing.</td><td>Three jumps and 26 fall speed make Squall floaty and juggle-proof, but weight 85 and no ground game at all: every grounded normal is slow. Shield the aerials and grab.</td></tr>
-<tr><td><strong>Agate</strong> <span class="tag">Season 1</span></td><td>Geode · armoured heavy</td><td>A geode that has been polished on one side and is self-conscious about the other. Slow, considered, a little vain.</td><td><em>Cleave</em>: Agate's shell has 20 armour that absorbs knockback (not damage) below a threshold. Taking 30% in one stock cracks it open, exposing crystal: +15% damage on all moves but no armour, until the stock ends.</td><td>Multi-hit moves strip armour fast; once cracked, Agate is a heavy with weight 125 and 12-stud recovery that kills easily but is edge-guarded easily. The written-in weakness: cracked Agate cannot shield.</td></tr>
-<tr><td><strong>Rollo</strong> <span class="tag">Season 2</span></td><td>Pill bug · roll-cancel rushdown</td><td>A pill bug who rolls into a ball when startled and has decided to be startled on purpose. Cheerful, tactical, easily distracted.</td><td><em>Curl</em>: pressing Dodge during any ground light's recovery cancels the last 8 frames into a roll with 4 armour. Curl can be used once per string.</td><td>The curl has no invincibility, only light armour, so any 5%+ hit stops it. Rollo has no projectile and a weak recovery. Zoners and heavies with strong single hits beat it.</td></tr>
-<tr><td><strong>Glimmer</strong> <span class="tag">Season 2</span></td><td>Firefly · glass cannon</td><td>A firefly who is convinced the match is a dance. Bright, kind, absolutely will not stop moving.</td><td><em>Lantern</em>: Glimmer is lit while moving and goes dark after 0.5 seconds still. Lit, all attacks get +25% launch. Dark, they lose 25%. Four jumps keep it moving.</td><td>Weight 82 and the lowest fall speed: dies at 85% and is very easy to combo once caught. Any stun (shield break, freeze, Chill slow) turns the lantern off.</td></tr>
-</table></div>
-
 <h2 id="s3"><span class="num">3</span>Stages</h2>
-<p>Six stages, two of them hazard-free tournament layouts. All coordinates are in studs with the origin at the centre of the main platform's top surface, X to the right and Y up. Every platform listed as "soft" can be dropped through with Down and jumped through from below. Main platforms are solid. Blast zone figures are the distance from the origin to each side.</p>
-
+<p>Six stages, six different shapes &mdash; six variations of one layout is one map. Two are hazard-free tournament layouts. All coordinates are in studs with the origin at the centre of the main platform&rsquo;s top surface, X to the right and Y up. A platform listed as <em>soft</em> can be dropped through with Down and jumped through from below; a <em>solid</em> one is another walled island with its own ledges. Blast figures are the distance from the origin to each side.</p>
 <div class="tbl"><table>
-<tr><th>Stage</th><th>Theme</th><th>Main width</th><th>Platforms</th><th>Blast L/R · Top · Bottom</th><th>Hazards</th><th>Ranked</th></tr>
-<tr><td>Potting Bench</td><td>Greenhouse</td><td class="n">72</td><td class="n">3 soft</td><td class="n">±96 · +85 · −50</td><td>None</td><td>Yes</td></tr>
-<tr><td>Fallen Log</td><td>Forest floor</td><td class="n">80</td><td class="n">1 soft</td><td class="n">±100 · +80 · −48</td><td>None</td><td>Yes</td></tr>
-<tr><td>Hot Heap</td><td>Compost heap</td><td class="n">64</td><td class="n">2 soft, sinking</td><td class="n">±88 · +90 · −44</td><td>Steam vents</td><td>No</td></tr>
-<tr><td>Skyline Planters</td><td>Rooftop garden</td><td class="n">70</td><td class="n">2 soft, moving</td><td class="n">±94 · +85 · −50</td><td>Sprinkler sweep</td><td>No</td></tr>
-<tr><td>Dry Wash</td><td>Desert</td><td class="n">90</td><td class="n">1 soft</td><td class="n">±110 · +80 · −55</td><td>Dust devil</td><td>No</td></tr>
-<tr><td>Rockpool</td><td>Tide pool</td><td class="n">60</td><td class="n">2 soft</td><td class="n">±90 · +85 · −45</td><td>Rising tide</td><td>No</td></tr>
+<tr><th>Stage</th><th>Archetype</th><th>Theme</th><th>Main width</th><th>Platforms</th><th>Blast L/R &middot; Top &middot; Bottom</th><th>Hazard</th><th>Ranked</th></tr>
+<tr><td>Foundry Floor</td><td>Neutral</td><td>Iron works</td><td class="n">72</td><td class="n">3 soft</td><td class="n">&plusmn;96/96 &middot; +85 &middot; &minus;50</td><td>None</td><td>Yes</td></tr>
+<tr><td>The Span</td><td>Flat / horizontal</td><td>Suspension bridge</td><td class="n">92</td><td class="n">none</td><td class="n">&plusmn;98/98 &middot; +94 &middot; &minus;48</td><td>None</td><td>Yes</td></tr>
+<tr><td>Smeltworks</td><td>Split floor</td><td>Smelting floor</td><td class="n">23</td><td class="n">3 soft, 1 solid, sinking</td><td class="n">&plusmn;90/90 &middot; +88 &middot; &minus;46</td><td>vents</td><td>No</td></tr>
+<tr><td>Rooftops</td><td>Vertical / tiered</td><td>City rooftops</td><td class="n">57</td><td class="n">4 soft</td><td class="n">&plusmn;92/92 &middot; +78 &middot; &minus;46</td><td>sprinkler</td><td>No</td></tr>
+<tr><td>Saltflat</td><td>Asymmetric</td><td>Dry lake</td><td class="n">74</td><td class="n">2 soft, 2 solid</td><td class="n">&plusmn;110/100 &middot; +80 &middot; &minus;52</td><td>dustdevil</td><td>No</td></tr>
+<tr><td>Undertow</td><td>Moving / dynamic</td><td>Flooded dock</td><td class="n">40</td><td class="n">4 soft, moving</td><td class="n">&plusmn;92/92 &middot; +84 &middot; &minus;44</td><td>tide</td><td>No</td></tr>
 </table></div>
-
-<h3>Potting Bench <span class="tag">ranked</span></h3>
-<p>The inside of a glasshouse. The bench is the main platform; two upturned seed trays and a hanging basket are the platforms. Background: fogged panes, a leaning hose, sunlight moving slowly across the floor (a lighting-only effect, no gameplay). This is the tri-platform standard and the stage the whole cast is balanced on.</p>
-<pre class="diagram">                     top +85
-        ┌──────────────┐  hanging basket   x 0,   y 26, width 14
-    ┌────────┐      ┌────────┐             x ±22, y 14, width 16 each
-────────────────────────────────────────   bench   x −36..36, y 0, thickness 6, solid
- −96                                 +96   ledges at x ±36
-                     bottom −50</pre>
-
-<h3>Fallen Log <span class="tag">ranked</span></h3>
-<p>A mossy log across a stream, viewed side-on. One floating platform: a big leaf caught on a branch. The stage is a little wider and the bottom blast zone a little closer than Potting Bench, so it rewards horizontal kills and spikes. Fireflies and drifting seeds in the background are particles only.</p>
-<pre class="diagram">                     top +80
-              ┌──────────┐                 leaf     x 0, y 16, width 20
-──────────────────────────────────────────────   log  x −40..40, y 0, thickness 8, solid
- −100                                  +100      ledges at x ±40, slightly rounded (no wall-tech)
-                     bottom −48</pre>
-
-<h3>Hot Heap</h3>
-<p>A steaming compost heap in a wooden bay. The main platform is the top of the heap; two rotting cabbage leaves are the platforms and they sag. Colour: warm browns, orange peel, a fork stuck in the pile.</p>
-<pre class="diagram">                     top +90
-   ┌ soft ┐                     ┌ soft ┐   cabbage leaves  x ±26, y 12, width 14
-──────────▲──────────────────▲──────────   heap  x −32..32, y 0, solid
- −88      vent               vent   +88    steam vents at x ±20
-                     bottom −44</pre>
-<ul>
-<li><strong>Steam vents.</strong> Every 18 seconds both vents hiss for 60 frames (warning particles), then erupt for 40 frames. Anyone standing on a vent is launched straight up at 60 studs/s with no damage or hitstun: a free repositioning that can also throw a recovering opponent into a bad spot. Vents alternate sides after each eruption in 1v1 and 2v2.</li>
-<li><strong>Sinking leaves.</strong> A leaf sinks 4 studs while stood on (over 1 second) and rises back when empty. Standing on one for more than 2 seconds drops the player through it.</li>
-<li>The shallow bottom blast zone (−44) makes this the best spike stage in the game.</li>
-</ul>
-
-<h3>Skyline Planters</h3>
-<p>A rooftop allotment against a city skyline at golden hour. The main platform is a long raised bed. Two planters on irrigation rails slide back and forth; a sprinkler on a timer sweeps across the stage.</p>
-<pre class="diagram">                     top +85
-     ←── planter ──→          ←── planter ──→     x from ±10 to ±30, y 15, width 12, 12 s cycle
-────────────────────────────────────────────   raised bed  x −35..35, y 0, solid
- −94                                    +94
-                     bottom −50</pre>
-<ul>
-<li><strong>Moving planters.</strong> Each travels from 10 to 30 studs out and back over 12 seconds, out of phase with the other. Characters standing on one inherit its velocity.</li>
-<li><strong>Sprinkler sweep.</strong> Every 30 seconds the sprinkler ticks for 90 frames (audible), then sweeps left to right over 4 seconds. Airborne characters in the spray are pushed 8 studs/s in the sweep direction; grounded characters are unaffected. It does no damage. It punishes floating and rewards timing a recovery.</li>
-</ul>
-
-<h3>Dry Wash</h3>
-<p>A dry riverbed at noon: cracked clay, a single flat rock ledge on the right, a distant mesa. The widest stage and the only asymmetric one; players swap sides after each stock in ranked-style modes, but this stage is never in the ranked pool.</p>
-<pre class="diagram">                     top +80
-                                   ┌──────┐  rock ledge  x 30, y 12, width 12
-───────────────────────────────────────────────────   wash  x −45..45, y 0, solid
- −110                                          +110
-                     bottom −55</pre>
-<ul>
-<li><strong>Dust devil.</strong> Every 40 seconds a dust devil spawns at a random side beyond the ledge and crosses the stage in 6 seconds. It is 6 studs wide and 12 tall. Contact deals 6% with a fixed 85° launch of 45 studs/s, regardless of percent, so it never kills by itself but can interrupt anything. It also carries any item it touches.</li>
-<li>Wide side zones and a low bottom: matches here go long and end in edge-guards.</li>
-</ul>
-
-<h3>Rockpool</h3>
-<p>A tide pool at the base of a sea wall. The main platform is a flat rock; two barnacled rocks either side are the platforms. Below and to the sides is water, and the water moves.</p>
-<pre class="diagram">                     top +85
-      ┌─ rock ─┐                 ┌─ rock ─┐   x ±24, y 10, width 14
-~~~~~~~────────────────────────────────~~~~~~~   main rock  x −30..30, y 0, solid
- −90   water at low tide: y −8 · high tide: y +11 (rocks submerged)   +90
-                     bottom −45</pre>
-<ul>
-<li><strong>Tide.</strong> Every 40 seconds the tide rises over 3 seconds, holds for 12, and falls over 3. At low tide the water sits 8 studs below the main platform beyond its edges; at high tide it rises to 11 studs above it, submerging the side rocks (they still exist and can be stood on underwater).</li>
-<li><strong>Water rules.</strong> A character in water falls at 50% speed, runs at 40% speed, and is pushed away from the stage centre at 6 studs/s. They can jump out (jumps are not consumed by entering water) and can still be hit. Water never KOs on its own; the side blast zones do.</li>
-<li>High tide turns every side platform into an off-stage hazard and makes recoveries slow and readable: an edge-guarder's stage.</li>
-</ul>
-
-<h2 id="s4"><span class="num">4</span>Blender production pipeline</h2>
-<p>Everything below assumes Blender 4.x and Roblox Studio's built-in 3D Importer. Menu paths are written as they appear in the UI. The pipeline is built around one rule: <strong>1 Blender unit is 1 Roblox stud</strong>, set once in the scene and never touched again.</p>
-
-<h3>4.1 Scene setup</h3>
-<ol>
-<li><strong>Units.</strong> Properties → Scene → Units: Unit System <em>Metric</em>, Unit Scale <em>0.01</em>, Length <em>Centimeters</em>. FBX stores centimetres and Roblox reads one FBX centimetre as one stud, so this makes the viewport grid a stud grid. Save this as the studio startup file (File → Defaults → Save Startup File).</li>
-<li><strong>Calibration cube.</strong> Before modelling anything, export a 4×4×4 cube with the settings in 4.6 and import it into Studio. It must arrive as a 4×4×4 stud part. If it arrives at 400 or 0.04, the unit setting above is wrong for your Blender version: fix it here, never by scaling meshes later.</li>
-<li><strong>Frame rate.</strong> Properties → Output → Frame Rate <em>60</em>. The combat sim runs at 60 Hz, so an animation frame is a game frame and a 14-frame wind-up is 14 keyframes.</li>
-<li><strong>Reference.</strong> Add → Image → Reference for the character turnaround, at 0.5 opacity, on its own collection.</li>
-</ol>
-
-<h3>4.2 Base mesh proportions and polygon budget</h3>
-<div class="tbl"><table>
-<tr><th>Asset</th><th>Height (studs)</th><th>Triangle budget</th><th>Notes</th></tr>
-<tr><td>Light characters (Duststorm, Mycel, Glimmer, Squall)</td><td class="n">4.0–4.5</td><td class="n">4,000–5,500</td><td>Fewer tris than heavies; they are small on screen and fast</td></tr>
-<tr><td>Mid characters</td><td class="n">4.5–5.5</td><td class="n">5,000–7,000</td><td>Thornlock's vines count against her budget</td></tr>
-<tr><td>Heavy characters (Sunbeam, Cacto, Agate)</td><td class="n">6.0–7.0</td><td class="n">6,500–8,000</td><td>Sunbeam's head alone is 2,000</td></tr>
-<tr><td>Weapons and items</td><td class="n">1–2</td><td class="n">300–600</td><td></td></tr>
-<tr><td>Stage playable geometry</td><td class="n">—</td><td class="n">under 6,000</td><td>Collision uses invisible Roblox Parts, not the mesh</td></tr>
-<tr><td>Stage backdrop</td><td class="n">—</td><td class="n">under 9,000</td><td>Total stage under 15,000</td></tr>
-</table></div>
-<p>Roblox's importer rejects a single mesh over 10,000 triangles, so a character is always split into at least body and head (or body and cap, body and vines). Proportions: heads are large, about 1 : 3.5 of height for mids, feet and hands are simple wedges, and every character has one oversized identifying shape (rose head, cap, disc, barrel, ball) that fills at least a third of the silhouette. Keep limbs thick enough to read at 40 pixels; no element thinner than 0.25 studs.</p>
-<p>Modelling method: start from a cube, Ctrl+2 Subdivision Surface for blocking only, then Object → Apply → Visual Geometry to Mesh and clean by hand. Final meshes are all quads with clean loops around eyes, mouth, shoulders, elbows and knees, and no n-gons. Check with Select → Select All by Trait → Faces by Sides, Number of Vertices <em>4</em>, Type <em>Not Equal To</em>. Add Modifier → Triangulate (Quad Method <em>Fixed</em>) is applied last, before export, so the triangle split is decided in Blender and not by the importer.</p>
-
-<h3>4.3 Look, materials and UVs</h3>
-<p>The look is flat, low-poly and hand-painted, with bevelled edges suggested by shading rather than geometry. No PBR maps: a single colour texture per character, no roughness or normal map. Roblox will render it with its own lighting, so paint mid-values and let the engine add the light.</p>
-<ol>
-<li><strong>Two texturing paths.</strong> Characters use a hand-painted atlas. Stages and items use a <em>palette texture</em>: a 256×256 image of 64 flat colour squares, with each face's UV island shrunk to a point inside one square. It gives perfectly flat colour, a tiny file, and lets a whole stage share one material.</li>
-<li><strong>Atlas size.</strong> Author character atlases at 2048×2048 in the painting file. Export at 1024×1024 for Roblox: images above 1024 are downscaled on upload, so anything painted at 2048 detail is lost anyway and the 2048 file only exists for print-quality marketing shots.</li>
-<li><strong>Unwrap.</strong> In Edit Mode, mark seams down the back of the body, the inside of each limb, and around the head where hair or petals meet (Edge → Mark Seam). UV → Unwrap → Unwrap, then UV → Pack Islands with Rotation on, Margin <em>0.02</em>. Mirror-symmetric characters unwrap one half with the Mirror modifier on and Flip U off, so both halves share texture space; asymmetric details (Cap'n Spore's coat) get their own island.</li>
-<li><strong>Texel density.</strong> The face gets about 25% of the atlas. Check with the UV editor's Stretch overlay (Overlays → Stretch → Area) before painting.</li>
-<li><strong>Painting.</strong> Texture Paint mode in Blender for base colours; Krita or Photoshop for the final pass. Bake ambient occlusion at 25% opacity as the only "lighting" in the texture: Properties → Render → Bake, Bake Type <em>Ambient Occlusion</em>, then multiply it onto the flats.</li>
-<li><strong>Material.</strong> One Principled BSDF per character, Base Color from the atlas, Roughness 0.8, Specular 0.2. Roblox ignores these values on import but they keep Blender previews honest.</li>
-</ol>
-
-<h3>4.4 Rigging</h3>
-<p>Characters ship as <strong>skinned meshes</strong> (one MeshPart per mesh with an armature), not as fifteen separate body parts. Skinning gives smooth deformation on vines, fronds and caps, and the game's own animation controller plays every clip, so the Roblox Humanoid's default animation set is not needed. The core bones still use the R15 names so the Animation Editor, Roblox accessories and any future Humanoid-based feature keep working.</p>
-<pre class="diagram">HumanoidRootNode                  (root, at 0,0,0, never animated for locomotion)
-└── LowerTorso
-    ├── UpperTorso
-    │   ├── Head
-    │   ├── LeftUpperArm → LeftLowerArm → LeftHand
-    │   └── RightUpperArm → RightLowerArm → RightHand
-    ├── LeftUpperLeg → LeftLowerLeg → LeftFoot
-    └── RightUpperLeg → RightLowerLeg → RightFoot</pre>
-<p>That is the standard hierarchy: 15 bones under a root. Deviations per character shape:</p>
-<div class="tbl"><table>
-<tr><th>Shape problem</th><th>Solution</th><th>Example</th></tr>
-<tr><td>A chain that must whip or trail</td><td>Add a chain of 4–6 bones as children of the hand or torso bone, named with the parent's name and an index: <code>RightHand_Vine01</code> … <code>RightHand_Vine05</code>. Animate them by hand in attacks; the game runs a simple secondary-motion script on them in idle.</td><td>Thornlock's vines, Kelpin's fronds, Mycel's threads</td></tr>
-<tr><td>A big cap or head that squashes</td><td>Keep <code>Head</code> as the pivot and add <code>Head_Cap</code> with a scale channel. Roblox bones support scale, so squash-and-stretch on landing is animated directly.</td><td>Cap'n Spore, Sunbeam, Frostbud's bell</td></tr>
-<tr><td>No legs at all</td><td>Keep the leg bones in the rig, weight nothing to them, and animate a base bone <code>LowerTorso_Base</code> instead. The empty leg bones cost nothing and keep the hierarchy valid.</td><td>Cacto, Sunbeam, Kelpin</td></tr>
-<tr><td>A body that rolls</td><td>Animate <code>LowerTorso</code> rotation rather than the root; the root stays upright so the hurtbox capsule does not spin.</td><td>Duststorm, Rollo, Cacto's Barrel Roll</td></tr>
-<tr><td>Detachable pieces (hats, a flower, a coat)</td><td>Separate mesh, parented with weights to a single bone (Ctrl+P → Armature Deform with Empty Groups, then assign 1.0 to one group). Never use Child Of constraints; they do not export.</td><td>Cacto's flower, Cap'n Spore's coat</td></tr>
-</table></div>
-<p>Rigging steps: Add → Armature; in Edit Mode build the bones with Shift+A and extrude with E; name them in the Bone Properties tab exactly as above (case-sensitive, no spaces). Select the mesh, then the armature, Ctrl+P → Armature Deform → With Automatic Weights. Clean weights: Weight Paint mode, Weights → Limit Total (4 influences, which is Roblox's limit), Weights → Normalize All. Set the armature's Viewport Display to <em>In Front</em> and use the X-Axis Mirror option in the Tool panel while painting. The root bone must sit at the world origin with the character's feet on Y = 0 in Roblox terms (Z = 0 in Blender).</p>
-
-<h3>4.5 Animation list</h3>
-<p>Twenty clips per character. Each is its own Action, named <code>&lt;character&gt;_&lt;clip&gt;</code>, and exported as its own FBX. Frame counts are the game's frame data plus 4 frames of anticipation before startup, so animators and designers share one number.</p>
-<div class="tbl"><table>
-<tr><th>Clip</th><th>Frames at 60</th><th>Loop</th><th>Notes</th></tr>
-<tr><td>idle</td><td class="n">120</td><td>Yes</td><td>Breathing plus one character tic in the middle</td></tr>
-<tr><td>walk</td><td class="n">40</td><td>Yes</td><td>Speed matched to 12 studs/s in the engine</td></tr>
-<tr><td>run</td><td class="n">30</td><td>Yes</td><td>Speed matched to run stat; light characters lean forward more</td></tr>
-<tr><td>jump</td><td class="n">18</td><td>No</td><td>Squash on frames 1–4, stretch 5–10</td></tr>
-<tr><td>double_jump</td><td class="n">22</td><td>No</td><td>A flip or spin that shows the identifying shape</td></tr>
-<tr><td>fall</td><td class="n">30</td><td>Yes</td><td></td></tr>
-<tr><td>land</td><td class="n">12</td><td>No</td><td>Blended out early when the character acts</td></tr>
-<tr><td>light_neutral, light_side, light_down</td><td class="n">per frame data</td><td>No</td><td>Strings are one clip with markers at each hit; the engine holds at a marker until the next input</td></tr>
-<tr><td>air_neutral, air_forward, air_down</td><td class="n">per frame data</td><td>No</td><td></td></tr>
-<tr><td>sig_side, sig_down</td><td class="n">per frame data</td><td>No</td><td>Include the wind-up pose as an obvious "about to" read</td></tr>
-<tr><td>hit_light, hit_heavy</td><td class="n">10, 24</td><td>No</td><td>Chosen by launch speed above or below 45</td></tr>
-<tr><td>tumble</td><td class="n">24</td><td>Yes</td><td>The ragdoll: the engine adds physics spin on top</td></tr>
-<tr><td>ko</td><td class="n">30</td><td>No</td><td>Played at the blast-zone crossing, scaled down as the burst plays</td></tr>
-<tr><td>victory</td><td class="n">180</td><td>No</td><td>Results screen, full body</td></tr>
-<tr><td>taunt</td><td class="n">90</td><td>No</td><td>Interruptible</td></tr>
-</table></div>
-<p>Keep the root bone stationary in all clips: movement comes from the engine, and a root that drifts makes hitboxes disagree with the model. Recovery, dash, dodge, shield, grab, throw, ledge grab and ledge get-up use shared clips retargeted across the cast in the first pass, replaced per character during polish.</p>
-
-<h3>4.6 Export settings</h3>
-<ol>
-<li>Object Mode, select the mesh(es) and armature. Object → Apply → All Transforms (Ctrl+A). Scale must read 1.000 and rotation 0° on every object before export, or Roblox receives a bone hierarchy at one scale and a mesh at another.</li>
-<li>File → Export → FBX (.fbx), then set:</li>
-</ol>
-<div class="tbl"><table>
-<tr><th>Panel</th><th>Setting</th><th>Value</th></tr>
-<tr><td>Include</td><td>Limit to</td><td>Selected Objects</td></tr>
-<tr><td>Include</td><td>Object Types</td><td>Armature, Mesh only</td></tr>
-<tr><td>Transform</td><td>Scale</td><td>1.00</td></tr>
-<tr><td>Transform</td><td>Apply Scalings</td><td>FBX Units Scale</td></tr>
-<tr><td>Transform</td><td>Forward / Up</td><td>−Z Forward / Y Up (Blender is Z-up; Roblox is Y-up; this pair converts correctly)</td></tr>
-<tr><td>Transform</td><td>Apply Unit, Use Space Transform</td><td>Both on</td></tr>
-<tr><td>Geometry</td><td>Smoothing</td><td>Face</td></tr>
-<tr><td>Geometry</td><td>Apply Modifiers</td><td>On (the Triangulate modifier is applied here)</td></tr>
-<tr><td>Geometry</td><td>Tangent Space</td><td>Off</td></tr>
-<tr><td>Armature</td><td>Primary / Secondary Bone Axis</td><td>Y / X</td></tr>
-<tr><td>Armature</td><td>Add Leaf Bones</td><td>Off (leaf bones become extra bones in Studio)</td></tr>
-<tr><td>Armature</td><td>Only Deform Bones</td><td>On</td></tr>
-<tr><td>Bake Animation</td><td>Mesh export</td><td>Off</td></tr>
-<tr><td>Bake Animation</td><td>Animation export</td><td>On; NLA Strips off; All Actions off; Force Start/End Keying on; Sampling Rate 1.0; Simplify 0.0</td></tr>
-<tr><td>Path Mode</td><td>Textures</td><td>Copy, with Embed Textures on, so the atlas travels with the file</td></tr>
-</table></div>
-<p>Mesh and rig go in one FBX per character. Each animation goes in its own FBX with the same armature and the mesh unselected (Object Types: Armature only), so a clip file is small and can be re-exported without touching the model. In Studio: File → Import 3D for the model, with Rig Type <em>Custom</em> and Rig Scale <em>Default</em>; animations come in through the Animation Editor's ⋯ menu → Import → From FBX Animation, onto the imported rig, then Publish to Roblox to get an asset id for the character data module.</p>
-
-<h3>4.7 Common import problems</h3>
-<div class="tbl"><table>
-<tr><th>Symptom in Studio</th><th>Cause</th><th>Fix in Blender</th></tr>
-<tr><td>Faces are black or see-through from one side</td><td>Inverted normals, or custom split normals from an imported reference</td><td>Edit Mode, select all, Mesh → Normals → Recalculate Outside (Shift+N). Then Mesh → Normals → Clear Custom Split Normals Data (or Properties → Data → Geometry Data → Clear Custom Split Normals)</td></tr>
-<tr><td>Texture appears mirrored or the two body halves show different details</td><td>Mirror modifier applied with Flip U/V, or islands overlapping after packing</td><td>Modifier → Mirror → Data → uncheck Flip U and Flip V; re-run UV → Pack Islands; check UV → Select Overlap</td></tr>
-<tr><td>Model imports at the wrong size (100× or 0.01×)</td><td>Scene Unit Scale not 0.01, or scale not applied</td><td>Set Unit Scale per 4.1; Ctrl+A → All Transforms; re-export</td></tr>
-<tr><td>Character lies on its back or faces sideways</td><td>Wrong Forward / Up axis</td><td>Set −Z Forward, Y Up; make sure the armature's rotation is applied</td></tr>
-<tr><td>Hat, flower or coat stays at the origin while the body moves</td><td>Accessory mesh not weighted to a bone, or parented with a constraint</td><td>Parent to the armature with Empty Groups, assign 1.0 to one bone's vertex group; delete Child Of constraints</td></tr>
-<tr><td>Limbs tear or collapse while moving</td><td>More than four bone influences per vertex, or unnormalised weights</td><td>Weight Paint → Weights → Limit Total (4) → Normalize All</td></tr>
-<tr><td>Extra bones ending in "_end" appear in the rig</td><td>Add Leaf Bones was on</td><td>Turn it off and re-export</td></tr>
-<tr><td>Mesh rejected as too large</td><td>Over 10,000 triangles in one object</td><td>Edit Mode → select the head or accessory loop → Mesh → Separate → Selection (P); export both</td></tr>
-<tr><td>Animation plays on the wrong bones or not at all</td><td>Bone names in the clip file differ from the model (renamed after export)</td><td>Re-export the clip from the same .blend; never rename bones after the first model export</td></tr>
-<tr><td>Animation looks fine in Blender, stutters in Studio</td><td>Exported at 30 fps into a 60 fps clip, or Simplify above 0</td><td>Scene frame rate 60; Simplify 0.0; Sampling Rate 1.0</td></tr>
-</table></div>
+<h3 id="st-foundryfloor">Foundry Floor <span class="tag">Neutral</span> <span class="tag">ranked</span></h3>
+<p>Symmetric, hazardless, the standard triangle. The stage that argues with nobody.</p>
+<h3 id="st-thespan">The Span <span class="tag">Flat / horizontal</span> <span class="tag">ranked</span></h3>
+<p>No platforms at all, a high roof and close walls. Every kill here goes out sideways.</p>
+<h3 id="st-smeltworks">Smeltworks <span class="tag">Split floor</span></h3>
+<p>Two islands and a hole between them. Crossing is a decision, not a walk.</p>
+<h3 id="st-rooftops">Rooftops <span class="tag">Vertical / tiered</span></h3>
+<p>Two towers at different heights and a low ceiling. Fights climb, and the top of the map kills.</p>
+<h3 id="st-saltflat">Saltflat <span class="tag">Asymmetric</span></h3>
+<p>Long on the left, blocked on the right. The two sides of this stage are not the same game.</p>
+<h3 id="st-undertow">Undertow <span class="tag">Moving / dynamic</span></h3>
+<p>Drifting platforms over a rising tide. The safe ground moves, and sometimes there is none.</p>
+<p>The <code>web/maps.html</code> dev tool draws all six to a common scale with the double-jump envelope and blast box overlaid. It reads the same stage data the match does, so the diagram cannot drift from the game.</p>
+<h2 id="s4"><span class="num">4</span>Pixel art pipeline</h2>
+<p>Weapon icons and effect sheets are generated as <code>.piskel</code> files by the scripts in <code>pixel/</code>, so every asset is reproducible from source rather than hand-painted and lost. <code>pixel/lib/sbpixel.py</code> is a standard-library-only writer for the Piskel format (JSON, layers as embedded JSON strings, frames as a base64 PNG horizontal strip); <code>pixel/weapon_icons.py</code> and <code>pixel/weapon_fx.py</code> produce the sheets. Open the <code>.piskel</code> files at piskelapp.com to edit them by hand; re-run the script to regenerate from scratch.</p>
+<p>In-match weapon rendering does not use sprite sheets at all. <code>web/src/render2d/weapons2d.js</code> draws each weapon as vector polygons in its own local frame &mdash; grip at the origin, blade along +X &mdash; and poses it per move, so one drawing serves both facings and every animation. <code>web/anim.html</code> renders a frame-by-frame filmstrip of every move from that same code.</p>
 
 <h2 id="s5"><span class="num">5</span>Roblox Studio implementation</h2>
 <p>Two places: a <strong>Lobby</strong> place that handles the store, the battle pass, party-up and queueing, and an <strong>Arena</strong> place that runs matches in reserved servers. Both share the same package of modules in ReplicatedStorage. The combat rule is simple: the client sends intents and predicts animation, the server decides what hit whom and how far they fly.</p>
@@ -727,7 +341,8 @@ Worked examples (weight 100, blast zone ~90 studs from centre)
 ├── Shared
 │   ├── Config.lua               -- sim rate, gravity, blast-zone defaults, feature flags
 │   ├── Knockback.lua            -- launch, hitstun, blockstun, hitlag (pure functions)
-│   ├── Characters/              -- one ModuleScript per character, pure data (5.3)
+│   ├── Weapons/                 -- one ModuleScript per weapon, pure data (5.3)
+│   ├── Avatars.lua              -- the shared base stat line and cosmetic presets
 │   ├── Stages/                  -- one ModuleScript per stage: platforms, blast zones, hazards
 │   ├── Items.lua                -- pickup weapon data
 │   ├── Store.lua                -- product ids, prices, rarity tables (6)
@@ -752,9 +367,9 @@ ServerScriptService
 StarterPlayer/StarterPlayerScripts
 ├── InputController.lua     -- keyboard, gamepad, touch → one intent stream
 ├── TouchControls.lua       -- floating stick and button cluster
-├── AnimationController.lua -- predicts and plays clips from Characters data
+├── AnimationController.lua -- predicts and plays clips from Weapons data
 ├── CameraController.lua    -- 2.5D framing of all live players
-├── HUDController.lua       -- percents, stocks, timers, Chill/Tangle/Bloom indicators
+├── HUDController.lua       -- percents, stocks, timers, weapon resource meters, ultimate meter
 └── StoreController.lua     -- Lobby only
 
 ServerStorage
@@ -769,15 +384,15 @@ ServerStorage
 <li><strong>State is replicated at 20 Hz</strong> through an unreliable remote: percents, stocks, per-player state (idle / attacking / hitstun / shield / ledge), resource meters. Nothing the HUD shows is computed on the client.</li>
 </ul>
 
-<h3>5.3 Character data as ModuleScripts</h3>
-<p>Every number a designer might change lives in one module per character and nowhere else. The combat code reads it; it never contains a number of its own. A balance patch is a data commit.</p>
-<pre><code><span class="c">-- ReplicatedStorage/Shared/Characters/Thornlock.lua
+<h3>5.3 Weapon data as ModuleScripts</h3>
+<p>Every number a designer might change lives in one module per weapon and nowhere else. The combat code reads it; it never contains a number of its own. A balance patch is a data commit.</p>
+<pre><code><span class="c">-- ReplicatedStorage/Shared/Weapons/Sword.lua
 -- Pure data. No functions, no requires. Frame counts at 60 Hz, distances in studs.</span>
 <span class="k">return</span> {
-    id = <span class="s">"Thornlock"</span>,
-    displayName = <span class="s">"Thornlock"</span>,
-    weight = 95,          <span class="c">-- 80 light … 130 heavy</span>
-    runSpeed = 22,
+    id = <span class="s">"Sword"</span>,
+    displayName = <span class="s">"Sword"</span>,
+    weight = 100,         <span class="c">-- 80 light … 130 heavy; the avatar contributes nothing</span>
+    runSpeed = 23,
     walkSpeed = 12,
     airSpeed = 18,
     jumps = 2,
@@ -842,7 +457,7 @@ ServerStorage
 
     recovery = { kind = <span class="s">"Tether"</span>, range = 22, speed = 70, helplessAfter = <span class="k">true</span> },
 }</code></pre>
-<p>Every character module is validated on server start by a schema check in <code>Types.lua</code>: every move has startup, active, recovery, damage, base, growth and angle, every hitbox's frame range falls inside startup + active, and every launcher (a move whose launch at 60% on weight 100 exceeds 45) has an on-block value of −8 or lower. A module that fails the check stops the server from starting in Studio, so the balance rule from section 2 is enforced by the build, not by memory.</p>
+<p>Every weapon module is validated on server start by a schema check in <code>Types.lua</code>: every move has startup, active, recovery, damage, base, growth and angle, every hitbox's frame range falls inside startup + active, and every launcher (a move whose launch at 60% on weight 100 exceeds 45) has an on-block value of −8 or lower. A module that fails the check stops the server from starting in Studio, so the balance rule from section 2 is enforced by the build, not by memory.</p>
 
 <h3>5.4 Knockback and the combat loop</h3>
 <pre><code><span class="c">-- ReplicatedStorage/Shared/Knockback.lua
@@ -1034,7 +649,7 @@ RunService.Heartbeat:Connect(<span class="k">function</span>(dt)
 <span class="k">end</span>)</code></pre>
 
 <h3>5.5 Hitboxes</h3>
-<p>Hurtboxes are one invisible capsule-shaped Part per fighter (a cylinder is close enough), welded to the root, sized from the character data, placed in the <code>Hurtbox</code> collision group so it collides with nothing and only answers spatial queries. Hitboxes are not parts at all: they are box queries run for the frames the data says.</p>
+<p>Hurtboxes are one invisible capsule-shaped Part per fighter (a cylinder is close enough), welded to the root, sized from the avatar's stat line, placed in the <code>Hurtbox</code> collision group so it collides with nothing and only answers spatial queries. Hitboxes are not parts at all: they are box queries run for the frames the data says.</p>
 <pre><code><span class="c">-- ServerScriptService/HitboxService.lua</span>
 <span class="k">local</span> RunService = game:GetService(<span class="s">"RunService"</span>)
 <span class="k">local</span> Debris = game:GetService(<span class="s">"Debris"</span>)
@@ -1240,9 +855,9 @@ RunService.Heartbeat:Connect(<span class="k">function</span>(dt)
     <span class="k">return</span> {
         version = SCHEMA_VERSION,
         dew = 0,                                     <span class="c">-- soft currency</span>
-        unlockedCharacters = { Duststorm = <span class="k">true</span>, CapnSpore = <span class="k">true</span>, Frostbud = <span class="k">true</span> },   <span class="c">-- free trio</span>
+        unlockedWeapons = { Sword = <span class="k">true</span>, Blasters = <span class="k">true</span> },        <span class="c">-- free pair</span>
         cosmetics = {},                              <span class="c">-- [itemId] = true</span>
-        equipped = {},                               <span class="c">-- [characterId] = { skin = ..., trail = ... }</span>
+        equipped = {},                               <span class="c">-- [weaponId] = { skin = ..., trail = ... }</span>
         loadoutSlots = 2,
         passes = {},                                 <span class="c">-- [gamePassId] = true, cached from MarketplaceService</span>
         battlePass = { season = 0, tier = 0, xp = 0, premium = <span class="k">false</span>, claimed = {} },
@@ -1401,10 +1016,10 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 </ul>
 
 <h2 id="s6"><span class="num">6</span>Robux monetisation</h2>
-<p>The store sells identity and time, never power. Three rules, checked in code review for every store item: no item changes a number in a character module; every character can be earned with play-currency; every paid cosmetic shows its price in both Robux and Dew on the same card.</p>
+<p>The store sells identity and time, never power. Three rules, checked in code review for every store item: no item changes a number in a weapon module; every weapon can be earned with play-currency; every paid cosmetic shows its price in both Robux and Dew on the same card.</p>
 
 <h3>One currency: Dew</h3>
-<p>Dew is the only in-game currency. It is earned by playing and can also be bought in packs, so there is no premium-versus-soft split for players to decode. Prices below are tuned so that a player on 30 minutes a day earns a common skin in about three days and a character in about two weeks.</p>
+<p>Dew is the only in-game currency. It is earned by playing and can also be bought in packs, so there is no premium-versus-soft split for players to decode. Prices below are tuned so that a player on 30 minutes a day earns a common skin in about three days and a weapon in about two weeks.</p>
 <div class="tbl"><table>
 <tr><th>Source</th><th class="n">Dew</th><th>Notes</th></tr>
 <tr><td>Match played (finished, not left)</td><td class="n">20</td><td>Any mode, any result</td></tr>
@@ -1422,7 +1037,7 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 <p>Context for the numbers: a buyer pays roughly 400 Robux for US$4.99, so 1 Robux is about 1.25 US cents to them, and the developer receives about 70% of Robux spent on passes and products. Prices sit on the amounts players already hold from the common Robux bundles (400, 800, 1,700), which is why the anchor prices are 99, 199, 399 and 799 rather than round hundreds.</p>
 <div class="tbl"><table>
 <tr><th>Item</th><th>Type</th><th class="n">Robux</th><th class="n">Dew</th><th>Justification</th></tr>
-<tr><td>Starter Bundle: three characters of choice plus 500 Dew</td><td>Game Pass</td><td class="n">399</td><td class="n">—</td><td>Priced under one 400-Robux bundle so a first purchase is a single decision. Cheaper than three tokens (750) to reward committing early. Never includes the free trio.</td></tr>
+<tr><td>Starter Bundle: both locked weapons plus 500 Dew</td><td>Game Pass</td><td class="n">399</td><td class="n">—</td><td>Priced under one 400-Robux bundle so a first purchase is a single decision. Cheaper than two tokens to reward committing early. Never includes the free pair.</td></tr>
 <tr><td>VIP: +25% daily Dew, exclusive lobby emote, name colour, VIP lobby badge</td><td>Game Pass</td><td class="n">449</td><td class="n">—</td><td>A permanent boost to earn rate for a one-time price is the best long-term value in the store, so it costs a little more than the starter bundle. Nothing in it touches a match.</td></tr>
 <tr><td>Extra loadout slots (+3, per character)</td><td>Game Pass</td><td class="n">149</td><td class="n">1,500</td><td>Convenience. Cheap because it sells to players who already own several skins.</td></tr>
 <tr><td>Character token (unlocks one character)</td><td>Dev Product</td><td class="n">250</td><td class="n">3,000</td><td>About two weeks of casual Dew, or roughly the price of a coffee. A player who plays the game gets every character free eventually.</td></tr>
@@ -1467,11 +1082,11 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 
 <h3>First-session flow</h3>
 <ol>
-<li>Join. No modal, no store, no "welcome pack" popup. The player is in the lobby with a big <em>Play</em> button and the free trio (Duststorm, Cap'n Spore, Frostbud: a rushdown, a trap character and a control character, so the three play differently).</li>
-<li>Within 20 seconds of joining, their first press of Play drops them into a 3-stock match against two bots on Potting Bench with the shortest character-select timer. The store has still not been mentioned.</li>
+<li>Join. No modal, no store, no "welcome pack" popup. The player is in the lobby with a big <em>Play</em> button, their own Roblox avatar already on screen, and the free pair of weapons (Sword and Blasters: an all-rounder and a zoner, so the two play differently).</li>
+<li>Within 20 seconds of joining, their first press of Play drops them into a 3-stock match against two bots on Foundry Floor with the shortest weapon-select timer. The store has still not been mentioned.</li>
 <li>Results screen shows Dew earned with a small animation into a wallet icon. That is the first time the currency appears.</li>
 <li>Back in the lobby, the store tab now has a badge: "Daily gift" (50 Dew, claimable every day). Claiming it opens the store for the first time, already scrolled to the free items. The player has seen prices in Dew before they see one in Robux.</li>
-<li>The Robux offers appear only in the store tab, plus one soft prompt after the third match: "Like Cap'n Spore? Unlock a fourth character" with the Dew price shown first and the token price second.</li>
+<li>The Robux offers appear only in the store tab, plus one soft prompt after the third match: "Try the Scythe?" with the soft-currency price shown first and the token price second.</li>
 <li>The battle pass screen is reachable from the lobby but never auto-opens. Its first tier is free and claimable immediately, so the first visit ends with a reward rather than a price.</li>
 </ol>
 
@@ -1481,16 +1096,17 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 <h3>Track list</h3>
 <div class="tbl"><table>
 <tr><th>Track</th><th>Where</th><th class="n">BPM</th><th>Key</th><th>Mood and instrumentation</th></tr>
-<tr><td>Potting Shed</td><td>Menu and lobby</td><td class="n">128</td><td>D major</td><td>Warm and welcoming. Square-wave lead over brushed drums, upright bass, a marimba counter-melody. Loops without a build so it can sit under a store for ten minutes.</td></tr>
-<tr><td>Pick a Seed</td><td>Character select</td><td class="n">140</td><td>G major</td><td>Anticipation. Arpeggiated pulse lead, four-on-the-floor kick, hand claps on 2 and 4. Modulates up a tone on the final five seconds of the timer.</td></tr>
-<tr><td>Under Glass</td><td>Potting Bench</td><td class="n">150</td><td>C major</td><td>Bright and clean. Pulse lead, glockenspiel, tight kit, occasional glass-tap percussion. The "default" energy of the game.</td></tr>
-<tr><td>Leaf Litter Rumble</td><td>Fallen Log</td><td class="n">145</td><td>F major (mixolydian lean)</td><td>Bouncy and woody. Triangle-wave lead, wood blocks, a shaker, a bass line that walks. Bird-call synth flourishes on section changes.</td></tr>
-<tr><td>Hot Heap</td><td>Hot Heap</td><td class="n">160</td><td>E major, swung</td><td>Funky, sweaty. Detuned lead, slap bass, a brass-stab sample, swung hats. The fastest track and the swing keeps it loose.</td></tr>
-<tr><td>Skyline Sprouts</td><td>Skyline Planters</td><td class="n">138</td><td>A major</td><td>Golden hour. Warmer pad under the lead, electric piano comping, a half-time chorus that opens up.</td></tr>
-<tr><td>Tumble Run</td><td>Dry Wash</td><td class="n">152</td><td>D mixolydian</td><td>Dusty and driving. Lead with a slight portamento, a galloping bass, tambourine, one twangy guitar riff repeated as a hook.</td></tr>
-<tr><td>Ebb and Flow</td><td>Rockpool</td><td class="n">132</td><td>B♭ major</td><td>Rolling. The lead plays a rising-and-falling figure that mirrors the tide; steel-pan-like tones, rimshots, a bass that swells with the tide cue (see layers).</td></tr>
-<tr><td>Bloom</td><td>Victory sting</td><td class="n">—</td><td>Matches the stage key</td><td>Four bars, a rising lead figure resolving to the tonic with a cymbal swell. Eight versions, one per stage key, so it never clashes.</td></tr>
-<tr><td>Wilt</td><td>Defeat sting</td><td class="n">—</td><td>Relative minor of the stage</td><td>Two bars, a falling figure, no drums, ends open. Gentle: the player is about to press "Play again".</td></tr>
+<tr><td>Cold Open</td><td>Menu and lobby</td><td class="n">128</td><td>D</td><td>Warm but industrial. Square-wave lead over brushed drums, upright bass, a struck-metal counter-melody. Loops without a build so it can sit under a store for ten minutes.</td></tr>
+<tr><td>Pick Your Weapon</td><td>Weapon select</td><td class="n">140</td><td>G</td><td>Anticipation. Arpeggiated pulse lead, four-on-the-floor kick, hand claps on 2 and 4. Modulates up a tone on the final five seconds of the timer.</td></tr>
+<tr><td>Cold Iron</td><td>Foundry Floor</td><td class="n">150</td><td>C</td><td>Clean and even, like the stage. Pulse lead, tight kit, an anvil tap on the backbeat. The "default" energy of the game.</td></tr>
+<tr><td>Long Drop</td><td>The Span</td><td class="n">145</td><td>F</td><td>Wide and airy for the stage with no platforms. Sustained pad under a simple lead, a walking bass, wind-through-cable noise as texture.</td></tr>
+<tr><td>Pour</td><td>Smeltworks</td><td class="n">158</td><td>D</td><td>Hot and driving. Detuned lead, slap bass, a brass stab, swung hats. The fastest track, and the swing keeps it loose over the vents.</td></tr>
+<tr><td>Nine Floors Up</td><td>Rooftops</td><td class="n">152</td><td>A</td><td>Golden hour. Warmer pad under the lead, electric piano comping, a half-time chorus that opens up as the fight climbs.</td></tr>
+<tr><td>Nothing For Miles</td><td>Saltflat</td><td class="n">138</td><td>E</td><td>Dusty and spacious. Lead with a slight portamento, a galloping bass, tambourine, one twangy guitar riff repeated as a hook.</td></tr>
+<tr><td>Ebb and Flow</td><td>Undertow</td><td class="n">132</td><td>B♭</td><td>Rolling. The lead plays a rising-and-falling figure that mirrors the tide; steel-pan-like tones, rimshots, a bass that swells with the tide cue (see layers).</td></tr>
+<tr><td>Ultimate cue</td><td>On activation</td><td class="n">—</td><td>Stage key</td><td>Two bars over the 26-frame activation freeze: everything ducks to a single held note and one hit, then the track returns. It is the audio half of the banner.</td></tr>
+<tr><td>Standing</td><td>Victory sting</td><td class="n">—</td><td>Matches the stage key</td><td>Four bars, a rising lead figure resolving to the tonic with a cymbal swell. Six versions, one per stage key, so it never clashes.</td></tr>
+<tr><td>Out</td><td>Defeat sting</td><td class="n">—</td><td>Relative minor of the stage</td><td>Two bars, a falling figure, no drums, ends open. Gentle: the player is about to press "Play again".</td></tr>
 </table></div>
 
 <h3>Final-stock layer</h3>
@@ -1508,8 +1124,8 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 <tr><td>Shield</td><td>shield_up, shield_hit, shield_perfect, shield_break</td><td>Perfect shield is a bright ping; break is a glass crack plus a stun ring.</td></tr>
 <tr><td>Ledge grab</td><td>ledge_grab, ledge_slip</td><td>A hand-slap on the stage material, a scrabble for the no-invincibility third grab.</td></tr>
 <tr><td>KO burst</td><td>ko_burst, ko_burst_last</td><td>Firework-style burst with a tonal tail in the stage key; the last-stock version adds a bass drop and a 0.3 s duck on the music.</td></tr>
-<tr><td>Character voice</td><td>8 lines per character: jump, hit, launched, KO, sig_side, sig_down, taunt, victory</td><td>Non-verbal or one-word. Thornlock is clipped and formal, Duststorm chatters, Mycel is a chorus.</td></tr>
-<tr><td>Announcer</td><td>"Three, two, one, grow!", "KO!", "Sudden death!", "Time!", "Winner!", each character's name</td><td>Warm, a bit of a garden-show host. Never during play except KO.</td></tr>
+<tr><td>Fighter voice</td><td>8 lines per avatar: jump, hit, launched, KO, sig_side, sig_down, taunt, victory</td><td>Non-verbal or one-word, and tied to the avatar rather than the weapon, so a voice never contradicts the moveset a player picked.</td></tr>
+<tr><td>Announcer</td><td>"Three, two, one, fight!", "KO!", "Sudden death!", "Time!", "Winner!", each weapon's name and each ultimate's name on activation</td><td>Flat and even, not a hype man. Never during play except KO and an ultimate.</td></tr>
 <tr><td>UI</td><td>click, hover, tab, confirm, back, purchase, reward_tick, quest_complete, level_up</td><td>Soft wooden clicks, a seed-pod pop for confirm, a small chime for rewards.</td></tr>
 <tr><td>Stage</td><td>vent_warn, vent_erupt, sprinkler_tick, sprinkler_spray, tide_rise, tide_fall, dust_devil_loop</td><td>Diegetic, panned to position.</td></tr>
 </table></div>
@@ -1548,11 +1164,11 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 <h3>Screens</h3>
 <div class="tbl"><table>
 <tr><th>Screen</th><th>Layout</th><th>Details</th></tr>
-<tr><td>Character select</td><td>A 4×3 grid of character tiles on the left 55% of the screen; the selected character's model, name, archetype line and three-word playstyle on the right; skin swatches under the model; the stage vote as a strip along the bottom.</td><td>Tiles show a silhouette icon, not a portrait, so the roster reads the same way it does in match. Locked characters show a Dew price on the tile. A random tile is highlighted for players who do nothing. Lock-in is a large button on touch and any face button on controller.</td></tr>
+<tr><td>Weapon select</td><td>Two columns: the avatar picker on the left, the weapon tiles on the right, with the selected weapon's name, archetype line and one-line playstyle beneath; skin swatches under the weapon; the stage vote as a strip along the bottom.</td><td>Tiles show the weapon silhouette, not a portrait, so a weapon reads the same way it does in match. Locked weapons show a Dew price on the tile. A random tile is highlighted for players who do nothing. Lock-in is a large button on touch and any face button on controller. The avatar column is explicitly labelled as cosmetic so nobody hunts for a stat difference that does not exist.</td></tr>
 <tr><td>HUD</td><td>One tile per player along the bottom edge on desktop; along the top edge on touch (the bottom is for thumbs). A tile is a small seed-packet: character icon, name, the percent in the ramp colour, stock icons as seeds, and a thin strip for the character's resource (Bloom petals, Light segments, Chill frost, Tangle band, spore ring, Spines, Momentum trail). Timer top centre in timed modes.</td><td>Tiles are 88 × 56 pixels on phone, 128 × 80 on desktop. In 8-player matches they shrink to 64 × 44 and drop the name. The local player's tile is 10% larger and outlined. Above each character in the world: a small marker with the player colour and shape, and their percent in 16-pixel type that fades after 1.5 seconds of no change.</td></tr>
 <tr><td>Touch controls</td><td>Floating stick in the left third; five buttons in the bottom-right 22% of width, arranged in an arc: Jump (largest, top), Light, Heavy, Dodge, and Guard as a smaller button above the arc.</td><td>Buttons are 64 pixels at 55% opacity, 80% while pressed, with a 12-pixel dead zone between them. A settings slider scales the whole cluster from 80% to 130% and lets the player mirror it for left-handed play. Nothing in the cluster covers the stage: the stage's right ledge sits at 70% of screen width at most.</td></tr>
 <tr><td>Results</td><td>Placement list down the left with each player's character, KOs, falls and damage dealt; the winner's model playing their victory clip on the right; Dew and XP earned counting up under the list.</td><td>The quest tracker slides in from the bottom if a quest advanced. "Play again" is the primary button and re-queues the same mode. Twelve seconds, skippable by a majority.</td></tr>
-<tr><td>Store</td><td>Tabs: Featured, Skins, Effects, Lobby, Dew. Cards in a scrolling grid, three wide on phone, five on desktop. Every card shows the item on the character it belongs to, the rarity band, and the price in Dew with the Robux price beneath.</td><td>Tapping a card shows a live preview with the character's idle and taunt. A "Try in training" button loads a training room with the item equipped. Owned items show "Equip" instead of a price.</td></tr>
+<tr><td>Store</td><td>Tabs: Featured, Skins, Effects, Lobby, Dew. Cards in a scrolling grid, three wide on phone, five on desktop. Every card shows the item on the weapon or avatar it belongs to, the rarity band, and the price in Dew with the Robux price beneath.</td><td>Tapping a card shows a live preview with the fighter's idle and taunt. A "Try in training" button loads a training room with the item equipped. Owned items show "Equip" instead of a price.</td></tr>
 <tr><td>Battle pass</td><td>A horizontal track of 40 tiers, free row above, paid row below, the current tier centred; XP bar and days remaining at the top.</td><td>Claimable tiers glow and are claimed by tapping. The paid track's locked rewards are visible in full colour, not silhouetted, so the player knows exactly what they would get.</td></tr>
 <tr><td>Settings</td><td>Two-column list: Controls (rebinding, touch layout scale and mirror, stick dead zone, tap-jump on/off), Display (HUD scale, percent-above-head on/off, hitbox debug for developers, colour-vision presets), Audio (music, effects, voice, announcer sliders), Account (privacy, ranked visibility).</td><td>Every setting applies live with no save button. Controls rebinding shows a live input preview.</td></tr>
 </table></div>
@@ -1565,18 +1181,18 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 <h3>Systems</h3>
 <div class="tbl"><table>
 <tr><th>System</th><th>How it works</th><th>Rewards</th></tr>
-<tr><td>Daily quests</td><td>Three per day, drawn from a pool of about forty; one is always character-specific ("Land five Kelp Lassos"), one is mode-specific ("Finish a 2v2"), one is general ("Deal 400% total"). One reroll per day.</td><td>60 Dew and 250 pass XP each</td></tr>
-<tr><td>Weekly challenges</td><td>Three per week, larger: "Win 10 matches", "KO an opponent with five different characters", "Grab the ledge 100 times".</td><td>250 Dew and 800 pass XP each; completing all three gives a weekly banner variant</td></tr>
+<tr><td>Daily quests</td><td>Three per day, drawn from a pool of about forty; one is always weapon-specific ("Land five Crescent Rushes"), one is mode-specific ("Finish a 2v2"), one is general ("Deal 400% total"). One reroll per day.</td><td>60 Dew and 250 pass XP each</td></tr>
+<tr><td>Weekly challenges</td><td>Three per week, larger: "Win 10 matches", "KO an opponent with all four weapons", "Land three ultimates".</td><td>250 Dew and 800 pass XP each; completing all three gives a weekly banner variant</td></tr>
 <tr><td>Account level</td><td>XP from every match (100 base, +50 win, +2 per percent dealt, capped at 300). Levels take 1,000 XP rising to 5,000 by level 50; no cap.</td><td>150 Dew per level; a title every 10 levels; a lobby emote at 25 and 50</td></tr>
 <tr><td>Character mastery</td><td>Twenty levels per character from matches played with them. About 25 matches to level 10, 80 to level 20.</td><td>Level 5 common skin, 10 rare skin, 15 custom taunt, 20 epic skin and a mastery banner; 200 Dew at each milestone. Mastery is shown as a leaf count on the character select tile.</td></tr>
-<tr><td>Ranked ladder</td><td>1v1 and 2v2, 3-stock, ranked stage pool, no items. Rating starts at 1,000 and moves by a Glicko-style update with a wider step for the first 20 placements. Tiers by rating: Seedling (&lt;900), Sprout (900), Sapling (1,100), Bloom (1,300), Canopy (1,500), Evergreen (1,700), and Old Growth for the top 200 on the leaderboard. Each tier below Evergreen has three divisions. Seasons match the battle pass; rating soft-resets toward 1,000 by a third each season.</td><td>A season banner and title per tier reached; an epic KO burst for Bloom and up; Old Growth gets a unique lobby aura for the following season</td></tr>
+<tr><td>Ranked ladder</td><td>1v1 and 2v2, 3-stock, ranked stage pool, no items. Rating starts at 1,000 and moves by a Glicko-style update with a wider step for the first 20 placements. Tiers by rating: Scrap (&lt;900), Iron (900), Bronze (1,100), Steel (1,300), Cobalt (1,500), Tungsten (1,700), and Molten for the top 200 on the leaderboard. Each tier below Tungsten has three divisions. Seasons match the battle pass; rating soft-resets toward 1,000 by a third each season.</td><td>A season banner and title per tier reached; an epic KO burst for Steel and up; Molten gets a unique lobby aura for the following season</td></tr>
 <tr><td>Spectator mode</td><td>Any lobby party can spectate a friend's match. Spectators get the same replicated state as players, the free camera, and can toggle hitbox visualisation and frame-advantage overlays once the match ends. Ranked spectating is delayed by 20 seconds. Finished matches save a 60-second replay on the server for the results screen.</td><td>Watching a full match counts toward a daily quest once per day, so the queue wait is never dead time</td></tr>
 </table></div>
 
 <h3>What brings a player back</h3>
 <ul>
 <li><strong>Day 2.</strong> The daily gift (50 Dew) and the first-win bonus (100 Dew) together are half a common skin, and the store already showed them the skin. One daily quest from day one is still open and shows on the lobby screen. The free trio gave them one character they liked, and mastery level 2 on it is a match away.</li>
-<li><strong>Day 7.</strong> The first weekly challenges resolve, and the banner for finishing all three is visible in their profile as empty. They have around 2,000 Dew: enough to see that the character they have been eyeing is one more week away, or that a rare skin is available now. Ranked placements unlock at account level 5, which a week of play reaches. The battle pass free track has handed them a skin and two effects, and the paid track's tier-1 epic has been sitting beside them the whole time.</li>
+<li><strong>Day 7.</strong> The first weekly challenges resolve, and the banner for finishing all three is visible in their profile as empty. They have around 2,000 Dew: enough to see that the weapon they have been eyeing is one more week away, or that a rare skin is available now. Ranked placements unlock at account level 5, which a week of play reaches. The battle pass free track has handed them a skin and two effects, and the paid track's tier-1 epic has been sitting beside them the whole time.</li>
 <li><strong>Day 30.</strong> A new season is about to start or has just started: new pass, new ranked banner to earn, a soft-reset ladder that hands everyone a fresh placement. The first post-launch character lands with the season and has a launch-week quest line. Their main is approaching mastery 15 or 20, which is a skin they cannot buy. And by now they have a party: the lobby, 2v2 ranked and spectating are built so that friends are the reason to open the game.</li>
 </ul>
 
@@ -1586,42 +1202,42 @@ task.spawn(<span class="k">function</span>() <span class="k">while</span> task.w
 <ol class="phases">
 <li><div>
 <h4>Prototype · 4 weeks</h4>
-<p>One character built from blocks (Duststorm, since he tests the fastest movement), Potting Bench as grey parts, the full mechanics set from section 1 with placeholder animations, and the server-authoritative combat loop from section 5 with debug hitboxes on. Knockback and hitstun implemented from the formulas, not tuned yet. Touch controls in from week two, because a control scheme that is added later never fits.</p>
+<p>One weapon built from blocks (Blasters, since it tests the fastest movement and projectiles at once) on a stock Roblox avatar, Foundry Floor as grey parts, the full mechanics set from section 1 with placeholder animations, and the server-authoritative combat loop from section 5 with debug hitboxes on. Knockback and hitstun implemented from the formulas, not tuned yet. Touch controls in from week two, because a control scheme that is added later never fits.</p>
 <p><strong>Exit:</strong> two developers on separate machines, one on a phone, can play a 3-stock match that ends with a KO, with no client-side hit detection anywhere in the codebase. The knockback formula's worked examples in section 1 produce the predicted distances within 5%.</p>
 </div></li>
 <li><div>
 <h4>Vertical slice · 8 weeks</h4>
-<p>Thornlock and Cacto modelled, rigged, textured and animated through the section 4 pipeline (a zoner and a heavy, the two hardest cases for hitboxes and rigs). Potting Bench finished with its backdrop. The full match loop: select, countdown, fight, results, back to lobby, with the two-place teleport flow. Profiles saving. Three tracks from the composer: menu, Under Glass, and the stings. HUD and character select in final type and colour.</p>
-<p><strong>Exit:</strong> a stranger with a phone plays three matches without being told anything, and can say afterwards which character was the heavy. A profile survives a server shutdown. The vertical slice is the pitch build.</p>
+<p>Sword and Grimoire fully posed and animated through the section 4 pipeline (an all-rounder and a heavy zoner, the two hardest cases for hitboxes and for reading a swing at gameplay size), including their ultimates. Foundry Floor finished with its backdrop. The full match loop: select, countdown, fight, results, back to lobby, with the two-place teleport flow. Profiles saving. Three tracks from the composer: menu, Cold Iron, and the stings. HUD and weapon select in final type and colour.</p>
+<p><strong>Exit:</strong> a stranger with a phone plays three matches without being told anything, and can say afterwards which weapon was the heavy. A profile survives a server shutdown. The vertical slice is the pitch build.</p>
 </div></li>
 <li><div>
 <h4>Content build · 14 weeks</h4>
-<p>The remaining six launch characters at two weeks each, overlapping art and implementation. The remaining five stages with hazards. Pickup weapons. Items and hazards through the stage data modules. Bots for casual fill. All twenty clips per character, with shared clips replaced by character-specific ones for the eight launch characters. Remaining stage tracks and the intensity stems.</p>
-<p><strong>Exit:</strong> every character module passes the schema check, every character has a written counterplay that a tester can demonstrate on request, and an 8-player timed match on every stage holds 60 Hz on the server with hitbox debug off.</p>
+<p>The remaining two launch weapons and their ultimates, overlapping art and implementation. The remaining five stages with hazards. Items and hazards through the stage data modules. Bots for casual fill. The avatar cosmetic set. Remaining stage tracks and the intensity stems.</p>
+<p><strong>Exit:</strong> every weapon module passes the schema check, every move and every ultimate has a written counterplay that a tester can demonstrate on request, and an 8-player timed match on every stage holds 60 Hz on the server with hitbox debug off.</p>
 </div></li>
 <li><div>
 <h4>Monetisation and progression · 6 weeks</h4>
-<p>Store, Dew, game passes, developer products with idempotent receipts, the battle pass with its tier table, cosmetics for the launch catalogue (four skins per character, six trails, four pets, eight taunts), quests, account level, mastery, ranked rating and leaderboard, spectator mode. The first-session flow from section 6 implemented exactly as written.</p>
-<p><strong>Exit:</strong> a test account buys each product in a test-purchase environment, disconnects mid-grant, reconnects, and holds exactly one of each. A free account plays for a simulated week under the Dew earn rates and can afford a character. No store item references a character module.</p>
+<p>Store, Dew, game passes, developer products with idempotent receipts, the battle pass with its tier table, cosmetics for the launch catalogue (four skins per weapon, six trails, four pets, eight taunts), quests, account level, mastery, ranked rating and leaderboard, spectator mode. The first-session flow from section 6 implemented exactly as written.</p>
+<p><strong>Exit:</strong> a test account buys each product in a test-purchase environment, disconnects mid-grant, reconnects, and holds exactly one of each. A free account plays for a simulated week under the Dew earn rates and can afford a weapon. No store item references a weapon module.</p>
 </div></li>
 <li><div>
 <h4>Closed testing, balance, exploit hunting · 6 weeks</h4>
-<p>Two hundred invited players across regions. Telemetry on move usage, on-block punish rates, KO percent by character and stage, match length, and queue times. Two balance passes at weeks two and four, each a data-only change. A bounty for exploits: an internal build with a known list of things that should not be possible (speed, teleport, damage from the client, receipt replay, Z-axis escape), and the anti-exploit strike log reviewed daily.</p>
-<p><strong>Exit:</strong> median match length between 2 and 4 minutes in every mode; no character above 56% or below 44% win rate in ranked 1v1 at Sapling and above; zero open exploits from the list; server frame time under 12 ms at 8 players.</p>
+<p>Two hundred invited players across regions. Telemetry on move usage, on-block punish rates, ultimate activation and conversion rate, KO percent by weapon and stage, match length, and queue times. Two balance passes at weeks two and four, each a data-only change. A bounty for exploits: an internal build with a known list of things that should not be possible (speed, teleport, damage from the client, receipt replay, Z-axis escape), and the anti-exploit strike log reviewed daily.</p>
+<p><strong>Exit:</strong> median match length between 2 and 4 minutes in every mode; no weapon above 56% or below 44% win rate in ranked 1v1 at Bronze and above; zero open exploits from the list; server frame time under 12 ms at 8 players.</p>
 </div></li>
 <li><div>
 <h4>Launch and Season 1 live-ops · 6-week season</h4>
-<p>Launch with the eight characters, six stages, and the Season 1 pass. Live-ops calendar for the season below. Every content drop is a data-plus-assets commit that ships without a code change wherever possible.</p>
+<p>Launch with the four weapons, six stages, and the Season 1 pass. Live-ops calendar for the season below. Every content drop is a data-plus-assets commit that ships without a code change wherever possible.</p>
 <div class="tbl"><table>
 <tr><th>Week</th><th>Drop</th><th>Store</th><th>Balance</th></tr>
-<tr><td>1</td><td>Launch. Season 1 pass "First Frost". Ranked opens on day 3.</td><td>Featured: Thornlock Gilded Trellis (legendary rotation)</td><td>Hotfix window only</td></tr>
-<tr><td>2</td><td>Weekend event: 8-player Hot Heap only, double Dew</td><td>Rotation: Cacto Potted</td><td>First data pass from telemetry</td></tr>
-<tr><td>3</td><td>Squall arrives with a launch quest line (three quests, a Squall common skin)</td><td>Squall skins; rotation: Frostbud Thaw</td><td>Squall-only tuning allowed</td></tr>
-<tr><td>4</td><td>Community stage vote for Season 2's ranked pool addition</td><td>Rotation: Kelpin Nori Sheet</td><td>Second data pass</td></tr>
-<tr><td>5</td><td>Agate arrives</td><td>Agate skins; rotation: Mycel Truffle</td><td>Agate-only tuning</td></tr>
-<tr><td>6</td><td>Season finale weekend: ranked rewards preview, "last chance" pass reminder, Season 2 teaser in the lobby</td><td>Rotation: Cap'n Spore Admiral Porcini</td><td>Season 2 balance patch published with notes</td></tr>
+<tr><td>1</td><td>Launch. Season 1 pass "Cold Start". Ranked opens on day 3.</td><td>Featured: Sword Gilded Edge (legendary rotation)</td><td>Hotfix window only</td></tr>
+<tr><td>2</td><td>Weekend event: 8-player Smeltworks only, double Dew</td><td>Rotation: Grimoire Marginalia</td><td>First data pass from telemetry</td></tr>
+<tr><td>3</td><td>A fifth weapon arrives with a launch quest line (three quests, one common skin)</td><td>New-weapon skins; rotation: Scythe Rust</td><td>New-weapon tuning allowed</td></tr>
+<tr><td>4</td><td>Community stage vote for Season 2's ranked pool addition</td><td>Rotation: Blasters Chrome</td><td>Second data pass</td></tr>
+<tr><td>5</td><td>A sixth weapon arrives</td><td>Its skins; rotation: Sword Whetstone</td><td>New-weapon tuning only</td></tr>
+<tr><td>6</td><td>Season finale weekend: ranked rewards preview, "last chance" pass reminder, Season 2 teaser in the lobby</td><td>Rotation: Grimoire First Edition</td><td>Season 2 balance patch published with notes</td></tr>
 </table></div>
-<p><strong>Exit into Season 2:</strong> day-7 retention above 20% and day-30 above 8% for the launch cohort; pass conversion above 4% of weekly actives; Rollo and Glimmer in vertical-slice state.</p>
+<p><strong>Exit into Season 2:</strong> day-7 retention above 20% and day-30 above 8% for the launch cohort; pass conversion above 4% of weekly actives; the seventh and eighth weapons in vertical-slice state.</p>
 </div></li>
 </ol>
 

@@ -1,6 +1,6 @@
 # Roblox build
 
-This folder is the Roblox Studio version of Sprout Brawl. The web build in `../web` is the playable
+This folder is the Roblox Studio version of Blockfall. The web build in `../web` is the playable
 prototype; this path ships the same design on Roblox, following sections 4 and 5 of the design
 document (`../docs/design.html`) and the weapon system in section 0.
 
@@ -19,7 +19,7 @@ Nothing here is required to play the web build.
 ```bash
 ./check.sh          # type-check the Luau tree, then verify parity with the JavaScript
 rojo serve          # sync into Studio (needs the Rojo Studio plugin)
-rojo build --output SproutBrawl.rbxl
+rojo build --output Blockfall.rbxl
 ```
 
 ### Parity with the JavaScript
@@ -93,12 +93,14 @@ In Studio: sign in, and turn on Game Settings → Security → "Enable Studio Ac
 
 The web build was written so that the port is mostly translation:
 
-- `web/src/config.js`, `knockback.js`, `data/characters/*.js`, `data/stages/index.js`, `data/items.js` are pure data and
-  arithmetic. They become ModuleScripts under `ReplicatedStorage/Shared` unchanged in substance.
+- `web/src/config.js`, `knockback.js`, `data/weapons/*.js`, `data/avatars.js`, `data/stages/index.js`, `data/items.js`
+  are pure data and arithmetic. They become ModuleScripts under `ReplicatedStorage/Shared` unchanged in substance.
 - `engine/fighter.js`, `combat.js`, `stage.js`, `match.js` become the server-authoritative modules described in
   design section 5 (`CombatServer`, `HitboxService`, `StageService`, `MatchService`). The hitbox rectangles become
   `workspace:GetPartBoundsInBox` queries against hurtbox parts.
-- `render/rigs.js` is replaced by the Blender pipeline in design section 4 (skinned meshes, R15-named bones, 20 clips).
+- `render2d/*` has no Roblox counterpart to port: it is a 2D canvas renderer, and in Studio the player's own
+  R15 avatar is the body. What DOES carry over is `render2d/weapons2d.js` as a spec — it defines where each weapon
+  sits and how it swings on every frame of every move, which is what the Studio weapon welds and animations reproduce.
 - `ui/*` becomes ScreenGuis; `audio/*` becomes uploaded OGG assets referenced from an `Audio` module.
 - Data persistence, the store, the battle pass, matchmaking and anti-exploit are Roblox-only and are specified in
   design sections 5.7, 5.8, 6 and 9.

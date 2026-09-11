@@ -53,7 +53,7 @@ const check=(name,cond,detail)=>{ (cond?pass++:fail++); console.log(`${cond?'PAS
 // 6 tech window really is TECH.window frames wide
 { const setup=()=>{ const m=makeMatch(); skipCountdown(m); const f=m.fighters[0];
     for(let i=0;i<200;i++) m.step();
-    // x=-33 is over bare main stage on Potting Bench: no soft platform to land on early.
+    // x=-33 is over bare main stage on Foundry Floor: no soft platform to land on early.
     f.x=-33; f.onGround=false; f.platform=null; f.y=30; f.vy=-60; f.vx=0; f.tumbling=true; f.hitstun=40; f.setState('hitstun');
     return {m,f}; };
   let LAND=-1;

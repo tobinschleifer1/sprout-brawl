@@ -1,5 +1,5 @@
 {
-  "name": "SproutBrawl",
+  "name": "Blockfall",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {

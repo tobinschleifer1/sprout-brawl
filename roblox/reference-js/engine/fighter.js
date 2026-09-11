@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER } from '../config.js';
+import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE } from '../config.js';
 import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockstunFor } from './knockback.js';
 import { emptyFrame } from './input.js';
 
@@ -23,7 +23,7 @@ export class Fighter {
     this.alive = true;
     this.stats = { kos: 0, falls: 0, damageDealt: 0, damageTaken: 0, selfDestructs: 0 };
     this.input = emptyFrame();
-    this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0 };
+    this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0, ult: 0 };
     this.frameCount = 0;
     this.item = null;
     this.effects = { chill: { stacks: 0, timer: 0 }, tangle: { stacks: 0, timer: 0 }, grit: { hide: 0, slow: 0 }, slow: 0, frozenBonus: false };
@@ -63,6 +63,9 @@ export class Fighter {
     this.hold = null; this.holder = null; this.la = null; this.lag = 0; this.tether = null; this.frozenFrames = 0;
     this.di = { x: 0, y: 0 };
     this.techPress = 0; this.techRoll = 0; this.volleyCount = 0; this.rangeMul = 1; this.chargeMods = null; this.noGravityFrame = false;
+    // Ultimate meter. reset() runs on respawn, so losing a stock wipes the charge.
+    this.ultCharge = 0; this.ultActive = 0;
+    this.ultTarget = null; this.ultHeld = []; this.ultShots = 0; this.ultCooldown = 0; this.ultEndAt = 0;
     this.lastHitBy = null; this.lastHitFrame = -9999;
     this.inWater = false;
     this.spray = 0;
@@ -89,12 +92,21 @@ export class Fighter {
   }
   jumpMul() { return 1 - 0.08 * this.effects.chill.stacks; }
   setState(s) { this.state = s; this.sf = 0; }
+  get ultReady() { return this.ultCharge >= ULTIMATE.hitsRequired && !!this.char.moves.Ultimate; }
+  get ultMeter() { return Math.min(1, this.ultCharge / ULTIMATE.hitsRequired); }
+  // Called by combat when this fighter lands a real hit. Chip and tick damage do not charge.
+  // The meter fills for everyone; whether it can be SPENT is the weapon's business (ultReady).
+  chargeUltimate(n = 1) {
+    const was = this.ultReady;
+    this.ultCharge = Math.min(ULTIMATE.hitsRequired, this.ultCharge + n);
+    if (!was && this.ultReady) this.emit({ type: 'ultready' });
+  }
   consume(b) { if (this.buffer[b] > 0) { this.buffer[b] = 0; return true; } return false; }
   emit(e) { this.events.push(e); }
 
   applyInput(frame) {
     this.input = frame;
-    for (const b of ['jump', 'light', 'heavy', 'dodge', 'guard', 'grab', 'taunt']) if (frame[b]) this.buffer[b] = INPUT_BUFFER;
+    for (const b of ['jump', 'light', 'heavy', 'dodge', 'guard', 'grab', 'taunt', 'ult']) if (frame[b]) this.buffer[b] = INPUT_BUFFER;
     // Teching has its own window (TECH.window = 8) which is wider than INPUT_BUFFER, so it cannot
     // be expressed as a guard-buffer threshold.
     if (frame.guard) this.techPress = TECH.window;
@@ -207,6 +219,7 @@ export class Fighter {
       if (it && !this.item) { ctx.combat.pickupItem(this, it); return; }
     }
     if (inp.guardHeld) { this.setState('shield'); return; }
+    if (this._tryUltimate(ctx)) return;
     if (this.consume('taunt')) { this.setState('taunt'); return; }
     this._groundMove(inp);
   }
@@ -263,6 +276,9 @@ export class Fighter {
 
   _startGroundLight(inp) {
     if (inp.y < -0.5) return this.startMove('LightDown');
+    // Up + Light. Without this the up-light was reachable only as a chain link, which stranded any
+    // weapon whose kill confirm ran through it.
+    if (inp.y > 0.5 && this.char.moves.LightUp) return this.startMove('LightUp');
     if (Math.abs(inp.x) > 0.5) { this.facing = sign(inp.x); return this.startMove('LightSide1'); }
     return this.startMove('LightNeutral1');
   }
@@ -272,8 +288,9 @@ export class Fighter {
       if (this.mech.id === 'Fruiting' && this.mech.ring >= this.char.mechanic.ringMax && ctx.combat.hasFruit(this)) { ctx.combat.fruiting(this); return; }
       return this.startMove('SigDown');
     }
-    if (Math.abs(inp.x) > 0.5) this.facing = sign(inp.x);
-    return this.startMove('SigSide');
+    if (Math.abs(inp.x) > 0.5) { this.facing = sign(inp.x); return this.startMove('SigSide'); }
+    // Neutral Heavy is its own signature when the loadout defines one, else it reuses the side sig.
+    return this.startMove(this.char.moves.SigNeutral ? 'SigNeutral' : 'SigSide');
   }
 
   _startDash(dir) {
@@ -309,6 +326,7 @@ export class Fighter {
       if (Math.abs(inp.x) > 0.5) this.facing = sign(inp.x);
       this.emit({ type: 'doublejump' });
     }
+    if (this._tryUltimate(ctx)) return;
     if (this.consume('light')) { this._startAerial(inp); return; }
     if (this.consume('heavy')) { if (inp.y < -0.5) this._startGroundPound(); else this._startRecovery(ctx); return; }
     if (this.consume('dodge') && !this.airDodgeUsed) { this._startAirDodge(inp); return; }
@@ -316,9 +334,32 @@ export class Fighter {
     this._airDrift(inp);
   }
 
+  // Spending the meter is all-or-nothing: the whole bar goes, and the move gets a short window of
+  // invincibility on startup so an ultimate cannot simply be poked out of the air the frame it starts.
+  _tryUltimate(ctx) {
+    if (this.buffer.ult <= 0) return false;
+    if (!this.ultReady) { this.buffer.ult = 0; this.emit({ type: 'ultdenied' }); return false; }
+    // A slam that opens the floor has to be standing on one. Without this the crater fired all
+    // its bursts mid-air while the "planted in the floor" pose played in open sky.
+    if (this.char.moves.Ultimate.grounded && !this.onGround) { this.emit({ type: 'ultdenied' }); return false; }
+    this.buffer.ult = 0;
+    this.ultCharge = 0;
+    this.ultActive = 1;
+    // ULTIMATE.freezeFrames was declared in config and never read by anything: activating an
+    // ultimate had no moment at all. Everyone freezes, the CASTER INCLUDED - it is a beat of
+    // theatre, not an advantage, and freezing only the victims would make every ultimate
+    // unavoidable (Colossus's blade lands on frame 25 of a 26-frame freeze).
+    if (ctx && ctx.combat) for (const v of ctx.combat.fighters) v.hitlag = Math.max(v.hitlag, ULTIMATE.freezeFrames);
+    this.invincible = Math.max(this.invincible, ULTIMATE.invincibleFrames);
+    this.emit({ type: 'ultimate', move: 'Ultimate', label: this.char.moves.Ultimate.label, weapon: this.char.weapon ? this.char.weapon.id : null, fighter: this.index, x: this.x, y: this.cy });
+    this.startMove('Ultimate');
+    return true;
+  }
+
   _startAerial(inp) {
     this.tumbling = false;
     if (inp.y < -0.5) return this.startMove('AirDown');
+    if (inp.y > 0.5 && this.char.moves.AirUp) return this.startMove('AirUp');
     if (Math.abs(inp.x) > 0.5) { this.facing = sign(inp.x); return this.startMove('AirForward'); }
     return this.startMove('AirNeutral');
   }
@@ -396,14 +437,20 @@ export class Fighter {
   startMove(moveOrId, opts = {}) {
     const move = typeof moveOrId === 'string' ? this.char.moves[moveOrId] : moveOrId;
     if (!move) return;
+    if (move.ammo && this.mech.id === 'Spines') {
+      if ((this.mech.spines || 0) < move.ammo) { this.emit({ type: 'dryfire' }); return; }
+      this.mech.spines -= move.ammo;
+    }
     this.move = move; this.moveId = move.id; this.mf = 0; this.moveLanded = false; this.hitVictims = new Map();
     this.charge = 0; this.armorUsed = false; this.volleyCount = 0; this.spawnedActive = false;
+    // per-ultimate scratch: who the sniper painted, who the vortex is holding, shots left
+    this.ultTarget = null; this.ultHeld = []; this.ultShots = 0; this.ultCooldown = 0; this.ultEndAt = 0;
     this.bonusDamage = 0; this.launchMul = 1; this.rangeMul = 1; this.tumbling = false;
     this.startupEff = move.startup;
     // mechanic modifiers on move start
     const M = this.char.mechanic;
-    if (this.mech.id === 'Momentum' && this.mech.ready && move.kind !== 'counter') { this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul; this.mech.ready = false; this.mech.runFrames = 0; this.emit({ type: 'momentum' }); }
-    else if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
+    if (this.mech.id === 'Momentum' && this.mech.ready && move.heavy) { this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul; this.mech.ready = false; this.mech.runFrames = 0; this.emit({ type: 'momentum' }); }
+    else if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; }   // spent by signatures only; a light does not burn it
     if (this.mech.id === 'Bloom' && this.mech.bloomed && move.heavy) { this.bonusDamage += M.bonusDamage; this.rangeMul = M.rangeMul; this.mech.bloomed = false; this.mech.cooldown = M.cooldownFrames; this.emit({ type: 'bloomspend' }); }
     if (this.mech.id === 'Light' && move.kind === 'beam' && this.mech.segments > 0) { this.startupEff = Math.max(4, move.startup - M.windupPerSegment * this.mech.segments); this.mech.segments = 0; }
     this.startupShift = move.startup - this.startupEff;
@@ -432,16 +479,49 @@ export class Fighter {
     const total = this.startupEff + m.active + m.recovery;
     if (m.stall && this.mf <= m.stall) { this.vy = 0; this.noGravityFrame = true; }
     if (m.lunge && active) { this.vx = this.facing * (m.lunge / m.active) / FRAME; }
+    // A move can declare that it is a STANCE rather than a swing, and keep partial ground control
+    // while it is live. Deadeye needs this: rooting a light fighter in place for two seconds in a
+    // four-player match is a cost nobody would ever pay.
+    else if (m.walkSpeed && active && this.onGround) {
+      const target = inp.x * this.char.runSpeed * m.walkSpeed * this.speedMul();
+      this.vx += (target - this.vx) * 0.22;
+    }
     else if (this.onGround) this._friction();
     else if (!m.lunge) this._airDrift(inp, 0.7);
     if (m.fastFallActive && active && !this.onGround) this.vy = Math.min(this.vy, -this.char.fallSpeed * MOVE.fastFallMul);
-    if (m.chainsTo && this.moveLanded && this.mf >= this.startupEff + m.active && this.consume('light')) { this.startMove(m.chainsTo); return; }
+    if (this._chainInto(m, inp)) return;
     if (this.mf === this.startupEff + 1 && !this.spawnedActive) { this.spawnedActive = true; ctx.combat.onMoveActive(this, m); }
     if (active) ctx.combat.onMoveActiveFrame(this, m);
     if (this.mf > total) this.endMove();
   }
 
+  // Combo strings. Once a move has connected and its active frames are done, the follow-up is
+  // chosen by the direction held: `chains` keyed by up/side/down/neutral, with `chainsTo` as the
+  // fallback so single-branch strings still read as before. `chainsHeavy` lets a light string
+  // cash out into a signature, which is what makes a weapon's combo tree worth learning.
+  _chainInto(m, inp) {
+    if (!this.moveLanded || this.mf < this.startupEff + m.active) return false;
+    const dir = inp.y > 0.5 ? 'up' : inp.y < -0.5 ? 'down' : Math.abs(inp.x) > 0.5 ? 'side' : 'neutral';
+    const go = (id, buf) => {
+      if (!id || !this.char.moves[id]) return false;
+      this.buffer[buf] = 0;
+      if (dir === 'side') this.facing = sign(inp.x);
+      this.startMove(id);
+      return true;
+    };
+    if (this.buffer.heavy > 0 && m.chainsHeavy) {
+      const id = typeof m.chainsHeavy === 'string' ? m.chainsHeavy : m.chainsHeavy[dir];
+      if (go(id, 'heavy')) return true;
+    }
+    if (this.buffer.light > 0) {
+      const id = (m.chains && m.chains[dir]) || m.chainsTo;
+      if (go(id, 'light')) return true;
+    }
+    return false;
+  }
+
   endMove() {
+    if (this.moveId === 'Ultimate') { this.ultActive = 0; this.ultTarget = null; this.ultHeld = []; }
     this.move = null; this.moveId = null;
     this.setState(this.onGround ? 'idle' : 'air');
   }
@@ -502,7 +582,15 @@ export class Fighter {
     if (this.effects.frozenBonus) { launch *= 1.2; this.effects.frozenBonus = false; }
     this.hitstun = hitstunFor(launch) + (hit.extraHitstun || 0);
     if (hit.pull) { this.x += -hit.facing * Math.min(hit.pull, Math.abs(this.x - (hit.attackerX ?? this.x))); }
-    this.pendingLaunch = { launch, angle: hit.angle, facing: hit.facing };
+    // Two hitboxes can land on the SAME frame - a greatsword and the crater it opens, a burst
+    // inside a swing. Taking the last one meant the weaker of the pair decided where the victim
+    // went: Colossus's 176-launch blade was being overwritten by its own 109-launch shockwave,
+    // which pushed its kill percent from 56% to 226%. The bigger hit wins; both still do damage.
+    if (!(this.pendingLaunch && this.pendingLaunchFrame === this.frameCount
+          && this.pendingLaunch.launch >= launch)) {
+      this.pendingLaunch = { launch, angle: hit.angle, facing: hit.facing };
+      this.pendingLaunchFrame = this.frameCount;
+    }
     if (this.hitlag <= 0) this._applyLaunch();
     this.tumbling = launch >= TUMBLE_THRESHOLD;
     this.fastFalling = false;
@@ -606,7 +694,11 @@ export class Fighter {
         }
         this.tumbling = false; this.hitstun = 0; this.setState('knockdown'); return;
       }
-      this.hitstun = 0; this.setState('idle'); return;
+      // Landing does NOT end hitstun. Zeroing it here let a launched fighter act the instant they
+      // touched ground, which silently cut every ground-to-ground combo short by the victim's
+      // remaining airtime. Keep the remaining frames and serve them out standing.
+      if (this.hitstun > 0) { this.hitstun = Math.ceil(this.hitstun * 0.5); this.vx *= 0.5; this.setState('hitstun'); return; }
+      this.setState('idle'); return;
     }
     if (s === 'helpless' || s === 'recovery') { this.lag = 8; this.setState('landing'); return; }
     if (s === 'airdodge') { this.lag = 8; this.setState('landing'); return; }

@@ -5,7 +5,8 @@ const LEVELS = {
   easy: { reaction: 22, aggression: 0.35, defence: 0.15, kill: 0.5, dodge: 0.1 },
   normal: { reaction: 12, aggression: 0.55, defence: 0.35, kill: 0.7, dodge: 0.25 },
   hard: { reaction: 6, aggression: 0.7, defence: 0.55, kill: 0.9, dodge: 0.4 },
-  Elite: { reaction: 3, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6 },
+  elite: { reaction: 3, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6 },
+  imposible: { reaction: 1, aggression: 0.95, defence: 0.85, kill: 1.0, dodge: 0.8 },
 };
 const sign = (v) => (v < 0 ? -1 : 1);
 const chance = (p) => Math.random() < p;
@@ -100,9 +101,10 @@ export function computeBotInput(f, match) {
       frame.light = true; st.plan = 'approach'; return frame;
     }
     const wantsKill = target.percent > 90 && chance(L.kill);
-    if (f.char.archetype === 'Heavy' && target.state === 'attack' && chance(0.4)) { frame.y = -1; frame.heavy = true; st.plan = 'approach'; return frame; }
-    if (f.char.archetype === 'Grappler' && chance(0.35)) { frame.grab = true; st.plan = 'approach'; return frame; }
-    if (f.char.id === 'Frostbud' && target.effects.chill.stacks >= 3 && adx < 5) { frame.y = -1; frame.heavy = true; st.plan = 'approach'; return frame; }
+    // Archetype-flavoured aggression. The archetype strings come from the WEAPON, so these are
+    // the four that exist: All-rounder, Reach / combo, Zoner, Heavy zoner.
+    if (f.char.archetype === 'Heavy zoner' && target.state === 'attack' && chance(0.4)) { frame.y = -1; frame.heavy = true; st.plan = 'approach'; return frame; }
+    if (f.char.archetype === 'Reach / combo' && chance(0.35)) { frame.grab = true; st.plan = 'approach'; return frame; }
     if (wantsKill) { frame.x = dir; frame.heavy = true; }
     else if (target.state === 'shield' && chance(0.6)) { frame.grab = true; }
     else if (dy > 4 && chance(0.6)) { frame.jump = true; st.hold = 8; }

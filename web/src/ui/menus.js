@@ -8,7 +8,7 @@ import { onBlock } from '../engine/knockback.js';
 import { TITLE, TAGLINE, SUBTITLE, SAVE_KEY } from '../data/branding.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-const SLOT_TYPES = [['off', 'Off'], ['kb1', 'Keyboard 1'], ['kb2', 'Keyboard 2'], ['pad0', 'Gamepad 1'], ['pad1', 'Gamepad 2'], ['pad2', 'Gamepad 3'], ['pad3', 'Gamepad 4'], ['bot-easy', 'Bot · Easy'], ['bot-normal', 'Bot · Normal'], ['bot-hard', 'Bot · Hard'], ['bot-elite', 'Bot · Elite'], ['bot-impossible', 'Bot · Impossible'] ];
+const SLOT_TYPES = [['off', 'Off'], ['kb1', 'Keyboard 1'], ['kb2', 'Keyboard 2'], ['pad0', 'Gamepad 1'], ['pad1', 'Gamepad 2'], ['pad2', 'Gamepad 3'], ['pad3', 'Gamepad 4'], ['bot-easy', 'Bot · Easy'], ['bot-normal', 'Bot · Normal'], ['bot-hard', 'Bot · Hard'], ['bot-elite', 'Bot · Elite'], ['bot-impossible', 'Bot · Impossible'], ['bot-just_dont', 'Bot · Just Don\'t']];
 const MODES = [['StockFFA', 'Stock · Free-for-all'], ['TimedFFA', 'Timed · Free-for-all'], ['StockTeams', 'Stock · 2v2'], ['TimedTeams', 'Timed · 2v2'], ['Training', 'Training']];
 
 function stageSVG(s) {
@@ -66,7 +66,7 @@ export class Menus {
       <h1>${TITLE}</h1>
       <p class="sub">${SUBTITLE}</p>
       <div class="col">
-        <button class="primary big" data-act="quick">Quick play <small>you vs a bot on Potting Bench</small></button>
+        <button class="primary big" data-act="quick">Quick play <small>you vs a bot on Foundry Floor</small></button>
         <button class="big" data-act="setup">Set up a match</button>
         <button class="big" data-act="training">Training</button>
         <div class="row"><button data-act="roster">Weapons</button><button data-act="controls">Controls</button><button data-act="settings">Settings</button></div>

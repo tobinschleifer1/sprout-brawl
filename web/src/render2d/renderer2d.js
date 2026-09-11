@@ -232,6 +232,27 @@ export class Renderer2D {
     const wid = f.char.weapon ? f.char.weapon.id : null;
     const wp = weaponPose(f, t);
 
+    // Smear: two ghosts of the body trailing the direction of travel, drawn before the fighter.
+    // Hand-drawn fighting games solve fast motion with smear frames — a limb drawn as a streak
+    // across the distance it covered — because at 60Hz a genuinely fast move is between frames
+    // more than it is on them. The channel bag asks for it; without this it was being computed
+    // and thrown away.
+    if (ch.smear > 0.02 && ch.visible) {
+      const dir = Math.abs(f.vx) > 1 ? Math.sign(f.vx) : -f.facing;
+      const dist = Math.min(2.6, 0.7 + Math.abs(f.vx) * 0.035) * ch.smear;
+      for (let g = 1; g <= 2; g++) {
+        b.save();
+        b.globalAlpha = ch.opacity * ch.smear * (0.26 / g);
+        b.translate(f.x - dir * dist * g * 0.55, f.y + ch.yOff);
+        b.scale(f.facing, 1);
+        b.rotate(ch.rigRotZ * f.facing);
+        b.fillStyle = pal.primary;
+        b.fillRect(-r * 0.82, h * 0.06, r * 1.64, h * 0.72);
+        b.restore();
+      }
+      b.globalAlpha = 1;
+    }
+
     b.save();
     b.translate(f.x + ch.shakeX, f.y + ch.yOff);
     b.scale(f.facing, 1);                       // one drawing, both facings

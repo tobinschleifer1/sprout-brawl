@@ -2,8 +2,10 @@ import sword from './sword.js';
 import scythe from './scythe.js';
 import blasters from './blasters.js';
 import grimoire from './grimoire.js';
+import axe from './axe.js';
+import pike from './pike.js';
 
-export const WEAPONS = [sword, scythe, blasters, grimoire];
+export const WEAPONS = [sword, scythe, blasters, grimoire, axe, pike];
 export const WEAPON_BY_ID = Object.fromEntries(WEAPONS.map((w) => [w.id, w]));
 export const DEFAULT_WEAPON = sword;
 

@@ -94,7 +94,11 @@ export const STAGES = [
     // shelf overhead. Now falling in means crossing back, not hanging on.
     main: { x1: -34, x2: -11, y: 0, thickness: 7, ledges: 'outer' },
     platforms: [
-      { id: 'east', x: 22.5, y: 0, w: 27, solid: true, thickness: 7, ledges: 'outer' },
+      // x 20, not 22.5: the pit is sized as a PROPORTION of the worst jump in the roster, not as
+      // an absolute. Adding the battle axe — heaviest body, lowest jump — took the worst-case
+      // horizontal jump from 24.7 studs to 21.0, and a 20-stud pit that was 81% of a jump became
+      // 95% of one, i.e. uncrossable for the weapon most likely to be knocked into it.
+      { id: 'east', x: 20, y: 0, w: 27, solid: true, thickness: 7, ledges: 'outer' },
       // the shelf over the gap is the only free crossing, and it sinks if you loiter
       { id: 'gantry', x: -1, y: 15, w: 9, soft: true, sinking: true },
       { id: 'westShelf', x: -27, y: 13, w: 12, soft: true },

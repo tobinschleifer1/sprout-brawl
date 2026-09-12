@@ -11,7 +11,7 @@
 // Swings are keyframed as [windup, contact, follow-through] and interpolated across the move's
 // startup / active / recovery, so a swing always lines up with the frames that actually hit.
 
-import { swing as swingPhase } from './channels.js';
+import { swing as swingPhase, easeOut, easeIn } from './channels.js';
 
 const PI = Math.PI;
 const D = (deg) => (deg * PI) / 180;
@@ -36,6 +36,49 @@ const SWINGS = {
   signeut:  { arc: [D(-120), D(130), D(110)], trail: D(140), heavy: true },
 };
 
+// Per-weapon arc overrides. The shared SWINGS table is the sword's motion, and two weapons do not
+// move like a sword at all:
+//
+//   AXE   every heavy is hauled to overhead and DROPPED. The cocked angle is high and behind
+//         (140-175 degrees), the contact angle is at or below the floor line, and the arc between
+//         them is the longest in the game — which the shared easing curve already renders as a
+//         slow lift into a fast fall. Nothing about the axe needed new animation code, only
+//         steeper numbers.
+//   PIKE  thrusts rather than swings: tiny angular travel, large `thrust` offsets. The motion is
+//         along the haft, not around it.
+const SWING_BY_WEAPON = {
+  Axe: {
+    jab:     { arc: [D(60), D(-5), D(15)], trail: D(60), heavy: true },
+    side:    { arc: [D(150), D(-30), D(-10)], trail: D(130), heavy: true },
+    down:    { arc: [D(40), D(-80), D(-62)], trail: D(100), heavy: true },
+    up:      { arc: [D(-120), D(100), D(70)], trail: D(120), heavy: true },
+    fair:    { arc: [D(160), D(-20), D(0)], trail: D(140), heavy: true },
+    dair:    { arc: [D(-40), D(-95), D(-90)], trail: D(60), heavy: true },
+    uair:    { arc: [D(-115), D(110), D(90)], trail: D(130), heavy: true },
+    // the three that define the weapon: overhead, held, then gravity
+    sigside: { arc: [D(175), D(-38), D(-14)], trail: D(170), heavy: true },
+    sigdown: { arc: [D(168), D(-88), D(-70)], trail: D(165), heavy: true },
+    signeut: { arc: [D(-125), D(120), D(98)], trail: D(150), heavy: true },
+  },
+  // Thrust offsets are small on purpose. A real spear slides through the hands on a thrust, but
+  // this renderer's arm is a fixed-length limb, so sliding the prop instead just detaches it — at
+  // 3.4 studs the grip ended up further from the hand than the fighter is tall. The reach lives in
+  // the 5.4-stud haft and in the hitbox, which is where it belongs.
+  Pike: {
+    jab:     { arc: [D(-20), D(2), D(-6)], trail: D(14), thrust: 0.35 },
+    side:    { arc: [D(-24), D(0), D(-8)], trail: D(16), thrust: 0.45 },
+    down:    { arc: [D(-10), D(-26), D(-20)], trail: D(16), thrust: 0.4 },
+    up:      { arc: [D(10), D(84), D(70)], trail: D(40), thrust: 0.3 },
+    nair:    { arc: [D(0), D(720), D(720)], trail: D(150), spin: true },
+    fair:    { arc: [D(-22), D(-2), D(-10)], trail: D(18), thrust: 0.55 },
+    dair:    { arc: [D(-60), D(-90), D(-86)], trail: D(30), thrust: 0.3 },
+    uair:    { arc: [D(20), D(88), D(76)], trail: D(40), thrust: 0.3 },
+    sigside: { arc: [D(-26), D(0), D(-10)], trail: D(20), thrust: 0.7, heavy: true },
+    sigdown: { arc: [D(-8), D(-30), D(-22)], trail: D(20), thrust: 0.6, heavy: true },
+    signeut: { arc: [D(14), D(88), D(74)], trail: D(44), thrust: 0.5, heavy: true },
+  },
+};
+
 function categoryOf(id) {
   if (!id) return null;
   if (id === 'Ultimate') return 'ult';
@@ -57,7 +100,9 @@ function categoryOf(id) {
 // frame the projectile actually leaves, instead of an arc.
 const AIMED = { Blasters: true, Grimoire: 'cast' };
 
-const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70) };
+// The axe's rest angle is almost straight down and slightly behind: it is not being held, it is
+// being dragged. Everything else rests at a carry angle.
+const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70), Axe: D(-104), Pike: D(-58) };
 
 // Where a projectile-spawning move actually fires, in absolute move frames.
 const fireFrame = (f, m) => f.startupEff + 1;
@@ -74,6 +119,15 @@ export function weaponPose(f, t) {
   if (s === 'idle' || s === 'run' || s === 'dash') {
     out.angle = (REST[wid] ?? D(-70)) + Math.sin(t * 3 + f.index) * 0.06;
     if (s === 'run' || s === 'dash') out.angle += 0.25;
+    // A weapon with `drag` is not carried, it is hauled: the head stays on the floor and the haft
+    // trails BEHIND the direction of travel, so the fighter is visibly pulling it rather than
+    // holding it. `out.drag` tells the renderer where the head is scraping so it can throw dirt.
+    if (f.char.weapon && f.char.weapon.drag && f.onGround) {
+      const moving = Math.abs(f.vx) > 1.5;
+      out.angle = D(-104) - (moving ? 0.30 : 0.10) - Math.sin(t * 6 + f.index) * (moving ? 0.05 : 0.015);
+      out.oy = -0.12;
+      out.drag = { scrape: moving ? Math.min(1, Math.abs(f.vx) / f.char.runSpeed) : 0 };
+    }
     return out;
   }
   if (s === 'shield' || s === 'shielddrop') { out.angle = D(-100); return out; }
@@ -89,7 +143,7 @@ export function weaponPose(f, t) {
   const st = f.startupEff, act = m.active, rec = m.recovery, mf = f.mf;
   const cat = categoryOf(m.id);
   if (cat === 'ult') return ultimatePose(f, m, wid, out, t);
-  const swing = SWINGS[cat] || SWINGS.jab;
+  const swing = (SWING_BY_WEAPON[wid] && SWING_BY_WEAPON[wid][cat]) || SWINGS[cat] || SWINGS.jab;
 
   // charge hold: the weapon sits at the top of the windup and vibrates
   if (m.charge && mf === st && f.charge > 0) {
@@ -260,6 +314,65 @@ function ultimatePose(f, m, wid, out, t) {
     return out;
   }
 
+  if (wid === 'Axe') {
+    // REAVE. The wind-up is the only moment of effort: the fighter hauls the head back and low,
+    // where its weight will do the most work once it starts moving. After that they are not
+    // swinging it, they are being swung BY it — the angle just accelerates, three revolutions
+    // getting faster, and the body leans out against the centrifugal pull.
+    const A = m.hitboxes || [];
+    if (inWindup) {
+      out.angle = (REST[wid] ?? 0) + (D(-150) - (REST[wid] ?? 0)) * (k * k);
+      out.charge = k; out.oy = -0.1;
+      out.ult.haul = k;                          // renderer: strain lines and a dust scuff
+      return out;
+    }
+    if (inActive) {
+      // revolutions accelerate: the exponent is what sells "the weight has taken over"
+      const spin = Math.pow(ak / Math.max(1, act), 1.45) * PI * 7.5;
+      out.angle = D(-150) - spin;
+      out.scale = m.weaponScale || 1.35;
+      out.trail = { from: out.angle + D(300), to: out.angle, alpha: 1, heavy: true };
+      out.ult.reave = ak / Math.max(1, act);
+      out.ult.blur = [out.angle + D(115), out.angle + D(232)];
+      return out;
+    }
+    out.angle = D(-84) + ((REST[wid] ?? 0) - D(-84)) * recK;
+    out.scale = (m.weaponScale || 1.35) - ((m.weaponScale || 1.35) - 1) * recK;
+    return out;
+  }
+
+  if (wid === 'Pike') {
+    // LANCE CHARGE. The haft telescopes — `scale` ramps across the wind-up and stays out — and
+    // then delivers a run of thrusts, each one further than the last. The angle barely moves;
+    // everything is along the line, which is the whole identity of the weapon.
+    const FULL = m.weaponScale || 1.9;
+    if (inWindup) {
+      out.angle = D(-58) + (D(-6) - D(-58)) * easeOut(k);
+      out.scale = 1 + (FULL - 1) * k;
+      out.charge = k;
+      out.ult.extend = k;
+      return out;
+    }
+    if (inActive) {
+      out.scale = FULL;
+      // nine thrusts across the active window: a sawtooth, fast out and slower back
+      const per = act / 9;
+      const phase = (ak % per) / per;
+      const punch = phase < 0.35 ? easeIn(phase / 0.35) : 1 - (phase - 0.35) / 0.65;
+      out.angle = D(-6) + Math.sin(ak * 0.4) * D(3);
+      // capped at the same 0.7 the ordinary thrusts are: past that the haft visibly leaves the
+      // hand, because the arm cannot extend with it
+      out.ox = punch * 0.7;
+      out.flash = punch > 0.8 ? (punch - 0.8) * 5 : 0;
+      out.ult.lance = { punch, reach: ak / Math.max(1, act) };
+      if (punch > 0.5) out.trail = { from: out.angle - D(8), to: out.angle, alpha: punch, heavy: true };
+      return out;
+    }
+    out.angle = D(-6) + ((REST[wid] ?? 0) - D(-6)) * recK;
+    out.scale = FULL - (FULL - 1) * recK;
+    return out;
+  }
+
   // Grimoire: the book goes overhead and stays there while the sky falls.
   if (inWindup) { out.angle = D(-70) + k * D(160); out.charge = k; out.oy = k * 0.3; return out; }
   out.angle = D(92) + Math.sin(mf * 0.5) * 0.05;
@@ -329,10 +442,54 @@ function grimoire(ctx, p) {
   ctx.fillStyle = p.glow || p.accent; ctx.fill();
 }
 
-const SHAPES = { Sword: (c, p) => sword(c, p, 2.35), Scythe: (c, p) => scythe(c, p, 2.9), Blasters: blaster, Grimoire: grimoire };
+function axe(ctx, p, L) {
+  // A haft you can see the weight on: thick, dark, and long, with a head that is most of the mass.
+  poly(ctx, [[-0.85, -0.14], [L - 0.2, -0.14], [L - 0.2, 0.14], [-0.85, 0.14]], p.tertiary);   // haft
+  poly(ctx, [[-0.95, -0.22], [-0.7, -0.22], [-0.7, 0.22], [-0.95, 0.22]], p.secondary);        // butt cap
+  poly(ctx, [[0.1, -0.2], [0.34, -0.2], [0.34, 0.2], [0.1, 0.2]], p.secondary);                // grip wrap
+  // the head: a broad bearded blade biting forward, plus a spike on the reverse
+  const h = L - 0.5;
+  ctx.beginPath();
+  ctx.moveTo(h, -0.2);
+  ctx.lineTo(h + 0.5, -1.25);
+  ctx.lineTo(L + 0.34, -0.9);
+  ctx.lineTo(L + 0.5, 0.1);
+  ctx.lineTo(h + 0.62, 1.1);
+  ctx.lineTo(h, 0.24);
+  ctx.closePath();
+  ctx.fillStyle = p.primary; ctx.fill();
+  // a bright edge along the bite, which is the part that has to read at gameplay size
+  ctx.beginPath();
+  ctx.moveTo(h + 0.5, -1.25); ctx.lineTo(L + 0.34, -0.9); ctx.lineTo(L + 0.5, 0.1); ctx.lineTo(h + 0.62, 1.1);
+  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.16; ctx.stroke();
+  poly(ctx, [[h - 0.28, -0.34], [h - 0.02, -0.78], [h + 0.1, -0.3], [h + 0.1, 0.3], [h - 0.02, 0.62], [h - 0.28, 0.34]], p.secondary);  // reverse spike
+}
+
+function pike(ctx, p, L) {
+  // Almost all haft. The point is small and the shape is a line, because the whole weapon is reach.
+  poly(ctx, [[-1.5, -0.09], [L - 0.6, -0.09], [L - 0.6, 0.09], [-1.5, 0.09]], p.primary);      // haft
+  poly(ctx, [[-1.62, -0.16], [-1.36, -0.16], [-1.36, 0.16], [-1.62, 0.16]], p.secondary);      // counterweight
+  for (let i = 0; i < 3; i++) {                                                                 // binding rings
+    const x = -0.9 + i * 1.15;
+    poly(ctx, [[x, -0.13], [x + 0.16, -0.13], [x + 0.16, 0.13], [x, 0.13]], p.tertiary);
+  }
+  // langets and the head
+  poly(ctx, [[L - 0.75, -0.2], [L - 0.3, -0.2], [L - 0.3, 0.2], [L - 0.75, 0.2]], p.secondary);
+  ctx.beginPath();
+  ctx.moveTo(L - 0.35, -0.26);
+  ctx.lineTo(L + 0.55, 0);
+  ctx.lineTo(L - 0.35, 0.26);
+  ctx.closePath();
+  ctx.fillStyle = p.accent; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(L - 0.3, 0); ctx.lineTo(L + 0.5, 0);
+  ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.08; ctx.stroke();
+}
+
+const SHAPES = { Sword: (c, p) => sword(c, p, 2.35), Scythe: (c, p) => scythe(c, p, 2.9), Blasters: blaster, Grimoire: grimoire,
+  Axe: (c, p) => axe(c, p, 2.9), Pike: (c, p) => pike(c, p, 5.4) };
 
 // Blade length per weapon, used to size the swing trail.
-export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9 };
+export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9, Axe: 3.2, Pike: 5.9 };
 
 export function drawWeapon(ctx, weaponId, palette, pose) {
   const shape = SHAPES[weaponId];

@@ -118,7 +118,7 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   // ---- 7. every weapon's ultimate runs to completion and deals damage ----
   // Distance matters: a gun's muzzle sits 2.7 studs out, so point-blank is exactly where its
   // bullets spawn PAST you. Each ultimate is tested at the range it is meant to be used at.
-  const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9 };
+  const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10 };
   for (const w of WEAPONS) {
     if (!w.moves.Ultimate) continue;
     const ctx = duel(w.id);
@@ -184,7 +184,9 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     }
     return biggest;
   }
-  const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9 };
+  // Each ultimate is measured at the range it is meant to be used at; a weapon missing from
+  // this map positioned its victim at NaN and silently measured a launch of zero.
+  const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10 };
   const rows = [];
   let ok = true;
   for (const w of WEAPONS) {
@@ -313,6 +315,14 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   rows.push(['Soul Harvest', ko(C.vortex.burst.base, C.vortex.burst.growth, C.vortex.burst.damage, C.vortex.burst.angle, C.vortex.burst.knockbackMul), 95, 135]);
   rows.push(['Deadeye round', ko(B.base, B.growth, B.damage, B.angle, B.knockbackMul), 115, 155]);
   rows.push(['Astral Rain orb', ko(G.starfall.base, G.starfall.growth, G.starfall.damage, G.starfall.angle, G.starfall.knockbackMul), 115, 155]);
+  // The two grinders are pinned on their FINISHER, and their band sits lower than the single-hit
+  // ultimates' on purpose: by the time the last hit lands, their own multi-hit has already put
+  // about fifty percent on the victim. Tuned at the single-hit band they killed from zero.
+  for (const [id, lo, hi] of [['Axe', 90, 130], ['Pike', 90, 130]]) {
+    const U = WEAPONS.find((w) => w.id === id).moves.Ultimate;
+    const fin = U.hitboxes[U.hitboxes.length - 1];
+    rows.push([`${U.label} finisher`, ko(fin.base, fin.growth, fin.damage, fin.angle ?? U.angle, U.knockbackMul), lo, hi]);
+  }
   const bad = rows.filter(([, v, lo, hi]) => v === null || v < lo || v > hi);
   check('every ultimate kills in its intended band', bad.length === 0,
     rows.map(([n, v, lo, hi]) => `${n} ${v === null ? 'NEVER' : v + '%'} [${lo}-${hi}]`).join(', '));
@@ -353,7 +363,10 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
 // shieldDamageMul. One distance is not a test; the outer half of a move is where the plumbing
 // gets forgotten.
 {
-  const RANGES = { Sword: [2.5, 9, 17], Scythe: [2.5, 8, 14], Blasters: [8, 20, 40], Grimoire: [0, 6, 14] };
+  // Three distances per weapon: point blank, mid, and the far edge of what the move reaches.
+  // A weapon missing here used to throw rather than silently pass, which is the right failure.
+  const RANGES = { Sword: [2.5, 9, 17], Scythe: [2.5, 8, 14], Blasters: [8, 20, 40], Grimoire: [0, 6, 14],
+    Axe: [2.5, 6, 11], Pike: [6, 16, 30] };
   const blocked = [];
   const rows = [];
   for (const w of WEAPONS) {

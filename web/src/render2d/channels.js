@@ -39,10 +39,10 @@ const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 // ---------------------------------------------------------------------------- easing ----
 // Fast away from rest, settling in. Wind-ups use this.
-const easeOut = (k) => 1 - (1 - k) * (1 - k);
+export const easeOut = (k) => 1 - (1 - k) * (1 - k);
 // Slow away from rest, fastest at the end. Strikes use this, so the quickest frames of the whole
 // move are the ones where the hitbox is live.
-const easeIn = (k) => k * k * k;
+export const easeIn = (k) => k * k * k;
 const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
 // Overshoot past the target and come back. Anticipation uses this: the cock goes a little too far
 // and rebounds, which is what makes a wind-up read as loaded rather than as a position.

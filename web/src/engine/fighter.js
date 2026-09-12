@@ -54,6 +54,7 @@ export class Fighter {
       case 'Tangle': return { id: 'Tangle' };
       case 'Spines': return { id: 'Spines', spines: m.max, regen: 0 };
       case 'Momentum': return { id: 'Momentum', runFrames: 0, ready: false };
+      case 'Brace': return { id: 'Brace', guardFrames: 0, ready: false };
       case 'Network': return { id: 'Network' };
       case 'Chill': return { id: 'Chill' };
       default: return { id: m.id };
@@ -102,6 +103,7 @@ export class Fighter {
     this.effects.chill = { stacks: 0, timer: 0 }; this.effects.tangle = { stacks: 0, timer: 0 }; this.effects.grit = { hide: 0, slow: 0 }; this.effects.slow = 0; this.effects.frozenBonus = false;
     if (opts.percent != null) this.percent = opts.percent;
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
+    if (this.mech.id === 'Brace') { this.mech.guardFrames = 0; this.mech.ready = false; }
     if (this.mech.id === 'Light') { this.mech.segments = 0; this.mech.still = 0; }
     this.item = null;
     this.events = [];
@@ -484,6 +486,13 @@ export class Fighter {
     this.startupEff = move.startup;
     // mechanic modifiers on move start
     const M = this.char.mechanic;
+    // BRACE (Warpike): banked by holding shield, spent by a signature. Deliberately the mirror of
+    // Momentum — one weapon is paid for moving, the other for refusing to.
+    if (this.mech.id === 'Brace' && this.mech.ready && move.heavy) {
+      this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul;
+      this.mech.ready = false; this.mech.guardFrames = 0;
+      this.emit({ type: 'momentum' });
+    }
     if (this.mech.id === 'Momentum' && this.mech.ready && move.heavy) { this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul; this.mech.ready = false; this.mech.runFrames = 0; this.emit({ type: 'momentum' }); }
     else if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; }   // spent by signatures only; a light does not burn it
     if (this.mech.id === 'Bloom' && this.mech.bloomed && move.heavy) { this.bonusDamage += M.bonusDamage; this.rangeMul = M.rangeMul; this.mech.bloomed = false; this.mech.cooldown = M.cooldownFrames; this.emit({ type: 'bloomspend' }); }
@@ -611,6 +620,7 @@ export class Fighter {
     if (hit.applies) this._applyEffects(hit.applies);
     if (this.mech.id === 'Light') this.mech.segments = Math.max(0, this.mech.segments - 1);
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
+    if (this.mech.id === 'Brace') { this.mech.guardFrames = 0; this.mech.ready = false; }
     this.move = null; this.hold = null; this.tether = null; this.la = null;
     if (hit.trip && this.percent < hit.trip && this.onGround) { this.setState('knockdown'); this.sf = 6; this.vx = 0; return; }
     let launch = hit.launch;
@@ -918,6 +928,12 @@ export class Fighter {
       if (this.state === 'run') m.runFrames++;
       else if (this.state !== 'dash' && this.state !== 'jumpsquat' && this.state !== 'air') m.runFrames = 0;
       if (!m.ready && m.runFrames >= M.runFrames) { m.ready = true; this.emit({ type: 'momentumready' }); }
+    } else if (m.id === 'Brace') {
+      // Banked only while actually holding shield, and dropped the moment the shield does. A pike
+      // user who wants the bonus has to stand still and take the pressure to get it.
+      if (this.state === 'shield') m.guardFrames++;
+      else if (this.state !== 'shielddrop') m.guardFrames = 0;
+      if (!m.ready && m.guardFrames >= M.guardFrames) { m.ready = true; this.emit({ type: 'momentumready' }); }
     }
   }
 
@@ -931,6 +947,7 @@ export class Fighter {
       case 'Light': return { label: 'Light', value: m.segments / M.segments, segments: M.segments, filled: m.segments, active: m.segments === M.segments };
       case 'Spines': return { label: 'Spines', value: m.spines / M.max, segments: M.max, filled: m.spines, active: m.spines === M.max };
       case 'Momentum': return { label: m.ready ? 'Momentum' : 'Rolling', value: m.ready ? 1 : Math.min(1, m.runFrames / M.runFrames), active: m.ready };
+      case 'Brace': return { label: m.ready ? 'Braced' : 'Bracing', value: m.ready ? 1 : Math.min(1, m.guardFrames / M.guardFrames), active: m.ready };
       case 'Network': return { label: 'Nodes', value: 0, segments: M.maxNodes, filled: 0, needsNodes: true };
       case 'Tangle': return { label: 'Tangle', value: 0, passive: true };
       case 'Chill': return { label: 'Chill', value: 0, passive: true };

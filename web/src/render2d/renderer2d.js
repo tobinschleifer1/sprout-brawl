@@ -344,6 +344,31 @@ export class Renderer2D {
       const hy = (SHO - HIP) + Math.sin(armAng) * AL;
       // trail is drawn from the shoulder so the arc sweeps around the body
       if (wp.trail) { b.save(); b.translate(r * 0.55, SHO - HIP); drawTrail(b, wid, wpal, wp.trail, wp.scale || 1); b.restore(); }
+      // A dragged weapon scrapes. The head's world position is the hand plus the weapon's own
+      // reach along its angle, so the dirt comes off exactly where the axe meets the floor rather
+      // than from under the fighter — which is the difference between "heavy" and "dusty".
+      if (wp.drag && f.platform) {
+        const rch = (REACH[wid] || 2.4);
+        const headLocal = { x: hx + Math.cos(wp.angle) * rch, y: hy + Math.sin(wp.angle) * rch };
+        const wx = f.x + headLocal.x * f.facing, wy = f.y + HIP + headLocal.y;
+        const floor = f.platform.top;
+        if (wy < floor + 1.2) {
+          b.globalAlpha = 0.5;
+          b.fillStyle = pal.tertiary;
+          b.fillRect(wx - 0.5, floor, 1.0, 0.22);          // the scuff under the head
+          b.globalAlpha = 1;
+          // grit kicked backwards, more of it the faster you are hauling
+          const rate = 0.25 + wp.drag.scrape * 0.75;
+          if (Math.random() < rate) {
+            this.parts.push({ x: wx, y: floor + 0.1,
+              vx: -f.facing * (2 + Math.random() * 7) - f.vx * 0.12,
+              vy: 1 + Math.random() * 5,
+              life: 0.3 + Math.random() * 0.3, max: 0.6,
+              c: Math.random() < 0.5 ? pal.tertiary : '#6B5A44', s: 0.16 + Math.random() * 0.18 });
+          }
+        }
+      }
+
       b.save(); b.translate(hx, hy);
       drawUltimate(b, wid, wpal, wp, t);        // afterimages / moon / second pistol / rune stack
       drawWeapon(b, wid, wpal, wp);

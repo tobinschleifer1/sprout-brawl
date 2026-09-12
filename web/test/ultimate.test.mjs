@@ -366,7 +366,10 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   // Three distances per weapon: point blank, mid, and the far edge of what the move reaches.
   // A weapon missing here used to throw rather than silently pass, which is the right failure.
   const RANGES = { Sword: [2.5, 9, 17], Scythe: [2.5, 8, 14], Blasters: [8, 20, 40], Grimoire: [0, 6, 14],
-    Axe: [2.5, 6, 11], Pike: [6, 16, 30] };
+    // These must sit INSIDE the move's own reach. Reave's widest box reaches 8.4 studs and Lance
+    // Charge's now reaches 20 — probing at 11 and 30 was asking whether a shield beats an attack
+    // that cannot touch you, which it obviously does.
+    Axe: [2.5, 5, 8], Pike: [6, 12, 18] };
   const blocked = [];
   const rows = [];
   for (const w of WEAPONS) {

@@ -14,6 +14,7 @@
 import { swing as swingPhase, easeOut, easeIn } from './channels.js';
 
 const PI = Math.PI;
+const TAU = PI * 2;
 const D = (deg) => (deg * PI) / 180;
 
 // How each move swings. `hold` weapons (blasters, grimoire) do not swing at all - they aim.
@@ -63,7 +64,7 @@ const SWING_BY_WEAPON = {
   // Thrust offsets are small on purpose. A real spear slides through the hands on a thrust, but
   // this renderer's arm is a fixed-length limb, so sliding the prop instead just detaches it — at
   // 3.4 studs the grip ended up further from the hand than the fighter is tall. The reach lives in
-  // the 5.4-stud haft and in the hitbox, which is where it belongs.
+  // the haft and in the hitbox, which is where it belongs.
   Pike: {
     jab:     { arc: [D(-20), D(2), D(-6)], trail: D(14), thrust: 0.35 },
     side:    { arc: [D(-24), D(0), D(-8)], trail: D(16), thrust: 0.45 },
@@ -328,7 +329,10 @@ function ultimatePose(f, m, wid, out, t) {
     }
     if (inActive) {
       // revolutions accelerate: the exponent is what sells "the weight has taken over"
-      const spin = Math.pow(ak / Math.max(1, act), 1.45) * PI * 7.5;
+      // PI*6 is three revolutions, which is what the move is described as. The exponent is 1.15,
+      // not 1.45: at 1.45 the finisher box spun at 5.7 rev/s, making the one pass that actually
+      // sends the least legible frame of the whole move.
+      const spin = Math.pow(ak / Math.max(1, act), 1.15) * PI * 6.0;
       out.angle = D(-150) - spin;
       out.scale = m.weaponScale || 1.35;
       out.trail = { from: out.angle + D(300), to: out.angle, alpha: 1, heavy: true };
@@ -355,8 +359,8 @@ function ultimatePose(f, m, wid, out, t) {
     }
     if (inActive) {
       out.scale = FULL;
-      // nine thrusts across the active window: a sawtooth, fast out and slower back
-      const per = act / 9;
+      // FIVE thrusts, one per hitbox step, so a damage tick always lands on a visible punch
+      const per = act / 5;
       const phase = (ak % per) / per;
       const punch = phase < 0.35 ? easeIn(phase / 0.35) : 1 - (phase - 0.35) / 0.65;
       out.angle = D(-6) + Math.sin(ak * 0.4) * D(3);
@@ -444,7 +448,10 @@ function grimoire(ctx, p) {
 
 function axe(ctx, p, L) {
   // A haft you can see the weight on: thick, dark, and long, with a head that is most of the mass.
-  poly(ctx, [[-0.85, -0.14], [L - 0.2, -0.14], [L - 0.2, 0.14], [-0.85, 0.14]], p.tertiary);   // haft
+  // The haft is drawn in `hilt`, a value light enough to read: at p.tertiary (#2E2A26) it was
+  // 1.02:1 against the animation sheet's background and 3.75 studs of the weapon simply vanished,
+  // leaving a grey head floating near the fighter's feet with nothing connecting it to the hand.
+  poly(ctx, [[-0.85, -0.14], [L - 0.2, -0.14], [L - 0.2, 0.14], [-0.85, 0.14]], p.hilt || p.secondary);
   poly(ctx, [[-0.95, -0.22], [-0.7, -0.22], [-0.7, 0.22], [-0.95, 0.22]], p.secondary);        // butt cap
   poly(ctx, [[0.1, -0.2], [0.34, -0.2], [0.34, 0.2], [0.1, 0.2]], p.secondary);                // grip wrap
   // the head: a broad bearded blade biting forward, plus a spike on the reverse
@@ -637,6 +644,91 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
       ctx.globalAlpha = 1;
       ctx.restore();
     }
+  }
+
+  // ---- Axe: the haul, and the blur of three revolutions ----
+  // These branches were missing entirely. `ultimatePose` authored ult.haul, ult.reave, ult.blur,
+  // ult.extend and ult.lance and NOTHING read any of them — the two newest ultimates were the only
+  // ones in the game with no bespoke art, which is the same dead-channel defect that had already
+  // been found twice on this project.
+  if (U.haul !== undefined) {
+    // strain: the fighter is winning against the weight, barely. Lines pull back along the haft.
+    ctx.save();
+    ctx.rotate(pose.angle);
+    ctx.globalAlpha = 0.35 + U.haul * 0.45;
+    ctx.strokeStyle = glow; ctx.lineWidth = 0.1;
+    for (let i = 0; i < 4; i++) {
+      const o2 = -0.5 - i * 0.42;
+      ctx.beginPath();
+      ctx.moveTo(o2, -0.5 + i * 0.28); ctx.lineTo(o2 - 0.7 - U.haul * 1.1, -0.5 + i * 0.28);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (U.reave !== undefined && shape) {
+    // Concentric rings tracking the head, brightening as the revolutions accelerate, plus two
+    // afterimage heads so the eye can follow a shape that is turning faster than 60Hz can show.
+    const r = (REACH.Axe || 3.2) * sc;
+    for (let i = 0; i < 3; i++) {
+      ctx.globalAlpha = (0.10 + U.reave * 0.22) * (1 - i * 0.26);
+      ctx.strokeStyle = i === 0 ? '#FFFFFF' : glow;
+      ctx.lineWidth = 0.5 - i * 0.12;
+      ctx.beginPath(); ctx.arc(0, 0, r * (0.72 + i * 0.16), 0, TAU); ctx.stroke();
+    }
+    // grit torn off the floor by the circle
+    ctx.globalAlpha = 0.5 * U.reave;
+    ctx.fillStyle = '#6B5A44';
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * TAU + U.reave * 14;
+      ctx.fillRect(Math.cos(a) * r * 1.05 - 0.16, Math.sin(a) * r * 1.05 - 0.16, 0.32, 0.32);
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (U.blur && shape) {
+    for (let i = 0; i < U.blur.length; i++) {
+      ctx.save();
+      ctx.globalAlpha = 0.30 - i * 0.10;
+      ctx.rotate(U.blur[i]);
+      if (sc !== 1) ctx.scale(sc, sc);
+      shape(ctx, palette);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Pike: the lance, and the line it owns ----
+  if (U.extend !== undefined || U.lance) {
+    const k = U.lance ? 1 : U.extend;
+    const reach = (REACH.Pike || 5.9) * (pose.scale || 1);
+    ctx.save();
+    ctx.rotate(pose.angle);
+    ctx.translate(pose.ox, pose.oy);
+    // The telescoping segment: drawn separately and stretched ONLY along the haft, because the
+    // uniform ctx.scale that used to carry this also made the shaft 1.9x thick and threw the
+    // counterweight three studs out behind the fighter.
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = palette.secondary || '#6E7C8A';
+    ctx.fillRect(1.2, -0.07, reach * 0.72 * k, 0.14);
+    ctx.globalAlpha = 0.55 + 0.45 * (U.lance ? U.lance.punch : k);
+    ctx.fillStyle = glow;
+    ctx.fillRect(1.2, -0.03, reach * 0.72 * k, 0.06);
+    if (U.lance) {
+      // the lane: a bright line down the length the hitbox actually reaches, so the threatened
+      // space is visible rather than implied
+      const lane = 1.2 + reach * 0.72 + U.lance.reach * 14;
+      ctx.globalAlpha = 0.16 + U.lance.punch * 0.34;
+      ctx.fillStyle = glow;
+      ctx.fillRect(1.2, -0.5, lane, 1.0);
+      ctx.globalAlpha = 0.7 * U.lance.punch;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(lane - 1.6, -0.16, 1.6, 0.32);           // the point, where it currently is
+      for (let i = 0; i < 5; i++) {                         // afterimage points behind it
+        ctx.globalAlpha = (0.5 - i * 0.09) * U.lance.punch;
+        ctx.fillRect(lane - 3.0 - i * 2.1, -0.1, 1.1, 0.2);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   // ---- Grimoire: three rune rings, three speeds ----

@@ -7,7 +7,10 @@ import { buildLoadout } from '../src/data/loadout.js';
 import { STAGES } from '../src/data/stages/index.js';
 
 export const STAGE = STAGES.find((s) => s.id === 'FoundryFloor');
-export const WEIGHTS = [90, 96, 100, 108];
+// 118 is the Battle Axe. Every KO percent in this project was computed across 90-108 and the axe
+// sits outside that range entirely — against an axe victim every published number moves 35 to 44
+// points, so a table that stops at 108 describes a fight that cannot happen.
+export const WEIGHTS = [90, 96, 100, 108, 118];
 
 // Simulate a launched fighter to see whether it crosses a blast zone. This mirrors the real
 // integration in fighter._physics: gravity, the hitstun horizontal drag, and the raised terminal
@@ -57,7 +60,7 @@ export function edges(w) {
   return out;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const PCT = [0, 50, 100, 150];
   console.log('=== COMBO SLACK (hitstun - gap; >=0 is a true combo) ===\n');
   for (const w of WEAPONS) {

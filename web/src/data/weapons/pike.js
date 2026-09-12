@@ -40,7 +40,11 @@ export default {
   stats: { set: { weight: 94 }, mul: { runSpeed: 0.97, airSpeed: 1.04, fallSpeed: 0.96 } },
   palette: { primary: '#C9B489', secondary: '#6E7C8A', tertiary: '#2B3038', accent: '#F0E6CC', glow: '#7FE0C8' },
   trail: '#BFF5E6',
-  mechanic: { id: 'Brace', guardFrames: 45, bonusDamage: 4, launchMul: 1.05 },
+  // 70 frames, not 45. Brace banks while holding shield; the axe's Momentum banks over 50 frames
+  // of the slowest run in the game — 15.75 studs of uninterrupted travel while dragging a visible
+  // telegraph — for +3 damage. Charging by standing still is the cheaper, safer and more repeatable
+  // action, so it cannot also be the better-paying one.
+  mechanic: { id: 'Brace', guardFrames: 70, bonusDamage: 3, launchMul: 1.04 },
   recovery: { kind: 'hop', vy: 60, vx: 22 },
   signature: 'SigSide',
 
@@ -106,13 +110,21 @@ export default {
     // commit to closing before it gets long.
     Ultimate: { label: 'Lance Charge', startup: 20, active: 58, recovery: 34, damage: 6, base: 12, growth: 0.5, angle: 38,
       heavy: true, kind: 'melee', ultimate: true, knockbackMul: 1.3, shieldDamageMul: 3.0, weaponScale: 1.9,
+      // Five thrusts, and the drawing reaches every one of them.
+      //
+      // The first version's hitboxes ran out to 42 studs while the drawn lance reached 13.4 — a
+      // 3.1x overhang, 28.6 studs of hitbox nobody could see. It also ran three unsynchronised
+      // cadences (nine drawn thrusts, five reach steps, a rehit every five frames), so damage
+      // landed up to four frames away from any visible thrust. Now there are five of everything:
+      // five boxes, five drawn thrusts, and each box rehits once per its own step so a tick always
+      // lands on a punch.
       hitboxes: [
-        { frames: [21, 26], offset: [6.0, 3.1], size: [8.0, 1.8], rehitEvery: 5, damage: 4, base: 10, growth: 0.4 },
-        { frames: [27, 34], offset: [9.0, 3.1], size: [12.0, 1.9], rehitEvery: 5, damage: 4, base: 11, growth: 0.5 },
-        { frames: [35, 44], offset: [13.0, 3.1], size: [18.0, 2.0], rehitEvery: 5, damage: 4, base: 12, growth: 0.6 },
-        { frames: [45, 56], offset: [18.0, 3.1], size: [26.0, 2.2], rehitEvery: 5, damage: 5, base: 13, growth: 0.7 },
+        { frames: [21, 27], offset: [5.0, 3.1], size: [7.0, 1.8], shieldDamageMul: 1.5, rehitEvery: 6, damage: 4, base: 10, growth: 0.4 },
+        { frames: [28, 35], offset: [6.6, 3.1], size: [9.0, 1.9], shieldDamageMul: 1.5, rehitEvery: 8, damage: 4, base: 11, growth: 0.5 },
+        { frames: [36, 45], offset: [8.4, 3.1], size: [11.0, 2.0], shieldDamageMul: 1.5, rehitEvery: 10, damage: 5, base: 12, growth: 0.6 },
+        { frames: [46, 57], offset: [10.2, 3.1], size: [13.0, 2.2], shieldDamageMul: 1.5, rehitEvery: 12, damage: 5, base: 13, growth: 0.7 },
         // the last thrust: the full length of the lance, and the one that actually sends
-        { frames: [57, 78], offset: [24.0, 3.1], size: [36.0, 2.6], rehitEvery: 3,
+        { frames: [58, 78], offset: [12.0, 3.1], size: [16.0, 2.6], rehitEvery: 20,
           // Same reasoning as Reave: the ramp has already banked the damage, so the last thrust
           // has to kill late. At base 32 it KO'd from 45%.
           damage: 13, base: 26, growth: 3.5, angle: 30 },

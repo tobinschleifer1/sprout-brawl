@@ -105,7 +105,7 @@ export const STAGES = [
       { id: 'eastShelf', x: 26, y: 17, w: 12, soft: true },
     ],
     blast: { left: -90, right: 90, top: 88, bottom: -46 },
-    // Every spawn clears both the pit (-11..9) and the vent footprints at +/-20, which reach
+    // Every spawn clears both the pit (-11..6.5) and the vent footprints at +/-20, which reach
     // 15.4 to 24.6 out once a fighter's 1.1 radius is added to the 7-stud vent mouth.
     spawns: [-30, 28, -14, 14, -26, 27, -32, 32],
     // launch 62 was a 12.8-stud pop with no damage and no stun: a free extra jump, not a punish.

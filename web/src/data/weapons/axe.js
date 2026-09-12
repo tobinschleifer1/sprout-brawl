@@ -44,7 +44,9 @@ export default {
   // down — which buys it the best survivability against horizontal launches and the worst against
   // being knocked off the bottom.
   stats: { set: { weight: 118 }, mul: { runSpeed: 0.82, airSpeed: 0.86, fallSpeed: 1.18, jumpVelocity: 0.94 } },
-  palette: { primary: '#8A8F98', secondary: '#5A4632', tertiary: '#2E2A26', accent: '#D8DCE2', glow: '#FFB05A' },
+  // `hilt` is a separate, lighter value for the haft: the old #2E2A26 measured 1.02:1 against
+  // the backgrounds this weapon is drawn on, so most of its length was invisible.
+  palette: { primary: '#8A8F98', secondary: '#5A4632', tertiary: '#2E2A26', hilt: '#8A6E4A', accent: '#D8DCE2', glow: '#FFB05A' },
   trail: '#E8C89A',
   drag: true,                                    // rests on the floor when not attacking
   mechanic: { id: 'Momentum', runFrames: 50, bonusDamage: 3, launchMul: 1.06 },
@@ -130,8 +132,8 @@ export default {
       lunge: 14, weaponScale: 1.35,
       hitboxes: [
         // three accelerating revolutions, centred on the fighter so the spin holds them in
-        { frames: [23, 42], offset: [0, 3.0], size: [10.0, 7.0], rehitEvery: 7, damage: 3, base: 8, growth: 0.2, angle: 80 },
-        { frames: [43, 62], offset: [0, 3.0], size: [11.5, 7.6], rehitEvery: 6, damage: 3, base: 9, growth: 0.25, angle: 80 },
+        { frames: [23, 42], offset: [0, 3.0], size: [10.0, 7.0], shieldDamageMul: 1.5, rehitEvery: 7, damage: 3, base: 8, growth: 0.2, angle: 80 },
+        { frames: [43, 62], offset: [0, 3.0], size: [11.5, 7.6], shieldDamageMul: 1.5, rehitEvery: 6, damage: 3, base: 9, growth: 0.25, angle: 80 },
         // the release: one wide, slow, enormous horizontal cut
         { frames: [63, 76], offset: [1.4, 2.8], size: [14.0, 8.2], rehitEvery: 3,
           // A grinder's finisher has to kill LATER than a single-hit ultimate's, because the grind

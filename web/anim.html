@@ -37,12 +37,13 @@ const view = new Renderer2D(document.createElement('canvas'));
 // A fighter posed at an exact move-frame. These are the same fields fighter.js sets on itself, so
 // channelsFor() and weaponPose() cannot tell the difference between this and a live fighter — and
 // it is the REAL renderer that draws it, not a stand-in.
-function posedFighter(loadout, moveId, mf) {
-  const m = loadout.moves[moveId];
+function posedFighter(loadout, moveId, mf, opts = {}) {
+  const m = loadout.moves[moveId] || null;
   return {
     char: loadout, index: 0, facing: 1, sf: mf, mf, charge: 0, frameCount: mf,
-    state: 'attack', move: m, moveId, startupEff: m.startup,
-    onGround: !String(moveId).startsWith('Air'), platform: null, vy: 0, vx: 0,
+    state: opts.state || 'attack', move: m, moveId, startupEff: m ? m.startup : 0,
+    onGround: opts.onGround !== undefined ? opts.onGround : !String(moveId).startsWith('Air'),
+    platform: opts.platform || null, vy: 0, vx: opts.vx || 0,
     alive: true, hitlag: 0, invincible: 0, shield: 50, percent: 0, tumbling: false,
     fastFalling: false, ultShots: 0, ultCooldown: 0, ultHeld: [], ultActive: 0,
     h: loadout.height, r: loadout.radius, y: 0, x: 0,
@@ -74,6 +75,32 @@ function drawCell(ctx, loadout, moveId, mf, t) {
 }
 
 const out = document.getElementById('out');
+
+// Locomotion, not just attacks. The Battle Axe's whole identity is that it DRAGS on the floor when
+// the fighter is doing anything other than swinging it — and this page only ever rendered
+// `state: 'attack'`, so the single most important thing about the weapon was invisible on the page
+// the animation is reviewed from.
+const LOCO = [
+  { label: 'idle', state: 'idle', vx: 0 },
+  { label: 'walking', state: 'run', vx: 8 },
+  { label: 'running', state: 'run', vx: 22 },
+];
+function drawLoco(ctx, loadout, spec, t) {
+  ctx.fillStyle = '#232935';
+  ctx.fillRect(0, 0, CW, CH);
+  ctx.fillStyle = '#3A3026';
+  ctx.fillRect(0, CH * 0.82, CW, 2);                 // a dirt floor, so a scrape is visible on it
+  const f = posedFighter(loadout, 'LightNeutral1', 1,
+    { state: spec.state, onGround: true, vx: spec.vx, platform: { top: 0 } });
+  f.move = null; f.moveId = null;
+  const tm = ctx.getTransform();
+  view.drawFighterInto(ctx, f, t, { ppu: SCALE, x: tm.e + CW * 0.42, y: tm.f + CH * 0.82 });
+  ctx.setTransform(tm);
+  ctx.fillStyle = '#7f8fa3';
+  ctx.font = '9px ui-monospace, monospace';
+  ctx.fillText(spec.label, 4, 11);
+}
+
 const MOVES = ['LightNeutral1', 'LightSide1', 'LightUp', 'LightDown', 'AirNeutral', 'AirForward',
   'AirUp', 'AirDown', 'SigSide', 'SigDown', 'SigNeutral', 'Ultimate'];
 
@@ -82,6 +109,31 @@ for (const w of WEAPONS) {
   const h2 = document.createElement('h2');
   h2.textContent = `${w.name} — ${w.archetype}`;
   out.appendChild(h2);
+
+  // locomotion strip first: three states, sampled over a second, so a drag or a run cycle reads
+  {
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = 'locomotion — idle / walk / run' + (w.drag ? '   (this weapon drags)' : '');
+    out.appendChild(lbl);
+    const row = document.createElement('div');
+    row.className = 'row';
+    const cells = [];
+    for (const spec of LOCO) for (let k = 0; k < 3; k++) cells.push({ spec, t: k * 0.33 });
+    const c = document.createElement('canvas');
+    c.width = CW * cells.length; c.height = CH;
+    c.style.width = (CW * cells.length) + 'px';
+    const ctx = c.getContext('2d');
+    cells.forEach((cell, i) => {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(i * CW, 0, CW, CH); ctx.clip();
+      ctx.translate(i * CW, 0);
+      drawLoco(ctx, loadout, cell.spec, cell.t);
+      ctx.restore();
+    });
+    row.appendChild(c);
+    out.appendChild(row);
+  }
 
   for (const id of MOVES) {
     const m = loadout.moves[id];

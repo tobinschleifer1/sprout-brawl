@@ -1,4 +1,4 @@
-import { BASE, AVATAR_BY_ID, DEFAULT_AVATAR } from './avatars.js';
+import { BASE, avatarById, DEFAULT_AVATAR } from './avatars.js';
 import { WEAPON_BY_ID, DEFAULT_WEAPON } from './weapons/index.js';
 
 // A loadout is an avatar (cosmetic) plus a weapon (everything that matters). It is composed into
@@ -24,7 +24,7 @@ export function applyStats(weapon) {
 }
 
 export function buildLoadout(avatarId, weaponId) {
-  const avatar = AVATAR_BY_ID[avatarId] || DEFAULT_AVATAR;
+  const avatar = avatarById(avatarId);   // resolves presets and player-made characters alike
   const weapon = WEAPON_BY_ID[weaponId] || DEFAULT_WEAPON;
   return {
     id: `${avatar.id}:${weapon.id}`,

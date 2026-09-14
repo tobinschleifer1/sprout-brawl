@@ -9,6 +9,7 @@
 // The fix is not clever: run the real renderer against a stub canvas, on every stage, at every
 // hazard phase, and fail on any thrown error. A test suite for a game has to draw at least once.
 import { makeMatch, skipCountdown } from './harness.mjs';
+import { WEAPONS } from '../src/data/weapons/index.js';
 import { STAGES } from '../src/data/stages/index.js';
 import { HAZARDS } from '../src/engine/hazards.js';
 
@@ -160,6 +161,35 @@ for (const data of STAGES) {
   check('every stage theme is drawn, and no palette key is dead data', bad.length === 0,
     bad.length ? bad.join('; ')
       : `${STAGES.length} themes all have scenery, and every palette key (${[...new Set(STAGES.flatMap((d) => Object.keys(d.palette)))].join(', ')}) is painted`);
+}
+
+// ---- the UI does not point at files that are not there ----
+// The setup screen and the weapon roster both rendered `<img src="assets/ui/weapons/<id>.png">`,
+// and the icons for the Battle Axe and the Warpike were never drawn - so the two newest weapons
+// showed a broken image on the screen where you pick a weapon, from the day they shipped, and
+// nothing anywhere said so. Both tiles are now painted by the weapon's own drawing code, and this
+// makes sure no new reference to a missing file creeps back in.
+{
+  const { readFileSync, existsSync, readdirSync } = await import('node:fs');
+  const files = readdirSync(new URL('../src/ui/', import.meta.url)).filter((f) => f.endsWith('.js'));
+  const missing = [];
+  for (const f of files) {
+    const src = readFileSync(new URL(`../src/ui/${f}`, import.meta.url), 'utf8');
+    for (const m of src.matchAll(/src="(assets\/[^"$]*)"/g)) {
+      if (!existsSync(new URL(`../${m[1]}`, import.meta.url))) missing.push(`${f}: ${m[1]}`);
+    }
+    // A template that builds an asset path from a weapon or stage id has to be checked per id.
+    for (const m of src.matchAll(/src="(assets\/[^"]*\$\{[^}]*\}[^"]*)"/g)) {
+      const pattern = m[1];
+      for (const w of WEAPONS) {
+        const path = pattern.replace(/\$\{[^}]*\}/, w.id.toLowerCase());
+        if (!existsSync(new URL(`../${path}`, import.meta.url))) missing.push(`${f}: ${path} (for ${w.id})`);
+      }
+    }
+  }
+  check('every asset the menus reference actually exists', missing.length === 0,
+    missing.length ? `referenced but missing: ${[...new Set(missing)].join(', ')}`
+      : `${files.length} UI files checked against the asset tree; weapon tiles are drawn from weapons2d.js rather than from per-weapon PNGs`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

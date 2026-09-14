@@ -26,6 +26,7 @@
 import { WEAPONS } from './src/data/weapons/index.js';
 import { buildLoadout } from './src/data/loadout.js';
 import { Renderer2D } from './src/render2d/renderer2d.js';
+import { posedFighter } from './src/render2d/preview.js';
 
 const SCALE = 15;              // pixels per stud in this sheet
 const CW = 108, CH = 132;      // cell size in pixels
@@ -33,24 +34,6 @@ const CW = 108, CH = 132;      // cell size in pixels
 // One renderer, reused for every cell. It is never asked to draw a stage — only fighters — so it
 // needs no match, but it does need a canvas at construction.
 const view = new Renderer2D(document.createElement('canvas'));
-
-// A fighter posed at an exact move-frame. These are the same fields fighter.js sets on itself, so
-// channelsFor() and weaponPose() cannot tell the difference between this and a live fighter — and
-// it is the REAL renderer that draws it, not a stand-in.
-function posedFighter(loadout, moveId, mf, opts = {}) {
-  const m = loadout.moves[moveId] || null;
-  return {
-    char: loadout, index: 0, facing: 1, sf: mf, mf, charge: 0, frameCount: mf,
-    state: opts.state || 'attack', move: m, moveId, startupEff: m ? m.startup : 0,
-    onGround: opts.onGround !== undefined ? opts.onGround : !String(moveId).startsWith('Air'),
-    platform: opts.platform || null, vy: 0, vx: opts.vx || 0,
-    alive: true, hitlag: 0, invincible: 0, shield: 50, percent: 0, tumbling: false,
-    fastFalling: false, ultShots: 0, ultCooldown: 0, ultHeld: [], ultActive: 0,
-    h: loadout.height, r: loadout.radius, y: 0, x: 0,
-    effects: { chill: { stacks: 0 }, tangle: { stacks: 0 }, grit: {}, slow: 0 },
-    techRoll: 0, la: null,
-  };
-}
 
 // One cell of a filmstrip, drawn at the context's current origin.
 function drawCell(ctx, loadout, moveId, mf, t) {

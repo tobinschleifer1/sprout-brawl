@@ -13,6 +13,8 @@ import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, REACH } from './weapons2d.js';
 import { drawHazards } from './hazards2d.js';
 import { drawSky, drawScenery, drawSurface } from './backdrop2d.js';
+import { drawHead, drawTorsoMark } from './avatar2d.js';
+import { featuresOf } from '../data/avatars.js';
 import { drawAmbient } from './ambient2d.js';
 
 const PI = Math.PI;
@@ -231,6 +233,7 @@ export class Renderer2D {
     const wpal = f.char.weaponPalette || pal;
     const wid = f.char.weapon ? f.char.weapon.id : null;
     const wp = weaponPose(f, t);
+    const feat = featuresOf(f.char.avatar);
 
     // Smear: two ghosts of the body trailing the direction of travel, drawn before the fighter.
     // Hand-drawn fighting games solve fast motion with smear frames — a limb drawn as a streak
@@ -300,19 +303,16 @@ export class Renderer2D {
     // back arm
     this._arm(b, pal.secondary, r, SHO - HIP, ch.armL, h);
 
-    // torso
+    // torso, and whatever the character wears on it
     b.fillStyle = pal.secondary;
     b.fillRect(-r * 0.80, 0, r * 1.60, SHO - HIP);
-    b.fillStyle = pal.accent;
-    b.fillRect(-r * 0.80, (SHO - HIP) * 0.42, r * 1.60, (SHO - HIP) * 0.22);
+    drawTorsoMark(b, pal, r, SHO - HIP, feat);
 
-    // head
-    b.fillStyle = pal.primary;
+    // head: shape, face and headgear all come from the avatar, so a player-made character is drawn
+    // by the same code and at the same moment as a preset one
     const hs = r * 1.15;
     b.save(); b.translate(0, HEAD - HIP); b.rotate(-ch.head * 0.4);
-    b.fillRect(-hs / 2, -hs * 0.15, hs, hs);
-    b.fillStyle = '#1B1526';
-    b.fillRect(hs * 0.06, hs * 0.34, hs * 0.20, hs * 0.20);           // eye
+    drawHead(b, pal, hs, feat);
     b.restore();
 
     // front arm: driven by the weapon, so the swing and the limb always agree

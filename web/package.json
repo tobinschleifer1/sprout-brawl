@@ -4,10 +4,10 @@
   "description": "Blockfall \u2014 a 2D platform fighter. Pure canvas, zero runtime dependencies.",
   "scripts": {
     "start": "node serve.cjs",
-    "test": "node test/engine.test.mjs && node test/weapons.test.mjs && node test/combo.test.mjs && node test/stages.test.mjs && node test/hazards.test.mjs && node test/ultimate.test.mjs && node test/render.test.mjs && node test/animation.test.mjs && node test/geometry.test.mjs && node test/bots.test.mjs",
+    "test": "node test/engine.test.mjs && node test/weapons.test.mjs && node test/combo.test.mjs && node test/stages.test.mjs && node test/hazards.test.mjs && node test/ultimate.test.mjs && node test/render.test.mjs && node test/animation.test.mjs && node test/geometry.test.mjs && node test/bots.test.mjs && node test/avatars.test.mjs",
     "balance": "node test/balance.mjs",
     "test:anim": "node test/animation.test.mjs",
-    "test:bots": "node test/bots.test.mjs",
+    "test:bots": "node test/bots.test.mjs && node test/avatars.test.mjs",
     "test:combo": "node test/combo.test.mjs",
     "test:engine": "node test/engine.test.mjs",
     "test:geom": "node test/geometry.test.mjs",

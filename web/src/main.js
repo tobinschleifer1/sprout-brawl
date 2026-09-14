@@ -2,6 +2,7 @@ import { InputManager } from './engine/input.js';
 import { Match } from './engine/match.js';
 import { WEAPONS } from './data/weapons/index.js';
 import { buildLoadout } from './data/loadout.js';
+import { initCustomAvatars } from './data/customAvatars.js';
 import { STAGE_BY_ID } from './data/stages/index.js';
 import { Renderer2D } from './render2d/renderer2d.js';
 import { HUD, PLAYER_MARKS } from './ui/hud.js';
@@ -15,6 +16,9 @@ const SFX_FOR = { hit: 'hit', chip: 'chip', block: 'block', ko: 'ko', jump: 'jum
 
 class App {
   constructor() {
+    // Player-made characters have to be in the avatar registry before anything resolves an id -
+    // the saved match config, the menu, a preview. Load them first, ahead of the renderer.
+    initCustomAvatars();
     this.canvas = document.getElementById('game');
     this.ui = document.getElementById('ui');
     this.view = new Renderer2D(this.canvas);

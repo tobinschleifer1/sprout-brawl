@@ -120,13 +120,26 @@ same `weapons2d.js` the match uses, so it cannot drift from the game.
 - `src/engine/combat.js` – hit resolution, projectiles, summons, bursts, fields, counters, items
 - `src/engine/stage.js` – platform collision, walls, ledges, blast zones, hazards (vents, sinking gantry, moving raft, sprinkler, dust devil, tide)
 - `src/engine/match.js` – countdown, KOs, respawns, stocks and team pools, timer, sudden death, results
-- `src/engine/ai.js` – bots
+- `src/engine/ai.js` – bots: difficulty is a perception handicap (`sight`, frames of staleness in what a bot sees) plus committed input chains, not an aggression dial
 - `src/render2d/*` – the 2D renderer, weapons and animation channels
 - `src/ui/*` – HUD and menus
 - `src/audio/*` – synthesised sound effects and a procedural chiptune sequencer with the final-stock intensity layer
 
 Balance changes are data changes: edit a weapon file and reload. Then run `npm test` — the combo
 suite re-measures every advertised confirm against the engine and fails if a route stopped working.
+
+### Your own art
+
+- **Characters.** The **Characters** screen builds a fighter and saves it in your browser: five
+  colours, a head shape, a face, headgear and a chest mark — or draw the parts pixel by pixel and
+  the rig animates what you drew. Avatars are cosmetic only; a character you make cannot change a
+  single stat.
+- **Stage backgrounds.** Drop an image into
+  [`web/assets/backgrounds/`](web/assets/backgrounds/README.md) named after a stage — 
+  `foundryfloor.png` — and it becomes that stage's sky. No code change and no build step. That
+  folder's README covers naming, sizing, the optional per-stage tuning, and how to check it worked;
+  `web/backgrounds.html` shows all six stages with a panning camera and tells you which ones picked
+  your image up.
 
 ## Roblox build
 

@@ -21,6 +21,8 @@
 // Everything is deterministic - seeded off the column index, never off time or the camera - so the
 // scenery is identical every match and does not crawl when the camera moves.
 
+import { backgroundCandidates, backgroundConfig } from '../data/backgrounds.js';
+
 const PI = Math.PI;
 const TAU = PI * 2;
 
@@ -33,10 +35,80 @@ const rgb = (a) => `#${a.map((v) => Math.max(0, Math.min(255, Math.round(v))).to
 // Mix toward the sky. `k` is how far away the band is: 0 is right here, 1 is the horizon.
 const haze = (colour, sky, k) => { const a = hex(colour), s = hex(sky); return rgb(a.map((v, i) => v + (s[i] - v) * k)); };
 
+
+// ------------------------------------------------------------------- custom backgrounds -----
+// A player-supplied image for a stage. See assets/backgrounds/README.md.
+//
+// The loader tries each candidate name in turn and remembers the outcome, so a stage with no image
+// costs one failed request per extension, once, for the life of the page - and a stage that HAS
+// one costs a single load. Nothing here can throw into the render loop: the only two states a
+// stage can be in as far as `frame()` is concerned are "an image is ready" and "carry on as
+// before".
+
+const BG_STATE = new Map();        // stageId -> { img, status: 'loading' | 'ready' | 'none' }
+
+export function stageBackground(stageId) {
+  let st = BG_STATE.get(stageId);
+  if (st) return st.status === 'ready' ? st.img : null;
+  st = { img: null, status: 'loading' };
+  BG_STATE.set(stageId, st);
+  // No Image constructor means node - the tests, the balance runner - where there is no image to
+  // load and no canvas to draw it on.
+  if (typeof Image === 'undefined') { st.status = 'none'; return null; }
+  const urls = backgroundCandidates(stageId);
+  let i = 0;
+  const tryNext = () => {
+    if (i >= urls.length) { st.status = 'none'; return; }
+    const url = urls[i++];
+    const img = new Image();
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight) { tryNext(); return; }
+      st.img = img; st.status = 'ready'; st.url = url;
+    };
+    img.onerror = tryNext;
+    img.src = url;
+  };
+  tryNext();
+  return null;
+}
+
+// What the checker page asks for. Never triggers a load of its own.
+export const backgroundStatus = (stageId) => BG_STATE.get(stageId) || { status: 'unknown' };
+export const forgetBackgrounds = () => BG_STATE.clear();
+
+// Paint the image across the whole backbuffer, in SCREEN space, with a parallax slide. `cover`
+// scales until the image fills the screen plus a margin, and the parallax offset is clamped to
+// that margin so an edge can never come into view however far the camera travels.
+function drawBackgroundImage(b, img, cfg, BW, BH, cam) {
+  const MARGIN = 0.14;
+  if (cfg.fit === 'tile') {
+    const scale = BH / img.naturalHeight;
+    const w = img.naturalWidth * scale;
+    let ox = (-cam.x * cfg.parallax * 4) % w;
+    if (ox > 0) ox -= w;
+    for (let x = ox; x < BW; x += w) b.drawImage(img, x, 0, w, BH);
+  } else {
+    const k = Math.max((BW * (1 + MARGIN * 2)) / img.naturalWidth, (BH * (1 + MARGIN * 2)) / img.naturalHeight);
+    const w = img.naturalWidth * k, h = img.naturalHeight * k;
+    const slackX = (w - BW) / 2, slackY = (h - BH) / 2;
+    const ox = Math.max(-slackX, Math.min(slackX, -cam.x * cfg.parallax));
+    const oy = Math.max(-slackY, Math.min(slackY, (cam.y - 12) * cfg.parallax * 0.5));
+    b.drawImage(img, (BW - w) / 2 + ox, (BH - h) / 2 + oy, w, h);
+  }
+  if (cfg.dim > 0) {
+    b.fillStyle = `rgba(0,0,0,${cfg.dim})`;
+    b.fillRect(0, 0, BW, BH);
+  }
+}
+
 // ------------------------------------------------------------------------------- the sky -----
 
 export function drawSky(b, stage, t, BW, BH, cam) {
   const p = stage.data.palette;
+  // A custom image replaces the whole painted sky - gradient, stars, glow and clouds. Mixing a
+  // photograph with a procedural sun produces two light sources and looks it.
+  const img = stageBackground(stage.data.id);
+  if (img) { drawBackgroundImage(b, img, backgroundConfig(stage.data.id), BW, BH, cam); return; }
   const g = b.createLinearGradient(0, 0, 0, BH);
   const stops = p.skyStops || [[0, p.sky || '#BFE3E8'], [1, p.backdrop || '#EAF7F2']];
   for (const [o, col] of stops) g.addColorStop(Math.max(0, Math.min(1, o)), col);
@@ -267,6 +339,10 @@ const THEMES = {
 };
 export function drawScenery(b, stage, cam, t, BW) {
   const p = stage.data.palette;
+  // With a custom image in place the stage furniture is off by default: chimneys and mesas
+  // standing in front of somebody's photograph read as a bug, not as depth. `scenery: true` in
+  // data/backgrounds.js puts them back, for an image that is just a sky.
+  if (stageBackground(stage.data.id) && !backgroundConfig(stage.data.id).scenery) return;
   const bands = THEMES[stage.data.theme];
   const skyCol = (p.skyStops && p.skyStops[p.skyStops.length - 1][1]) || p.sky || '#BFE3E8';
   if (!bands) return;

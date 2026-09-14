@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Stage backgrounds</title>
+<style>
+  body { margin: 0; background: #12161d; color: #cbd3de; font: 13px ui-monospace, Menlo, monospace; padding: 16px 20px 60px; }
+  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #8fa0b4; margin: 0 0 4px; }
+  p.note { color: #6c7a8c; margin: 0 0 18px; max-width: 82ch; line-height: 1.6; }
+  p.note code { color: #ffd37a; }
+  #out { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px; }
+  .card { background: #171c25; border: 1px solid #232b36; border-radius: 8px; padding: 12px; }
+  .hd { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; }
+  .hd h2 { font-size: 15px; margin: 0; color: #e8edf4; font-family: system-ui, sans-serif; }
+  .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; padding: 2px 8px; border-radius: 99px; }
+  .ok { background: #1f3d22; color: #8fd68f; }
+  .no { background: #3a2c1c; color: #e8b06a; }
+  .bad { background: #45211f; color: #ff9a8f; }
+  canvas { image-rendering: pixelated; width: 100%; display: block; border-radius: 6px; background: #0d1015; }
+  .facts { color: #7f8fa3; margin: 8px 0 0; line-height: 1.6; font-size: 12px; }
+  .facts b { color: #cbd3de; font-weight: normal; }
+  .tried { color: #56647a; font-size: 11px; margin: 4px 0 0; word-break: break-all; }
+</style>
+<h1>Stage backgrounds</h1>
+<p class="note">
+  Every stage, drawn with the real renderer. A stage with a <b>CUSTOM</b> tag is using an image you
+  put in <code>web/assets/backgrounds/</code>; a stage with <b>BUILT-IN</b> is drawing the painted
+  sky and the procedural scenery. If you dropped a file in and still see BUILT-IN, the name is
+  wrong &mdash; the paths that were tried are listed under the stage. See
+  <code>web/assets/backgrounds/README.md</code>.
+</p>
+<div id="out"></div>
+<script type="module">
+import { STAGES } from './src/data/stages/index.js';
+import { StageRuntime } from './src/engine/stage.js';
+import { Renderer2D } from './src/render2d/renderer2d.js';
+import { drawSky, drawScenery, backgroundStatus } from './src/render2d/backdrop2d.js';
+import { backgroundCandidates, backgroundConfig } from './src/data/backgrounds.js';
+
+const W = 480, H = 270;
+const view = new Renderer2D(document.createElement('canvas'));
+
+function card(data) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `<div class="hd"><h2>${data.name}</h2><span class="tag no" data-tag>checking…</span></div>
+    <canvas width="${W}" height="${H}"></canvas>
+    <p class="facts" data-facts></p>
+    <p class="tried" data-tried></p>`;
+  document.getElementById('out').appendChild(el);
+  return el;
+}
+
+const stages = STAGES.map((d) => {
+  const el = card(d);
+  return { d, el, rt: new StageRuntime(d), ctx: el.querySelector('canvas').getContext('2d') };
+});
+
+let t = 0;
+function tick() {
+  t += 1 / 60;
+  for (const s of stages) {
+    const b = s.ctx;
+    // The camera the match would have on this stage, panning a little so parallax is visible.
+    const cam = { x: Math.sin(t * 0.5) * 26, y: 12, ppu: 7.2 };
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.clearRect(0, 0, W, H);
+    drawSky(b, s.rt, t, W, H, cam);
+    b.setTransform(cam.ppu, 0, 0, -cam.ppu, W / 2 - cam.x * cam.ppu, H * 0.72 + cam.y * cam.ppu * 0);
+    drawScenery(b, s.rt, cam, t, W);
+    // the stage itself, so you can see whether fighters would read against your image
+    view.b = b; view.cam = cam; view.BW = W;
+    view._stage(s.rt);
+    b.setTransform(1, 0, 0, 1, 0, 0);
+
+    const st = backgroundStatus(s.d.id);
+    const tag = s.el.querySelector('[data-tag]');
+    const facts = s.el.querySelector('[data-facts]');
+    const tried = s.el.querySelector('[data-tried]');
+    if (st.status === 'ready') {
+      const cfg = backgroundConfig(s.d.id);
+      tag.className = 'tag ok'; tag.textContent = 'custom';
+      facts.innerHTML = `<b>${st.url}</b> — ${st.img.naturalWidth}×${st.img.naturalHeight}px<br>` +
+        `parallax <b>${cfg.parallax}</b> · fit <b>${cfg.fit}</b> · dim <b>${cfg.dim}</b> · scenery <b>${cfg.scenery ? 'on' : 'off'}</b>` +
+        (st.img.naturalWidth < W ? '<br><span style="color:#e8b06a">Narrower than the 480px backbuffer — it will look soft.</span>' : '');
+      tried.textContent = '';
+    } else if (st.status === 'loading') {
+      tag.className = 'tag no'; tag.textContent = 'looking…';
+    } else {
+      tag.className = 'tag no'; tag.textContent = 'built-in';
+      facts.textContent = 'No image found, so this stage is drawing its painted sky and scenery.';
+      tried.textContent = 'tried: ' + backgroundCandidates(s.d.id).join('  ');
+    }
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+</script>

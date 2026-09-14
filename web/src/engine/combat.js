@@ -16,7 +16,7 @@ const NODE_MOVE = { id: 'NodeTick', damage: 1, base: 3, growth: 0, angle: 80, ki
 export class Combat {
   constructor(match) {
     this.match = match;
-    this.projectiles = []; this.summons = []; this.bursts = []; this.items = [];
+    this.projectiles = []; this.summons = []; this.bursts = []; this.items = []; this.plates = [];
     this.events = []; this.debugBoxes = [];
     this.itemTimer = 0;
   }
@@ -77,13 +77,22 @@ export class Combat {
         for (const s of [...this.summons]) {
           if (s.destructible && s.owner !== f && !this.sameTeam(s.owner, f) && overlap(b.rect, s.rect) && (b.hb.damage ?? b.move.damage) >= 4) this.destroySummon(s);
         }
+        // A live Blast Keg is a target for EVERYONE, including whoever threw it. That is the item:
+        // a threat you do not fully control once it leaves your hands.
+        for (const pr of [...this.projectiles]) {
+          if (!pr.volatile || pr.dead) continue;
+          if (!overlap(b.rect, pr.rect)) continue;
+          const at = this.projectiles.indexOf(pr);
+          if (at >= 0) this.projectiles.splice(at, 1);
+          this.explode(pr);
+        }
       }
-      if (f.state === 'attack' && f.move && f.move.kind === 'spray' && f.moveActive) this.sprayFrame(f);
     }
     this.stepProjectiles();
     this.stepSummons();
     this.stepBursts();
     this.stepItems();
+    this.stepPlates();
   }
 
   // ---------- hit resolution ----------
@@ -97,6 +106,24 @@ export class Combat {
     if (direct && attacker.chargeMods && attacker.move === move) { damage += attacker.chargeMods.damage; base = attacker.chargeMods.base; growth = attacker.chargeMods.growth; }
     const cx = rect ? (rect.x1 + rect.x2) / 2 : victim.x, cy = rect ? (rect.y1 + rect.y2) / 2 : victim.cy;
     const isMelee = direct && move.kind !== 'grab' && !opts.item;
+
+    // BULWARK. A carried shield, checked before everything else because it is a property of the
+    // fighter rather than of what they are doing - you keep it while attacking, while running, in
+    // the air. It only covers the FRONT: `arc` is how much of the hemisphere in front of the
+    // fighter counts, so getting behind someone holding one beats it completely.
+    const bw = victim.item && victim.item.def.guard && victim.item.hp > 0 ? victim.item : null;
+    if (bw && move.kind !== 'grab' && !opts.chip && !move.unblockable) {
+      const from = cx - victim.x;
+      const facingIt = Math.abs(from) < 0.2 || Math.sign(from) === victim.facing;
+      if (facingIt) {
+        const G = bw.def.guard;
+        bw.hp -= damage;
+        damage *= G.damageMul;
+        base *= G.launchMul; growth *= G.launchMul;
+        this.emit({ type: 'bulwark', x: cx, y: cy, victim: victim.index, broke: bw.hp <= 0 });
+        if (bw.hp <= 0) { this.removeItem(bw); this.emit({ type: 'itembreak', x: victim.x, y: victim.cy }); }
+      }
+    }
 
     // Counter window
     if (victim.state === 'attack' && victim.move && victim.move.kind === 'counter' && victim.moveActive && move.kind !== 'grab' && !opts.chip) {
@@ -422,21 +449,6 @@ export class Combat {
     }
   }
 
-  sprayFrame(f) {
-    const def = f.item ? f.item.def : ITEMS.WateringCan;
-    const S = def.spray;
-    const rect = rectFrom(f.x + f.facing * (S.range / 2 + 1), f.y + 2, S.range, S.height);
-    this.debugBoxes.push({ rect, kind: 'push' });
-    for (const v of this.enemiesOf(f)) {
-      if (v.untouchable || !overlap(rect, v.hurtbox)) continue;
-      const target = f.facing * S.push;
-      if (f.facing > 0 ? v.vx < target : v.vx > target) v.vx += f.facing * 2.5;
-      if (v.onGround && (v.state === 'idle' || v.state === 'run')) v.x += f.facing * S.push * FRAME;
-    }
-    if (f.item) { f.item.uses--; if (f.item.uses <= 0) { f.item.uses = 0; f.endMove(); } }
-    this.emit({ type: 'spray', x: f.x + f.facing * 2, y: f.y + 3, facing: f.facing });
-  }
-
   // ---------- projectiles ----------
   spawnProjectile(f, m, extra = {}) {
     const p = m.projectile;
@@ -513,11 +525,22 @@ export class Combat {
         for (const v of this.fighters) {
           if (v === p.owner || !v.alive || this.sameTeam(p.owner, v) || v.untouchable || p.hitVictims.has(v.index)) continue;
           if (!overlap(p.rect, v.hurtbox)) continue;
-          // catching a seed bomb
+          // Catching a keg out of the air. Timing a shield press on an incoming keg takes it out
+          // of the air and puts it in your hands, which is the best thing you can do with a
+          // thrown one and the reason throwing it at a good player is a risk.
           if (p.explode && v.buffer.guard > 0 && !v.item && ['air', 'idle', 'run'].includes(v.state)) {
-            v.buffer.guard = 0; this.giveItem(v, ITEMS.SeedBomb); dead = true; this.emit({ type: 'catch', x: v.x, y: v.cy }); break;
+            v.buffer.guard = 0; this.giveItem(v, p.itemDef || ITEMS.BlastKeg); dead = true; this.emit({ type: 'catch', x: v.x, y: v.cy }); break;
           }
           p.hitVictims.add(v.index);
+          // The Lodestone does not launch: it ATTACHES. Two percent, no knockback worth the name,
+          // and then five seconds of falling like a dropped anvil.
+          if (p.stick) {
+            this.resolveHit(p.owner, v, p.move, { angle: p.move.angle }, p.rect, { projectile: true, facing: sign(p.vx), item: true });
+            v.effects.lodestone = p.stick.frames;
+            v.effects.lodestoneDef = p.stick;
+            this.emit({ type: 'lodestone', x: v.x, y: v.cy, fighter: v.index });
+            dead = true; break;
+          }
           if (p.explode) { this.explode(p); dead = true; break; }
           const hit = this.resolveHit(p.owner, v, p.move, { angle: p.move.angle }, p.rect, { projectile: true, facing: sign(p.vx), item: p.item });
           if (hit) { dead = true; break; }
@@ -684,12 +707,12 @@ export class Combat {
 
   // ---------- items ----------
   spawnItem(def, x, y) {
-    const it = { def, x, y, vx: 0, vy: 0, held: null, uses: def.uses, life: ITEM_CFG.despawnAfter * 60, onGround: false };
+    const it = { def, x, y, vx: 0, vy: 0, held: null, uses: def.uses, life: ITEM_CFG.despawnAfter * 60, onGround: false, cd: 0, hp: def.guard ? def.guard.hp : 0 };
     this.items.push(it);
     this.emit({ type: 'itemspawn', x, y, item: def.id });
     return it;
   }
-  giveItem(f, def) { const it = { def, x: f.x, y: f.y, vx: 0, vy: 0, held: f, uses: def.uses, life: 0, onGround: false }; this.items.push(it); f.item = it; }
+  giveItem(f, def) { const it = { def, x: f.x, y: f.y, vx: 0, vy: 0, held: f, uses: def.uses, life: 0, onGround: false, cd: 0, hp: def.guard ? def.guard.hp : 0 }; this.items.push(it); f.item = it; }
   itemNear(f) {
     for (const it of this.items) if (!it.held && Math.abs(it.x - f.x) < 3 && Math.abs(it.y - f.y) < 3.5) return it;
     return null;
@@ -700,44 +723,121 @@ export class Combat {
     it.held = null; f.item = null;
     it.x = f.x; it.y = f.y + 2; it.vy = knocked ? 22 : 0; it.vx = knocked ? -f.facing * 10 : 0; it.onGround = false;
     it.life = ITEM_CFG.despawnAfter * 60;
-    if (it.def.id === 'WateringCan' && it.uses <= 0) this.removeItem(it);
-    if (f.state === 'attack' && f.move && (f.move.kind === 'spray' || f.move.id === 'ItemSwing')) f.endMove();
+    if (it.uses <= 0 && it.def.kind === 'shoot') this.removeItem(it);   // an empty gun is litter
+    if (f.state === 'attack' && f.move && f.move.id === 'ItemSwing') f.endMove();
     this.emit({ type: 'itemdrop', x: it.x, y: it.y });
   }
   removeItem(it) { const i = this.items.indexOf(it); if (i >= 0) this.items.splice(i, 1); if (it.held) it.held.item = null; }
 
+  // One verb per item. `button` is 'light' or 'heavy'; heavy always throws whatever you are
+  // holding, which is the universal escape hatch and the reason no item can trap you in a stance.
   useItem(f, button) {
-    const it = f.item; const def = it.def;
-    if (def.id === 'SeedBomb') {
+    const it = f.item; if (!it) return;
+    const def = it.def;
+
+    // Heavy throws it, on every item. The Bulwark is the exception while it still has hit points:
+    // throwing a shield you are actively hiding behind by pressing the same button you bash with
+    // was the first thing that felt wrong in testing.
+    const wantsThrow = button === 'heavy' && !(def.id === 'Bulwark' && it.hp > 0 && f.onGround);
+    if (wantsThrow && def.thrown) { this.throwItem(f, it, def.thrown); return; }
+
+    if (def.kind === 'throw') {
       const T = def.throw;
-      const pr = { owner: f, move: { id: 'SeedBomb', damage: def.explode.damage, base: def.explode.base, growth: def.explode.growth, angle: def.explode.angle, kind: 'melee', heavy: true }, x: f.x + f.facing * 1.5, y: f.y + 3, vx: f.facing * T.vx + f.vx * 0.5, vy: T.vy, w: T.size[0], h: T.size[1], life: T.fuse, shape: 'bomb', gravity: T.gravity, hitVictims: new Set(), facing: f.facing, item: true, explode: def.explode };
+      const pr = {
+        owner: f, x: f.x + f.facing * 1.5, y: f.y + 3,
+        vx: f.facing * T.vx + f.vx * 0.5, vy: T.vy, w: T.size[0], h: T.size[1],
+        life: T.fuse, gravity: T.gravity, hitVictims: new Set(), facing: f.facing, item: true,
+        shape: def.id, itemDef: def,
+      };
+      if (def.explode) {
+        pr.move = { id: def.id, damage: def.explode.damage, base: def.explode.base, growth: def.explode.growth, angle: def.explode.angle, kind: 'melee', heavy: true };
+        pr.explode = def.explode;
+        // `volatile` makes the keg a hazard for everyone, the thrower included: any melee hitbox
+        // that touches it sets it off. See the volatile check in resolveMelee.
+        pr.volatile = !!def.volatile;
+      } else if (def.stick) {
+        pr.move = { id: def.id, damage: def.stick.damage, base: 4, growth: 0.1, angle: 80, kind: 'melee' };
+        pr.stick = def.stick;
+      }
       pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
       this.projectiles.push(pr);
       this.removeItem(it);
       f.lag = 12; f.setState('landing');
-      this.emit({ type: 'throwitem', x: f.x, y: f.cy });
+      this.emit({ type: 'throwitem', x: f.x, y: f.cy, item: def.id });
       return;
     }
-    if (button === 'heavy' || (def.id === 'WateringCan' && it.uses <= 0)) {
-      const T = def.thrown;
-      const pr = { owner: f, move: { id: 'ThrownItem', damage: T.damage, base: T.base, growth: T.growth, angle: T.angle, kind: 'melee' }, x: f.x + f.facing * 1.5, y: f.y + 3, vx: f.facing * T.speed, vy: 4, w: T.size[0], h: T.size[1], life: T.lifetime, shape: def.id === 'Trowel' ? 'trowel' : 'can', gravity: 40, hitVictims: new Set(), facing: f.facing, item: true };
+
+    if (def.kind === 'shoot') {
+      if (it.cd > 0) return;
+      const S = def.shot;
+      const pr = {
+        owner: f, move: { id: 'Rivet', damage: S.damage, base: S.base, growth: S.growth, angle: S.angle, kind: 'melee', extraHitstun: S.extraHitstun },
+        x: f.x + f.facing * 1.8, y: f.y + 3.1, vx: f.facing * S.speed, vy: 0,
+        w: S.size[0], h: S.size[1], life: S.lifetime, gravity: 0, hitVictims: new Set(),
+        facing: f.facing, item: true, shape: 'rivet', itemDef: def,
+      };
       pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
       this.projectiles.push(pr);
-      this.removeItem(it);
-      f.lag = 12; f.setState('landing');
-      this.emit({ type: 'throwitem', x: f.x, y: f.cy });
-      return;
-    }
-    if (def.id === 'Trowel') {
-      const sw = { ...def.swing, id: 'ItemSwing', kind: 'melee', total: def.swing.startup + def.swing.active + def.swing.recovery };
+      it.cd = S.cooldown;
       it.uses--;
-      f.startMove(sw);
-      if (it.uses <= 0) it.spent = true;
+      f.lag = 4; f.setState('landing');
+      this.emit({ type: 'rivet', x: pr.x, y: pr.y, facing: f.facing });
+      if (it.uses <= 0) { this.removeItem(it); this.emit({ type: 'itembreak', x: f.x, y: f.cy }); }
       return;
     }
-    if (def.id === 'WateringCan') {
-      const sp = { id: 'ItemSpray', label: 'Spray', startup: 4, active: 30, recovery: 8, damage: 0, base: 0, growth: 0, angle: 0, kind: 'spray', hitboxes: [], total: 42 };
-      f.startMove(sp);
+
+    if (def.kind === 'place') {
+      if (!f.onGround) return;                       // a plate needs a floor to sit on
+      const P = def.plate;
+      this.plates.push({ x: f.x, y: f.y, w: P.size[0], h: P.size[1], vy: P.vy, life: P.life, cd: 0, owner: f });
+      this.removeItem(it);
+      f.lag = 10; f.setState('landing');
+      this.emit({ type: 'placeitem', x: f.x, y: f.y, item: def.id });
+      return;
+    }
+
+    if (def.kind === 'hold') {
+      const sw = { ...def.bash, id: 'ItemSwing', kind: 'melee', total: def.bash.startup + def.bash.active + def.bash.recovery };
+      f.startMove(sw);
+      return;
+    }
+  }
+
+  throwItem(f, it, T) {
+    const pr = {
+      owner: f, move: { id: 'ThrownItem', damage: T.damage, base: T.base, growth: T.growth, angle: T.angle, kind: 'melee' },
+      x: f.x + f.facing * 1.5, y: f.y + 3, vx: f.facing * T.speed, vy: 4,
+      w: T.size[0], h: T.size[1], life: T.lifetime, gravity: 40, hitVictims: new Set(),
+      facing: f.facing, item: true, shape: it.def.id, itemDef: it.def,
+    };
+    pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
+    this.projectiles.push(pr);
+    this.removeItem(it);
+    f.lag = 12; f.setState('landing');
+    this.emit({ type: 'throwitem', x: f.x, y: f.cy, item: it.def.id });
+  }
+
+  // ---------- spring plates ----------
+  // A placed plate is part of the STAGE, not a hitbox: it never damages anyone and it does not
+  // care who put it there. Whoever comes down on it goes up.
+  stepPlates() {
+    for (let i = this.plates.length - 1; i >= 0; i--) {
+      const pl = this.plates[i];
+      pl.life--; if (pl.cd > 0) pl.cd--;
+      if (pl.life <= 0) { this.plates.splice(i, 1); this.emit({ type: 'itemgone', x: pl.x, y: pl.y }); continue; }
+      if (pl.cd > 0) continue;
+      for (const v of this.fighters) {
+        if (!v.alive || v.untouchable) continue;
+        if (Math.abs(v.x - pl.x) > pl.w / 2 + v.r) continue;
+        if (v.y > pl.y + 2.2 || v.y < pl.y - 1.6) continue;
+        if (v.vy > 12) continue;                     // already going up: do not re-launch a rise
+        v.vy = pl.vy; v.onGround = false; v.platform = null;
+        v.jumpsLeft = Math.max(v.jumpsLeft, 1);      // a plate gives you your options back
+        if (v.state === 'idle' || v.state === 'run' || v.state === 'landing' || v.state === 'shield') v.setState('air');
+        pl.cd = 24;
+        this.emit({ type: 'spring', x: pl.x, y: pl.y, fighter: v.index });
+        break;
+      }
     }
   }
 
@@ -745,6 +845,7 @@ export class Combat {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const it = this.items[i];
       if (it.held) {
+        if (it.cd > 0) it.cd--;
         if (it.spent && it.held.state !== 'attack') { this.removeItem(it); this.emit({ type: 'itembreak', x: it.held.x, y: it.held.cy }); }
         continue;
       }

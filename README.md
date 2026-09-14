@@ -114,7 +114,7 @@ same `weapons2d.js` the match uses, so it cannot drift from the game.
 - `src/data/avatars.js` – the shared base stat line and the cosmetic avatar presets
 - `src/data/loadout.js` – composes avatar + weapon into the character-shaped object the engine consumes
 - `src/data/stages/index.js` – platform layouts, blast zones, hazards, spawns
-- `src/data/items.js` – Seed Bomb, Trowel, Watering Can
+- `src/data/items.js` – Blast Keg, Rivet Gun, Bulwark, Spring Plate, Lodestone: one verb each (throw, shoot, hold, place, apply)
 - `src/data/branding.js` – the game's name and callouts, in one place
 - `src/engine/fighter.js` – the fighter state machine (movement, jumps, shield, dodges, ledge, grabs, recovery, hitstun, tech, mechanics)
 - `src/engine/combat.js` – hit resolution, projectiles, summons, bursts, fields, counters, items

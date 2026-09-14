@@ -15,6 +15,8 @@ import { drawHazards } from './hazards2d.js';
 import { drawSky, drawScenery, drawSurface } from './backdrop2d.js';
 import { drawHead, drawTorsoMark } from './avatar2d.js';
 import { drawPixelPart } from './pixels2d.js';
+import { drawItem, drawRivet } from './items2d.js';
+import { ITEMS as ITEMS_BY_ID } from '../data/items.js';
 import { featuresOf } from '../data/avatars.js';
 import { drawAmbient } from './ambient2d.js';
 
@@ -343,6 +345,7 @@ export class Renderer2D {
       const hy = (SHO - HIP) + Math.sin(armAng) * AL;
       // trail is drawn from the shoulder so the arc sweeps around the body
       if (wp.trail) { b.save(); b.translate(r * 0.55, SHO - HIP); drawTrail(b, wid, wpal, wp.trail, wp.scale || 1); b.restore(); }
+      if (f.item) this._heldItem(b, f, hx, hy);
       // A dragged weapon scrapes. The head's world position is the hand plus the weapon's own
       // reach along its angle, so the dirt comes off exactly where the axe meets the floor rather
       // than from under the fighter — which is the difference between "heavy" and "dusty".
@@ -621,6 +624,13 @@ export class Renderer2D {
         b.beginPath(); b.arc(p.x - 0.1, p.y + 0.1, p.w * 0.18, 0, PI * 2); b.fill();
         // sparks trailing the bolt
         if (Math.random() < 0.5) this.parts.push({ x: p.x, y: p.y, vx: -p.vx * 0.08 + (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, life: 0.28, max: 0.28, c: pal.glow || '#7DE8FF', s: 0.16 });
+      } else if (p.shape === 'rivet') {
+        drawRivet(b, p.x, p.y, dir, '#FFD37A');
+      } else if (p.itemDef) {
+        // A thrown item is the SAME drawing as the one on the floor, tumbling. Anything else and
+        // a keg in the air would not read as the keg you just picked up.
+        const fuse = p.itemDef.throw && p.itemDef.throw.fuse ? p.life / p.itemDef.throw.fuse : null;
+        drawItem(b, p.itemDef, p.x, p.y - 0.5, this.time, { fuse, spin: p.gravity ? this.time * 6 * dir : 0, scale: 0.9 });
       } else {
         b.fillStyle = pal.primary || '#FFFFFF';
         b.fillRect(p.x - p.w / 2, p.y - p.h / 2, p.w, p.h);
@@ -646,11 +656,35 @@ export class Renderer2D {
 
   _items(C) {
     const b = this.b;
+    // Placed spring plates first: they are part of the floor, so anything else stands on them.
+    for (const pl of C.plates) {
+      const fading = pl.life < 120 && Math.floor(this.time * 8) % 2 === 0;
+      b.globalAlpha = fading ? 0.45 : 1;
+      drawItem(b, ITEMS_BY_ID.SpringPlate, pl.x, pl.y, this.time, { armed: pl.cd <= 0 });
+      b.globalAlpha = 1;
+    }
     for (const it of C.items) {
       if (it.held) continue;
-      b.fillStyle = it.def.id === 'SeedBomb' ? '#6B8E23' : it.def.id === 'Trowel' ? '#B0B8C0' : '#3F8A2E';
-      b.fillRect(it.x - 0.6, it.y, 1.2, 1.0);
+      // A bob, so an item on the floor is not mistaken for scenery.
+      const bob = it.onGround ? Math.sin(this.time * 3 + it.x) * 0.12 : 0;
+      const fading = it.life < 120 && Math.floor(this.time * 8) % 2 === 0;
+      b.globalAlpha = fading ? 0.45 : 1;
+      drawItem(b, it.def, it.x, it.y + bob, this.time, { uses: it.uses, hp: it.def.guard ? it.hp / it.def.guard.hp : null });
+      b.globalAlpha = 1;
     }
+  }
+
+  // The item in a fighter's hands, drawn at the hand so it is obvious who is holding what.
+  _heldItem(b, f, hx, hy) {
+    const it = f.item;
+    if (!it) return;
+    const d = it.def;
+    if (d.id === 'Bulwark') {
+      // A shield is carried in front, not held out at arm's length.
+      drawItem(b, d, f.facing * 1.1, 0.6, this.time, { scale: 0.85, hp: it.hp / d.guard.hp });
+      return;
+    }
+    drawItem(b, d, hx, hy - 0.5, this.time, { scale: 0.8, uses: it.uses });
   }
 
   _bursts(C) {

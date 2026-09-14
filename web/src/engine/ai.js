@@ -162,10 +162,82 @@ function wantsUltimate(f, tv, L, adx, dy, enemies) {
   }
 }
 
+
+// ------------------------------------------------------------------------------ items -----
+// Wanting an item, going to get it, and knowing what it is for. Each item has one verb, so this
+// is a small table rather than a policy: the AI does not need to be clever about a Blast Keg, it
+// needs to throw it at somebody and not be standing next to it when it goes off.
+function itemAction(f, match, L, st, tv, dir, adx, frame) {
+  if (!match.itemsOn || !f.onGround) return false;
+  const C = match.combat;
+  const held = f.item;
+
+  if (!held) {
+    // Go and get one. `greed` scales with level, so a weak bot notices items late and often walks
+    // past them - the same handicap as its sight, applied to the thing on the floor.
+    //
+    // The FETCH TIMEOUT is not decoration. The first version walked toward any item within 26
+    // studs, re-rolling every frame, with no way to give up: two bots that each wanted an item on
+    // a ledge they could not reach would walk at it until the clock ran out. It turned a
+    // one-stock four-bot match into a five-minute stalemate about one in ten runs, and that is
+    // exactly the kind of failure that gets written off as a flake.
+    if (st.fetchCd > 0) { st.fetchCd--; return false; }
+    if (adx < 5) return false;                       // somebody is on top of you; fight first
+    const greed = 0.25 + L.aggression * 0.75;
+    let best = null, bd = 1e9;
+    for (const it of C.items) {
+      if (it.held) continue;
+      const d = Math.abs(it.x - f.x), dy2 = Math.abs(it.y - f.y);
+      if (d > 20 || dy2 > 4) continue;               // same floor, and close enough to be worth it
+      if (d < bd) { bd = d; best = it; }
+    }
+    if (!best || !chance(greed)) { st.fetch = 0; return false; }
+    if (bd < 2.6) { frame.pickup = true; frame.anyPress = true; st.chain = null; st.fetch = 0; return true; }
+    // Give up on an item you are not getting closer to.
+    st.fetch = (st.fetch || 0) + 1;
+    if (st.fetch > 100) { st.fetch = 0; st.fetchCd = 180; return false; }
+    frame.x = sign(best.x - f.x);
+    st.chain = null;
+    return true;
+  }
+  st.fetch = 0;
+
+  const def = held.def;
+  const faces = sign(tv.x - f.x) === f.facing || adx < 3;
+
+  // Heavy throws whatever is left when the fight has moved on and the item is no longer the plan.
+  if (def.kind === 'hold') {
+    if (held.hp <= 0) { frame.heavy = true; frame.anyPress = true; return true; }
+    if (adx < 4 && chance(L.aggression * 0.5)) { frame.light = true; frame.anyPress = true; return true; }
+    return false;                                   // otherwise just carry it: the guard is passive
+  }
+  if (def.kind === 'place') {
+    // Put it down where it is worth something: near the edge you keep getting knocked off.
+    const main = match.stage.main;
+    const nearEdge = Math.min(Math.abs(f.x - main.x1), Math.abs(f.x - main.x2)) < 12;
+    if (nearEdge || chance(0.02)) { frame.light = true; frame.anyPress = true; return true; }
+    frame.x = sign((f.x < main.cx ? main.x1 : main.x2) - f.x);
+    return true;
+  }
+  if (def.kind === 'shoot') {
+    if (adx < 30 && Math.abs(tv.y - f.y) < 4 && faces) { frame.light = true; frame.anyPress = true; return true; }
+    frame.x = dir;
+    return true;
+  }
+  if (def.kind === 'throw') {
+    // A keg wants an arc, so it is thrown from further out than the Lodestone, which flies flat.
+    const want = def.explode ? [6, 22] : [3, 26];
+    if (adx > want[0] && adx < want[1] && Math.abs(tv.y - f.y) < 6 && faces) { frame.light = true; frame.anyPress = true; return true; }
+    frame.x = dir;
+    return true;
+  }
+  return false;
+}
+
 export function computeBotInput(f, match) {
   if (f.botLevel === 'dummy') return emptyFrame();            // dummy stands still
   const L = LEVELS[f.botLevel] || LEVELS.normal;
-  if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false };
+  if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false, fetch: 0, fetchCd: 0 };
   f.ai.noFumble = false;
   return fumble(decide(f, match, L, f.ai), L, f.ai);
 }
@@ -266,6 +338,13 @@ function decide(f, match, L, st) {
     st.ultCd = 0; st.plan = 'approach';
     return frame;
   }
+
+  // ---- items ----
+  // Bots never touched an item. Measured over eight four-player matches: thirty-eight spawned,
+  // ZERO picked up, thirty-four despawned untouched - the whole item system was scenery in any
+  // match with a bot in it, which is most matches. Nothing in here ever pressed for one.
+  const itemPlan = itemAction(f, match, L, st, tv, dir, adx, frame);
+  if (itemPlan) return frame;
 
   // A chain in progress owns the next few frames outright - that is the whole point of it.
   if (st.chain && runChain(frame, st, { dir, tv, f })) return frame;

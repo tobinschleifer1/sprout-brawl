@@ -36,7 +36,7 @@ export class Fighter {
     this.alive = true;
     this.stats = { kos: 0, falls: 0, damageDealt: 0, damageTaken: 0, selfDestructs: 0 };
     this.input = emptyFrame();
-    this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0, ult: 0 };
+    this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0, ult: 0, pickup: 0 };
     this.frameCount = 0;
     this.item = null;
     this.effects = { chill: { stacks: 0, timer: 0 }, tangle: { stacks: 0, timer: 0 }, grit: { hide: 0, slow: 0 }, slow: 0, frozenBonus: false };
@@ -99,8 +99,8 @@ export class Fighter {
     //
     // carryX is added at the position step instead, so drift and wind compose rather than fight.
     this.carryX = 0;
-    this.spray = 0;
     this.effects.chill = { stacks: 0, timer: 0 }; this.effects.tangle = { stacks: 0, timer: 0 }; this.effects.grit = { hide: 0, slow: 0 }; this.effects.slow = 0; this.effects.frozenBonus = false;
+    this.effects.lodestone = 0; this.effects.lodestoneDef = null;
     if (opts.percent != null) this.percent = opts.percent;
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
     if (this.mech.id === 'Brace') { this.mech.guardFrames = 0; this.mech.ready = false; }
@@ -119,10 +119,16 @@ export class Fighter {
     let m = 1 - 0.08 * this.effects.chill.stacks;
     if (this.effects.grit.slow > 0) m *= 0.9;
     if (this.effects.slow > 0) m *= 0.8;
+    // Carrying a Bulwark is slow. That is the cost, and it is the reason you drop it when the
+    // fight turns back into a chase.
+    if (this.item && this.item.def.guard && this.item.hp > 0) m *= this.item.def.guard.speedMul;
     if (this.inWater) m *= 0.4;
     return m;
   }
-  jumpMul() { return 1 - 0.08 * this.effects.chill.stacks; }
+  jumpMul() {
+    const L = this.effects.lodestone > 0 ? this.effects.lodestoneDef : null;
+    return (1 - 0.08 * this.effects.chill.stacks) * (L ? L.jumpMul : 1);
+  }
   setState(s) { this.state = s; this.sf = 0; }
   get ultReady() { return this.ultCharge >= ULTIMATE.hitsRequired && !!this.char.moves.Ultimate; }
   get ultMeter() { return Math.min(1, this.ultCharge / ULTIMATE.hitsRequired); }
@@ -138,7 +144,7 @@ export class Fighter {
 
   applyInput(frame) {
     this.input = frame;
-    for (const b of ['jump', 'light', 'heavy', 'dodge', 'guard', 'grab', 'taunt', 'ult']) if (frame[b]) this.buffer[b] = INPUT_BUFFER;
+    for (const b of ['jump', 'light', 'heavy', 'dodge', 'guard', 'grab', 'taunt', 'ult', 'pickup']) if (frame[b]) this.buffer[b] = INPUT_BUFFER;
     // Teching has its own window (TECH.window = 8) which is wider than INPUT_BUFFER, so it cannot
     // be expressed as a guard-buffer threshold.
     if (frame.guard) this.techPress = TECH.window;
@@ -181,6 +187,7 @@ export class Fighter {
     if (e.grit.hide > 0) e.grit.hide--;
     if (e.grit.slow > 0) e.grit.slow--;
     if (e.slow > 0) e.slow--;
+    if (e.lodestone > 0 && --e.lodestone === 0) e.lodestoneDef = null;
     if (this.state !== 'shield') this.shield = Math.min(SHIELD.max, this.shield + SHIELD.regenPerSec * FRAME);
   }
 
@@ -245,7 +252,11 @@ export class Fighter {
     if (this.consume('light')) { this._startGroundLight(inp); return; }
     if (this.consume('heavy')) { this._startGroundHeavy(inp, ctx); return; }
     if (this.consume('dodge')) { if (Math.abs(inp.x) > 0.5) this._startDash(sign(inp.x)); else this.setState('spotdodge'); return; }
-    if (this.consume('guard')) {
+    // Pick up / drop. `pickup` is its own button now: it was declared in the input frame from the
+    // beginning, bound to nothing and read by nothing, so the only way to take an item was to tap
+    // guard next to it - undiscoverable, and impossible for a bot to stumble into. Guard still
+    // works, because that is what anyone who learned it the old way will press.
+    if (this.consume('pickup') || this.consume('guard')) {
       if (this.item && inp.y < -0.5) { ctx.combat.dropItem(this, false); return; }
       const it = ctx.combat.itemNear(this);
       if (it && !this.item) { ctx.combat.pickupItem(this, it); return; }
@@ -284,7 +295,10 @@ export class Fighter {
   }
 
   _airDrift(inp, mul = 1) {
-    const target = inp.x * this.char.airSpeed * mul * this.speedMul();
+    // A stuck Lodestone takes most of your air control away. Combined with the fall speed below,
+    // the recovery you have learned stops reaching - which is the whole item.
+    const L = this.effects.lodestone > 0 ? this.effects.lodestoneDef : null;
+    const target = inp.x * this.char.airSpeed * mul * (L ? L.airMul : 1) * this.speedMul();
     const accel = this.char.airSpeed / MOVE.airAccelFrames;
     if (Math.abs(inp.x) > 0.15) {
       if (this.vx < target) this.vx = Math.min(target, this.vx + accel); else if (this.vx > target) this.vx = Math.max(target, this.vx - accel);
@@ -733,6 +747,7 @@ export class Fighter {
     if (!this.onGround && !noGravity) {
       this.vy -= GRAVITY * FRAME;
       let term = this.char.fallSpeed * (this.fastFalling ? MOVE.fastFallMul : 1);
+      if (this.effects.lodestone > 0 && this.effects.lodestoneDef) term *= this.effects.lodestoneDef.fallMul;
       if (this.inWater) term *= 0.5;
       if (this.state === 'hitstun' || this.tumbling) term = Math.max(term, 80);
       // A downward environmental force has to be able to push PAST terminal velocity, and an

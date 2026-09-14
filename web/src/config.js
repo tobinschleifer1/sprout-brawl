@@ -61,7 +61,10 @@ export const TECH = { window: 8, inPlace: { frames: 30, inv: [1, 14] }, roll: { 
 export const KNOCKDOWN = { frames: 26, getupInv: [1, 10] };
 export const TAUNT_FRAMES = 90;
 export const RESPAWN = { delay: 2.0, invinc: 120, height: 14 };
-export const ITEMS = { spawnEvery: 25, despawnAfter: 20, knockOutDamage: 12 };
+// spawnEvery was 25 seconds and despawnAfter 20, which in a three-minute match is about seven
+// items, most of which timed out untouched. 14 seconds keeps one in play most of the time without
+// the match becoming about the floor.
+export const ITEMS = { spawnEvery: 14, despawnAfter: 22, knockOutDamage: 12 };
 export const SUDDEN_DEATH = { percent: 300, shrinkEvery: 10, shrinkFactor: 0.8 };
 export const INPUT_BUFFER = 6;
 

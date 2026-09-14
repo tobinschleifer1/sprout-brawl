@@ -85,5 +85,50 @@ const check=(name,cond,detail)=>{ (cond?pass++:fail++); console.log(`${cond?'PAS
   let f0=0; while(m.state!=='results' && f0<60*300){ m.step(); f0++; }
   check('bot vs bot match completes', m.state==='results', `${f0} frames (${(f0/60).toFixed(1)}s), winner=${m.results&&m.results.rows[0].name}, rows=${m.results&&m.results.rows.length}`); }
 
+// Stand fighter 0 on the main floor at x, with the opponent parked out of the way.
+function onFloor(weapon, x){
+  const m=makeMatch({loadouts:[['Classic',weapon],['Noir','Sword']]}); skipCountdown(m);
+  const f=m.fighters[0], o=m.fighters[1]; o.x=-30; o.y=0;
+  f.x=x; f.y=6; f.vx=0; f.vy=0; f.facing=1;
+  for(let i=0;i<240 && !(f.onGround && f.y<1);i++){ m.step(); m.events.length=0; f.x=x; f.vx=0; }
+  return {m,f};
+}
+
+// 10 a lunge moves you the distance it advertises, and no further
+//
+// The drive speed was written into vx on every active frame and then simply LEFT there: the
+// recovery ran the `onGround` branch, which is plain friction, so the fighter kept coasting for
+// the rest of the move. Crescent Rush advertises 8 studs of lunge and delivered 40 - over half the
+// width of Foundry Floor from a standing start, with no input. Measured, not derived: run the move
+// on flat ground and look at where the fighter ends up.
+{ const rows=[], bad=[];
+  for(const [w,mv] of [['Sword','SigSide'],['Sword','LightSide1'],['Pike','SigSide'],['Axe','SigSide'],['Scythe','SigSide'],['Blasters','SigDown']]){
+    const {m,f}=onFloor(w,0); const spec=f.char.weapon.moves[mv].lunge; const x0=f.x;
+    f.startMove({...f.char.weapon.moves[mv],id:mv},{combat:m.combat});
+    for(let i=0;i<200 && f.state==='attack';i++){ m.step(); m.events.length=0; }
+    const got=f.x-x0; rows.push(`${w} ${mv} ${got.toFixed(1)}/${spec}`);
+    if(Math.abs(got-spec)>0.75) bad.push(`${w} ${mv}: advertised ${spec}, travelled ${got.toFixed(1)}`);
+  }
+  check('a lunge travels the distance it declares', bad.length===0,
+    bad.length?bad.join('; '):`travelled/declared: ${rows.join(', ')}`); }
+
+// 11 a lunging move thrown at the edge does not throw you off the stage
+//
+// The airborne branch of _stepAttack was skipped entirely for any move with a lunge (`else if
+// (!m.lunge)`), so a grounded lunge that carried the fighter past the ledge kept its full drive
+// speed with no friction, no drift and no way to influence it. Every lunging move on every weapon
+// self-destructed from one stud off the edge - 59 of the 60 studs to the blast zone.
+{ const bad=[], rows=[];
+  for(const [w,mv] of [['Sword','SigSide'],['Sword','SigDown'],['Sword','LightSide1'],['Sword','LightSide2'],['Pike','SigSide'],['Pike','LightSide1'],['Pike','LightSide2'],['Axe','SigSide'],['Scythe','SigSide'],['Blasters','SigDown']]){
+    const {m,f}=onFloor(w, 0); const edge=m.stage.main.x2; f.x=edge-1; f.vx=0; f.facing=1;
+    f.startMove({...f.char.weapon.moves[mv],id:mv},{combat:m.combat});
+    let ko=false, peak=0;
+    for(let i=0;i<300 && !ko;i++){ m.step(); for(const e of m.events) if(e.type==='ko'&&e.fighter===f.index) ko=true; m.events.length=0; if(!ko) peak=Math.max(peak,f.x-edge); }
+    rows.push(`${w} ${mv} ${peak.toFixed(1)}`);
+    if(ko||peak>12) bad.push(`${w} ${mv}: ${peak.toFixed(1)} studs past the edge${ko?', SELF-KO':''}`);
+  }
+  check('a lunge at the ledge does not fling you off the stage', bad.length===0,
+    bad.length?bad.join('; '):`studs past the edge, one stud from it: ${rows.join(', ')} (blast zone is 60 out)`); }
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

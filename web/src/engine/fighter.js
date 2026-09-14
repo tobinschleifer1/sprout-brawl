@@ -522,7 +522,32 @@ export class Fighter {
     const active = this.moveActive;
     const total = this.startupEff + m.active + m.recovery;
     if (m.stall && this.mf <= m.stall) { this.vy = 0; this.noGravityFrame = true; }
-    if (m.lunge && active) { this.vx = this.facing * (m.lunge / m.active) / FRAME; }
+    // A GROUNDED lunge only drives while there is ground under it.
+    //
+    // It used to drive unconditionally, and because the airborne branch below was skipped for any
+    // move with a lunge, a signature thrown near an edge carried its full drive speed off the
+    // stage with no friction, no drift and no way to influence it. Crescent Rush leaves at 120
+    // studs/s and Full Extension at 90, against an air drift that pulls back at 108 studs/s^2
+    // toward a target of ~15 — so it took over a second to even turn the fighter around, by which
+    // time they were through the blast zone. Both weapons self-destructed off their own signature.
+    //
+    // Now the drive cuts the moment the fighter is airborne, what it already imparted is capped to
+    // a speed the fighter could have reached on their own, and drift is handed straight back.
+    const groundLunge = m.lunge && m.grounded !== false;
+    if (m.lunge && active && (this.onGround || !groundLunge)) {
+      this.vx = this.facing * (m.lunge / m.active) / FRAME;
+      // ...and it stops at the ledge. A lunge is the fighter stepping into their own swing, which
+      // is not something anyone does off the side of a stage. Without this clamp a signature
+      // started one stud from the edge walked its user straight into open air at 120 studs/s,
+      // still in attack state, unable to act: thirty studs of the sixty to the blast zone, given
+      // away for pressing a button while standing where the game asks you to stand.
+      if (groundLunge && this.onGround && this.platform) {
+        const pf = this.platform;
+        const nx = this.x + this.vx * FRAME;
+        if (nx > pf.x2 - 0.1) this.vx = Math.max(0, (pf.x2 - 0.1 - this.x) / FRAME);
+        else if (nx < pf.x1 + 0.1) this.vx = Math.min(0, (pf.x1 + 0.1 - this.x) / FRAME);
+      }
+    }
     // A move can declare that it is a STANCE rather than a swing, and keep partial ground control
     // while it is live. Deadeye needs this: rooting a light fighter in place for two seconds in a
     // four-player match is a cost nobody would ever pay.
@@ -530,8 +555,24 @@ export class Fighter {
       const target = inp.x * this.char.runSpeed * m.walkSpeed * this.speedMul();
       this.vx += (target - this.vx) * 0.22;
     }
-    else if (this.onGround) this._friction();
-    else if (!m.lunge) this._airDrift(inp, 0.7);
+    else if (this.onGround) {
+      // A lunge is a STEP, not a shove. The drive speed used to be left in vx when the active
+      // frames ended and bled off through friction over the whole recovery, so a move that
+      // advertises 8 studs of lunge actually carried the fighter 40 - more than half the width of
+      // Foundry Floor, from a standing start, with no input. Crescent Rush and Full Extension were
+      // the worst because their drive speeds are the highest, and both of them slid their own user
+      // off the stage. Stop the drive with the swing that produced it; the recovery is the fighter
+      // planted, which is also what the animation shows.
+      if (m.lunge && this.mf > this.startupEff + m.active) this.vx = 0;
+      this._friction();
+    }
+    else {
+      if (groundLunge) {
+        const cap = this.char.airSpeed * 1.2;
+        if (Math.abs(this.vx) > cap) this.vx = sign(this.vx) * cap;
+      }
+      this._airDrift(inp, 0.7);
+    }
     if (m.fastFallActive && active && !this.onGround) this.vy = Math.min(this.vy, -this.char.fallSpeed * MOVE.fastFallMul);
     if (this._chainInto(m, inp)) return;
     if (this.mf === this.startupEff + 1 && !this.spawnedActive) { this.spawnedActive = true; ctx.combat.onMoveActive(this, m); }

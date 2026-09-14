@@ -15,6 +15,7 @@
 import { FEATURES, FEATURE_KEYS, DEFAULT_FEATURES, PALETTE_KEYS, DEFAULT_AVATAR, PRESET_IDS,
   registerAvatar, unregisterAvatar } from './avatars.js';
 import { SAVE_KEY } from './branding.js';
+import { sanitizeArt } from './pixelArt.js';
 
 export const STORE_KEY = SAVE_KEY + '-avatars';
 export const MAX_CUSTOM = 24;          // a full grid, and a ceiling on what a loop can write
@@ -58,7 +59,13 @@ export function sanitize(raw, index) {
     const v = src.features && src.features[k];
     features[k] = (typeof v === 'string' && ALLOWED[k].has(v)) ? v : DEFAULT_FEATURES[k];
   }
-  return { id, name: cleanName(src.name, 'Fighter ' + (i + 1)), rig: 'avatar', custom: true, palette, features };
+  const out = { id, name: cleanName(src.name, 'Fighter ' + (i + 1)), rig: 'avatar', custom: true, palette, features };
+  // Hand-drawn parts are optional, and every grid is rebuilt cell by cell out of known inks - see
+  // pixelArt.sanitizeArt. A part that survives as all-transparent is dropped, which is the same
+  // thing as not having drawn it.
+  const art = sanitizeArt(src.art);
+  if (art) out.art = art;
+  return out;
 }
 
 export function blankAvatar(index) {

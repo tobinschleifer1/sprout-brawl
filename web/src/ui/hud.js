@@ -1,5 +1,6 @@
 import { onBlock } from '../engine/knockback.js';
 import { ULTIMATE } from '../config.js';
+import { posedFighter } from '../render2d/preview.js';
 
 export const PLAYER_COLORS = ['#3E8A2E', '#DE621C', '#3F7FD6', '#9A5FC8', '#D64C8C', '#2FA39A', '#C9A227', '#8A5A2B'];
 export const PLAYER_MARKS = ['●', '■', '▲', '◆', '✿', '★', '⬢', '❋'];
@@ -47,13 +48,20 @@ export class HUD {
       const color = match.teams ? TEAM_COLORS[f.team] || PLAYER_COLORS[f.index] : PLAYER_COLORS[f.index];
       const t = el('div', 'tile');
       t.style.setProperty('--pc', color);
-      t.innerHTML = `<div class="tile-top"><span class="mark">${PLAYER_MARKS[f.index]}</span><span class="pname">${f.name}</span><span class="cname">${f.char.name}</span></div>
+      // The tile now carries a PORTRAIT of the actual fighter, drawn by the real renderer. With a
+      // character creator in the game the tile was the one place a player never saw the character
+      // they made - it named their weapon and nothing else - and four grey boxes in a four-player
+      // match are hard to tell apart at a glance anyway.
+      const who = (f.char.avatar && f.char.avatar.name) || '';
+      t.innerHTML = `<div class="tile-top"><canvas class="portrait" width="38" height="46"></canvas>
+          <span class="who"><span class="mark">${PLAYER_MARKS[f.index]}</span><span class="pname">${f.name}</span>
+          ${who ? `<span class="aname">${who}</span>` : ''}<span class="cname">${f.char.name}</span></span></div>
         <div class="tile-mid"><span class="pct">0%</span><span class="stocks"></span></div>
         <div class="res"><span class="res-label"></span><span class="res-bar"><i></i></span></div>
         <div class="ult"><span class="ult-label">ULT</span><span class="ult-bar"><i></i></span><span class="ult-n">0/${ULTIMATE.hitsRequired}</span></div>`;
       if (f.source === 'kb1' || f.source === 'kb2' || f.source.startsWith('pad')) t.classList.add('local');
       this.tiles.appendChild(t);
-      this.tileEls.push({ el: t, pct: t.querySelector('.pct'), stocks: t.querySelector('.stocks'), resLabel: t.querySelector('.res-label'), resBar: t.querySelector('.res-bar i'), res: t.querySelector('.res'),
+      this.tileEls.push({ el: t, portrait: t.querySelector('.portrait'), painted: false, pct: t.querySelector('.pct'), stocks: t.querySelector('.stocks'), resLabel: t.querySelector('.res-label'), resBar: t.querySelector('.res-bar i'), res: t.querySelector('.res'),
         ult: t.querySelector('.ult'), ultBar: t.querySelector('.ult-bar i'), ultN: t.querySelector('.ult-n') });
       const L = el('div', 'label'); L.style.setProperty('--pc', color); L.innerHTML = `<span class="mark">${PLAYER_MARKS[f.index]}</span><span class="lp">0%</span>`;
       this.labels.appendChild(L);
@@ -78,6 +86,7 @@ export class HUD {
     else { this.timer.textContent = ''; }
     M.fighters.forEach((f, i) => {
       const T = this.tileEls[i]; if (!T) return;
+      if (!T.painted && T.portrait) { this._portrait(T.portrait, f, view); T.painted = true; }
       const hidden = f.effects.grit.hide > 0;
       const pctText = hidden ? '??%' : `${Math.round(f.percent)}%`;
       T.pct.textContent = pctText; T.pct.style.color = percentColor(f.percent);
@@ -132,6 +141,24 @@ export class HUD {
     if (M.training) this._trainingInfo(M);
   }
 
+  // One still frame of the fighter, idle, through Renderer2D.drawFighterInto - the same paint path
+  // the match uses, so a hand-drawn character shows up here exactly as it does on the stage.
+  // Painted once per match: nothing about it changes while the match runs.
+  _portrait(cv, f, view) {
+    if (!view || !view.drawFighterInto) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.width, h = cv.height;
+    cv.width = w * dpr; cv.height = h * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.imageSmoothingEnabled = false;
+    const ppu = (cv.height * 0.86) / f.char.height;
+    try {
+      view.drawFighterInto(ctx, posedFighter(f.char, null, 0, { state: 'idle', onGround: true, index: f.index }),
+        0, { ppu, x: cv.width / 2, y: cv.height * 0.96 });
+    } catch (e) { /* a portrait is never worth failing a frame over */ }
+  }
+
   _trainingInfo(M) {
     const f = M.fighters[0];
     const mv = f.lastMoveInfo;
@@ -150,7 +177,7 @@ export class HUD {
     const R = results;
     const rows = R.rows.map((r, i) => {
       const color = R.teams ? TEAM_COLORS[r.team] : PLAYER_COLORS[r.index];
-      return `<tr class="${i === 0 ? 'win' : ''}"><td class="place">${i + 1}</td><td><span class="mark" style="color:${color}">${PLAYER_MARKS[r.index]}</span> ${r.name}<small>${r.char.name}${R.teams ? ' · Team ' + (r.team === 0 ? 'Green' : 'Orange') : ''}</small></td><td>${r.kos}</td><td>${r.falls}</td><td>${r.damage}%</td><td>${R.timed ? r.score : r.stocks}</td></tr>`;
+      return `<tr class="${i === 0 ? 'win' : ''}"><td class="place">${i + 1}</td><td><span class="mark" style="color:${color}">${PLAYER_MARKS[r.index]}</span> ${r.name}<small>${(r.char.avatar && r.char.avatar.name ? r.char.avatar.name + ' · ' : '')}${r.char.name}${R.teams ? ' · Team ' + (r.team === 0 ? 'Green' : 'Orange') : ''}</small></td><td>${r.kos}</td><td>${r.falls}</td><td>${r.damage}%</td><td>${R.timed ? r.score : r.stocks}</td></tr>`;
     }).join('');
     const w = R.rows[0];
     this.results.innerHTML = `<div class="panel results"><div class="eyebrow">Results</div><h2>${R.teams ? (w.team === 0 ? 'Green team' : 'Orange team') : w.name} wins</h2>

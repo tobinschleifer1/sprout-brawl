@@ -5,6 +5,8 @@ import { blankAvatar, saveAvatar, deleteAvatar, duplicateAvatar, sanitize, reada
 import { Renderer2D } from '../render2d/renderer2d.js';
 import { posedFighter } from '../render2d/preview.js';
 import { drawWeapon, REACH } from '../render2d/weapons2d.js';
+import { PART_GRIDS, PART_IDS, INKS, inkColour, blankPart, setCell, cellAt } from '../data/pixelArt.js';
+import { traceProcedural, blitPixelPart } from '../render2d/pixels2d.js';
 import { buildLoadout } from '../data/loadout.js';
 import { STAGES } from '../data/stages/index.js';
 import { BINDINGS_TEXT } from '../engine/input.js';
@@ -84,6 +86,7 @@ export class Menus {
     // the axe and the pike from the day they shipped - and a hand-made icon can disagree with the
     // weapon it labels. This one cannot, and a seventh weapon would need no art at all.
     for (const cv of this.root.querySelectorAll('canvas[data-weapon-icon]')) this._paintWeaponIcon(cv);
+    this._paintGrid();
     for (const cv of this.root.querySelectorAll('canvas[data-avatar-preview]')) {
       const av = avatarById(cv.dataset.avatarPreview);
       const editing = this.editing && this.editing.id === av.id ? this.editing : null;
@@ -197,8 +200,9 @@ export class Menus {
       <div class="charform">
         <label class="wide">Name <input type="text" data-charname value="${a.name}" maxlength="${MAX_NAME}"></label>
         <div class="swatches">${swatches}</div>
-        ${rows}
-        ${warn ? `<p class="warn">${warn}</p>` : ''}
+        ${this.drawMode ? this._pixelPanel() : rows}
+        <div class="row"><button data-act="char-mode">${this.drawMode ? 'Back to the parts picker' : 'Draw the pixels yourself'}</button></div>
+        ${warn && !this.drawMode ? `<p class="warn">${warn}</p>` : ''}
         <div class="row end">
           ${this._isSaved(a.id) ? `<button data-act="char-delete" data-id="${a.id}">${this.confirmDelete === a.id ? 'Delete for good' : 'Delete'}</button>` : ''}
           <button data-act="char-cancel">Cancel</button>
@@ -206,6 +210,90 @@ export class Menus {
         </div>
         ${this.charMsg ? `<p class="warn">${this.charMsg}</p>` : ''}
       </div></div>`;
+  }
+
+  _pixelPanel() {
+    const a = this.editing;
+    const part = this.drawPart || 'head';
+    const g = PART_GRIDS[part];
+    const drawn = PART_IDS.filter((k) => a.art && a.art[k]);
+    const tabs = PART_IDS.map((k) => `<button class="feat ${k === part ? 'sel' : ''}" data-drawpart="${k}">${PART_GRIDS[k].name}${a.art && a.art[k] ? ' •' : ''}</button>`).join('');
+    const inks = INKS.map((i) => {
+      const col = inkColour(i.id, a.palette);
+      const sel = (this.ink || '1') === i.id ? 'sel' : '';
+      return `<button class="ink ${sel} ${i.id === '.' ? 'erase' : ''}" data-ink="${i.id}" title="${i.name}" style="--ink:${col || 'transparent'}"></button>`;
+    }).join('');
+    return `<div class="pixelpanel">
+      <p class="hint">Draw the parts and the rig animates them — every wind-up, every swing, the weapon still in the hand. Leave a part undrawn and it keeps the built-in shape.</p>
+      <div class="posebar">${tabs}</div>
+      <div class="pixelrow">
+        <canvas class="pixgrid" data-pixgrid="${part}" width="${g.w}" height="${g.h}"></canvas>
+        <div class="pixtools">
+          <div class="inks">${inks}</div>
+          <button data-act="pix-trace">Trace the current look</button>
+          <button data-act="pix-clear">Clear ${g.name.toLowerCase()}</button>
+          ${drawn.length ? `<button data-act="pix-dropall">Use built-in shapes again</button>` : ''}
+          <p class="hint small">${g.w} x ${g.h}. Colours follow the swatches above, so you can recolour a drawing any time.</p>
+        </div>
+      </div></div>`;
+  }
+
+  // The grid is a canvas rather than a few hundred divs: at 12x13 that is 156 elements rebuilt on
+  // every stroke, and painting is a drag gesture - it has to be cheap per pointer move.
+  _paintGrid() {
+    const cv = this.root.querySelector('canvas[data-pixgrid]');
+    if (!cv || !this.editing) return;
+    const part = cv.dataset.pixgrid, g = PART_GRIDS[part];
+    const px = (this.editing.art && this.editing.art[part]) || blankPart(part);
+    const cell = Math.max(8, Math.floor(Math.min(300 / g.w, 320 / g.h)));
+    cv.width = g.w * cell; cv.height = g.h * cell;
+    cv.style.width = (g.w * cell) + 'px'; cv.style.height = (g.h * cell) + 'px';
+    const c = cv.getContext('2d');
+    c.imageSmoothingEnabled = false;
+    for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+      // A chequerboard under the art, so "transparent" is visibly transparent rather than a colour
+      const even = (x + y) % 2 === 0;
+      c.fillStyle = even ? '#e9eee2' : '#dde4d4';
+      c.fillRect(x * cell, y * cell, cell, cell);
+      const col = inkColour(cellAt(px, part, x, y), this.editing.palette);
+      if (col) { c.fillStyle = col; c.fillRect(x * cell, y * cell, cell, cell); }
+    }
+    c.strokeStyle = 'rgba(30,42,27,0.14)'; c.lineWidth = 1;
+    for (let x = 0; x <= g.w; x++) { c.beginPath(); c.moveTo(x * cell + 0.5, 0); c.lineTo(x * cell + 0.5, cv.height); c.stroke(); }
+    for (let y = 0; y <= g.h; y++) { c.beginPath(); c.moveTo(0, y * cell + 0.5); c.lineTo(cv.width, y * cell + 0.5); c.stroke(); }
+    if (!cv._wired) {
+      cv._wired = true;
+      const paint = (ev) => {
+        const rect = cv.getBoundingClientRect();
+        const gx = Math.floor(((ev.clientX - rect.left) / rect.width) * g.w);
+        const gy = Math.floor(((ev.clientY - rect.top) / rect.height) * g.h);
+        this._setPixel(part, gx, gy, ev.buttons === 2 || ev.shiftKey ? '.' : (this.ink || '1'));
+      };
+      cv.addEventListener('pointerdown', (ev) => {
+        // Capture so a stroke that leaves the grid keeps painting, but never let it stop the
+        // stroke: setPointerCapture throws for a pointer the browser does not consider active,
+        // and an exception here would swallow the first cell of every stroke.
+        try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* keep drawing anyway */ }
+        this._painting = true; paint(ev); ev.preventDefault();
+      });
+      cv.addEventListener('pointermove', (ev) => { if (this._painting) paint(ev); });
+      cv.addEventListener('pointerup', () => { this._painting = false; });
+      cv.addEventListener('pointercancel', () => { this._painting = false; });
+      cv.addEventListener('contextmenu', (ev) => ev.preventDefault());   // right-drag erases
+    }
+  }
+
+  _setPixel(part, x, y, ink) {
+    const a = this.editing;
+    if (!a) return;
+    const g = PART_GRIDS[part];
+    if (x < 0 || y < 0 || x >= g.w || y >= g.h) return;
+    a.art = a.art || {};
+    a.art[part] = setCell(a.art[part] || blankPart(part), part, x, y, ink);
+    // Repaint the grid and the character, but do NOT re-render the screen: rebuilding the DOM
+    // mid-drag drops the pointer capture and the stroke ends after one cell.
+    this._paintGrid();
+    this._paintPreviews();
   }
 
   _chars() {
@@ -339,7 +427,7 @@ export class Menus {
   }
 
   _click(e) {
-    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-feature],[data-pose],[data-prevwep]');
+    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink]');
     if (!t) return;
     // The editor's own controls. `_stash` reads the name box before every re-render, because the
     // screen is rebuilt from a string and an unsaved name would otherwise be thrown away by the
@@ -348,6 +436,8 @@ export class Menus {
     // `hasAttribute`, not a truthiness test: the idle pose is the empty string.
     if (t.hasAttribute('data-pose')) { this._stash(); this.previewMove = t.dataset.pose || null; this.render(); return; }
     if (t.dataset.prevwep) { this._stash(); this.previewWeapon = t.dataset.prevwep; this.render(); return; }
+    if (t.dataset.drawpart) { this._stash(); this.drawPart = t.dataset.drawpart; this.render(); return; }
+    if (t.dataset.ink) { this.ink = t.dataset.ink; this.render(); return; }
     if (t.dataset.weapon) { this.config.slots[+t.dataset.slot].weaponId = t.dataset.weapon; this.save(); this.render(); return; }
     if (t.dataset.avatar) { this.config.slots[+t.dataset.slot].avatarId = t.dataset.avatar; this.save(); this.render(); return; }
     if (t.dataset.stage) { this.config.stageId = t.dataset.stage; this.save(); this.render(); return; }
@@ -374,6 +464,21 @@ export class Menus {
       if (r.ok) { this.editing = null; this.confirmDelete = null; }
       this.render(); return;
     }
+    if (a === 'char-mode') { this._stash(); this.drawMode = !this.drawMode; this.render(); return; }
+    if (a === 'pix-trace') {
+      const part = this.drawPart || 'head';
+      this._stash();
+      this.editing.art = this.editing.art || {};
+      this.editing.art[part] = traceProcedural(part, this.editing.palette, this.editing.features);
+      this.render(); return;
+    }
+    if (a === 'pix-clear') {
+      const part = this.drawPart || 'head';
+      this._stash();
+      if (this.editing.art) delete this.editing.art[part];
+      this.render(); return;
+    }
+    if (a === 'pix-dropall') { this._stash(); delete this.editing.art; this.render(); return; }
     if (a === 'char-io') { this._stash(); this.showIO = !this.showIO; this.render(); return; }
     if (a === 'char-import') {
       const box = this.root.querySelector('[data-chario]');
@@ -424,6 +529,7 @@ export class Menus {
       // Repaint the preview without rebuilding the screen: a colour input fires `input` on every
       // mouse move, and re-rendering would close the picker on the first drag.
       this._paintPreviews();
+      this._paintGrid();       // cells are palette indices, so a swatch recolours the drawing live
       return;
     }
     if (t.hasAttribute('data-charname') && this.editing) { this.editing.name = t.value; return; }

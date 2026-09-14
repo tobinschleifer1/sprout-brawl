@@ -15,6 +15,7 @@ import { buildLoadout } from '../src/data/loadout.js';
 import { AVATARS, FEATURES, FEATURE_KEYS, PALETTE_KEYS, avatarById, allAvatars, registerAvatar } from '../src/data/avatars.js';
 import { sanitize, blankAvatar, readCustom, writeCustom, saveAvatar, deleteAvatar, importAvatars,
   exportAvatars, initCustomAvatars, readabilityWarning, MAX_CUSTOM, MAX_NAME, STORE_KEY } from '../src/data/customAvatars.js';
+import { sanitizeArt, sanitizePart, PART_GRIDS, PART_IDS, INKS, inkColour, blankPart, setCell, cellAt } from '../src/data/pixelArt.js';
 import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
@@ -31,7 +32,8 @@ const fakeStore = () => { const m = new Map(); return { get: (k) => (m.has(k) ? 
   const cheat = saveAvatar({ name: 'Cheater', weight: 400, runSpeed: 99, height: 12, radius: 4,
     stats: { set: { weight: 400 } }, mul: { runSpeed: 3 }, moves: {}, mechanic: { id: 'Momentum' },
     palette: { primary: '#ff0000', secondary: '#00ff00', tertiary: '#0000ff', accent: '#ffffff', glow: '#ffff00' },
-    features: { head: 'tall', face: 'visor', hat: 'crown', torso: 'sash' } }, store);
+    features: { head: 'tall', face: 'visor', hat: 'crown', torso: 'sash' },
+    art: { head: '1'.repeat(144), torso: '2'.repeat(156), arm: 'k'.repeat(70), leg: '3'.repeat(70) } }, store);
   const bad = [];
   for (const w of ['Sword', 'Axe', 'Pike', 'Grimoire']) {
     const preset = buildLoadout('Classic', w), custom = buildLoadout(cheat.avatar.id, w);
@@ -198,6 +200,124 @@ const fakeStore = () => { const m = new Map(); return { get: (k) => (m.has(k) ? 
   check('the readability hint warns about a flat character and stays quiet about a clear one',
     readabilityWarning(invisible) !== null && readabilityWarning(fine) === null,
     `mid-grey on mid-grey: "${readabilityWarning(invisible)}" | yellow on near-black: ${readabilityWarning(fine) === null ? 'no warning' : readabilityWarning(fine)}`);
+}
+
+
+// ---- 11. a hand-drawn grid is rebuilt from known inks, whatever arrives ----
+{
+  const bad = [];
+  const HOSTILE = [null, undefined, 42, [], {}, 'short', 'x'.repeat(9999), '<script>', '1234567890'];
+  for (const part of PART_IDS) {
+    const want = PART_GRIDS[part].w * PART_GRIDS[part].h;
+    for (const raw of HOSTILE) {
+      let px;
+      try { px = sanitizePart(part, raw); } catch (e) { bad.push(`${part} threw on ${JSON.stringify(raw)}: ${e.message}`); continue; }
+      if (px.length !== want) bad.push(`${part}: ${px.length} cells, wanted ${want}`);
+      for (const ch of px) if (!INKS.some((i) => i.id === ch)) bad.push(`${part}: unknown ink ${JSON.stringify(ch)}`);
+    }
+  }
+  // a part that is all transparent is the same as not having drawn it
+  const dropped = sanitizeArt({ head: blankPart('head'), torso: '2'.repeat(200), nonsense: '111' });
+  if (dropped.head) bad.push('an all-transparent part survived as art');
+  if (!dropped.torso) bad.push('a drawn torso was dropped');
+  if (dropped.nonsense) bad.push('an unknown part name survived');
+  if (sanitizeArt('not an object') !== null) bad.push('a non-object art bag survived');
+  check('every hand-drawn grid comes back the right size, in real inks', bad.length === 0,
+    bad.length ? bad.slice(0, 5).join('; ')
+      : `${HOSTILE.length} hostile grids x ${PART_IDS.length} parts - wrong types, a 9999-character string, markup - all rebuilt to exact size; blank parts and unknown part names dropped`);
+}
+
+// ---- 12. every ink the editor offers resolves to a colour ----
+{
+  const pal = AVATARS[0].palette;
+  const dead = INKS.filter((i) => i.id !== '.').filter((i) => !/^#[0-9a-f]{6}$/i.test(String(inkColour(i.id, pal))));
+  const transparent = inkColour('.', pal);
+  check('every drawing ink resolves to a real colour', dead.length === 0 && transparent === null,
+    dead.length ? `no colour for: ${dead.map((i) => i.id).join(', ')}`
+      : `${INKS.length - 1} inks resolve (${INKS.filter((i) => i.id !== '.').map((i) => i.id + '=' + inkColour(i.id, pal)).join(' ')}), and '.' is transparent`);
+}
+
+// ---- 13. a drawing survives the round trip, and recolours with the swatches ----
+{
+  const store = fakeStore();
+  let px = blankPart('head');
+  px = setCell(px, 'head', 3, 4, 'k');
+  px = setCell(px, 'head', 11, 11, '5');
+  px = setCell(px, 'head', 99, 99, 'w');          // out of bounds: must be a no-op, not a crash
+  const saved = saveAvatar({ ...blankAvatar(0), name: 'Drawn', art: { head: px } }, store).avatar;
+  const back = readCustom(store)[0];
+  const ok = back.art && back.art.head === px && cellAt(back.art.head, 'head', 3, 4) === 'k' && cellAt(back.art.head, 'head', 11, 11) === '5';
+  // the cell holds an index, not a colour, so moving a swatch repaints the drawing
+  const before = inkColour('5', back.palette);
+  const recoloured = saveAvatar({ ...back, palette: { ...back.palette, glow: '#00ff88' } }, store).avatar;
+  const after = inkColour('5', recoloured.palette);
+  deleteAvatar(saved.id, store);
+  check('a drawing round-trips, and follows the swatches', ok && before !== after && after === '#00ff88' && recoloured.art.head === px,
+    `${px.replace(/\./g, '').length} painted cells survived a save and reload; moving the highlight swatch took ink 5 from ${before} to ${after} without touching the grid`);
+}
+
+// ---- 14. the rig still animates a hand-drawn character ----
+//
+// This is the claim the whole design rests on. A drawn character is NOT a sprite pasted over the
+// fighter - it is drawn part by part through the same rig, so every wind-up, lean, squash and
+// follow-through still applies to it. Measured by recording the transform each part is blitted
+// under and checking it MOVES across a move's frames.
+{
+  const { Renderer2D } = await import('../src/render2d/renderer2d.js');
+  const { posedFighter } = await import('../src/render2d/preview.js');
+  // A context that tracks only the current transform, and records where images land.
+  function tracer(shots) {
+    let m = [1, 0, 0, 1, 0, 0]; const stack = [];
+    const mul = (a, b) => [a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1], a[0] * b[2] + a[2] * b[3],
+      a[1] * b[2] + a[3] * b[3], a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5]];
+    const noop = () => {};
+    return new Proxy({}, { get(t, p) {
+      if (p === 'canvas') return { width: 480, height: 270 };
+      if (p === 'save') return () => stack.push(m.slice());
+      if (p === 'restore') return () => { m = stack.pop() || m; };
+      if (p === 'setTransform') return (...a) => { m = a.slice(0, 6); };
+      if (p === 'translate') return (x, y) => { m = mul(m, [1, 0, 0, 1, x, y]); };
+      if (p === 'scale') return (x, y) => { m = mul(m, [x, 0, 0, y, 0, 0]); };
+      if (p === 'rotate') return (r) => { m = mul(m, [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0]); };
+      if (p === 'drawImage') return () => shots.push(m.slice());
+      if (p === 'createLinearGradient' || p === 'createRadialGradient') return () => ({ addColorStop: noop });
+      if (p === 'measureText') return () => ({ width: 10 });
+      if (p in t) return t[p];
+      return noop;
+    }, set(t, p, v) { t[p] = v; return true; } });
+  }
+  const art = {};
+  for (const part of PART_IDS) art[part] = '1'.repeat(PART_GRIDS[part].w * PART_GRIDS[part].h);
+  const av = sanitize({ name: 'Rigged', art });
+  const L = { ...buildLoadout('Classic', 'Sword'), avatar: av, palette: av.palette };
+  const view = new Renderer2D(globalThis.document.createElement('canvas'));
+  const frames = [];
+  for (const mf of [1, 12, 22, 30]) {
+    const shots = [];
+    view.drawFighterInto(tracer(shots), posedFighter(L, 'SigSide', mf, { state: 'attack', onGround: true }), mf / 60, { ppu: 15, x: 100, y: 200 });
+    frames.push(shots);
+  }
+  const drewAll = frames.every((f) => f.length >= 5);       // head, torso, two arms, two legs
+  // how far the drawn parts travel between the cocked frame and the contact frame
+  const spread = frames[0].length === frames[2].length
+    ? frames[0].reduce((s, m, i) => s + Math.abs(m[4] - frames[2][i][4]) + Math.abs(m[5] - frames[2][i][5]), 0) : -1;
+  check('the rig animates a hand-drawn character exactly like a built-in one', drewAll && spread > 5,
+    !drewAll ? `only ${frames.map((f) => f.length).join('/')} parts blitted per frame - some drawn part is not being drawn`
+      : `${frames[0].length} drawn parts per frame; between the cocked frame and contact they move a combined ${spread.toFixed(1)} pixels of transform`);
+}
+
+// ---- 15. a hand-drawn character is still cosmetic ----
+{
+  const store = fakeStore();
+  const art = {};
+  for (const part of PART_IDS) art[part] = 'k'.repeat(PART_GRIDS[part].w * PART_GRIDS[part].h);
+  const drawn = saveAvatar({ name: 'Solid', art, height: 20, weight: 500 }, store).avatar;
+  const STAT = ['weight', 'runSpeed', 'airSpeed', 'jumps', 'height', 'radius'];
+  const a = buildLoadout('Classic', 'Axe'), b = buildLoadout(drawn.id, 'Axe');
+  const diff = STAT.filter((k) => a[k] !== b[k]);
+  deleteAvatar(drawn.id, store);
+  check('drawing your own character changes no stat either', diff.length === 0,
+    diff.length ? `differs on ${diff.join(', ')}` : `a fully hand-drawn character on the Battle Axe: weight ${b.weight}, height ${b.height}, radius ${b.radius} - identical to the preset`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

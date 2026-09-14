@@ -37,6 +37,10 @@ export default {
   tagline: 'The toll for getting close',
   blurb: 'The longest reach in the game on the thinnest hitboxes. It thrusts rather than swings, beats every approach, and folds the moment someone is inside it.',
   difficulty: 3,
+  // Animate it as a spear, not as a thin sword: `thrusts` swaps the rotational body poses for the
+  // linear ones in channels.js, where the reach comes from the fighter driving forward and the arm
+  // extending along the line rather than from the weapon swinging.
+  thrusts: true,
   stats: { set: { weight: 94 }, mul: { runSpeed: 0.97, airSpeed: 1.04, fallSpeed: 0.96 } },
   palette: { primary: '#C9B489', secondary: '#6E7C8A', tertiary: '#2B3038', accent: '#F0E6CC', glow: '#7FE0C8' },
   trail: '#BFF5E6',

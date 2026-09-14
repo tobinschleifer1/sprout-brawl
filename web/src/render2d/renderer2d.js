@@ -335,11 +335,11 @@ export class Renderer2D {
 
     // front arm: driven by the weapon, so the swing and the limb always agree
     const armAng = wid ? wp.angle : ch.armR.z - PI / 2;
-    this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: ch.armR.x }, h, true);
+    this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: ch.armR.x, ext: ch.armR.ext }, h, true);
 
     // weapon, at the hand
     if (wid && !wp.hide) {
-      const AL = h * 0.30;
+      const AL = h * 0.30 * (ch.armR.ext || 1);   // same length the arm was drawn at
       const hx = r * 0.55 + Math.cos(armAng) * AL;
       const hy = (SHO - HIP) + Math.sin(armAng) * AL;
       // trail is drawn from the shoulder so the arc sweeps around the body
@@ -398,7 +398,11 @@ export class Renderer2D {
   }
 
   _arm(b, colour, r, len, a, h, front = false) {
-    const w = r * 0.34, L = h * 0.30;
+    // `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere,
+    // and sliding the PROP forward off a fixed-length arm is what put the pike's grip further from
+    // the hand than the fighter is tall. Extending the arm moves the hand, so the weapon travels
+    // with it and stays attached.
+    const w = r * 0.34, L = h * 0.30 * (a.ext || 1);
     b.save();
     b.translate(front ? r * 0.55 : -r * 0.35, len);
     // Arm channels are "direction the limb points, +X forward, +Y up", the same convention the

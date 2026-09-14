@@ -1,16 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {
-      "name": "web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "start",
-        "--prefix",
-        "web"
-      ],
-      "port": 5173,
-      "autoPort": true
-    }
+    { "name": "blockfall", "runtimeExecutable": "node", "runtimeArgs": ["serve.cjs", "8123"], "cwd": "web", "port": 8123 }
   ]
 }

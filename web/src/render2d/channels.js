@@ -82,10 +82,206 @@ function lagged(f, m, frames) {
   return s2.phase === 'wind' ? -s2.e : s2.e;
 }
 
+// Which ordinary categories a thrusting weapon replaces. Rising attacks stay rotational: you
+// cannot thrust upward off a line that runs forward, and the pike's up-angled moves genuinely are
+// swings of the point.
+const THRUSTABLE = { jab: 'thrust', side: 'thrust', fair: 'thrust', sigside: 'thrust', down: 'thrustlow', sigdown: 'thrustlow', dair: 'thrustlow' };
+
+// ------------------------------------------------------------------- the ultimate bodies -----
+// Each of these is written against the SAME phase boundaries weapons2d.js's ultimatePose uses, so
+// the fighter and the prop are performing one move rather than two. `weapons2d` owns the weapon;
+// this owns the person holding it.
+function ultChannels(ch, f, m, t) {
+  const wid = f.char.weapon ? f.char.weapon.id : null;
+  const st = f.startupEff, act = m.active, rec = m.recovery, mf = f.mf;
+  const wind = mf <= st, live = mf > st && mf <= st + act;
+  const k = wind ? mf / Math.max(1, st) : live ? (mf - st) / Math.max(1, act) : 1;
+  const ak = mf - st;                                    // frame within the active window
+  const out = Math.min(1, (mf - st - act) / Math.max(1, rec));   // 0 -> 1 across recovery
+  // Everything below builds a pose for the frame; the recovery blend at the bottom returns it to
+  // neutral through the same damped settle the ordinary moves use, so no ultimate snaps home.
+  const strain = (a) => (f.mf % 2 ? a : -a);
+
+  if (wid === 'Sword') {
+    // COLOSSUS. Hoist a sword twice its own length overhead, hold it, and fall with it.
+    const CHOP = 5, riseEnd = Math.max(1, st - CHOP);
+    if (wind && mf <= riseEnd) {
+      const r = easeOut(mf / riseEnd);
+      ch.armL.z = 0.6 + 2.4 * r; ch.armR.z = -0.6 - 2.3 * r;
+      ch.sy = 1 + 0.26 * r; ch.sx = 1 - 0.14 * r;
+      ch.bob = 0.55 * r; ch.head = -0.35 * r;
+      ch.legL = -0.35 * r; ch.legR = -0.28 * r;
+      ch.shakeX = strain(0.10 * r);                       // the weight is already winning
+    } else if (wind) {
+      const c = easeIn((mf - riseEnd) / CHOP);            // the drop: everything comes down at once
+      ch.armL.z = 3.0 - 2.6 * c; ch.armR.z = -2.9 + 2.4 * c;
+      ch.sy = 1.26 - 0.5 * c; ch.sx = 0.86 + 0.38 * c;
+      ch.bob = 0.55 - 0.85 * c; ch.lean = 0.34 * c;
+      ch.legL = -0.35 + 0.9 * c; ch.legR = -0.28 - 0.5 * c;
+      ch.head = -0.35 + 0.7 * c;
+      ch.smear = c;
+    } else {
+      // planted: buried to the crossguard, braced against a floor that is coming apart
+      const q = live ? 1 - Math.min(1, ak / 8) : 0;
+      ch.sy = 0.78 + 0.2 * (1 - q); ch.sx = 1.22 - 0.18 * (1 - q);
+      ch.lean = 0.32 - 0.14 * (1 - q); ch.bob = -0.3 + 0.2 * (1 - q);
+      ch.armL.z = 0.4; ch.armR.z = -0.5; ch.legL = 0.55; ch.legR = -0.78;
+      ch.head = 0.35;
+      if (live) ch.shakeX = strain(0.16 * (1 - ak / Math.max(1, act)));
+    }
+  } else if (wid === 'Scythe') {
+    // SOUL TETHER. The pull is isometric: nothing moves fast, everything strains.
+    const hold = (m.vortex && m.vortex.holdFrames) || 22;
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -1.5 * r; ch.armL.z = 0.4 + 1.5 * r;
+      ch.lean = -0.55 * r; ch.sx = 1 - 0.12 * r; ch.sy = 1 + 0.1 * r;
+      ch.legL = 0.4 * r; ch.legR = -0.35 * r; ch.head = -0.25 * r;
+    } else if (live && ak <= hold) {
+      const h = ak / hold, reach = Math.min(1, ak / 5);
+      // reaching hand out, body hauling BACKWARDS against it - the ball is being dragged in
+      ch.armR.z = -1.5 + (F + 0.35 + 1.5) * easeOut(reach);
+      ch.armL.z = 1.9 - 0.5 * reach;
+      ch.lean = -0.55 + 0.75 * easeOut(reach) - 0.35 * h;
+      ch.legR = 0.6 * reach - 0.5 * h; ch.legL = -0.45 * reach + 0.4 * h;
+      ch.sx = 1 + 0.08 * Math.sin(h * PI); ch.sy = 1 - 0.06 * Math.sin(h * PI);
+      ch.head = -0.2 * h;
+      ch.shakeX = strain(0.06 + 0.14 * h);                // grip failing as the ball tightens
+      ch.bob = -0.18 * h;
+    } else {
+      const since = live ? ak - hold : (act - hold) + (mf - st - act);
+      const c = easeIn(Math.min(1, since / 8));
+      ch.armR.z = (F + 0.35) - 2.5 * c; ch.armL.z = 1.4 - 1.0 * c;
+      ch.lean = 0.16 + 0.26 * c; ch.sy = 1 - 0.3 * c; ch.sx = 1 + 0.24 * c;
+      ch.legR = 0.9 * c; ch.legL = -0.6 * c; ch.bob = -0.35 * c;
+      ch.smear = Math.max(0, 1 - since / 6);
+    }
+  } else if (wid === 'Blasters') {
+    // DEADEYE. A rifle stance: square, still, and every shot is felt through the shoulder.
+    const reload = (m.sniper && m.sniper.reload) || 16;
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -0.6 + (F + 0.6) * r; ch.armL.z = -0.3 + 0.9 * r;   // support hand comes up
+      ch.lean = 0.18 * r; ch.sx = 1 - 0.08 * r; ch.sy = 1 + 0.04 * r;
+      ch.legL = -0.3 * r; ch.legR = 0.45 * r; ch.head = -0.15 * r;
+    } else if (live) {
+      const since = f.ultCooldown > 0 ? reload - f.ultCooldown : 99;
+      const kick = since < 7 ? (1 - since / 7) * (1 - since / 7) : 0;
+      ch.armR.z = F; ch.armL.z = 0.6;
+      ch.lean = 0.18 - 0.42 * kick;                        // driven back into the shoulder
+      ch.sx = 1 - 0.08 + 0.1 * kick; ch.sy = 1 + 0.04 - 0.06 * kick;
+      ch.legL = -0.3 - 0.25 * kick; ch.legR = 0.45 + 0.3 * kick;
+      ch.head = -0.15 - 0.2 * kick;
+      ch.shakeX = strain(0.18 * kick);
+      ch.smear = kick * 0.6;
+      ch.bob = Math.sin(t * 2.2) * 0.06;                   // breathing on the scope between shots
+    } else {
+      ch.armR.z = F * (1 - out); ch.armL.z = 0.6 * (1 - out); ch.legR = 0.45 * (1 - out);
+    }
+  } else if (wid === 'Axe') {
+    // REAVE. The fighter stops fighting the weight and goes with it: three revolutions, the body
+    // turning with the head and leaning out against the pull the whole way.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -1.7 * r; ch.armL.z = 0.4 + 1.2 * r;
+      ch.lean = -0.5 * r;                                  // wound all the way back and low
+      ch.sy = 1 - 0.2 * r; ch.sx = 1 + 0.16 * r;
+      ch.legL = 0.55 * r; ch.legR = -0.5 * r; ch.bob = -0.4 * r; ch.head = -0.3 * r;
+      ch.shakeX = strain(0.12 * r);
+    } else if (live) {
+      const p = ak / Math.max(1, act);
+      // the body turns WITH the axe - same accelerating curve weapons2d spins the head on
+      // spinY, NOT spinZ: spinZ is rotation in the SCREEN plane, which drew the fighter
+      // cartwheeling through three somersaults. A fighter turning with a swing rotates about their
+      // own vertical axis, which this renderer draws as the body narrowing and widening.
+      ch.spinY = Math.pow(p, 1.15) * PI * 6.0;
+      ch.lean = 0.20 + 0.12 * p;                           // leaning out against the swing
+      ch.armR.z = -0.3; ch.armL.z = -0.25;                 // both arms locked to the haft
+      ch.sx = 1 + 0.14 * p; ch.sy = 1 - 0.1 * p;
+      ch.legL = 0.3; ch.legR = -0.3;
+      ch.smear = 0.5 + 0.5 * p;
+      ch.bob = -0.2 - 0.2 * p;
+    } else {
+      // the release: dizzy, over-rotated, hauling itself back upright
+      ch.lean = 0.34 * (1 - out); ch.sx = 1 + 0.14 * (1 - out);
+      ch.armL.z = 1.1 * (1 - out); ch.armR.z = -0.9 * (1 - out);
+      ch.head = 0.3 * (1 - out) * Math.cos(out * PI * 2);
+      ch.bob = -0.4 * (1 - out);
+    }
+  } else if (wid === 'Pike') {
+    // LANCE CHARGE. Couched: body low over the front knee, lance along the line, and every thrust
+    // is the whole fighter travelling forward rather than an arm moving.
+    const FULLEXT = 1.75;
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -0.6 + (F + 0.6) * r; ch.armR.ext = 1 - 0.28 * r;   // drawn all the way in
+      ch.armL.z = 0.5 + 0.8 * r;
+      ch.lean = 0.10 + 0.18 * r; ch.sy = 1 - 0.16 * r; ch.sx = 1 + 0.1 * r;
+      ch.legR = -0.4 * r; ch.legL = 0.5 * r; ch.bob = -0.35 * r; ch.head = -0.1 * r;
+    } else if (live) {
+      const per = act / 5, phase = (ak % per) / per;
+      const punch = phase < 0.35 ? easeIn(phase / 0.35) : 1 - (phase - 0.35) / 0.65;
+      const step = Math.floor(ak / per) / 5;               // how far into the reach ramp
+      ch.armR.z = F; ch.armR.ext = 1 - 0.28 + (FULLEXT - 0.72) * punch * (0.7 + 0.3 * step);
+      ch.armL.z = 1.3 - 0.5 * punch;
+      ch.lean = 0.24 + 0.16 * punch;
+      ch.legR = 1.0 * punch - 0.4 * (1 - punch); ch.legL = -0.75 * punch + 0.5 * (1 - punch);
+      ch.sx = 1 + 0.12 * punch; ch.sy = 1 - 0.16 - 0.05 * punch;
+      ch.bob = -0.35 - 0.15 * punch;
+      ch.head = -0.1 - 0.12 * punch;
+      ch.smear = punch > 0.6 ? punch : 0;
+    } else {
+      ch.lean = 0.28 * (1 - out); ch.armR.z = F * (1 - out); ch.armR.ext = 1 + 0.5 * (1 - out);
+      ch.bob = -0.35 * (1 - out); ch.sy = 1 - 0.16 * (1 - out);
+    }
+  } else {
+    // GRIMOIRE - ASTRAL RAIN. The book goes up and the fighter opens out under it, arched back,
+    // pulsing with every wave that leaves the pages.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armL.z = 0.4 + 2.5 * r; ch.armR.z = -0.4 - 2.4 * r;
+      ch.lean = -0.45 * r; ch.sy = 1 + 0.2 * r; ch.sx = 1 - 0.12 * r;
+      ch.bob = 0.45 * r; ch.head = -0.5 * r;
+      ch.legL = -0.3 * r; ch.legR = -0.25 * r;
+    } else if (live) {
+      ch.armL.z = 2.9; ch.armR.z = -2.8; ch.lean = -0.45; ch.head = -0.5;
+      ch.legL = -0.3; ch.legR = -0.25;
+      const S = m.starfall;
+      // one pulse per wave: the fighter is the pump, not a statue
+      let pulse = 0;
+      if (S) { const since = (ak - 1) % S.every; if (since < 10 && ak - 1 < S.perTarget * S.every) pulse = 1 - since / 10; }
+      ch.sy = 1.2 + 0.18 * pulse; ch.sx = 0.88 - 0.1 * pulse;
+      ch.bob = 0.45 + 0.35 * pulse + Math.sin(t * 1.8) * 0.08;
+      ch.opacity = 1;
+      ch.shakeX = strain(0.1 * pulse);
+    } else {
+      ch.armL.z = 2.9 * (1 - out); ch.armR.z = -2.8 * (1 - out);
+      ch.lean = -0.45 * (1 - out); ch.sy = 1 + 0.2 * (1 - out); ch.bob = 0.45 * (1 - out);
+      ch.head = -0.5 * (1 - out);
+    }
+  }
+
+  // Every ultimate settles through the same damped spring the ordinary moves use, so the last
+  // frames read as a fighter recovering their balance rather than as a pose being switched off.
+  if (!wind && !live) {
+    const d = 1 - settle(out, 2.4, 3.2);
+    for (const key of ['lean', 'bob', 'head', 'legL', 'legR', 'shakeX', 'smear']) ch[key] *= d;
+    ch.sx = 1 + (ch.sx - 1) * d; ch.sy = 1 + (ch.sy - 1) * d;
+    ch.armL.z *= d; ch.armR.z *= d;
+    ch.armR.ext = 1 + (ch.armR.ext - 1) * d;
+  }
+}
+
 function attackChannels(ch, f, t) {
   const m = f.move; if (!m) return;
   const s = swing(f, m);
   const id = m.id || '';
+  // An ultimate is not a big signature and it cannot borrow a signature's timing: `swing` finishes
+  // its strike curve within a handful of frames, which is right for a 4-frame active window and
+  // meaningless across the 54 that Reave is live for. Every ultimate in the game used to fall
+  // through this map's default and play the JAB body pose - six bespoke weapon performances above
+  // a fighter doing a jab - so they get their own function, phased the same way the weapon is.
+  if (id === 'Ultimate') return ultChannels(ch, f, m, t);
   const cat = id.startsWith('LightNeutral') ? 'jab'
     : id.startsWith('LightSide') || id === 'ItemSwing' ? 'side'
     : id === 'LightDown' ? 'down' : id === 'LightUp' ? 'up'
@@ -94,6 +290,12 @@ function attackChannels(ch, f, t) {
     : id === 'SigSide' ? 'sigside' : id === 'SigDown' ? 'sigdown' : id === 'SigNeutral' ? 'signeut'
     : id === 'CounterBurst' ? 'burst' : id === 'ItemSpray' ? 'spray' : 'jab';
   ch.smear = s.smear * (m.heavy ? 1 : 0.7);
+
+  // A weapon can declare that it THRUSTS. A thrust is not a small swing: the reach comes from the
+  // body driving along a line - shoulder, hip, back leg - and from the arm extending, not from the
+  // prop rotating. The pike was animated as a sword with a tiny arc, which is why a spear read as
+  // a short sword, and its reach was faked by sliding the prop off the end of the hand.
+  const cat2 = (f.char.weapon && f.char.weapon.thrusts && THRUSTABLE[cat]) ? THRUSTABLE[cat] : cat;
 
   if (m.kind === 'counter') {
     ch.armL.z = 0.9; ch.armR.z = -0.9; ch.sy = 0.92; ch.sx = 1.08; ch.tint = '#3E4F2E';
@@ -118,7 +320,7 @@ function attackChannels(ch, f, t) {
   // the same walk, two and three frames behind, for the limbs that trail the torso
   const wLag2 = lagged(f, m, 2), wLag3 = lagged(f, m, 3), wLag4 = lagged(f, m, 4);
 
-  switch (cat) {
+  switch (cat2) {
     case 'jab':
       ch.armR.z = w < 0 ? -0.55 * -w : F * w;
       ch.armL.z = -0.25 - 0.5 * Math.abs(wLag2);
@@ -213,6 +415,31 @@ function attackChannels(ch, f, t) {
       ch.armR.z = F * 0.85; ch.armL.z = -0.4;
       ch.lean = 0.2; ch.shakeX = Math.sin(t * 40) * 0.06;
       break;
+    case 'thrust':
+      // Cock: weight back over the rear leg, spear hand drawn in to the ribs. Drive: the whole
+      // body travels, the arm extends along the line, the rear leg straightens behind it.
+      ch.armR.z = w < 0 ? -0.5 * -w : F * Math.max(0, w);
+      ch.armR.ext = 1 + (w < 0 ? -0.22 * -w : 0.62 * w);    // draws IN on the cock, out on the drive
+      ch.armL.z = 0.55 - 1.0 * Math.max(0, wLag3);
+      ch.lean = w < 0 ? -0.3 * -w : 0.38 * w;
+      ch.legR = 0.95 * Math.max(0, w) - 0.25 * Math.max(0, -w);
+      ch.legL = -0.7 * Math.max(0, w) + 0.3 * Math.max(0, -w);
+      ch.sx = 1 + 0.1 * Math.max(0, w); ch.sy = 1 - 0.06 * Math.max(0, w) + 0.05 * Math.max(0, -w);
+      ch.head = -0.14 * Math.max(0, wLag2);
+      ch.bob = -0.2 * Math.max(0, w) + 0.1 * Math.max(0, -w);
+      break;
+    case 'thrustlow':
+      // The same drive aimed at the ankles: the fighter drops into it rather than leaning into it.
+      ch.armR.z = w < 0 ? -0.4 * -w : (F + 0.55) * Math.max(0, w);
+      ch.armR.ext = 1 + (w < 0 ? -0.18 * -w : 0.52 * w);
+      ch.armL.z = 0.5 - 0.8 * Math.max(0, wLag3);
+      ch.sy = 1 - 0.3 * Math.max(0, w) + 0.08 * Math.max(0, -w);
+      ch.sx = 1 + 0.2 * Math.max(0, w);
+      ch.lean = 0.4 * Math.max(0, w) - 0.2 * Math.max(0, -w);
+      ch.legR = 1.3 * Math.max(0, w); ch.legL = -0.55 * Math.max(0, w);
+      ch.bob = -0.3 * Math.max(0, w);
+      ch.head = 0.2 * Math.max(0, wLag3);
+      break;
   }
   // Charge hold: the whole body compresses and vibrates, and the vibration gets faster the longer
   // it is held, so a fully charged move is visibly about to go off.
@@ -226,7 +453,7 @@ function attackChannels(ch, f, t) {
 }
 
 export function channelsFor(f, t) {
-  const ch = { lean: 0, bob: 0, sx: 1, sy: 1, spinY: 0, spinZ: 0, armL: { z: 0.25, x: 0 }, armR: { z: -0.25, x: 0 }, legL: 0, legR: 0, head: 0, opacity: 1, tint: null, rigRotZ: 0, yOff: 0, bubble: 0, visible: true, shakeX: 0, smear: 0 };
+  const ch = { lean: 0, bob: 0, sx: 1, sy: 1, spinY: 0, spinZ: 0, armL: { z: 0.25, x: 0, ext: 1 }, armR: { z: -0.25, x: 0, ext: 1 }, legL: 0, legR: 0, head: 0, opacity: 1, tint: null, rigRotZ: 0, yOff: 0, bubble: 0, visible: true, shakeX: 0, smear: 0 };
   const s = f.state, sf = f.sf;
   const runPhase = f.frameCount * 0.38;
   switch (s) {

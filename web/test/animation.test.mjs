@@ -19,6 +19,7 @@ import { channelsFor } from '../src/render2d/channels.js';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { weaponPose } from '../src/render2d/weapons2d.js';
 import { readFileSync } from 'node:fs';
+const PI_ = Math.PI;
 
 let pass = 0, fail = 0;
 const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
@@ -224,6 +225,99 @@ function angleAt(f, id, at) {
   }
   check('recovery follows through past rest', noSettle.length === 0,
     noSettle.length ? noSettle.join('; ') : `${rows.join(', ')} — the settle overshoots and comes back`);
+}
+
+// ---- 7. every ultimate has a body, not just a weapon ----
+// `attackChannels` mapped move ids to body categories with a `: 'jab'` fallback, and 'Ultimate'
+// matched nothing above it. So all six ultimates - the longest, loudest moves in the game, 72 to
+// 140 frames each - played the body animation of a jab underneath a bespoke weapon performance.
+// It was completely silent: the weapon looked right, so nothing looked broken.
+{
+  const rows = [], flatJab = [];
+  const bad = [];
+  for (const w of WEAPONS) {
+    const g = makeMatch({ loadouts: [['Classic', w.id], ['Noir', 'Sword']] });
+    skipCountdown(g);
+    const gf = g.fighters[0];
+    const mv = w.moves.Ultimate;
+    const st = startupOf(gf, 'Ultimate');
+    const total = st + mv.active + mv.recovery;
+    // the fully cocked frame, against the jab's fully cocked frame
+    const ultCock = poseAt(gf, 'Ultimate', st);
+    const jabCock = poseAt(gf, 'LightNeutral1', (st2) => st2);
+    const d = dist(ultCock, jabCock);
+    // and it has to keep performing all the way through, not just strike a pose
+    let travel = 0, prev = null;
+    for (let i = 0; i <= total; i++) { const c = poseAt(gf, 'Ultimate', i, i / 60); if (prev) travel += dist(c, prev); prev = c; }
+    rows.push(`${w.id} cock ${d.toFixed(1)} travel ${travel.toFixed(0)}`);
+    if (d < 1.0) bad.push(`${w.id}: ultimate wind-up pose is ${d.toFixed(2)} from the jab's - it IS the jab`);
+    if (travel < 8) bad.push(`${w.id}: ${travel.toFixed(1)} of body travel across ${total} frames`);
+  }
+  check('every ultimate animates the fighter, not only the weapon', bad.length === 0,
+    bad.length ? bad.join('; ') : `distance from the jab pose, and total body travel: ${rows.join(', ')}`);
+}
+
+// ---- 8. a weapon that says it thrusts actually thrusts ----
+// A thrust is a line and a swing is an arc, and the measurable difference is how far the weapon
+// ROTATES between its cocked frame and contact. The pike used to cover 22-26 degrees with the
+// body doing nothing and the prop sliding off the end of a fixed-length arm to fake reach; the
+// reach now comes from the fighter driving forward, which is what the rotation figure is there to
+// keep honest - if the pike ever starts sweeping, it has stopped being a spear.
+{
+  const rot = (weapon, id) => {
+    const g = makeMatch({ loadouts: [['Classic', weapon], ['Noir', 'Sword']] });
+    skipCountdown(g);
+    const gf = g.fighters[0];
+    const a = angleAt(gf, id, (st) => st);
+    const b = angleAt(gf, id, (st, m2) => st + Math.max(1, Math.ceil(m2.active * 0.6)));
+    const ch1 = (gf.setState('idle'), gf.startMove(id), gf.mf = gf.startupEff, channelsFor(gf, 0));
+    const e1 = ch1.armR.ext || 1;
+    gf.setState('idle'); gf.startMove(id); gf.mf = gf.startupEff + Math.max(1, Math.ceil(gf.move.active * 0.6));
+    const e2 = (channelsFor(gf, 0).armR.ext || 1);
+    const L = gf.h * 0.30;
+    return { deg: Math.abs(b - a) * 180 / PI_, hand: Math.cos(b) * L * e2 - Math.cos(a) * L * e1 };
+  };
+  const MOVES = ['LightNeutral1', 'LightSide1', 'SigSide'];
+  const bad = [], rows = [];
+  for (const id of MOVES) {
+    const p = rot('Pike', id), sw = rot('Sword', id), ax = rot('Axe', id);
+    rows.push(`${id}: Pike ${p.deg.toFixed(0)}° (hand +${p.hand.toFixed(1)}) vs Sword ${sw.deg.toFixed(0)}° Axe ${ax.deg.toFixed(0)}°`);
+    if (p.deg > 45) bad.push(`${id}: the pike rotates ${p.deg.toFixed(0)}° - that is a swing`);
+    if (p.hand < 1.2) bad.push(`${id}: the pike's hand travels only ${p.hand.toFixed(2)} studs forward - the reach is not coming from the fighter`);
+    if (id !== 'LightNeutral1' && sw.deg < 60) bad.push(`${id}: the sword only rotates ${sw.deg.toFixed(0)}° - the comparison is meaningless`);
+  }
+  check('the pike thrusts on a line while the swinging weapons sweep', bad.length === 0,
+    bad.length ? bad.join('; ') : rows.join('  |  '));
+}
+
+// ---- 9. nobody is drawn lying on their side ----
+// `lean` rotates the WHOLE rig (renderer2d `b.rotate(-ch.lean)`), so it is the one channel where a
+// plausible-looking number is a broken drawing. The ultimate poses written for this pass held
+// leans of 0.85 rad - 49 degrees, for 58 consecutive frames - and on the animation sheet the
+// fighter was simply tipped over, holding the lance like a fence post. An attack's contact frame
+// can lean hard for a few frames; a pose cannot HOLD it.
+{
+  const bad = [], rows = [];
+  for (const w of WEAPONS) {
+    const g = makeMatch({ loadouts: [['Classic', w.id], ['Noir', 'Sword']] });
+    skipCountdown(g);
+    const gf = g.fighters[0];
+    for (const id of Object.keys(w.moves)) {
+      const st = startupOf(gf, id);
+      const mv = w.moves[id];
+      const total = st + mv.active + mv.recovery;
+      let peak = 0;
+      for (let i = 0; i <= total; i++) peak = Math.max(peak, Math.abs(poseAt(gf, id, i, i / 60)['lean'] || 0));
+      // One bar, on the peak. A "do not HOLD a big lean" clause was tried first and had to go:
+      // the roster's committed side signatures legitimately sit above 26 degrees for 17-26 frames
+      // of their recovery and look right doing it, so any threshold that caught the 49-degree pose
+      // also failed four moves that were fine. The peak is the thing that reads as tipped over.
+      if (peak > 0.62) bad.push(`${w.id}/${id} peaks at ${(peak * 57).toFixed(0)}° - the fighter is on their side`);
+      if (peak > 0.5) rows.push(`${w.id}/${id} ${(peak * 57).toFixed(0)}°`);
+    }
+  }
+  check('no pose leans further than a body bends', bad.length === 0,
+    bad.length ? bad.join('; ') : `worst leans: ${rows.length ? rows.join(', ') : 'every move under 29°'}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

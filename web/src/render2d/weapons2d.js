@@ -61,22 +61,30 @@ const SWING_BY_WEAPON = {
     sigdown: { arc: [D(168), D(-88), D(-70)], trail: D(165), heavy: true },
     signeut: { arc: [D(-125), D(120), D(98)], trail: D(150), heavy: true },
   },
-  // Thrust offsets are small on purpose. A real spear slides through the hands on a thrust, but
-  // this renderer's arm is a fixed-length limb, so sliding the prop instead just detaches it — at
-  // 3.4 studs the grip ended up further from the hand than the fighter is tall. The reach lives in
-  // the haft and in the hitbox, which is where it belongs.
+  // A THRUST reads through the body, not the prop.
+  //
+  // The first version tried to make the pike look long by sliding the weapon forward off the hand
+  // (`thrust`, an offset along the haft) and rotating it barely 25 degrees. Both were wrong: at
+  // 3.4 studs the grip ended up further from the hand than the fighter is tall, so it was capped
+  // at 0.7 - and 25 degrees of rotation on a 5.9-stud pole is a couple of pixels of tip travel.
+  // The weapon did not look like it was being thrust, it looked like it was hovering.
+  //
+  // The reach now comes from `armR.ext` in channels.js, which extends the ARM: the hand moves, so
+  // the weapon goes with it and stays attached. That frees these arcs to do the other half of the
+  // job - cocking the point back and low, then driving it up into the line, about 50 degrees of
+  // travel, which is what makes the direction of a thrust readable at 480x270.
   Pike: {
-    jab:     { arc: [D(-20), D(2), D(-6)], trail: D(14), thrust: 0.35 },
-    side:    { arc: [D(-24), D(0), D(-8)], trail: D(16), thrust: 0.45 },
-    down:    { arc: [D(-10), D(-26), D(-20)], trail: D(16), thrust: 0.4 },
-    up:      { arc: [D(10), D(84), D(70)], trail: D(40), thrust: 0.3 },
+    jab:     { arc: [D(-26), D(2), D(-8)], trail: D(26), thrust: 0.2 },
+    side:    { arc: [D(-28), D(2), D(-8)], trail: D(28), thrust: 0.25 },
+    down:    { arc: [D(-6), D(-34), D(-26)], trail: D(28), thrust: 0.2 },
+    up:      { arc: [D(6), D(88), D(72)], trail: D(44), thrust: 0.2 },
     nair:    { arc: [D(0), D(720), D(720)], trail: D(150), spin: true },
-    fair:    { arc: [D(-22), D(-2), D(-10)], trail: D(18), thrust: 0.55 },
-    dair:    { arc: [D(-60), D(-90), D(-86)], trail: D(30), thrust: 0.3 },
-    uair:    { arc: [D(20), D(88), D(76)], trail: D(40), thrust: 0.3 },
-    sigside: { arc: [D(-26), D(0), D(-10)], trail: D(20), thrust: 0.7, heavy: true },
-    sigdown: { arc: [D(-8), D(-30), D(-22)], trail: D(20), thrust: 0.6, heavy: true },
-    signeut: { arc: [D(14), D(88), D(74)], trail: D(44), thrust: 0.5, heavy: true },
+    fair:    { arc: [D(-30), D(0), D(-10)], trail: D(30), thrust: 0.3 },
+    dair:    { arc: [D(-56), D(-92), D(-86)], trail: D(34), thrust: 0.2 },
+    uair:    { arc: [D(16), D(92), D(78)], trail: D(44), thrust: 0.2 },
+    sigside: { arc: [D(-34), D(2), D(-10)], trail: D(32), thrust: 0.35, heavy: true },
+    sigdown: { arc: [D(-4), D(-38), D(-28)], trail: D(32), thrust: 0.3, heavy: true },
+    signeut: { arc: [D(10), D(92), D(76)], trail: D(48), thrust: 0.3, heavy: true },
   },
 };
 
@@ -364,9 +372,9 @@ function ultimatePose(f, m, wid, out, t) {
       const phase = (ak % per) / per;
       const punch = phase < 0.35 ? easeIn(phase / 0.35) : 1 - (phase - 0.35) / 0.65;
       out.angle = D(-6) + Math.sin(ak * 0.4) * D(3);
-      // capped at the same 0.7 the ordinary thrusts are: past that the haft visibly leaves the
-      // hand, because the arm cannot extend with it
-      out.ox = punch * 0.7;
+      // Small, now that the ARM extends on the punch (channels.js, ultChannels/Pike): the hand
+      // carries most of the travel and this is just the haft sliding through the grip.
+      out.ox = punch * 0.25;
       out.flash = punch > 0.8 ? (punch - 0.8) * 5 : 0;
       out.ult.lance = { punch, reach: ak / Math.max(1, act) };
       if (punch > 0.5) out.trail = { from: out.angle - D(8), to: out.angle, alpha: punch, heavy: true };

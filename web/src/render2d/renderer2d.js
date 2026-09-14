@@ -12,6 +12,7 @@
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, REACH } from './weapons2d.js';
 import { drawHazards } from './hazards2d.js';
+import { drawSky, drawScenery, drawSurface } from './backdrop2d.js';
 import { drawAmbient } from './ambient2d.js';
 
 const PI = Math.PI;
@@ -159,40 +160,14 @@ export class Renderer2D {
 
   // ---------------------------------------------------------------------- stage ----
   _sky(stage) {
-    const b = this.b;
     this._screen();
-    const p = stage.data.palette;
-    const g = b.createLinearGradient(0, 0, 0, BH);
-    const stops = p.skyStops || [[0, p.sky || '#BFE3E8'], [1, p.backdrop || '#EAF7F2']];
-    for (const [o, col] of stops) g.addColorStop(clamp(o, 0, 1), col);
-    b.fillStyle = g;
-    b.fillRect(0, 0, this.BW, BH);
+    drawSky(this.b, stage, this.time, this.BW, BH, this.cam);
   }
 
-  // Parallax hills: three bands that slide against the camera, which is most of what sells depth
-  // in a 2D fighter without any actual depth.
+  // Parallax scenery: per-theme silhouette bands, hazed toward the sky by distance. See
+  // backdrop2d.js — this used to be three sine waves that overlapped into one pale wedge.
   _backdrop(stage) {
-    const b = this.b, c = this.cam, p = stage.data.palette;
-    const left = c.x - this.BW / (2 * c.ppu) - 30, right = c.x + this.BW / (2 * c.ppu) + 30;
-    const bands = [
-      [0.10, 15, 5, p.backdrop || '#BFE3E8', 0.60],
-      [0.22, 10, -2, p.accent || '#3E8F35', 0.28],
-      [0.38, 6, -9, p.ground || '#6B4A2C', 0.20],
-    ];
-    for (const [par, amp, base, col, alpha] of bands) {
-      b.globalAlpha = alpha;
-      b.fillStyle = col;
-      b.beginPath();
-      b.moveTo(left, -90);
-      for (let x = left; x <= right; x += 3) {
-        const u = (x - c.x * par) * 0.030;
-        b.lineTo(x, base + Math.sin(u) * amp * 0.5 + Math.sin(u * 0.41 + 2.1) * amp * 0.5);
-      }
-      b.lineTo(right, -90);
-      b.closePath();
-      b.fill();
-    }
-    b.globalAlpha = 1;
+    drawScenery(this.b, stage, this.cam, this.time, this.BW);
   }
 
   _stage(stage) {
@@ -206,9 +181,12 @@ export class Renderer2D {
       b.fillRect(sp.x1, sp.top - depth, sp.x2 - sp.x1, depth);
       b.fillStyle = 'rgba(0,0,0,0.16)';                                  // shaded underside
       b.fillRect(sp.x1, sp.top - depth, sp.x2 - sp.x1, Math.min(depth, 1.2));
+      drawSurface(b, stage, sp, depth, sp.top);                        // material, per theme
       b.fillStyle = p.groundTop || '#5FBF4B';
       b.fillRect(sp.x1, sp.top - 1.2, sp.x2 - sp.x1, 1.2);
-      b.fillStyle = 'rgba(255,255,255,0.16)';                            // lit top edge
+      b.fillStyle = 'rgba(0,0,0,0.22)';                                  // shadow under the cap
+      b.fillRect(sp.x1, sp.top - 1.5, sp.x2 - sp.x1, 0.3);
+      b.fillStyle = 'rgba(255,255,255,0.22)';                            // lit top edge
       b.fillRect(sp.x1, sp.top - 0.35, sp.x2 - sp.x1, 0.35);
       if (sp.ledges !== false) {                                         // grabbable corners
         b.fillStyle = p.accent || '#3E8F35';
@@ -225,8 +203,12 @@ export class Renderer2D {
       b.fillRect(pl.x1, pl.top - th, pl.x2 - pl.x1, th);
       b.fillStyle = p.groundTop || '#5FBF4B';
       b.fillRect(pl.x1, pl.top - 0.4, pl.x2 - pl.x1, 0.4);
-      b.fillStyle = 'rgba(255,255,255,0.20)';
+      b.fillStyle = 'rgba(255,255,255,0.24)';
       b.fillRect(pl.x1, pl.top - 0.15, pl.x2 - pl.x1, 0.15);
+      b.fillStyle = 'rgba(0,0,0,0.30)';                                  // underside, and end caps
+      b.fillRect(pl.x1, pl.top - th, pl.x2 - pl.x1, 0.3);
+      b.fillRect(pl.x1, pl.top - th, 0.35, th);
+      b.fillRect(pl.x2 - 0.35, pl.top - th, 0.35, th);
       if (pl.sinking) {                                                  // tell the player it sinks
         b.fillStyle = 'rgba(0,0,0,0.28)';
         for (let x = pl.x1 + 1; x < pl.x2 - 1; x += 3) b.fillRect(x, pl.top - th - 0.5, 1.2, 0.4);

@@ -45,7 +45,8 @@ export const STAGES = [
     ambient: { kind: 'ash', rate: 0.55, tint: 'rgba(196,200,208,0.9)', drift: 2.4 },
     palette: { ground: '#3E4450', groundTop: '#8A94A6', platform: '#6E7788', backdrop: '#8E9BB0', accent: '#E8862E', sky: '#C9D3E0',
       skyStops: [[0, '#38414F'], [0.45, '#6C788C'], [0.8, '#A9B5C6'], [1, '#C6D0DC']],
-      glows: [{ y: 120, r: 150, color: 'rgba(255,180,90,0.30)' }] },
+      glows: [{ x: 0.22, y: 40, r: 120, color: 'rgba(255,150,60,0.34)' },
+        { x: 0.74, y: 205, r: 90, color: 'rgba(255,240,220,0.20)', disc: 7, discColor: 'rgba(246,240,228,0.55)' }] },
     music: { bpm: 150, key: 'C', name: 'Cold Iron' },
   },
 
@@ -78,7 +79,7 @@ export const STAGES = [
     ambient: { kind: 'gulls', rate: 0.12, tint: 'rgba(255,255,255,0.5)', streaks: true },
     palette: { ground: '#4A4E58', groundTop: '#9AA6B4', platform: '#7C8695', backdrop: '#9FB4C4', accent: '#D9534F', sky: '#D6E4EE',
       skyStops: [[0, '#5C7A96'], [0.42, '#93AFC4'], [0.78, '#C8DCE8'], [1, '#E2EDF3']],
-      glows: [{ y: 140, r: 170, color: 'rgba(255,240,220,0.45)' }] },
+      glows: [{ x: 0.68, y: 210, r: 150, color: 'rgba(255,244,226,0.45)', disc: 9, discColor: 'rgba(255,252,242,0.9)' }] },
     music: { bpm: 145, key: 'F', name: 'Long Drop' },
   },
 
@@ -122,7 +123,8 @@ export const STAGES = [
     ambient: { kind: 'heat', rate: 0.9, tint: 'rgba(255,140,60,0.8)', shimmer: 1.4, glow: true },
     palette: { ground: '#3A2E2A', groundTop: '#8C5A3C', platform: '#6E4A38', backdrop: '#7A5A52', accent: '#FF7A3C', sky: '#E0A878',
       skyStops: [[0, '#2E2320'], [0.38, '#6B443A'], [0.74, '#B87452'], [1, '#E8A870']],
-      glows: [{ y: 40, r: 190, color: 'rgba(255,140,60,0.40)' }] },
+      glows: [{ x: 0.5, y: 24, r: 190, color: 'rgba(255,140,60,0.42)' },
+        { x: 0.18, y: 70, r: 90, color: 'rgba(255,96,40,0.28)' }] },
     music: { bpm: 158, key: 'D', name: 'Pour' },
   },
 
@@ -174,7 +176,8 @@ export const STAGES = [
     ambient: { kind: 'rain', rate: 1.4, tint: 'rgba(180,215,240,0.55)', wind: -7 },
     palette: { ground: '#2E3440', groundTop: '#5A6478', platform: '#4A5464', backdrop: '#5E6E86', accent: '#7DE8FF', sky: '#B8C8DC',
       skyStops: [[0, '#1E2430'], [0.4, '#3E4C62'], [0.76, '#7E90A8'], [1, '#B6C6D8']],
-      glows: [{ y: 110, r: 150, color: 'rgba(125,232,255,0.28)' }] },
+      glows: [{ x: 0.78, y: 214, r: 86, color: 'rgba(180,220,255,0.30)', disc: 6, discColor: 'rgba(226,238,255,0.92)' },
+        { x: 0.4, y: 20, r: 170, color: 'rgba(125,232,255,0.16)' }] },
     music: { bpm: 152, key: 'A', name: 'Nine Floors Up' },
   },
 
@@ -226,7 +229,7 @@ export const STAGES = [
     ambient: { kind: 'sand', rate: 1.1, tint: 'rgba(150,124,86,0.75)', wind: 11 },
     palette: { ground: '#7A6448', groundTop: '#C9A87A', platform: '#A88A62', backdrop: '#D8C0A0', accent: '#E8B04A', sky: '#F0DCB8',
       skyStops: [[0, '#8FA8C0'], [0.4, '#CFC0A8'], [0.76, '#EEDCBC'], [1, '#F6E8CE']],
-      glows: [{ y: 130, r: 180, color: 'rgba(255,240,200,0.50)' }] },
+      glows: [{ x: 0.3, y: 150, r: 190, color: 'rgba(255,232,170,0.52)', disc: 11, discColor: 'rgba(255,250,226,0.95)' }] },
     music: { bpm: 138, key: 'E', name: 'Nothing For Miles' },
   },
 
@@ -278,7 +281,7 @@ export const STAGES = [
     ambient: { kind: 'spray', rate: 0.8, tint: 'rgba(240,252,255,0.9)', wind: 4 },
     palette: { ground: '#33454E', groundTop: '#4FA0A8', platform: '#4A6470', backdrop: '#8FC0CE', accent: '#59D9F2', sky: '#D2ECF2',
       skyStops: [[0, '#33566E'], [0.4, '#6E9CB4'], [0.76, '#B4DAE6'], [1, '#D8EEF4']],
-      glows: [{ y: 150, r: 160, color: 'rgba(200,244,255,0.45)' }] },
+      glows: [{ x: 0.62, y: 176, r: 160, color: 'rgba(220,246,255,0.45)', disc: 8, discColor: 'rgba(248,253,255,0.9)' }] },
     music: { bpm: 132, key: 'Bb', name: 'Ebb and Flow' },
   },
 ];

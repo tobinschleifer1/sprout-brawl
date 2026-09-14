@@ -415,11 +415,17 @@ function poly(ctx, pts, fill) {
 }
 
 function sword(ctx, p, L) {
-  poly(ctx, [[-0.5, -0.16], [0.0, -0.16], [0.0, 0.16], [-0.5, 0.16]], p.tertiary);       // grip
-  poly(ctx, [[-0.62, -0.22], [-0.44, -0.22], [-0.44, 0.22], [-0.62, 0.22]], p.secondary); // pommel
-  poly(ctx, [[-0.06, -0.52], [0.14, -0.52], [0.14, 0.52], [-0.06, 0.52]], p.secondary);   // crossguard
+  // Two values on the blade, not one. A flat primary-coloured wedge is a grey stick at gameplay
+  // size; a lit upper bevel with a shaded lower one reads as an edge even at twenty pixels.
+  poly(ctx, [[-0.5, -0.16], [0.0, -0.16], [0.0, 0.16], [-0.5, 0.16]], p.tertiary);         // grip
+  poly(ctx, [[-0.46, -0.12], [-0.04, -0.12], [-0.04, -0.02], [-0.46, -0.02]], 'rgba(255,255,255,0.10)');
+  poly(ctx, [[-0.68, 0], [-0.5, -0.24], [-0.38, 0], [-0.5, 0.24]], p.secondary);           // pommel, a diamond
+  poly(ctx, [[-0.02, -0.60], [0.10, -0.44], [0.20, 0], [0.10, 0.44], [-0.02, 0.60],
+             [-0.10, 0.40], [-0.10, -0.40]], p.secondary);                                 // swept crossguard
   poly(ctx, [[0.14, -0.19], [L - 0.45, -0.19], [L, 0], [L - 0.45, 0.19], [0.14, 0.19]], p.primary);
-  poly(ctx, [[0.14, -0.07], [L - 0.5, -0.07], [L - 0.4, 0], [L - 0.5, 0.07], [0.14, 0.07]], p.accent); // fuller
+  poly(ctx, [[0.14, -0.19], [L - 0.45, -0.19], [L - 0.2, -0.07], [0.14, -0.05]], 'rgba(255,255,255,0.20)'); // lit bevel
+  poly(ctx, [[0.14, 0.19], [L - 0.45, 0.19], [L - 0.2, 0.07], [0.14, 0.05]], 'rgba(0,0,0,0.22)');           // shaded bevel
+  poly(ctx, [[0.14, -0.06], [L - 0.5, -0.06], [L - 0.4, 0], [L - 0.5, 0.06], [0.14, 0.06]], p.accent);      // fuller
 }
 
 function scythe(ctx, p, L) {
@@ -441,17 +447,28 @@ function scythe(ctx, p, L) {
 function blaster(ctx, p) {
   poly(ctx, [[-0.34, -0.30], [0.42, -0.30], [0.42, 0.06], [-0.34, 0.06]], p.primary);      // slide
   poly(ctx, [[-0.30, -0.26], [0.36, -0.26], [0.36, -0.16], [-0.30, -0.16]], p.accent);     // top rail
+  poly(ctx, [[-0.34, -0.02], [0.42, -0.02], [0.42, 0.06], [-0.34, 0.06]], 'rgba(0,0,0,0.28)'); // shaded underside
   poly(ctx, [[0.30, -0.20], [0.92, -0.20], [0.92, 0.02], [0.30, 0.02]], p.secondary);      // barrel
+  poly(ctx, [[0.30, -0.20], [0.92, -0.20], [0.92, -0.13], [0.30, -0.13]], 'rgba(255,255,255,0.18)');
+  poly(ctx, [[0.10, -0.42], [0.22, -0.42], [0.22, -0.28], [0.10, -0.28]], p.secondary);    // the sight
   poly(ctx, [[-0.30, 0.02], [0.02, 0.02], [0.14, 0.62], [-0.18, 0.62]], p.primary);        // grip
+  poly(ctx, [[-0.22, 0.06], [-0.04, 0.06], [0.04, 0.50], [-0.12, 0.50]], 'rgba(0,0,0,0.22)');
+  poly(ctx, [[0.06, 0.04], [0.30, 0.04], [0.30, 0.12], [0.06, 0.12]], p.tertiary);         // trigger guard
 }
 
 function grimoire(ctx, p) {
   poly(ctx, [[-0.55, -0.72], [0.62, -0.60], [0.62, 0.60], [-0.55, 0.72]], p.primary);      // cover
   poly(ctx, [[-0.55, -0.72], [0.62, -0.60], [0.62, -0.46], [-0.55, -0.58]], p.accent);     // lit edge
+  poly(ctx, [[-0.55, 0.46], [0.62, 0.40], [0.62, 0.60], [-0.55, 0.72]], 'rgba(0,0,0,0.26)'); // shaded edge
   poly(ctx, [[0.50, -0.58], [0.78, -0.54], [0.78, 0.54], [0.50, 0.58]], '#F0E7D2');         // pages
+  poly(ctx, [[0.50, -0.58], [0.78, -0.54], [0.78, -0.40], [0.50, -0.44]], 'rgba(0,0,0,0.16)');
   poly(ctx, [[-0.66, -0.70], [-0.50, -0.70], [-0.50, 0.70], [-0.66, 0.70]], p.tertiary);   // spine
+  poly(ctx, [[0.44, -0.30], [0.70, -0.28], [0.70, -0.14], [0.44, -0.16]], p.secondary);    // clasps
+  poly(ctx, [[0.44, 0.14], [0.70, 0.12], [0.70, 0.26], [0.44, 0.24]], p.secondary);
   ctx.beginPath(); ctx.arc(0.05, 0, 0.24, 0, PI * 2);
   ctx.fillStyle = p.glow || p.accent; ctx.fill();
+  ctx.beginPath(); ctx.arc(0.05, 0, 0.12, 0, PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
 }
 
 function axe(ctx, p, L) {
@@ -473,11 +490,18 @@ function axe(ctx, p, L) {
   ctx.lineTo(h, 0.24);
   ctx.closePath();
   ctx.fillStyle = p.primary; ctx.fill();
+  // The cheek of the head, a value darker: a solid slab of one colour reads as cardboard, and the
+  // axe head is the biggest single shape any weapon in the game puts on screen.
+  ctx.beginPath();
+  ctx.moveTo(h, -0.2); ctx.lineTo(h + 0.44, -0.95); ctx.lineTo(h + 0.62, 0.05); ctx.lineTo(h + 0.5, 0.85); ctx.lineTo(h, 0.24);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.fill();
   // a bright edge along the bite, which is the part that has to read at gameplay size
   ctx.beginPath();
   ctx.moveTo(h + 0.5, -1.25); ctx.lineTo(L + 0.34, -0.9); ctx.lineTo(L + 0.5, 0.1); ctx.lineTo(h + 0.62, 1.1);
   ctx.strokeStyle = p.accent; ctx.lineWidth = 0.16; ctx.stroke();
   poly(ctx, [[h - 0.28, -0.34], [h - 0.02, -0.78], [h + 0.1, -0.3], [h + 0.1, 0.3], [h - 0.02, 0.62], [h - 0.28, 0.34]], p.secondary);  // reverse spike
+  poly(ctx, [[-0.85, -0.14], [L - 0.2, -0.14], [L - 0.2, -0.05], [-0.85, -0.05]], 'rgba(255,255,255,0.12)');  // lit side of the haft
 }
 
 function pike(ctx, p, L) {
@@ -490,14 +514,18 @@ function pike(ctx, p, L) {
   }
   // langets and the head
   poly(ctx, [[L - 0.75, -0.2], [L - 0.3, -0.2], [L - 0.3, 0.2], [L - 0.75, 0.2]], p.secondary);
+  poly(ctx, [[-1.5, -0.09], [L - 0.6, -0.09], [L - 0.6, -0.03], [-1.5, -0.03]], 'rgba(255,255,255,0.16)');   // lit side of the haft
+  poly(ctx, [[-1.5, 0.04], [L - 0.6, 0.04], [L - 0.6, 0.09], [-1.5, 0.09]], 'rgba(0,0,0,0.20)');             // and the shaded one
+  poly(ctx, [[0.55, -0.15], [1.5, -0.15], [1.5, 0.15], [0.55, 0.15]], p.tertiary);                           // the leather grip
   ctx.beginPath();
   ctx.moveTo(L - 0.35, -0.26);
   ctx.lineTo(L + 0.55, 0);
   ctx.lineTo(L - 0.35, 0.26);
   ctx.closePath();
   ctx.fillStyle = p.accent; ctx.fill();
-  ctx.beginPath(); ctx.moveTo(L - 0.3, 0); ctx.lineTo(L + 0.5, 0);
-  ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.08; ctx.stroke();
+  poly(ctx, [[L - 0.35, 0.04], [L + 0.42, 0.02], [L - 0.35, 0.26]], 'rgba(0,0,0,0.26)');                     // the point has a near face
+  ctx.beginPath(); ctx.moveTo(L - 0.3, -0.04); ctx.lineTo(L + 0.5, -0.01);
+  ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.07; ctx.stroke();
 }
 
 const SHAPES = { Sword: (c, p) => sword(c, p, 2.35), Scythe: (c, p) => scythe(c, p, 2.9), Blasters: blaster, Grimoire: grimoire,
@@ -505,6 +533,9 @@ const SHAPES = { Sword: (c, p) => sword(c, p, 2.35), Scythe: (c, p) => scythe(c,
 
 // Blade length per weapon, used to size the swing trail.
 export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9, Axe: 3.2, Pike: 5.9 };
+
+// A palette whose every entry is the same dark value, for the contour pass below.
+const CONTOUR = new Proxy({}, { get: () => 'rgba(22,18,26,0.62)' });
 
 export function drawWeapon(ctx, weaponId, palette, pose) {
   const shape = SHAPES[weaponId];
@@ -518,6 +549,17 @@ export function drawWeapon(ctx, weaponId, palette, pose) {
   ctx.rotate(pose.angle);
   ctx.translate(pose.ox, pose.oy);
   if (pose.scale && pose.scale !== 1) ctx.scale(pose.scale, pose.scale);   // Colossus doubles the blade
+
+  // CONTOUR PASS. Every weapon is drawn twice: once flat in a dark value, offset a tenth of a stud
+  // back and down, then properly on top. That is the whole trick — at gameplay zoom a weapon is
+  // twenty to thirty pixels of mid-grey against a sky of mid-grey, and without a contour the sword
+  // disappeared into the backdrop the moment it left the fighter's silhouette. An outline stroke
+  // will not do it, because these shapes are five or six separate polygons with no common path;
+  // re-running the shape in one colour gives a true silhouette for free.
+  ctx.save();
+  ctx.translate(-0.11, -0.11);
+  shape(ctx, CONTOUR);
+  ctx.restore();
   shape(ctx, palette);
   if (pose.charge > 0) {              // charging glows along the weapon
     ctx.globalAlpha = 0.25 + pose.charge * 0.5;

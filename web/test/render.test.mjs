@@ -26,7 +26,9 @@ function stubCtx() {
   return new Proxy({}, {
     get(target, prop) {
       if (prop === 'canvas') return { width: 480, height: 270 };
-      if (prop === 'createLinearGradient') return () => ({ addColorStop: noop });
+      // Both gradient factories. The radial one was missing, and the day something in the paint
+      // path started using it the stub threw for every stage at frame 0.
+      if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => ({ addColorStop: noop });
       if (prop === 'measureText') return () => ({ width: 10 });
       if (prop === 'getImageData') return () => ({ data: new Uint8ClampedArray(4) });
       if (prop in target) return target[prop];
@@ -132,6 +134,32 @@ for (const data of STAGES) {
   }
   check('every ultimate renders start to finish', bad.length === 0,
     bad.length ? bad.join('; ') : `${WEAPONS.length} ultimates drawn through windup, active and recovery`);
+}
+
+// ---- every stage theme has scenery, and every palette key it declares is actually painted ----
+//
+// Both halves of this check are for the same failure. Each of the six stages declared a
+// `palette.glows` — a sun, a moon, a furnace mouth — and for the whole life of the project NOTHING
+// READ IT: six deliberate light sources written down and thrown away, which is most of why the
+// skies rendered as flat gradients. A stage theme with no entry in the scenery table fails the
+// same way: the data is there, the drawing is not, and nothing says so.
+{
+  const { readFileSync } = await import('node:fs');
+  const src = ['backdrop2d.js', 'renderer2d.js', 'ambient2d.js', 'hazards2d.js']
+    .map((f) => readFileSync(new URL(`../src/render2d/${f}`, import.meta.url), 'utf8')).join('\n');
+  const unread = new Set(), themeless = [];
+  for (const d of STAGES) {
+    if (!src.includes(`'${d.theme}'`)) themeless.push(`${d.name} (${d.theme})`);
+    for (const key of Object.keys(d.palette)) {
+      if (src.includes(`p.${key}`) || src.includes(`palette.${key}`) || src.includes(`.${key} ||`)) continue;
+      unread.add(key);
+    }
+  }
+  const bad = [...unread].map((k) => `palette.${k} is declared by the stages and read by no renderer`)
+    .concat(themeless.map((t) => `${t} has no scenery bands — it renders as an empty sky`));
+  check('every stage theme is drawn, and no palette key is dead data', bad.length === 0,
+    bad.length ? bad.join('; ')
+      : `${STAGES.length} themes all have scenery, and every palette key (${[...new Set(STAGES.flatMap((d) => Object.keys(d.palette)))].join(', ')}) is painted`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

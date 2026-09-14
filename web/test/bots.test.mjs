@@ -16,6 +16,7 @@ import { makeMatch, skipCountdown } from './harness.mjs';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { ULTIMATE } from '../src/config.js';
 import { STAGES } from '../src/data/stages/index.js';
+import { CHAINS, LEVELS } from '../src/engine/ai.js';
 import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
@@ -121,29 +122,26 @@ function botMatch(opts = {}) {
     `${selfKO} of ${total} KOs across six stages were fighters nobody had ever hit (${(rate * 100).toFixed(0)}%)`);
 }
 
-// ---- 6. difficulty scaling — A KNOWN OPEN DEFECT, pinned so it cannot get worse ----
+// ---- 6. difficulty is a LADDER: each level beats the one below it ----
 //
-// Difficulty barely does anything, and it took three sample sizes to establish that honestly.
-// At 14 games the same duel returned 3/14 then 7/14; at 20 games the stock ratio read 0.84 and
-// then 1.91. Both of those were noise, and either could have been written up as a finding. At 80
-// games it settles: just_dont beats easy 83 stocks to 76 — a ratio of 1.09 — and hard vs easy is
-// exactly 73 to 73. The scale is not inverted. It is FLAT: the hardest bot in the game is about
-// nine percent better than the easiest, and two of the six levels are indistinguishable.
+// This check used to be pinned near the floor with a comment calling difficulty a known defect,
+// because it was: over eighty games the hardest bot beat the easiest 83 stocks to 76, a ratio of
+// 1.09, and two of the six levels were indistinguishable. Three rounds of work went into the AI
+// looking for the cause.
 //
-// Diagnosed so far, and partly fixed: the top levels re-rolled their plan every frame because plan
-// churn was tied to `reaction` (now `commit`); and at defence 1.0 / dodge 1.0 they spent 11% of the
-// match spot-dodging and attacked less than Normal, because taking every defensive option available
-// is not skill (now rate-limited and converted into a punish). Those moved the ratio from 0.74 to
-// 0.84. Something else is still upside down — most likely that aggression and air time rise with
-// level while conversion does not, so the better bots simply expose themselves more.
+// The cause was not in the AI at all. A grounded lunge left its drive speed in `vx` when the
+// active frames ended and the airborne branch of _stepAttack was skipped for any move with a
+// lunge, so a signature thrown near an edge carried its own user off the stage - and the levels
+// most likely to throw one are the aggressive ones. Aggression, the only dial difficulty was
+// turning, was literally a suicide rate. Fixing the lunge (see engine.test.mjs checks 10 and 11)
+// moved this from 1.09 to 4.75 on its own.
 //
-// The bar below is deliberately near the floor, because this metric is too noisy at any sample
-// size a test suite can afford: at forty games it flaked below 0.7 on the first run after being
-// set there. It exists to catch the scale going CATASTROPHICALLY backwards — the hardest bot
-// losing two stocks to one — and to print the number every run so the trend is visible. It does
-// not certify anything. The target is a ratio above 1.5 and getting there is open work.
+// The second half is perception. Difficulty now handicaps what a bot can SEE - `sight` frames of
+// staleness in its view of the opponent, 26 at easy and 0 at the top - which is how the fighting
+// game AI literature does it and is the reason the rungs below are separated rather than merely
+// ordered.
 {
-  const ratio = (lo, hi, n) => {
+  const ladder = (lo, hi, n) => {
     let hiS = 0, loS = 0, games = 0;
     for (let g = 0; g < n; g++) {
       const m = makeMatch({ mode: 'StockFFA', stocks: 3, loadouts: [['Classic', 'Sword'], ['Noir', 'Sword']] });
@@ -155,10 +153,83 @@ function botMatch(opts = {}) {
     }
     return { r: hiS / Math.max(1, loS), hiS, loS, games };
   };
-  const top = ratio('easy', 'just_dont', 40);
-  check('difficulty scaling has not collapsed (KNOWN DEFECT: it is flat, target >1.5)', top.r >= 0.45,
-    `just_dont vs easy over ${top.games} games: ${top.hiS} stocks to ${top.loS}, ratio ${top.r.toFixed(2)} — ` +
-    `1.09 over 80 games, target >1.5. This number swings 0.74-1.91 between runs; only a collapse below 0.45 fails.`);
+  const RUNGS = [['easy', 'normal'], ['normal', 'hard'], ['hard', 'just_dont']];
+  const rows = [], weak = [];
+  for (const [lo, hi] of RUNGS) {
+    const d = ladder(lo, hi, 16);
+    rows.push(`${hi} beat ${lo} ${d.hiS}-${d.loS} (${d.r.toFixed(1)}x over ${d.games})`);
+    // The bar is deliberately far below what these actually measure (4x to 75x on longer runs).
+    // Twelve games is a small sample and this metric has historically swung by a factor of two
+    // between runs, so this exists to catch the LADDER BREAKING, not to certify a number.
+    if (d.r < 1.2) weak.push(`${hi} vs ${lo} only ${d.r.toFixed(2)}x`);
+  }
+  check('every difficulty beats the one below it', weak.length === 0,
+    weak.length ? `${weak.join('; ')} — the ladder has a flat or inverted rung` : rows.join(' | '));
+}
+
+// ---- 7. every chain the AI defines can actually be started ----
+//
+// Chains are the committed input sequences borrowed from SmashBot's Strategy / Tactic / Chain
+// split. The first version of `shieldGrab` was unreachable: it was selected in the tactic block,
+// but a shield plan is set by the threat-reaction branch above it, which returns first. It was
+// written, gated by level, and never once run.
+//
+// That is the fourth time this project has shipped authored-but-unreachable behaviour (spinY and
+// spinZ, env.grip, five ultimate VFX channels, palette.glows), so it gets a check rather than
+// another fix. Real matches, and watch what the bots actually start.
+{
+  const started = new Set();
+  const byLevel = {};
+  for (const lvl of ['easy', 'normal', 'hard', 'just_dont']) {
+    const m = botMatch({ weapons: ['Sword', 'Axe'], level: lvl });
+    const here = new Set();
+    for (let i = 0; i < 60 * 100 && m.state !== 'results'; i++) {
+      m.step(); m.events.length = 0;
+      for (const f of m.fighters) if (f.ai && f.ai.chain) { started.add(f.ai.chain.name); here.add(f.ai.chain.name); }
+    }
+    byLevel[lvl] = [...here];
+  }
+  const never = Object.keys(CHAINS).filter((k) => !started.has(k));
+  // and the gate has to bite: a level that knows no chains must start none
+  const leak = byLevel.easy.length ? `easy knows ${LEVELS.easy.chains} chains but started ${byLevel.easy.join(', ')}` : null;
+  check('every chain the AI defines is reachable, and the level gate holds', never.length === 0 && !leak,
+    never.length ? `defined but never started: ${never.join(', ')}` : leak
+      || Object.entries(byLevel).map(([k, v]) => `${k}: ${v.length ? v.join('+') : 'none'}`).join(' | '));
+}
+
+// ---- 8. a bot's view of its opponent is as stale as its level says ----
+//
+// Perception delay is the difficulty lever now, so it has to be real: an `easy` bot must actually
+// be reading a stale world, and the top level must be reading the current one. Measured by moving
+// a fighter and asking what each level would have seen.
+{
+  const m = makeMatch({ mode: 'StockFFA', stocks: 3, loadouts: [['Classic', 'Sword'], ['Noir', 'Sword']] });
+  skipCountdown(m);
+  m.fighters.forEach((f) => { f.isBot = true; f.botLevel = 'hard'; });
+  const [a, b] = m.fighters;
+  // drive B across the stage for a while so there is a history with real spread in it
+  for (let i = 0; i < 90; i++) { b.x = i * 0.4; m.step(); m.events.length = 0; }
+  const buf = m._aiHist.ring.get(b);
+  // The newest entry is what a bot with sight 0 reads. It is NOT the same as b.x after the step:
+  // the ring is written while the bot is deciding, and the world keeps moving after that. The
+  // invariant is staleness relative to that newest entry, which is what "sight" actually means.
+  const newest = buf[buf.length - 1].x;
+  const rows = [], bad = [];
+  let prevLag = -1, prevName = '';
+  // `imposible` is a deliberate alias for the same object (the menu shipped that spelling), so
+  // dedupe by identity or the ladder below compares a level against itself.
+  const uniq = [], seenL = new Set();
+  for (const [lvl, L] of Object.entries(LEVELS)) { if (!L || seenL.has(L)) continue; seenL.add(L); uniq.push([lvl, L]); }
+  for (const [lvl, L] of uniq.sort((p, q) => q[1].sight - p[1].sight)) {
+    const lag = Math.abs(newest - buf[Math.max(0, buf.length - 1 - L.sight)].x);
+    rows.push(`${lvl} sight ${L.sight} = ${lag.toFixed(1)} studs behind`);
+    if (L.sight === 0 && lag > 1e-9) bad.push(`${lvl} has sight 0 but reads a stale snapshot`);
+    if (L.sight > 0 && lag <= 0) bad.push(`${lvl} has sight ${L.sight} but reads the newest snapshot`);
+    if (prevLag >= 0 && lag >= prevLag) bad.push(`${lvl} is not sharper than ${prevName} (${lag.toFixed(1)} vs ${prevLag.toFixed(1)})`);
+    prevLag = lag; prevName = lvl;
+  }
+  check('a bot sees the world as late as its difficulty says', bad.length === 0,
+    bad.length ? bad.join('; ') : `against an opponent crossing the stage: ${rows.join(', ')}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

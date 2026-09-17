@@ -95,12 +95,20 @@ export default {
       shieldDamageMul: 2.2,
       hitboxes: [{ frames: [20, 23], offset: [1.8, 4.8], size: [4.2, 6.6] }] },
 
-    // ULTIMATE - Meteor. The hammer goes up, and the fighter goes up with it, and then all of it
-    // comes down in one place. A single hit, the largest in the game, on the longest wind-up in
-    // the game: everyone gets a second and a half to not be standing there.
-    Ultimate: { label: 'Meteor', startup: 40, active: 10, recovery: 44, damage: 26, base: 40, growth: 4.4, angle: 74,
-      grounded: true, heavy: true, kind: 'slam', ultimate: true, knockbackMul: 1.5, weaponScale: 1.8, shieldDamageMul: 4.0,
-      crater: { frame: 0, every: 3, count: 6, step: 5.0, radius: 3.6, damage: 16, minDamage: 13, base: 30, growth: 3.4, angle: 80, centreAngle: 74, knockbackMul: 1.5, shieldDamageMul: 4.0 },
-      hitboxes: [{ frames: [41, 50], offset: [2.2, 2.4], size: [7.0, 8.0] }] },
+    // ULTIMATE - UPHEAVAL. The floor attacks, and it attacks where THEY are standing.
+    //
+    // Colossus cracks the ground outward from the sword. This raises a column under each opponent
+    // in turn, five times, cycling through everyone who is on the ground. The difference is the
+    // whole point: a crater is something you walk out of, a column is somewhere you already are.
+    // Being airborne is the answer to it, which gives the heaviest weapon in the game a move that
+    // makes light fighters jump - and jumping is where the hammer's aerials live.
+    Ultimate: { label: 'Upheaval', startup: 30, active: 64, recovery: 40, damage: 14, base: 26, growth: 2.6, angle: 88,
+      grounded: true, heavy: true, kind: 'upheaval', ultimate: true, knockbackMul: 1.3, shieldDamageMul: 4.0,
+      hitboxes: [],
+      // Each column pops rather than launches, so the next one can still reach them; the move's
+      // kill comes from the sum, not from one hit.
+      upheaval: { every: 13, count: 5, width: 5.0, height: 11.0,
+        damage: 12, base: 14, growth: 1.6, angle: 82, knockbackMul: 1.0, shieldDamageMul: 4.0 },
+    },
   },
 };

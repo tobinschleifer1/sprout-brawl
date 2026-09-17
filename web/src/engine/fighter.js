@@ -85,6 +85,8 @@ export class Fighter {
     // holds instead of decaying like a gust. Set by the Snare branch on both fighters each frame.
     this.snaredBy = 0;
     this.reeling = 0;
+    this.reflecting = null;   // Aegis window
+    this.marking = null;      // Exsanguinate window
     this.lastHitBy = null; this.lastHitFrame = -9999;
     this.inWater = false;
     // What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run
@@ -104,7 +106,7 @@ export class Fighter {
     // carryX is added at the position step instead, so drift and wind compose rather than fight.
     this.carryX = 0;
     this.effects.chill = { stacks: 0, timer: 0 }; this.effects.tangle = { stacks: 0, timer: 0 }; this.effects.grit = { hide: 0, slow: 0 }; this.effects.slow = 0; this.effects.frozenBonus = false;
-    this.effects.lodestone = 0; this.effects.lodestoneDef = null;
+    this.effects.lodestone = 0; this.effects.lodestoneDef = null; this.effects.bleed = 0;
     if (opts.percent != null) this.percent = opts.percent;
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
     if (this.mech.id === 'Brace') { this.mech.guardFrames = 0; this.mech.ready = false; }
@@ -635,7 +637,11 @@ export class Fighter {
   }
 
   endMove() {
-    if (this.moveId === 'Ultimate') { this.ultActive = 0; this.ultTarget = null; this.ultHeld = []; }
+    if (this.moveId === 'Ultimate') { this.ultActive = 0; this.ultTarget = null; this.ultHeld = []; this.ultAnchor = null; }
+    // The two sustained ultimate windows close with the move that opened them. Leaving either set
+    // would hand a fighter a permanent reflect or a permanent mark, which is the kind of thing
+    // that only shows up three matches later.
+    this.reflecting = null; this.marking = null;
     this.move = null; this.moveId = null;
     this.setState(this.onGround ? 'idle' : 'air');
   }

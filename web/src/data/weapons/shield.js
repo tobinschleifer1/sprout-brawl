@@ -94,16 +94,26 @@ export default {
       counter: { multiplier: 1.9, minDamage: 11, burstFrames: 4, burstRecovery: 18, hitbox: { offset: [2.4, 2.8], size: [6.0, 5.0] } },
       hitboxes: [] },
 
-    // ULTIMATE - Last Stand. The shield plants and for two and a half seconds the fighter cannot be
-    // moved: every hit that arrives is absorbed and added to what is coming back. It ends in one
-    // release whose size is the punishment for everything that was thrown at it.
-    Ultimate: { label: 'Last Stand', startup: 14, active: 44, recovery: 36, damage: 3, base: 6, growth: 0.2, angle: 60,
-      grounded: true, heavy: true, kind: 'melee', ultimate: true, knockbackMul: 1.4, shieldDamageMul: 3.0,
-      hitboxes: [
-        // the plant: a close, constant, low-knockback field that holds anybody who stays in it
-        { frames: [15, 46], offset: [1.8, 2.8], size: [6.0, 5.2], shieldDamageMul: 2.6, rehitEvery: 6, damage: 3, base: 7, growth: 0.2, angle: 70 },
-        // and the release
-        { frames: [47, 58], offset: [3.2, 2.8], size: [11.0, 6.4], rehitEvery: 12, damage: 15, base: 27, growth: 3.5, angle: 44, shieldDamageMul: 5.0 },
-      ] },
+    // ULTIMATE - AEGIS. Their damage becomes yours.
+    //
+    // For two seconds every hit that lands on this fighter is absorbed and thrown straight back at
+    // whoever threw it at 2.2x, floored at 14% so even a jab hurts to have tried. Counterguard does
+    // this for one hit on one frame; this holds the window open.
+    //
+    // It is the only ultimate in the game that does NOTHING unless the opponent acts, which is the
+    // most complete statement of what this weapon is. Against someone who simply walks away it is
+    // the whole meter spent on standing still - and that is the correct counterplay, not a flaw.
+    // Startup 4, not 12. At twelve frames a swing already in the air beat the activation outright
+    // at point-blank range - the probe failed at 2.5 and 4 studs and passed at 7, which is the
+    // shape of an ultimate being interrupted rather than blocked. A counter that loses to being
+    // attacked is not a counter.
+    Ultimate: { label: 'Aegis', startup: 4, active: 120, recovery: 38, damage: 0, base: 0, growth: 0, angle: 50,
+      grounded: true, heavy: true, kind: 'reflect', ultimate: true, shieldDamageMul: 3.0,
+      hitboxes: [],
+      reflect: { multiplier: 2.6, minDamage: 20, radius: 4.8, angle: 46, base: 30, growth: 3.6, shieldDamageMul: 3.0,
+        // and the discharge: everything it absorbed, released on the last frame, with a floor so
+        // an opponent who refuses to engage still has to respect the end of it
+        dischargeMin: 20, dischargeShare: 1.1, dischargeRadius: 6.5 },
+    },
   },
 };

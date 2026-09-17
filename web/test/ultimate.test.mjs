@@ -118,7 +118,8 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   // ---- 7. every weapon's ultimate runs to completion and deals damage ----
   // Distance matters: a gun's muzzle sits 2.7 studs out, so point-blank is exactly where its
   // bullets spawn PAST you. Each ultimate is tested at the range it is meant to be used at.
-  const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10 };
+  const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
+    Gauntlets: 4.0, Hammer: 4.0, Longbow: 10, Flail: 5.0, Shield: 3.0, Daggers: 3.5 };
   for (const w of WEAPONS) {
     if (!w.moves.Ultimate) continue;
     const ctx = duel(w.id);
@@ -137,6 +138,10 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
       // it on a timer here tests the one that reads it without changing the other three.
       if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
       else m._input.clear('p0');
+      // A REFLECT ultimate deals nothing to somebody who never attacks - that IS the move. Against
+      // a motionless victim this probe would measure 0% and call Aegis broken, when what it had
+      // actually measured is the absence of an opponent. So the victim throws lights at it.
+      if (w.moves.Ultimate.kind === 'reflect') m._input.set('p1', Object.assign({}, EMPTY_IN, { light: i % 10 === 0, anyPress: i % 10 === 0 }));
       m.step(); frames++;
       // keep the victim on stage, so the number read is damage and not how far they flew
       if (v.y < -4) { v.y = 0; v.vy = 0; v.onGround = true; v.platform = m.stage.main; }
@@ -148,7 +153,11 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     // runs to completion and reaches the victim at all; the full-damage numbers are pinned by the
     // kill-percent bands in check 13 and the per-opponent orb count in check 12.
     const floor = w.id === 'Grimoire' ? 13 : 18;
-    check(`${w.id}: the ultimate resolves and connects`, frames > 0 && a.state !== 'attack' && v.percent >= floor,
+    // For a reflect, the damage still lands on the fighter the probe calls the victim - because
+    // the victim is the one swinging, and a reflect hurts whoever swung. Reading the Shield
+    // player's own percent instead measured a fighter nothing had touched.
+    const dealt = v.percent;
+    check(`${w.id}: the ultimate resolves and connects`, frames > 0 && a.state !== 'attack' && dealt >= floor,
       `${w.moves.Ultimate.label}: ran ${frames}f from ${d} studs, dealt ${v.percent}% (want ${floor}+), ended '${a.state}'`);
   }
 }
@@ -174,9 +183,12 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     m.subscribe ? null : null;
     m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
     m.step();
+    const reflects = WEAPONS.find((w) => w.id === weaponId).moves.Ultimate.kind === 'reflect';
     for (let i = 0; i < 400 && (a.state === 'attack' || a.hitlag > 0); i++) {
       if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
       else m._input.clear('p0');
+      // Same reason as the connect probe: a reflect launches nobody unless somebody swings at it.
+      if (reflects) m._input.set('p1', Object.assign({}, EMPTY_IN, { light: i % 10 === 0, anyPress: i % 10 === 0 }));
       m.step();
       for (const e of m.events) if (e.type === 'hit' && e.victim === v.index) { biggest = Math.max(biggest, e.launch); seen.push(e.launch); }
       m.events.length = 0;
@@ -378,7 +390,9 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     // that cannot touch you, which it obviously does.
     Axe: [2.5, 5, 8], Pike: [6, 12, 18],
     Gauntlets: [2.5, 4, 6], Hammer: [3, 5, 8], Longbow: [6, 12, 20],
-    Flail: [3, 6, 10], Shield: [2.5, 4, 7], Daggers: [2.5, 4, 6] };
+    // Exsanguinate marks at close range only - its window hitbox reaches 4.8 studs, so probing at
+    // 6 measured a miss and called it a clean block.
+    Flail: [3, 6, 10], Shield: [2.5, 4, 7], Daggers: [2.5, 3.5, 4.5] };
   // Second per-weapon map in this file that a new weapon has to be added to. Missing from the one
   // above, a weapon measured a launch of NaN; missing from this one it threw outright. Both now
   // say so by name instead.
@@ -401,7 +415,25 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
       let broke = false, lowest = 50;
       for (let i = 0; i < 340 && (a.state === 'attack' || a.hitlag > 0 || m.combat.projectiles.length); i++) {
         m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: i % 20 === 0, anyPress: i % 20 === 0 }));
-        m._input.set('p1', Object.assign({}, EMPTY_IN, { guard: true, guardHeld: true, anyPress: true }));
+        // A REFLECT ultimate does nothing at all to somebody who never attacks - that is the move,
+        // not a bug in it. Holding shield against Aegis and reporting "blocked clean" measures the
+        // absence of an opponent. So the defender shields AND swings, which is what anyone
+        // actually does, and the question becomes whether shielding saved them.
+        // A REFLECT ultimate does nothing at all to somebody who never attacks - that is the move,
+        // not a bug in it - so the defender here shields AND periodically swings, which is what a
+        // real player does. It cannot do both on the same frame: light + guardHeld is a GRAB in
+        // this engine, so holding both produced a defender who only ever grabbed and the probe
+        // measured a fighter who never attacked at all.
+        const reflects = w.moves.Ultimate && w.moves.Ultimate.kind === 'reflect';
+        // The no-guard stretch has to outlast INPUT_BUFFER (6 frames), or the buffered light meets
+        // the returning guard and becomes a GRAB - and a grab cancels the ultimate outright, so
+        // the probe was measuring "can you grab someone out of their ultimate" (yes, at close
+        // range) rather than "can you block it". That is a real property of every ultimate in the
+        // game and worth knowing, but it is not what this check is for.
+        const swinging = reflects && i % 30 < 10;
+        m._input.set('p1', swinging
+          ? Object.assign({}, EMPTY_IN, { light: i % 30 === 0, anyPress: i % 30 === 0 })
+          : Object.assign({}, EMPTY_IN, { guard: true, guardHeld: true, anyPress: true }));
         m.step();
         // The engine's broken-shield state is 'stunned', and it emits a `shieldbreak` event. This
         // loop watched for 'shieldbreak' and 'stun', neither of which exists, so a shield that
@@ -424,6 +456,43 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   }
   check('holding shield is not a free answer to an ultimate, at any range', blocked.length === 0,
     blocked.length ? `blocked clean: ${blocked.join('; ')}` : rows.join('  '));
+}
+
+// ---- no ultimate deals wildly more than the rest ----
+//
+// The Chain Flail's Anchor dealt 124% in a single activation - three times what any other ultimate
+// in the game does - because a chain that is live along its whole length connects far more often
+// than a swing does, and nothing measured total output. It only surfaced as a side effect of the
+// knockback-scaling check: when a move adds a hundred percent by itself, what the victim started
+// at stops mattering, and the scaling ratio collapses.
+{
+  const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
+    Gauntlets: 4.0, Hammer: 4.0, Longbow: 10, Flail: 5.0, Shield: 3.0, Daggers: 3.5 };
+  const rows = [], bad = [];
+  for (const w of WEAPONS) {
+    if (!w.moves.Ultimate) continue;
+    const { m, a, v } = duel(w.id);
+    const d = RANGE[w.id] ?? 4;
+    a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+    v.setState('idle'); v.percent = 0;
+    a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    m.step();
+    const reflects = w.moves.Ultimate.kind === 'reflect';
+    for (let i = 0; i < 400 && (a.state === 'attack' || a.hitlag > 0); i++) {
+      if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+      else m._input.clear('p0');
+      if (reflects) m._input.set('p1', Object.assign({}, EMPTY_IN, { light: i % 10 === 0, anyPress: i % 10 === 0 }));
+      m.step(); m.events.length = 0;
+      if (v.y < -4) { v.y = 0; v.vy = 0; v.onGround = true; v.platform = m.stage.main; }
+    }
+    rows.push(`${w.moves.Ultimate.label} ${Math.round(v.percent)}%`);
+    // Reave is the heaviest of the original six at 49%. Twice that is a different kind of move.
+    if (v.percent > 70) bad.push(`${w.id}'s ${w.moves.Ultimate.label} deals ${Math.round(v.percent)}% in one activation`);
+  }
+  check('no ultimate deals wildly more than the rest', bad.length === 0,
+    bad.length ? bad.join('; ') + ' — the rest sit between 18% and 55%' : rows.join(', '));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

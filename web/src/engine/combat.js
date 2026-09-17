@@ -107,6 +107,25 @@ export class Combat {
     const cx = rect ? (rect.x1 + rect.x2) / 2 : victim.x, cy = rect ? (rect.y1 + rect.y2) / 2 : victim.cy;
     const isMelee = direct && move.kind !== 'grab' && !opts.item;
 
+    // AEGIS. A reflect window converts an incoming hit into an outgoing one, aimed back at whoever
+    // threw it. Checked before everything else a victim can be doing, because for these two
+    // seconds it is the only thing they ARE doing.
+    // Grabs ARE reflected. A grab is the standard answer to a defensive stance, and the shield
+    // probe found the hole immediately: light + guardHeld is a grab in this engine, so a defender
+    // could shield-grab an Aegis all day and take nothing. Being thrown back by the thing you
+    // reached for is exactly what a counter weapon should do.
+    if (victim.reflecting && !opts.reflected && !opts.chip && attacker !== victim) {
+      const R = victim.reflecting;
+      const back = Math.max(R.min, Math.round(damage * R.mul));
+      this.spawnBurst(victim, { id: 'Aegis', x: attacker.x, y: attacker.cy, damage: back,
+        base: R.base, growth: R.growth, angle: R.angle, frames: 4, size: [R.radius * 2, R.radius * 2],
+        heavy: true, hitsOwner: false, shieldDamageMul: R.shieldDamageMul });
+      if (direct) attacker.hitlag = hitlagFor(back, true);
+      R.absorbed = (R.absorbed || 0) + damage;
+      this.emit({ type: 'aegis', x: attacker.x, y: attacker.cy, damage: back, victim: attacker.index });
+      return true;
+    }
+
     // BULWARK. A carried shield, checked before everything else because it is a property of the
     // fighter rather than of what they are doing - you keep it while attacking, while running, in
     // the air. It only covers the FRONT: `arc` is how much of the hemisphere in front of the
@@ -196,6 +215,12 @@ export class Combat {
     // One landed hit, one point of ultimate charge - regardless of how much damage it did, so a
     // fast light string charges as fast as a signature and pressure is what fills the bar.
     if (attacker.chargeUltimate && move.id !== 'Ultimate') attacker.chargeUltimate(1);
+    // A mark, not a launch. While Exsanguinate is live every connection stacks on the victim and
+    // the knockback is held back until the window closes - see the `bleed` branch.
+    if (attacker.marking) {
+      victim.effects.bleed = Math.min(attacker.marking.max, (victim.effects.bleed || 0) + 1);
+      this.emit({ type: 'bleedmark', x: victim.x, y: victim.cy, marks: victim.effects.bleed, victim: victim.index });
+    }
     if (attacker.mech.id === 'Bloom') attacker.mech.hits.push(attacker.frameCount);
     // Surge counts the same way Bloom does: only CONNECTED hits, so the counter is a record of
     // pressure rather than of button presses.
@@ -260,6 +285,9 @@ export class Combat {
     }
     if (m.kind === 'burst') { this.emit({ type: 'burst', x: f.x, y: f.y + 3, radius: 7, frames: m.active }); return; }
     if (m.kind === 'projectile') { this.spawnProjectile(f, m); return; }
+    // Exsanguinate opens its marking window the moment it becomes active; the `bleed` branch in
+    // onMoveActiveFrame collects on the last frame.
+    if (m.kind === 'bleed') { f.marking = { max: m.bleed.maxMarks }; return; }
     if (m.kind === 'summon') { this.spawnSummon(f, m); return; }
     if (m.kind === 'pulse') {
       for (const n of this.nodesOf(f)) this.spawnBurst(f, { x: n.x, y: n.y + 1.5, damage: m.damage, base: m.base, growth: m.growth, angle: m.angle, frames: m.active, size: [m.pulse.radius * 2, m.pulse.radius * 2], heavy: true });
@@ -445,6 +473,181 @@ export class Combat {
         this.projectiles.push(pr);
         this.emit({ type: 'starfall', x: pr.x, y: pr.y, target: v.index });
       }
+    } else if (m.kind === 'rundown') {
+      // GAUNTLETS - RUNDOWN. The ultimate does not happen where you are standing: it PURSUES.
+      // Every `every` frames it re-picks the nearest living enemy, teleport-dashes the fighter to
+      // just short of them, and swings. In a four-player match it bounces between all of them.
+      //
+      // Nothing else in the game moves the ATTACKER to the target. The vortex moves victims to the
+      // caster; this is the inverse, and it is the only shape that says "never let them breathe".
+      const R = m.rundown;
+      const k = f.mf - f.startupEff - 1;
+      if (k % R.every !== 0) return;
+      const step = Math.floor(k / R.every);
+      if (step >= R.count) return;
+      const target = this.nearestEnemy(f, R.range);
+      if (!target) return;
+      const side = Math.sign(f.x - target.x) || 1;
+      f.x = target.x + side * R.standoff;
+      f.y = target.y;
+      f.facing = -side;
+      f.vx = 0; f.vy = 0;
+      f.onGround = target.onGround; f.platform = target.platform;
+      this.spawnBurst(f, { id: 'Rundown', x: target.x, y: target.cy, damage: R.damage, base: R.base, growth: R.growth,
+        angle: R.angle, frames: 3, size: [R.radius * 2, R.radius * 2], heavy: true, hitsOwner: false,
+        knockbackMul: step === R.count - 1 ? R.finalMul : 1, shieldDamageMul: R.shieldDamageMul });
+      this.emit({ type: 'rundown', x: target.x, y: target.cy, step, last: step === R.count - 1, victim: target.index });
+
+    } else if (m.kind === 'upheaval') {
+      // WAR HAMMER - UPHEAVAL. The floor attacks, and it attacks where THEY are standing.
+      //
+      // Colossus cracks the ground outward from the sword; this raises a column under each enemy
+      // in turn. The difference matters in play: a crater is something you walk out of, a column
+      // is somewhere you already are. Columns only rise from ground a fighter is standing on, so
+      // being in the air is the answer to it.
+      const U = m.upheaval;
+      const k = f.mf - f.startupEff - 1;
+      if (k % U.every !== 0) return;
+      const step = Math.floor(k / U.every);
+      if (step >= U.count) return;
+      // NOT filtered to grounded fighters. The first version was, and the move countered itself:
+      // its own first column threw the victim into the air and the remaining four rose under where
+      // they used to be, for 14% total. The column is eleven studs tall and rises from the floor
+      // under wherever they are now, so the counterplay is moving HORIZONTALLY between columns
+      // rather than simply being airborne.
+      const targets = this.enemiesOf(f);
+      const v = targets[step % Math.max(1, targets.length)];
+      if (!v) return;
+      const surf = this.surfaceUnder(v.x, v.y + 1.5);
+      const y = (surf ? surf.top : v.y) + 1.0;
+      this.spawnBurst(f, { id: 'Upheaval', x: v.x, y, damage: U.damage, base: U.base, growth: U.growth,
+        angle: U.angle, frames: 5, size: [U.width, U.height], heavy: true, hitsOwner: false,
+        knockbackMul: U.knockbackMul, shieldDamageMul: U.shieldDamageMul });
+      this.emit({ type: 'upheaval', x: v.x, y, step, victim: v.index });
+
+    } else if (m.kind === 'pierce') {
+      // LONGBOW - HEARTSEEKER. One arrow. It does not stop at the first thing it hits, it cannot
+      // be blocked, and it crosses the entire stage.
+      //
+      // Every other ultimate in the game is a duration. This is a single frame of commitment with
+      // a two-second wind-up in front of it, which is the most a precision weapon can say.
+      const k = f.mf - f.startupEff - 1;
+      if (k !== 0) return;
+      const P = m.pierce;
+      const pr = {
+        owner: f, move: { ...m, kind: 'melee', unblockable: true },
+        x: f.x + f.facing * 2.2, y: f.y + P.height, vx: f.facing * P.speed, vy: 0,
+        w: P.size[0], h: P.size[1], life: P.lifetime, gravity: 0, hitVictims: new Set(),
+        facing: f.facing, shape: 'heartseeker', ghost: true, pierce: true,
+      };
+      pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
+      this.projectiles.push(pr);
+      this.emit({ type: 'heartseeker', x: pr.x, y: pr.y, facing: f.facing });
+
+    } else if (m.kind === 'anchor') {
+      // CHAIN FLAIL - ANCHOR. The head is thrown into the ground and stays there. The chain
+      // between the fighter and that point is live for the whole ultimate, and the fighter can
+      // still move - so the weapon becomes a lethal line you drag around the stage.
+      //
+      // No other ultimate in the game leaves something ON the stage that the player then plays
+      // around. It is the only one where where you STAND is the whole move.
+      const A = m.anchor;
+      const k = f.mf - f.startupEff - 1;
+      if (k === 0) {
+        const surf = this.surfaceUnder(f.x + f.facing * A.throwDistance, f.y + 1.5);
+        f.ultAnchor = { x: f.x + f.facing * A.throwDistance, y: (surf ? surf.top : f.y) + 0.6 };
+        this.emit({ type: 'anchorset', x: f.ultAnchor.x, y: f.ultAnchor.y });
+      }
+      // THE SNAP-BACK. On the last active frame the head is torn out of the ground and comes home
+      // along the chain, and everything on that line comes with it. Without this the ultimate just
+      // stopped: four seconds of chip with nothing at the end of it, and a launch that barely
+      // scaled with percent because the only thing it ever threw was a chain tick.
+      if (f.ultAnchor && k >= m.active - 1) {
+        const ax = f.ultAnchor.x, ay = f.ultAnchor.y;
+        const steps = 6;
+        for (let i = 0; i <= steps; i++) {
+          const u = i / steps;
+          this.spawnBurst(f, { id: 'Snapback', x: ax + (f.x - ax) * u, y: ay + (f.y + 2.4 - ay) * u,
+            damage: A.snapDamage, base: A.snapBase, growth: A.snapGrowth, angle: A.snapAngle,
+            frames: 5, size: [A.thickness * 2.4, A.thickness * 2.4], heavy: true, hitsOwner: false,
+            knockbackMul: 1.35, shieldDamageMul: A.shieldDamageMul * 2 });
+        }
+        this.emit({ type: 'anchorsnap', x: ax, y: ay });
+        f.ultAnchor = null;
+        return;
+      }
+      if (!f.ultAnchor || k % A.every !== 0) return;
+      // The chain is a line: sample it and hit anything standing on it.
+      const ax = f.ultAnchor.x, ay = f.ultAnchor.y;
+      const hx = f.x, hy = f.y + 2.4;
+      const span = Math.hypot(hx - ax, hy - ay);
+      if (span > A.maxLength) { f.ultAnchor = null; this.emit({ type: 'anchorsnap', x: ax, y: ay }); return; }
+      // ONE hit per fighter per tick. The first version sampled the line into overlapping bursts
+      // and spawned one at each sample, so a victim standing on the chain was caught by three or
+      // four of them at once - the ultimate dealt 124% where every other one in the game deals
+      // between 18 and 55. Now the segment is tested against each fighter and at most one burst is
+      // placed, on them.
+      for (const v of this.enemiesOf(f)) {
+        const dx = hx - ax, dy = hy - ay;
+        const len2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((v.x - ax) * dx + (v.cy - ay) * dy) / len2));
+        const px = ax + dx * t, py = ay + dy * t;
+        if (Math.hypot(v.x - px, v.cy - py) > A.thickness + v.r) continue;
+        this.spawnBurst(f, { id: 'Chain', x: px, y: py,
+          damage: A.damage, base: A.base, growth: A.growth, angle: A.angle, frames: 2,
+          size: [A.thickness * 2, A.thickness * 2], heavy: false, hitsOwner: false, shieldDamageMul: A.shieldDamageMul });
+      }
+      this.emit({ type: 'chainline', ax, ay, hx, hy });
+
+    } else if (m.kind === 'reflect') {
+      // SHIELD - AEGIS. Their damage becomes yours.
+      //
+      // For the whole window every hit that lands on this fighter is absorbed and thrown straight
+      // back at whoever threw it, scaled up. The counter mechanic already does this for one hit on
+      // one frame; this is the same idea held open for two seconds, which is the only ultimate in
+      // the game that does nothing at all unless the opponent acts.
+      if (!f.reflecting) {
+        f.reflecting = { mul: m.reflect.multiplier, min: m.reflect.minDamage, radius: m.reflect.radius,
+          angle: m.reflect.angle, base: m.reflect.base, growth: m.reflect.growth,
+          shieldDamageMul: m.reflect.shieldDamageMul, absorbed: 0 };
+      }
+      // THE DISCHARGE. Without it Aegis is blanked completely by an opponent who simply holds
+      // shield or walks away - the whole meter spent on nothing, which is not a tradeoff, it is a
+      // dead ultimate. On the last frame everything it absorbed comes out at once, on a floor that
+      // guarantees it does SOMETHING even if nobody ever swung.
+      const k = f.mf - f.startupEff - 1;
+      if (k >= m.active - 1) {
+        const D = m.reflect;
+        const stored = f.reflecting.absorbed;
+        this.spawnBurst(f, { id: 'AegisBreak', x: f.x + f.facing * 2.2, y: f.y + 2.8,
+          damage: D.dischargeMin + Math.round(stored * D.dischargeShare),
+          base: D.base, growth: D.growth, angle: D.angle, frames: 5,
+          size: [D.dischargeRadius * 2, D.dischargeRadius * 1.7], heavy: true, hitsOwner: false,
+          knockbackMul: 1.3, shieldDamageMul: D.shieldDamageMul });
+        this.emit({ type: 'aegisbreak', x: f.x, y: f.cy, stored });
+      }
+
+    } else if (m.kind === 'bleed') {
+      // DUAL DAGGERS - EXSANGUINATE. Mark now, collect later.
+      //
+      // Every hit during the window leaves a mark instead of knockback. When the window ends every
+      // mark on every victim goes off at once, and the size of that is the number of marks you
+      // earned - so the finisher is not a fixed number in a data file, it is the combo you just
+      // did. It is the only ultimate whose payload the player decides.
+      const B = m.bleed;
+      const k = f.mf - f.startupEff - 1;
+      if (k < m.active - 1) return;
+      for (const v of this.enemiesOf(f)) {
+        const marks = (v.effects.bleed || 0);
+        if (!marks) continue;
+        v.effects.bleed = 0;
+        this.spawnBurst(f, { id: 'Exsanguinate', x: v.x, y: v.cy,
+          damage: B.perMark * marks, base: B.base + B.basePerMark * marks, growth: B.growth,
+          angle: B.angle, frames: 4, size: [B.radius * 2, B.radius * 2], heavy: true, hitsOwner: false,
+          knockbackMul: B.knockbackMul, shieldDamageMul: B.shieldDamageMul });
+        this.emit({ type: 'exsanguinate', x: v.x, y: v.cy, marks, victim: v.index });
+      }
+
     } else if (m.kind === 'field') {
       const F = m.field;
       if (!f.fieldThrew || f.mf === f.startupEff + 1) f.fieldThrew = new Set();
@@ -557,7 +760,9 @@ export class Combat {
           }
           if (p.explode) { this.explode(p); dead = true; break; }
           const hit = this.resolveHit(p.owner, v, p.move, { angle: p.move.angle }, p.rect, { projectile: true, facing: sign(p.vx), item: p.item });
-          if (hit) { dead = true; break; }
+          // A piercing shot keeps going. `hitVictims` already stops it hitting the same fighter
+          // twice, so it crosses the stage taking everyone on the line.
+          if (hit && !p.pierce) { dead = true; break; }
         }
       }
       if (p.y < this.stage.blast.bottom - 10 || Math.abs(p.x) > 200) dead = true;

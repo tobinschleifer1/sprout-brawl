@@ -90,14 +90,20 @@ export default {
     SigNeutral: { label: 'Overdrive Blow', startup: 12, active: 3, recovery: 28, damage: 12, base: 35, growth: 6.0, angle: 84, grounded: true, heavy: true,
       hitboxes: [{ frames: [13, 15], offset: [1.6, 3.6], size: [2.8, 4.6] }] },
 
-    // ULTIMATE - Hundred Hands. Two seconds of a fighter who cannot be interrupted, throwing more
-    // punches than the frame rate can honestly show, ending on the one that sends.
-    Ultimate: { label: 'Hundred Hands', startup: 16, active: 46, recovery: 34, damage: 2, base: 5, growth: 0.15, angle: 60,
-      grounded: true, heavy: true, kind: 'melee', ultimate: true, knockbackMul: 1.35, shieldDamageMul: 3.0, lunge: 4,
-      hitboxes: [
-        { frames: [17, 52], offset: [2.0, 2.8], size: [4.2, 3.4], shieldDamageMul: 1.4, rehitEvery: 3, damage: 2, base: 5, growth: 0.12, angle: 60 },
-        // the last one: a single straight right through everything the flurry set up
-        { frames: [53, 62], offset: [2.2, 2.8], size: [6.8, 4.4], rehitEvery: 10, damage: 11, base: 24, growth: 3.3, angle: 40 },
-      ] },
+    // ULTIMATE - RUNDOWN. The ultimate does not happen where you are standing.
+    //
+    // Every twelve frames it finds the nearest living opponent, puts the fighter on top of them,
+    // and hits. Six times. In a four-player match it bounces between all three of them and nobody
+    // gets to be the one who is somewhere else - which is the only honest way to write "never let
+    // them breathe" as a move. The last of the six is the one that sends.
+    //
+    // Nothing else in the game moves the ATTACKER to the target: the scythe's vortex drags victims
+    // to the caster, and this is the inverse of that.
+    Ultimate: { label: 'Rundown', startup: 18, active: 74, recovery: 34, damage: 7, base: 14, growth: 0.8, angle: 50,
+      grounded: true, heavy: true, kind: 'rundown', ultimate: true, knockbackMul: 1.0, shieldDamageMul: 3.0,
+      hitboxes: [],
+      rundown: { every: 12, count: 6, range: 60, standoff: 2.0, radius: 3.2,
+        damage: 7, base: 13, growth: 2.4, angle: 55, finalMul: 3.4, shieldDamageMul: 2.0 },
+    },
   },
 };

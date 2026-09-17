@@ -91,19 +91,21 @@ export default {
         { frames: [17, 18], offset: [1.8, 3.6], size: [3.6, 5.0], damage: 10, base: 36, growth: 6.0, angle: 80 },
       ] },
 
-    // ULTIMATE - Thousand Cuts. The fighter disappears and the opponent is simply somewhere the
-    // daggers already are: a run of teleporting slashes that ends behind them. Nine strikes, and
-    // the last one is the only one with any knockback at all - everything before it is the setup
-    // for it, which is the weapon in one move.
-    Ultimate: { label: 'Thousand Cuts', startup: 14, active: 44, recovery: 32, damage: 3, base: 6, growth: 0.15, angle: 50,
-      grounded: true, heavy: true, kind: 'melee', ultimate: true, knockbackMul: 1.3, shieldDamageMul: 3.0,
-      // lunge 6, not 16: at sixteen the fighter outran its own flurry and the whole ultimate landed
-      // 12% instead of the twenty it is authored for. A teleporting-slash ultimate has to stay on
-      // the victim.
-      lunge: 6,
-      hitboxes: [
-        { frames: [15, 46], offset: [1.8, 2.8], size: [6.4, 4.4], shieldDamageMul: 1.4, rehitEvery: 3, damage: 2, base: 5, growth: 0.1, angle: 55 },
-        { frames: [47, 58], offset: [2.4, 2.8], size: [5.6, 4.2], rehitEvery: 12, damage: 12, base: 26, growth: 3.6, angle: 38 },
-      ] },
+    // ULTIMATE - EXSANGUINATE. Mark now, collect later.
+    //
+    // Every hit during the window leaves a mark on the victim instead of launching them, and when
+    // the window closes every mark on every fighter goes off at once. The size of the finisher is
+    // not a number in this file - it is the combo you just did, which is the only ultimate in the
+    // game whose payload the player decides.
+    //
+    // It is also the only one that rewards spreading damage around: in a four-player match you can
+    // mark three people and detonate all of them together.
+    Ultimate: { label: 'Exsanguinate', startup: 12, active: 76, recovery: 32, damage: 2, base: 5, growth: 0.1, angle: 48,
+      grounded: true, heavy: true, kind: 'bleed', ultimate: true, knockbackMul: 1.0, shieldDamageMul: 3.0,
+      // the window's own contact: small, fast, and it is only there to put marks on
+      hitboxes: [{ frames: [13, 88], offset: [2.0, 2.8], size: [5.6, 4.2], shieldDamageMul: 2.4, rehitEvery: 6, damage: 2, base: 4, growth: 0.08, angle: 48 }],
+      bleed: { maxMarks: 12, perMark: 2.4, base: 12, basePerMark: 2.2, growth: 2.6, angle: 52, radius: 4.0,
+        knockbackMul: 1.35, shieldDamageMul: 3.0 },
+    },
   },
 };

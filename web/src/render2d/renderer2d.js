@@ -439,6 +439,60 @@ export class Renderer2D {
     if (!m) return;
     const pal = f.char.weaponPalette || f.char.palette;
 
+    // THE ANCHOR AND ITS CHAIN. This is the whole move: without it the flail's ultimate is an
+    // invisible line the player is supposed to aim with, which is unplayable.
+    if (m.kind === 'anchor' && f.ultAnchor) {
+      const ax = f.ultAnchor.x, ay = f.ultAnchor.y;
+      const hx = f.x, hy = f.y + 2.4;
+      const span = Math.hypot(hx - ax, hy - ay);
+      const strain = Math.min(1, span / (m.anchor.maxLength * 0.85));
+      // the chain, drawn as links so it reads as a chain and not as a beam
+      const links = Math.max(3, Math.round(span / 1.1));
+      for (let i = 0; i <= links; i++) {
+        const u = i / links;
+        const x = ax + (hx - ax) * u, y = ay + (hy - ay) * u;
+        b.fillStyle = i % 2 ? (pal.tertiary || '#231C22') : (pal.secondary || '#3A3038');
+        b.fillRect(x - 0.28, y - 0.28, 0.56, 0.56);
+      }
+      // a glow along it that brightens as the chain runs out of slack, so the snap is telegraphed
+      b.globalAlpha = 0.25 + strain * 0.55;
+      b.strokeStyle = pal.glow || '#C86AE8';
+      b.lineWidth = 0.14 + strain * 0.16;
+      b.beginPath(); b.moveTo(ax, ay); b.lineTo(hx, hy); b.stroke();
+      b.globalAlpha = 1;
+      // the head, buried in the floor
+      b.fillStyle = pal.primary || '#6E7684';
+      b.beginPath(); b.arc(ax, ay, 0.72, 0, PI * 2); b.fill();
+      b.fillStyle = pal.accent || '#C8CED8';
+      for (let i = 0; i < 5; i++) {
+        const a2 = (i / 5) * PI * 2 + 0.4;
+        b.fillRect(ax + Math.cos(a2) * 0.72 - 0.12, ay + Math.sin(a2) * 0.72 - 0.12, 0.24, 0.24);
+      }
+      if (strain > 0.8 && Math.floor(t * 20) % 2 === 0) {
+        b.globalAlpha = 0.6; b.fillStyle = '#FFFFFF';
+        b.beginPath(); b.arc(ax, ay, 1.1, 0, PI * 2); b.fill();
+        b.globalAlpha = 1;
+      }
+    }
+
+    // AEGIS. A reflect that cannot be seen is a fighter standing still, so the window itself is
+    // drawn: a dome in front of the shield that pulses harder the more it has absorbed.
+    if (m.kind === 'reflect' && f.reflecting) {
+      const stored = Math.min(1, (f.reflecting.absorbed || 0) / 40);
+      const r = m.reflect.radius * (0.9 + stored * 0.25);
+      b.save();
+      b.translate(f.x + f.facing * 1.4, f.y + 2.8);
+      b.globalAlpha = 0.16 + stored * 0.3 + Math.sin(t * 9) * 0.05;
+      b.fillStyle = pal.glow || '#7FD4FF';
+      b.beginPath(); b.ellipse(0, 0, r * 0.7, r, 0, 0, PI * 2); b.fill();
+      b.globalAlpha = 0.5 + stored * 0.4;
+      b.strokeStyle = stored > 0.6 ? '#FFFFFF' : (pal.accent || '#F0F4FA');
+      b.lineWidth = 0.14 + stored * 0.12;
+      b.beginPath(); b.ellipse(0, 0, r * 0.7, r, 0, 0, PI * 2); b.stroke();
+      b.globalAlpha = 1;
+      b.restore();
+    }
+
     if (m.kind === 'sniper') {
       const v = f.ultTarget;
       if (v && v.alive) {
@@ -784,6 +838,51 @@ export class Renderer2D {
       push(e.x, e.y, e.first ? 18 : 8, '#FFB43C', e.first ? 30 : 20, 0.42, 0.3);
       this.slashes.push({ x: e.x, y: e.y, r: e.radius, life: 0.32, max: 0.32, c: '#FFD37A', heavy: true, rot: 0 });
       this.shake = Math.max(this.shake, e.first ? 1.1 : 0.35);
+    } else if (e.type === 'rundown') {
+      // Each dash arrives as a burst of impact at the target, and the last one is the send.
+      push(e.x, e.y, e.last ? 26 : 12, '#FFE9C4', e.last ? 30 : 18, 0.36, e.last ? 0.4 : 0.26);
+      push(e.x, e.y, e.last ? 14 : 6, '#FF9A4A', e.last ? 24 : 14, 0.3, 0.24);
+      this.slashes.push({ x: e.x, y: e.y, r: e.last ? 4.6 : 2.8, life: 0.26, max: 0.26, c: '#FFC98A', heavy: e.last, rot: Math.random() * PI });
+      this.shake = Math.max(this.shake, e.last ? 0.9 : 0.28);
+    } else if (e.type === 'upheaval') {
+      // a column of floor coming up, so the debris is thrown UPWARD rather than outward
+      for (let i = 0; i < 22; i++) {
+        this.parts.push({ x: e.x + (Math.random() - 0.5) * 4.6, y: e.y + Math.random() * 2,
+          vx: (Math.random() - 0.5) * 8, vy: 22 + Math.random() * 26, life: 0.6, max: 0.6,
+          c: i % 3 ? '#8A94A6' : '#4A4038', s: 0.22 + Math.random() * 0.3 });
+      }
+      this.slashes.push({ x: e.x, y: e.y + 3.5, r: 3.4, life: 0.3, max: 0.3, c: '#D8DCE2', heavy: true, rot: PI / 2 });
+      this.shake = Math.max(this.shake, 0.7);
+    } else if (e.type === 'heartseeker') {
+      push(e.x, e.y, 16, '#8EE86A', 34, 0.3, 0.22);
+      this.shake = Math.max(this.shake, 0.5);
+    } else if (e.type === 'anchorset') {
+      push(e.x, e.y, 20, '#6E7684', 20, 0.42, 0.3);
+      this.slashes.push({ x: e.x, y: e.y, r: 2.4, life: 0.3, max: 0.3, c: '#C86AE8', heavy: true, rot: 0 });
+      this.shake = Math.max(this.shake, 0.45);
+    } else if (e.type === 'anchorsnap') {
+      push(e.x, e.y, 26, '#C86AE8', 30, 0.45, 0.32);
+      this.slashes.push({ x: e.x, y: e.y, r: 4.2, life: 0.34, max: 0.34, c: '#D8B0F0', heavy: true, rot: 0 });
+      this.shake = Math.max(this.shake, 1.0);
+    } else if (e.type === 'aegis') {
+      // their own damage, coming back at them
+      push(e.x, e.y, 18, '#7FD4FF', 26, 0.38, 0.28);
+      this.slashes.push({ x: e.x, y: e.y, r: 3.0, life: 0.28, max: 0.28, c: '#FFFFFF', heavy: true, rot: 0 });
+      this.shake = Math.max(this.shake, 0.55);
+    } else if (e.type === 'aegisbreak') {
+      push(e.x, e.y, 30, '#FFFFFF', 34, 0.45, 0.34);
+      this.slashes.push({ x: e.x, y: e.y, r: 5.4, life: 0.36, max: 0.36, c: '#7FD4FF', heavy: true, rot: 0 });
+      this.shake = Math.max(this.shake, 1.1);
+    } else if (e.type === 'bleedmark') {
+      // a mark landing: small, and it stacks visibly so the player can count what they are owed
+      for (let i = 0; i < 4; i++) this.parts.push({ x: e.x + (Math.random() - 0.5) * 1.6, y: e.y + (Math.random() - 0.5) * 2,
+        vx: (Math.random() - 0.5) * 6, vy: 4 + Math.random() * 8, life: 0.4, max: 0.4, c: '#FF4A6A', s: 0.2 });
+    } else if (e.type === 'exsanguinate') {
+      // and the collection: one burst per victim, sized by what they were carrying
+      const n = Math.min(12, e.marks);
+      push(e.x, e.y, 10 + n * 3, '#FF4A6A', 22 + n * 2, 0.5, 0.3);
+      this.slashes.push({ x: e.x, y: e.y, r: 1.8 + n * 0.32, life: 0.34, max: 0.34, c: '#FFFFFF', heavy: true, rot: 0 });
+      this.shake = Math.max(this.shake, 0.4 + n * 0.06);
     } else if (e.type === 'soulgrab') {
       push(e.x, e.y, 14, '#C79BFF', 20, 0.4, 0.26);
     } else if (e.type === 'soulorb') {

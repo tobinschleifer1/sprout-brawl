@@ -103,16 +103,27 @@ export default {
     SigNeutral: { label: 'Chain Reaper', startup: 23, active: 5, recovery: 32, damage: 14, base: 30, growth: 4.9, angle: 84, grounded: true, heavy: true,
       hitboxes: [{ frames: [24, 28], offset: [2.2, 4.8], size: [4.4, 7.4] }] },
 
-    // ULTIMATE - Maelstrom. The chain lets out to twice its length and the fighter turns into a
-    // hazard: four seconds of a moving circle nobody wants to share a platform with. The last
-    // revolution lets go.
-    Ultimate: { label: 'Maelstrom', startup: 20, active: 50, recovery: 38, damage: 4, base: 8, growth: 0.2, angle: 66,
-      grounded: true, heavy: true, kind: 'melee', ultimate: true, knockbackMul: 1.35, shieldDamageMul: 3.0,
-      lunge: 12, weaponScale: 1.6,
-      hitboxes: [
-        { frames: [21, 40], offset: [0, 3.0], size: [12.0, 7.4], shieldDamageMul: 1.5, rehitEvery: 7, damage: 3, base: 8, growth: 0.2, angle: 76 },
-        { frames: [41, 58], offset: [0, 3.0], size: [14.0, 8.0], shieldDamageMul: 1.5, rehitEvery: 6, damage: 3, base: 9, growth: 0.25, angle: 76 },
-        { frames: [59, 70], offset: [1.6, 2.8], size: [16.0, 8.4], rehitEvery: 4, damage: 13, base: 24, growth: 3.3, angle: 40 },
-      ] },
+    // ULTIMATE - ANCHOR. The head goes into the ground and stays there.
+    //
+    // For four seconds the chain between the fighter and that point is live along its whole length,
+    // and the fighter can still walk - so the weapon stops being a swing and becomes a lethal line
+    // you drag around the stage. Standing still is worthless; the move is entirely about where you
+    // put yourself relative to a point you chose.
+    //
+    // It is the only ultimate in the game that leaves something ON the stage and then asks the
+    // player to play around it. Pull too far and the chain snaps and the ultimate is over.
+    Ultimate: { label: 'Anchor', startup: 20, active: 70, recovery: 34, damage: 4, base: 9, growth: 0.3, angle: 58,
+      grounded: true, heavy: true, kind: 'anchor', ultimate: true, knockbackMul: 1.25, shieldDamageMul: 3.0,
+      hitboxes: [],
+      // 2 damage every 9 frames, not 4 every 6. Measured, the first version dealt 124% in a single
+      // ultimate - three times what any other one in the game does - because a chain that is live
+      // along its whole length hits far more often than a swing does. It also swamped the check
+      // that ultimate knockback scales with percent: when the move itself adds a hundred percent,
+      // what the victim started at stops mattering.
+      anchor: { throwDistance: 9, maxLength: 26, every: 8, thickness: 1.6,
+        damage: 3, base: 9, growth: 0.6, angle: 62, shieldDamageMul: 1.8,
+        // and the snap-back, which is the move's finisher
+        snapDamage: 13, snapBase: 15, snapGrowth: 5.2, snapAngle: 44 },
+    },
   },
 };

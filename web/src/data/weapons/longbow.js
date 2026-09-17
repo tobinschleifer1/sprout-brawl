@@ -112,15 +112,16 @@ export default {
       charge: { maxHold: 60, damage: 22, base: 30, growth: 3.0 },
       projectile: { speed: 96, lifetime: 40, size: [3.0, 0.5], spawnOffset: [2.6, 3.0], shape: 'arrow' } },
 
-    // ULTIMATE - Arrowfall. Not a bigger arrow: the bow fires once, straight up, and for three
-    // seconds the sky comes down on everybody. `starfall` is the engine path the Grimoire's
-    // ultimate already uses - it targets every living fighter wherever they are, so there is no
-    // range to respect and nowhere on the stage that is not the lane.
-    Ultimate: { label: 'Arrowfall', startup: 24, active: 54, recovery: 32, damage: 11, base: 26, growth: 3.4, angle: 68,
-      heavy: true, kind: 'starfall', ultimate: true, knockbackMul: 1.25, shieldDamageMul: 3.0,
+    // ULTIMATE - HEARTSEEKER. One arrow.
+    //
+    // It crosses the entire stage, it goes THROUGH everything it hits rather than stopping at the
+    // first, and it cannot be blocked. Every other ultimate in the game is a duration you survive;
+    // this is a single frame of commitment behind a second and a half of drawing, which is the
+    // most a precision weapon can honestly say. Miss and you have spent the whole meter on nothing.
+    Ultimate: { label: 'Heartseeker', startup: 44, active: 8, recovery: 40, damage: 21, base: 34, growth: 3.4, angle: 30,
+      grounded: true, heavy: true, kind: 'pierce', ultimate: true, knockbackMul: 1.4, shieldDamageMul: 3.0,
       hitboxes: [],
-      starfall: { perTarget: 3, every: 20, height: 20, speed: 32, turn: 1.6, jitter: 1.8, size: 1.3,
-        radius: 3.0, damage: 11, base: 26, growth: 3.4, angle: 68, knockbackMul: 1.25, shieldDamageMul: 3.0 },
+      pierce: { speed: 150, lifetime: 70, height: 3.0, size: [4.0, 0.7] },
     },
   },
 };

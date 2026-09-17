@@ -257,9 +257,10 @@ function ultChannels(ch, f, m, t) {
       ch.lean = 0.42 * (1 - out); ch.armR.z = F * (1 - out); ch.armR.ext = 1 + 0.4 * (1 - out);
     }
   } else if (wid === 'Hammer') {
-    // METEOR. Forty frames going up with a hundred and twenty-five kilos of body, and one coming
-    // down. Everything here is the strain of the lift.
-    const CHOP = 7, riseEnd = Math.max(1, st - CHOP);
+    // UPHEAVAL. The lift is the same enormous effort it always was; what changed is the after -
+    // the fighter stays down over a planted hammer, shuddering as each column goes up, instead of
+    // recovering from a slam that is already over.
+    const CHOP = 8, riseEnd = Math.max(1, st - CHOP);
     if (wind && mf <= riseEnd) {
       const r = easeOut(mf / riseEnd);
       ch.armL.z = 0.6 + 2.4 * r; ch.armR.z = -0.6 - 2.3 * r;
@@ -275,38 +276,46 @@ function ultChannels(ch, f, m, t) {
       ch.legL = -0.4 + 1.0 * c; ch.legR = -0.32 - 0.55 * c;
       ch.head = -0.4 + 0.8 * c;
       ch.smear = c;
-    } else {
-      const q = live ? 1 - Math.min(1, ak / 8) : 0;
-      ch.sy = 0.74 + 0.24 * (1 - q); ch.sx = 1.26 - 0.22 * (1 - q);
-      ch.lean = 0.3 - 0.18 * (1 - q); ch.bob = -0.34 + 0.24 * (1 - q);
+    } else if (live) {
+      const U = m.upheaval;
+      const beat = U ? 1 - (ak % U.every) / U.every : 0;
+      ch.sy = 0.78 - 0.04 * beat; ch.sx = 1.24 + 0.04 * beat;
+      ch.lean = 0.3; ch.bob = -0.34;
       ch.armL.z = 0.4; ch.armR.z = -0.5; ch.legL = 0.6; ch.legR = -0.8; ch.head = 0.36;
-      if (live) ch.shakeX = strain(0.2 * (1 - ak / Math.max(1, act)));
+      ch.shakeX = strain(0.06 + 0.2 * beat);      // the floor kicking, once per column
+    } else {
+      ch.lean = 0.3 * (1 - out); ch.sy = 1 - 0.22 * (1 - out); ch.sx = 1 + 0.24 * (1 - out);
+      ch.bob = -0.34 * (1 - out); ch.legL = 0.6 * (1 - out); ch.legR = -0.8 * (1 - out);
     }
   } else if (wid === 'Longbow') {
-    // ARROWFALL. One loose, straight up, and then the archer simply watches - which is the point:
-    // the move is not happening where they are standing.
+    // HEARTSEEKER. The draw is the move. The string hand comes back past the ear, the whole body
+    // settles into the shot, and the release is two frames of everything letting go at once.
     if (wind) {
       const r = easeOut(k);
-      ch.armR.z = -0.5 + (F + 1.1) * r; ch.armL.z = -0.3 + 1.9 * r;
-      ch.armR.ext = 1 - 0.2 * r;                       // drawing pulls the string hand IN
-      ch.lean = -0.3 * r; ch.head = -0.42 * r;
-      ch.sy = 1 + 0.12 * r; ch.legL = -0.25 * r; ch.legR = 0.3 * r;
-      ch.shakeX = strain(0.1 * r);
+      ch.armR.z = -0.5 + (F + 0.5) * r; ch.armR.ext = 1 + 0.18 * r;   // bow arm out and locked
+      ch.armL.z = -0.2 - 1.0 * r;                                      // string hand back
+      ch.lean = -0.12 * r; ch.head = -0.16 * r;
+      ch.sx = 1 - 0.06 * r; ch.sy = 1 + 0.04 * r;
+      ch.legL = -0.3 * r; ch.legR = 0.35 * r;
+      ch.bob = -0.1 * r;
+      ch.shakeX = strain(0.04 + 0.12 * r * r);    // the draw weight, rising the longer it is held
     } else if (live) {
-      ch.armR.z = F + 0.9; ch.armL.z = 2.4; ch.armR.ext = 1.12;
-      ch.lean = -0.3; ch.head = -0.45; ch.sy = 1.12;
-      ch.legL = -0.25; ch.legR = 0.3;
-      const S = m.starfall;
-      let pulse = 0;
-      if (S) { const since = (ak - 1) % S.every; if (since < 10 && ak - 1 < S.perTarget * S.every) pulse = 1 - since / 10; }
-      ch.bob = 0.12 * pulse + Math.sin(t * 1.6) * 0.06;
-      ch.shakeX = strain(0.08 * pulse);
+      const kk = Math.min(1, ak / 5);
+      ch.armR.z = F + 0.5; ch.armR.ext = 1 + 0.18 + 0.12 * (1 - kk);
+      ch.armL.z = -1.2 + 1.6 * kk;                                     // the string hand snaps open
+      ch.lean = -0.12 + 0.2 * kk;
+      ch.sx = 0.94 + 0.16 * kk; ch.sy = 1.04 - 0.1 * kk;
+      ch.legL = -0.3; ch.legR = 0.35;
+      ch.smear = 1 - kk;
+      ch.head = -0.16 + 0.1 * kk;
     } else {
-      ch.armR.z = (F + 0.9) * (1 - out); ch.armL.z = 2.4 * (1 - out); ch.lean = -0.3 * (1 - out); ch.head = -0.45 * (1 - out);
+      ch.armR.z = (F + 0.5) * (1 - out); ch.armL.z = 0.4 * (1 - out);
+      ch.lean = 0.08 * (1 - out); ch.legR = 0.35 * (1 - out);
     }
   } else if (wid === 'Flail') {
-    // MAELSTROM. Same shape as Reave and for the same reason - the head has taken over - but the
-    // chain is longer, so the fighter is pulled further off their own centre.
+    // ANCHOR. A wind-up, a throw, and then the fighter is simply WALKING with a rope in their
+    // hands - braced, leaning against the pull, free to move. The spin this used to play belonged
+    // to a different ultimate and made a move about where you stand look like one about not moving.
     if (wind) {
       const r = easeOut(k);
       ch.armR.z = -1.8 * r; ch.armL.z = 0.4 + 1.3 * r;
@@ -314,19 +323,26 @@ function ultChannels(ch, f, m, t) {
       ch.legL = 0.5 * r; ch.legR = -0.45 * r; ch.bob = -0.35 * r; ch.head = -0.28 * r;
       ch.shakeX = strain(0.12 * r);
     } else if (live) {
-      const p2 = ak / Math.max(1, act);
-      ch.spinY = Math.pow(p2, 1.1) * PI * 7.0;
-      ch.lean = 0.22 + 0.14 * p2;
-      ch.armR.z = -0.25; ch.armL.z = -0.2;
-      ch.sx = 1 + 0.12 * p2; ch.sy = 1 - 0.08 * p2;
-      ch.legL = 0.3; ch.legR = -0.3;
-      ch.smear = 0.6 + 0.4 * p2;
-      ch.bob = -0.22 - 0.18 * p2;
+      const thrown = Math.min(1, ak / 6);
+      // the throw
+      ch.armR.z = -1.8 + (F + 2.1) * easeIn(thrown);
+      ch.armL.z = 1.7 - 1.3 * thrown;
+      ch.lean = -0.5 + 0.78 * thrown;
+      ch.smear = 1 - thrown;
+      // and then the haul: both hands on the chain, weight back, and it breathes
+      if (thrown >= 1) {
+        ch.armR.z = F - 0.25 + Math.sin(t * 2.4) * 0.06;
+        ch.armL.z = F - 0.75 + Math.sin(t * 2.4 + 0.6) * 0.06;
+        ch.lean = 0.28;
+        ch.legR = 0.55; ch.legL = -0.4;
+        ch.sx = 1.06; ch.sy = 0.97;
+        ch.bob = -0.18 + Math.sin(t * 2.2) * 0.05;
+        ch.head = 0.12;
+        ch.shakeX = strain(0.05);
+      }
     } else {
-      ch.lean = 0.34 * (1 - out); ch.sx = 1 + 0.12 * (1 - out);
-      ch.armL.z = 1.1 * (1 - out); ch.armR.z = -0.9 * (1 - out);
-      ch.head = 0.3 * (1 - out) * Math.cos(out * PI * 2);
-      ch.bob = -0.36 * (1 - out);
+      ch.lean = 0.28 * (1 - out); ch.armR.z = (F - 0.25) * (1 - out); ch.armL.z = (F - 0.75) * (1 - out);
+      ch.legR = 0.55 * (1 - out); ch.bob = -0.18 * (1 - out);
     }
   } else if (wid === 'Shield') {
     // LAST STAND. The only ultimate in the game whose performance is holding still. Everything

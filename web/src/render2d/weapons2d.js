@@ -451,64 +451,90 @@ function ultimatePose(f, m, wid, out, t) {
   }
 
   if (wid === 'Hammer') {
-    // METEOR. The longest wind-up in the game, spent going UP, and one impact.
-    const CHOP = 7, riseEnd = Math.max(1, st - CHOP);
-    const FULL = m.weaponScale || 1.8;
+    // UPHEAVAL. One strike into the floor, and then the hammer STAYS there for the whole move -
+    // the fighter is holding the ground open while the columns come up under people. The old pose
+    // was a lift-and-drop written for a different ultimate; a prop that falls and then does nothing
+    // for sixty frames reads as the move having ended.
+    const FULL = m.weaponScale || 1.4;
+    const CHOP = 8, riseEnd = Math.max(1, st - CHOP);
     if (inWindup) {
       if (mf <= riseEnd) {
         const r = mf / riseEnd;
         out.scale = 1 + (FULL - 1) * r;
-        out.angle = (REST[wid] ?? 0) + (D(128) - (REST[wid] ?? 0)) * (r * r);
-        out.oy = -r * 0.5; out.charge = r;
+        out.angle = (REST[wid] ?? 0) + (D(120) - (REST[wid] ?? 0)) * (r * r);
+        out.oy = -r * 0.4; out.charge = r;
         out.ult.haul = r; out.ult.glow = r;
         return out;
       }
       const c = (mf - riseEnd) / CHOP;
       out.scale = FULL;
-      out.angle = D(128) + (D(-88) - D(128)) * (c * c * (3 - 2 * c));
-      out.trail = { from: D(128), to: out.angle, alpha: 1, heavy: true };
+      out.angle = D(120) + (D(-92) - D(120)) * (c * c * (3 - 2 * c));
+      out.trail = { from: D(120), to: out.angle, alpha: 1, heavy: true };
       out.ult.glow = 1; out.ult.chop = c;
       return out;
     }
-    const since = inActive ? ak : act + (mf - st - act);
-    const sink = Math.min(1, since / 8);
-    out.scale = FULL - (FULL - 1.1) * sink;
-    out.angle = D(-88) + Math.sin(since * 0.5) * 0.04;
-    out.ult.planted = sink;
-    out.ult.shock = inActive ? ak / Math.max(1, act) : 1;
-    out.ult.glow = 1 - sink * 0.7;
-    if (!inActive) { out.angle = D(-88) + ((REST[wid] ?? 0) - D(-88)) * recK; out.scale = 1 + (FULL - 1) * (1 - recK) * 0.1; }
+    if (inActive) {
+      // planted, and shuddering every time another column goes up
+      const U = m.upheaval;
+      const beat = U ? (ak % U.every) / U.every : 0;
+      out.scale = FULL * 0.96;
+      out.angle = D(-92) + Math.sin(ak * 0.7) * 0.03;
+      out.ult.planted = 1;
+      out.ult.shock = 1 - beat;
+      out.ult.glow = 0.4 + (1 - beat) * 0.6;
+      return out;
+    }
+    out.angle = D(-92) + ((REST[wid] ?? 0) - D(-92)) * recK;
+    out.scale = FULL * 0.96 - (FULL * 0.96 - 1) * recK;
     return out;
   }
 
   if (wid === 'Longbow') {
-    // ARROWFALL. One shot, straight up, and then the sky. The bow stays drawn and pointed
-    // overhead for the whole volley, which is what tells you where the arrows are coming from.
-    if (inWindup) { out.angle = (REST[wid] ?? 0) + (D(84) - (REST[wid] ?? 0)) * easeOut(k); out.charge = k; out.ult.draw = k; return out; }
-    out.angle = D(84) + Math.sin(mf * 0.4) * 0.05;
-    out.oy = 0.2;
+    // HEARTSEEKER. Forty-four frames of drawing, one release. The whole pose is the draw: the bow
+    // comes level, the string hand pulls in, and the only fast thing in the move is the loose.
+    if (inWindup) {
+      const r = easeOut(k);
+      out.angle = (REST[wid] ?? 0) + (D(-2) - (REST[wid] ?? 0)) * r;
+      out.charge = k;
+      out.ult.draw = k;                       // renderer: the string and the aiming line
+      out.ox = -0.22 * k;                     // the whole bow drifts back as it is drawn
+      return out;
+    }
     if (inActive) {
-      out.ult.runes = ak / Math.max(1, act);
-      const S = m.starfall;
-      if (S) { const since = (ak - 1) % S.every; if (since < 6 && ak - 1 < S.perTarget * S.every) out.flash = 1 - since / 6; }
-    } else out.angle = D(84) + ((REST[wid] ?? 0) - D(84)) * recK;
+      const kk = Math.min(1, ak / 5);
+      out.angle = D(-2) + D(9) * (1 - kk) * (1 - kk);   // the snap forward on release
+      out.ox = 0.26 * (1 - kk);
+      out.flash = Math.max(0, 1 - ak / 3);
+      out.ult.loose = kk;
+      return out;
+    }
+    out.angle = D(-2) + ((REST[wid] ?? 0) - D(-2)) * recK;
     return out;
   }
 
   if (wid === 'Flail') {
-    // MAELSTROM. The chain lets out to twice its length and the head never stops.
-    if (inWindup) { out.angle = (REST[wid] ?? 0) + (D(-160) - (REST[wid] ?? 0)) * (k * k); out.charge = k; out.ult.haul = k; return out; }
-    if (inActive) {
-      const spin = Math.pow(ak / Math.max(1, act), 1.1) * PI * 7.0;
-      out.angle = D(-160) - spin;
-      out.scale = m.weaponScale || 1.6;
-      out.trail = { from: out.angle + D(340), to: out.angle, alpha: 1, heavy: true };
-      out.ult.reave = ak / Math.max(1, act);
-      out.ult.blur = [out.angle + D(120), out.angle + D(240)];
+    // ANCHOR. The head is thrown, and after that the fighter is not swinging anything - they are
+    // walking around holding the other end of a chain. The old pose was a three-revolution spin
+    // written for a different ultimate, and it made a move about positioning look like a move
+    // about standing in one place.
+    if (inWindup) {
+      out.angle = (REST[wid] ?? 0) + (D(-150) - (REST[wid] ?? 0)) * (k * k);
+      out.charge = k; out.ult.haul = k;
       return out;
     }
-    out.angle = D(-88) + ((REST[wid] ?? 0) - D(-88)) * recK;
-    out.scale = (m.weaponScale || 1.6) - ((m.weaponScale || 1.6) - 1) * recK;
+    if (inActive) {
+      // the throw, then an arm held out along the chain for the rest of it
+      const thrown = Math.min(1, ak / 6);
+      out.angle = D(-150) + (D(-14) - D(-150)) * (thrown * thrown * (3 - 2 * thrown));
+      if (thrown < 1) out.trail = { from: D(-150), to: out.angle, alpha: 1, heavy: true };
+      // the head is gone: hide the prop and let the world-space chain BE the weapon
+      out.hide = thrown >= 1;
+      out.ult.anchored = thrown >= 1 ? 1 : 0;
+      out.ox = 0.2 * thrown;
+      return out;
+    }
+    out.hide = false;
+    out.angle = D(-14) + ((REST[wid] ?? 0) - D(-14)) * recK;
     return out;
   }
 

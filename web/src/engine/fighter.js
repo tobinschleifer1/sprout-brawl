@@ -105,6 +105,9 @@ export class Fighter {
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
     if (this.mech.id === 'Brace') { this.mech.guardFrames = 0; this.mech.ready = false; }
     if (this.mech.id === 'Light') { this.mech.segments = 0; this.mech.still = 0; }
+    if (this.mech.id === 'Surge') { this.mech.hits = []; this.mech.surged = false; this.mech.timer = 0; }
+    if (this.mech.id === 'Draw') { this.mech.draw = 0; this.mech.ready = false; }
+    if (this.mech.id === 'Snare') { this.mech.snared = null; this.mech.timer = 0; this.mech.ready = false; }
     this.item = null;
     this.events = [];
   }
@@ -122,6 +125,8 @@ export class Fighter {
     // Carrying a Bulwark is slow. That is the cost, and it is the reason you drop it when the
     // fight turns back into a chase.
     if (this.item && this.item.def.guard && this.item.hp > 0) m *= this.item.def.guard.speedMul;
+    // Drawing a bow is not something you do while moving.
+    if (this.mech.id === 'Draw' && this.mech.draw > 6) m *= this.char.mechanic.slowMul;
     if (this.inWater) m *= 0.4;
     return m;
   }
@@ -507,6 +512,11 @@ export class Fighter {
       this.mech.ready = false; this.mech.guardFrames = 0;
       this.emit({ type: 'momentum' });
     }
+    if (this.mech.id === 'Surge' && this.mech.surged) {
+      if (M.startupCut) this.startupEff = Math.max(2, this.startupEff - M.startupCut);
+      if (move.heavy) { this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul; this.mech.surged = false; this.mech.hits = []; this.emit({ type: 'momentum' }); }
+    }
+    if (this.mech.id === 'Draw' && this.mech.ready && move.heavy) { this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul; this.mech.ready = false; this.mech.draw = 0; this.emit({ type: 'momentum' }); }
     if (this.mech.id === 'Momentum' && this.mech.ready && move.heavy) { this.bonusDamage += M.bonusDamage; this.launchMul *= M.launchMul; this.mech.ready = false; this.mech.runFrames = 0; this.emit({ type: 'momentum' }); }
     else if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; }   // spent by signatures only; a light does not burn it
     if (this.mech.id === 'Bloom' && this.mech.bloomed && move.heavy) { this.bonusDamage += M.bonusDamage; this.rangeMul = M.rangeMul; this.mech.bloomed = false; this.mech.cooldown = M.cooldownFrames; this.emit({ type: 'bloomspend' }); }
@@ -676,6 +686,10 @@ export class Fighter {
     if (this.mech.id === 'Light') this.mech.segments = Math.max(0, this.mech.segments - 1);
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }
     if (this.mech.id === 'Brace') { this.mech.guardFrames = 0; this.mech.ready = false; }
+    // Surge and Draw are wiped by being hit, the same way Momentum and Brace are: every one of
+    // these mechanics is a reward for pressure, and taking a hit is the opposite of pressure.
+    if (this.mech.id === 'Surge') { this.mech.hits = []; this.mech.surged = false; }
+    if (this.mech.id === 'Draw') { this.mech.draw = 0; this.mech.ready = false; }
     this.move = null; this.hold = null; this.tether = null; this.la = null;
     if (hit.trip && this.percent < hit.trip && this.onGround) { this.setState('knockdown'); this.sf = 6; this.vx = 0; return; }
     let launch = hit.launch;
@@ -984,6 +998,40 @@ export class Fighter {
       if (this.state === 'run') m.runFrames++;
       else if (this.state !== 'dash' && this.state !== 'jumpsquat' && this.state !== 'air') m.runFrames = 0;
       if (!m.ready && m.runFrames >= M.runFrames) { m.ready = true; this.emit({ type: 'momentumready' }); }
+    } else if (m.id === 'Surge') {
+      // SURGE, shared by the Gauntlets (Overdrive) and the Daggers (Bloodrush). Consecutive
+      // CONNECTED hits inside a window bank it; while banked, startup is cut and the next heavy
+      // spends the damage bonus. The two weapons differ only in their numbers and in
+      // `resetOnWhiff`, which is what makes the daggers the riskier of the pair.
+      const now = this.frameCount;
+      m.hits = (m.hits || []).filter((t) => now - t <= M.windowFrames);
+      if (m.surged && --m.timer <= 0) { m.surged = false; m.hits = []; }
+      if (!m.surged && m.hits.length >= M.hitsRequired) { m.surged = true; m.timer = M.durationFrames; this.emit({ type: 'momentumready' }); }
+    } else if (m.id === 'Draw') {
+      // DRAW is banked by HOLDING heavy, grounded and near-still. It is the longbow's whole cost:
+      // you cannot kite and draw at the same time.
+      if (this.input.heavyHeld && this.onGround && Math.abs(this.vx) < 2) m.draw = Math.min(M.drawFrames, (m.draw || 0) + 1);
+      else m.draw = Math.max(0, (m.draw || 0) - 3);
+      const was = m.ready;
+      m.ready = m.draw >= M.drawFrames;
+      if (m.ready && !was) this.emit({ type: 'momentumready' });
+    } else if (m.id === 'Snare') {
+      // SNARE holds whoever the chain is attached to and reels one of you toward the other
+      // depending on which way the stick is held - the brief's "pull them to you, or you to them".
+      // It lets go on its own timer, when the victim stops being a valid target, or when the chain
+      // runs out of length.
+      if (m.snared) {
+        const v = m.snared;
+        const gone = !v.alive || v.state === 'ko' || v.state === 'respawn' || Math.abs(v.x - this.x) > M.range * 1.6;
+        if (gone || --m.timer <= 0) { m.snared = null; m.timer = 0; }
+        else {
+          const toward = Math.sign(v.x - this.x) || 1;
+          const pull = M.pullSpeed * FRAME;
+          if (this.input.x * toward > 0.4) this.vx += toward * pull;             // reel yourself in
+          else if (this.input.x * toward < -0.4) v.vx -= toward * pull * 1.2;    // reel them in
+        }
+      }
+      m.ready = !!m.snared;
     } else if (m.id === 'Brace') {
       // Banked only while actually holding shield, and dropped the moment the shield does. A pike
       // user who wants the bonus has to stand still and take the pressure to get it.
@@ -1004,6 +1052,9 @@ export class Fighter {
       case 'Spines': return { label: 'Spines', value: m.spines / M.max, segments: M.max, filled: m.spines, active: m.spines === M.max };
       case 'Momentum': return { label: m.ready ? 'Momentum' : 'Rolling', value: m.ready ? 1 : Math.min(1, m.runFrames / M.runFrames), active: m.ready };
       case 'Brace': return { label: m.ready ? 'Braced' : 'Bracing', value: m.ready ? 1 : Math.min(1, m.guardFrames / M.guardFrames), active: m.ready };
+      case 'Surge': return { label: m.surged ? (M.label || 'Surge') : (M.label || 'Surge'), value: m.surged ? 1 : (m.hits || []).length / M.hitsRequired, segments: M.hitsRequired, filled: m.surged ? M.hitsRequired : (m.hits || []).length, active: !!m.surged };
+      case 'Draw': return { label: m.ready ? 'Drawn' : 'Draw', value: Math.min(1, (m.draw || 0) / M.drawFrames), active: !!m.ready };
+      case 'Snare': return { label: m.snared ? 'Snared' : 'Chain', value: m.snared ? Math.min(1, m.timer / M.holdFrames) : 0, active: !!m.snared };
       case 'Network': return { label: 'Nodes', value: 0, segments: M.maxNodes, filled: 0, needsNodes: true };
       case 'Tangle': return { label: 'Tangle', value: 0, passive: true };
       case 'Chill': return { label: 'Chill', value: 0, passive: true };

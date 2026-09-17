@@ -197,6 +197,9 @@ export class Combat {
     // fast light string charges as fast as a signature and pressure is what fills the bar.
     if (attacker.chargeUltimate && move.id !== 'Ultimate') attacker.chargeUltimate(1);
     if (attacker.mech.id === 'Bloom') attacker.mech.hits.push(attacker.frameCount);
+    // Surge counts the same way Bloom does: only CONNECTED hits, so the counter is a record of
+    // pressure rather than of button presses.
+    if (attacker.mech.id === 'Surge') (attacker.mech.hits = attacker.mech.hits || []).push(attacker.frameCount);
     if (victim.mech.id === 'Spines' && isMelee) { attacker.percent = Math.min(999, attacker.percent + victim.char.mechanic.recoil); this.emit({ type: 'recoil', x: attacker.x, y: attacker.cy }); }
   }
 
@@ -303,7 +306,10 @@ export class Combat {
       for (const dir of [-1, 1]) {
         if (step === 0 && dir === -1) continue;              // one crater at the centre, not two
         const x = f.x + dir * C.step * step;
-        this.spawnBurst(f, { id: 'Crater', x, y, damage: step === 0 ? C.damage : Math.max(C.minDamage, Math.round(C.damage * fade)),
+        this.spawnBurst(f, { id: 'Crater', x, y, // `C.minDamage ?? 1`: without the fallback a crater that omits the optional floor computed
+          // Math.max(undefined, n) = NaN, wrote NaN into the victim's percent, and corrupted the
+          // match silently. The war hammer's two craters found this the day they were added.
+          damage: step === 0 ? C.damage : Math.max(C.minDamage ?? 1, Math.round(C.damage * fade)),
           base: C.base, growth: C.growth, frames: 4, knockbackMul: C.knockbackMul,
           shieldDamageMul: C.shieldDamageMul,
           // The epicentre throws along the BLADE's angle, the outward steps pop upward. Without
@@ -328,6 +334,14 @@ export class Combat {
           f.ultHeld.push(v);
         }
         if (f.ultHeld.length) this.emit({ type: 'soulgrab', x: ox, y: oy, victims: f.ultHeld.map((v) => v.index) });
+        // The Chain Flail's Snare is the same reach-and-hold, except it does not crush: it
+        // ATTACHES, and hands the pull to the mechanic so the player decides for the next 90
+        // frames which of the two of them crosses the gap. See the Snare branch in fighter.js.
+        if (f.mech.id === 'Snare' && f.ultHeld.length) {
+          f.mech.snared = f.ultHeld[0];
+          f.mech.timer = f.char.mechanic.holdFrames;
+          this.emit({ type: 'snare', x: ox, y: oy, victim: f.ultHeld[0].index });
+        }
       }
       const held = f.ultHeld || [];
       if (k < V.holdFrames) {

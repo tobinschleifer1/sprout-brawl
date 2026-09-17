@@ -186,7 +186,14 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   }
   // Each ultimate is measured at the range it is meant to be used at; a weapon missing from
   // this map positioned its victim at NaN and silently measured a launch of zero.
-  const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10 };
+  const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
+    Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0 };
+  // And the warning above is not decoration: six weapons were added at once and every one of them
+  // reported a launch of zero until it appeared here. The check below now fails loudly on a weapon
+  // this map does not know about, rather than quietly measuring NaN.
+  const unranged = WEAPONS.filter((w) => RANGE_FOR[w.id] == null).map((w) => w.id);
+  if (unranged.length) check('every weapon has an ultimate test range', false,
+    `${unranged.join(', ')} missing from RANGE_FOR — their ultimates are being measured at NaN studs`);
   const rows = [];
   let ok = true;
   for (const w of WEAPONS) {
@@ -369,7 +376,15 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     // These must sit INSIDE the move's own reach. Reave's widest box reaches 8.4 studs and Lance
     // Charge's now reaches 20 — probing at 11 and 30 was asking whether a shield beats an attack
     // that cannot touch you, which it obviously does.
-    Axe: [2.5, 5, 8], Pike: [6, 12, 18] };
+    Axe: [2.5, 5, 8], Pike: [6, 12, 18],
+    Gauntlets: [2.5, 4, 6], Hammer: [3, 5, 8], Longbow: [6, 12, 20],
+    Flail: [3, 6, 10], Shield: [2.5, 4, 7], Daggers: [2.5, 4, 6] };
+  // Second per-weapon map in this file that a new weapon has to be added to. Missing from the one
+  // above, a weapon measured a launch of NaN; missing from this one it threw outright. Both now
+  // say so by name instead.
+  const unprobed = WEAPONS.filter((w) => !RANGES[w.id]).map((w) => w.id);
+  if (unprobed.length) check('every weapon has shield-probe ranges', false,
+    `${unprobed.join(', ')} missing from RANGES — the shield check cannot run for them`);
   const blocked = [];
   const rows = [];
   for (const w of WEAPONS) {
@@ -388,8 +403,15 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
         m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: i % 20 === 0, anyPress: i % 20 === 0 }));
         m._input.set('p1', Object.assign({}, EMPTY_IN, { guard: true, guardHeld: true, anyPress: true }));
         m.step();
+        // The engine's broken-shield state is 'stunned', and it emits a `shieldbreak` event. This
+        // loop watched for 'shieldbreak' and 'stun', neither of which exists, so a shield that
+        // broke in ONE hit was recorded as having held: the shield resets to half on break, so
+        // `lowest` never dipped under 25 either. The six original ultimates hid it by chipping the
+        // bar down over many blocks; the war hammer breaks it outright and the flaw surfaced.
+        for (const e of m.events) if (e.type === 'shieldbreak') broke = true;
+        m.events.length = 0;
         lowest = Math.min(lowest, v.shield);
-        if (v.shield <= 0 || v.state === 'shieldbreak' || v.state === 'stun') broke = true;
+        if (v.shield <= 0 || v.state === 'stunned') broke = true;
       }
       // "Not a clean answer" means one of: the shield broke, it got through anyway, or holding it
       // cost at least half the bar. The outer ring of a shockwave should not break a full shield

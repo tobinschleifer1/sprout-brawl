@@ -86,6 +86,51 @@ const SWING_BY_WEAPON = {
     sigdown: { arc: [D(-4), D(-38), D(-28)], trail: D(32), thrust: 0.3, heavy: true },
     signeut: { arc: [D(10), D(92), D(76)], trail: D(48), thrust: 0.3, heavy: true },
   },
+  // The hammer is the axe's arcs taken further: it is heavier than the axe and every heavy is a
+  // lift and a drop, so the cocked angle is higher and the contact is at or below the floor line.
+  Hammer: {
+    jab:     { arc: [D(70), D(-8), D(12)], trail: D(70), heavy: true },
+    side:    { arc: [D(158), D(-32), D(-10)], trail: D(140), heavy: true },
+    down:    { arc: [D(46), D(-84), D(-66)], trail: D(110), heavy: true },
+    up:      { arc: [D(-124), D(104), D(76)], trail: D(130), heavy: true },
+    fair:    { arc: [D(166), D(-22), D(2)], trail: D(150), heavy: true },
+    dair:    { arc: [D(-38), D(-96), D(-92)], trail: D(64), heavy: true },
+    uair:    { arc: [D(-118), D(112), D(92)], trail: D(140), heavy: true },
+    sigside: { arc: [D(178), D(-40), D(-16)], trail: D(175), heavy: true },
+    sigdown: { arc: [D(172), D(-90), D(-72)], trail: D(170), heavy: true },
+    signeut: { arc: [D(-130), D(124), D(100)], trail: D(158), heavy: true },
+  },
+  // A dagger is not a small sword: the arcs are short and they end pointing where the blade is
+  // going, because at a 1.5-stud blade there is no arc long enough to read on its own. Measured on
+  // the blade-vs-hitbox check in geometry.test.mjs, the shared sword arcs put this weapon 71 wrong.
+  Daggers: {
+    jab:     { arc: [D(58), D(14), D(30)], trail: D(44), thrust: 0.2 },
+    side:    { arc: [D(72), D(6), D(24)], trail: D(66) },
+    down:    { arc: [D(26), D(-52), D(-36)], trail: D(58) },
+    up:      { arc: [D(-88), D(88), D(70)], trail: D(90) },
+    nair:    { arc: [D(0), D(720), D(720)], trail: D(150), spin: true },
+    fair:    { arc: [D(76), D(8), D(26)], trail: D(68) },
+    dair:    { arc: [D(-54), D(-92), D(-86)], trail: D(44) },
+    uair:    { arc: [D(-84), D(90), D(74)], trail: D(92) },
+    sigside: { arc: [D(88), D(2), D(22)], trail: D(80), heavy: true },
+    sigdown: { arc: [D(34), D(-60), D(-44)], trail: D(70), heavy: true },
+    signeut: { arc: [D(-92), D(94), D(76)], trail: D(96), heavy: true },
+  },
+  // The flail's head is on four studs of chain: it travels further than anything else and it does
+  // not stop where the swing stops, which is why every settle angle here overshoots.
+  Flail: {
+    jab:     { arc: [D(96), D(-2), D(34)], trail: D(96), heavy: true },
+    side:    { arc: [D(170), D(-34), D(6)], trail: D(160), heavy: true },
+    down:    { arc: [D(52), D(-78), D(-44)], trail: D(120), heavy: true },
+    up:      { arc: [D(-128), D(112), D(74)], trail: D(140), heavy: true },
+    nair:    { arc: [D(0), D(1080), D(1080)], trail: D(200), spin: true },
+    fair:    { arc: [D(168), D(-18), D(18)], trail: D(160), heavy: true },
+    dair:    { arc: [D(-42), D(-98), D(-88)], trail: D(72), heavy: true },
+    uair:    { arc: [D(-122), D(118), D(88)], trail: D(150), heavy: true },
+    sigside: { arc: [D(186), D(-40), D(24)], trail: D(190), heavy: true },
+    sigdown: { arc: [D(40), D(-86), D(-52)], trail: D(140), heavy: true },
+    signeut: { arc: [D(-134), D(128), D(96)], trail: D(160), heavy: true },
+  },
 };
 
 function categoryOf(id) {
@@ -107,11 +152,14 @@ function categoryOf(id) {
 
 // Weapons that are aimed rather than swung. These get a recoil kick and a muzzle/cast flash on the
 // frame the projectile actually leaves, instead of an arc.
-const AIMED = { Blasters: true, Grimoire: 'cast' };
+const AIMED = { Blasters: true, Grimoire: 'cast', Longbow: true };
 
 // The axe's rest angle is almost straight down and slightly behind: it is not being held, it is
 // being dragged. Everything else rests at a carry angle.
-const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70), Axe: D(-104), Pike: D(-58) };
+const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70), Axe: D(-104), Pike: D(-58),
+  // The gauntlets and the shield rest near horizontal because they are worn, not carried; the
+  // hammer rests lowest of anything but the axe; the flail's head hangs.
+  Gauntlets: D(-28), Hammer: D(-98), Longbow: D(-84), Flail: D(-96), Shield: D(-20), Daggers: D(-66) };
 
 // Where a projectile-spawning move actually fires, in absolute move frames.
 const fireFrame = (f, m) => f.startupEff + 1;
@@ -385,6 +433,119 @@ function ultimatePose(f, m, wid, out, t) {
     return out;
   }
 
+  if (wid === 'Gauntlets') {
+    // HUNDRED HANDS. There is nothing to swing, so the pose is the arms: wound back on the
+    // wind-up, then a blur that does not resolve until the last punch.
+    if (inWindup) { out.angle = D(-40) + (D(-110) - D(-40)) * (k * k); out.charge = k; out.ult.haul = k; return out; }
+    if (inActive) {
+      const p2 = ak / Math.max(1, act);
+      out.angle = D(-6) + Math.sin(ak * 1.9) * D(26);
+      out.ox = 0.12 + Math.abs(Math.sin(ak * 1.9)) * 0.2;
+      out.ult.flurry = p2;
+      out.ult.blur = [out.angle + D(26), out.angle - D(26)];
+      if (ak > act - 10) { out.angle = D(2); out.ox = 0.32; out.ult.finish = (ak - (act - 10)) / 10; }
+      return out;
+    }
+    out.angle = D(-6) + ((REST[wid] ?? 0) - D(-6)) * recK;
+    return out;
+  }
+
+  if (wid === 'Hammer') {
+    // METEOR. The longest wind-up in the game, spent going UP, and one impact.
+    const CHOP = 7, riseEnd = Math.max(1, st - CHOP);
+    const FULL = m.weaponScale || 1.8;
+    if (inWindup) {
+      if (mf <= riseEnd) {
+        const r = mf / riseEnd;
+        out.scale = 1 + (FULL - 1) * r;
+        out.angle = (REST[wid] ?? 0) + (D(128) - (REST[wid] ?? 0)) * (r * r);
+        out.oy = -r * 0.5; out.charge = r;
+        out.ult.haul = r; out.ult.glow = r;
+        return out;
+      }
+      const c = (mf - riseEnd) / CHOP;
+      out.scale = FULL;
+      out.angle = D(128) + (D(-88) - D(128)) * (c * c * (3 - 2 * c));
+      out.trail = { from: D(128), to: out.angle, alpha: 1, heavy: true };
+      out.ult.glow = 1; out.ult.chop = c;
+      return out;
+    }
+    const since = inActive ? ak : act + (mf - st - act);
+    const sink = Math.min(1, since / 8);
+    out.scale = FULL - (FULL - 1.1) * sink;
+    out.angle = D(-88) + Math.sin(since * 0.5) * 0.04;
+    out.ult.planted = sink;
+    out.ult.shock = inActive ? ak / Math.max(1, act) : 1;
+    out.ult.glow = 1 - sink * 0.7;
+    if (!inActive) { out.angle = D(-88) + ((REST[wid] ?? 0) - D(-88)) * recK; out.scale = 1 + (FULL - 1) * (1 - recK) * 0.1; }
+    return out;
+  }
+
+  if (wid === 'Longbow') {
+    // ARROWFALL. One shot, straight up, and then the sky. The bow stays drawn and pointed
+    // overhead for the whole volley, which is what tells you where the arrows are coming from.
+    if (inWindup) { out.angle = (REST[wid] ?? 0) + (D(84) - (REST[wid] ?? 0)) * easeOut(k); out.charge = k; out.ult.draw = k; return out; }
+    out.angle = D(84) + Math.sin(mf * 0.4) * 0.05;
+    out.oy = 0.2;
+    if (inActive) {
+      out.ult.runes = ak / Math.max(1, act);
+      const S = m.starfall;
+      if (S) { const since = (ak - 1) % S.every; if (since < 6 && ak - 1 < S.perTarget * S.every) out.flash = 1 - since / 6; }
+    } else out.angle = D(84) + ((REST[wid] ?? 0) - D(84)) * recK;
+    return out;
+  }
+
+  if (wid === 'Flail') {
+    // MAELSTROM. The chain lets out to twice its length and the head never stops.
+    if (inWindup) { out.angle = (REST[wid] ?? 0) + (D(-160) - (REST[wid] ?? 0)) * (k * k); out.charge = k; out.ult.haul = k; return out; }
+    if (inActive) {
+      const spin = Math.pow(ak / Math.max(1, act), 1.1) * PI * 7.0;
+      out.angle = D(-160) - spin;
+      out.scale = m.weaponScale || 1.6;
+      out.trail = { from: out.angle + D(340), to: out.angle, alpha: 1, heavy: true };
+      out.ult.reave = ak / Math.max(1, act);
+      out.ult.blur = [out.angle + D(120), out.angle + D(240)];
+      return out;
+    }
+    out.angle = D(-88) + ((REST[wid] ?? 0) - D(-88)) * recK;
+    out.scale = (m.weaponScale || 1.6) - ((m.weaponScale || 1.6) - 1) * recK;
+    return out;
+  }
+
+  if (wid === 'Shield') {
+    // LAST STAND. The shield plants and does not move: the whole performance is the fighter
+    // behind it, so the prop's job here is to sit absolutely still and grow.
+    if (inWindup) { out.angle = (REST[wid] ?? 0) + (D(-4) - (REST[wid] ?? 0)) * easeOut(k); out.ox = 0.2 * k; out.charge = k; out.ult.brace = k; return out; }
+    if (inActive) {
+      out.angle = D(-4);
+      out.ox = 0.2 + Math.sin(ak * 0.9) * 0.04;
+      out.scale = 1.12;
+      out.ult.wall = ak / Math.max(1, act);
+      if (ak > act - 12) { out.ult.release = (ak - (act - 12)) / 12; out.ox = 0.2 + out.ult.release * 0.14; out.scale = 1.12 + out.ult.release * 0.45; }
+      return out;
+    }
+    out.angle = D(-4) + ((REST[wid] ?? 0) - D(-4)) * recK;
+    out.ox = 0.2 * (1 - recK);
+    return out;
+  }
+
+  if (wid === 'Daggers') {
+    // THOUSAND CUTS. The blades are where the fighter is not: the pose flickers between two
+    // extremes rather than travelling between them, which is the only way a teleport reads.
+    if (inWindup) { out.angle = (REST[wid] ?? 0) + (D(-150) - (REST[wid] ?? 0)) * (k * k); out.charge = k; out.ult.haul = k; return out; }
+    if (inActive) {
+      const flip = Math.floor(ak / 3) % 2 ? 1 : -1;
+      out.angle = D(20) * flip + Math.sin(ak * 2.6) * D(14);
+      out.ox = 0.16 + (flip > 0 ? 0.16 : 0);
+      out.ult.flurry = ak / Math.max(1, act);
+      out.ult.blur = [out.angle + D(150), out.angle - D(150)];
+      if (ak > act - 10) { out.angle = D(6); out.ox = 0.3; out.ult.finish = (ak - (act - 10)) / 10; }
+      return out;
+    }
+    out.angle = D(6) + ((REST[wid] ?? 0) - D(6)) * recK;
+    return out;
+  }
+
   // Grimoire: the book goes overhead and stays there while the sky falls.
   if (inWindup) { out.angle = D(-70) + k * D(160); out.charge = k; out.oy = k * 0.3; return out; }
   out.angle = D(92) + Math.sin(mf * 0.5) * 0.05;
@@ -528,11 +689,116 @@ function pike(ctx, p, L) {
   ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.07; ctx.stroke();
 }
 
+
+// ------------------------------------------------------- the six weapons added from the brief -----
+
+function gauntlets(ctx, p) {
+  // No weapon: a bracer and a fist. The shortest thing in the game, so what has to read is the
+  // SILHOUETTE of a wrapped hand rather than any detail on it.
+  poly(ctx, [[-0.5, -0.30], [0.18, -0.34], [0.18, 0.34], [-0.5, 0.30]], p.secondary);      // bracer
+  poly(ctx, [[-0.5, -0.30], [0.18, -0.34], [0.18, -0.20], [-0.5, -0.16]], p.accent);       // lit edge
+  poly(ctx, [[0.14, -0.38], [0.86, -0.34], [0.94, 0], [0.86, 0.34], [0.14, 0.38]], p.primary); // fist
+  poly(ctx, [[0.42, -0.30], [0.90, -0.24], [0.90, -0.08], [0.42, -0.12]], 'rgba(255,255,255,0.22)');
+  poly(ctx, [[0.42, 0.14], [0.90, 0.10], [0.90, 0.26], [0.42, 0.30]], 'rgba(0,0,0,0.26)');
+  for (let i = 0; i < 3; i++) poly(ctx, [[0.66, -0.26 + i * 0.22], [0.92, -0.24 + i * 0.22], [0.92, -0.14 + i * 0.22], [0.66, -0.16 + i * 0.22]], p.glow || p.accent); // knuckles
+}
+
+function hammer(ctx, p, L) {
+  // A long haft and a head that is most of the weight. Bigger and blockier than the axe's, with a
+  // spike on the reverse so the silhouette is not symmetrical - that is what tells them apart at
+  // twenty pixels.
+  poly(ctx, [[-1.1, -0.15], [L - 0.25, -0.15], [L - 0.25, 0.15], [-1.1, 0.15]], p.hilt || p.secondary);
+  poly(ctx, [[-1.1, -0.15], [L - 0.25, -0.15], [L - 0.25, -0.05], [-1.1, -0.05]], 'rgba(255,255,255,0.14)');
+  poly(ctx, [[-1.24, -0.24], [-0.96, -0.24], [-0.96, 0.24], [-1.24, 0.24]], p.secondary);   // butt cap
+  const h = L - 0.55;
+  poly(ctx, [[h, -1.05], [L + 0.62, -1.05], [L + 0.62, 1.05], [h, 1.05]], p.primary);       // the head
+  poly(ctx, [[h, -1.05], [L + 0.62, -1.05], [L + 0.62, -0.55], [h, -0.55]], 'rgba(255,255,255,0.20)');
+  poly(ctx, [[h, 0.55], [L + 0.62, 0.55], [L + 0.62, 1.05], [h, 1.05]], 'rgba(0,0,0,0.30)');
+  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.14;
+  ctx.beginPath(); ctx.moveTo(L + 0.62, -1.05); ctx.lineTo(L + 0.62, 1.05); ctx.stroke();   // the face
+  poly(ctx, [[h - 0.62, -0.30], [h, -0.42], [h, 0.42], [h - 0.62, 0.30]], p.secondary);     // reverse spike
+}
+
+function longbow(ctx, p, L) {
+  // Drawn as a bow held at the grip: two limbs curving away and a string between the tips. The
+  // string is the read - it is the only straight line on the weapon.
+  ctx.strokeStyle = p.primary; ctx.lineWidth = 0.22; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0.1, -L);
+  ctx.quadraticCurveTo(0.95, -L * 0.45, 1.0, 0);
+  ctx.quadraticCurveTo(0.95, L * 0.45, 0.1, L);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.08;
+  ctx.beginPath();
+  ctx.moveTo(0.16, -L * 0.9); ctx.quadraticCurveTo(0.9, -L * 0.4, 0.94, 0); ctx.stroke();
+  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.06;                                          // the string
+  ctx.beginPath(); ctx.moveTo(0.1, -L); ctx.lineTo(0.1, L); ctx.stroke();
+  poly(ctx, [[0.62, -0.42], [1.02, -0.42], [1.02, 0.42], [0.62, 0.42]], p.secondary);        // the grip
+  ctx.lineCap = 'butt';
+}
+
+function flail(ctx, p, L) {
+  // Handle, chain, ball. The chain is drawn as discrete links because a smooth line at this scale
+  // reads as a stick, and a stick is the pike.
+  poly(ctx, [[-0.9, -0.14], [0.35, -0.14], [0.35, 0.14], [-0.9, 0.14]], p.hilt || p.secondary);
+  poly(ctx, [[-1.02, -0.2], [-0.8, -0.2], [-0.8, 0.2], [-1.02, 0.2]], p.secondary);
+  const links = 5, span = L - 1.0;
+  for (let i = 0; i < links; i++) {
+    const x = 0.4 + (i / links) * span;
+    poly(ctx, [[x, -0.11], [x + span / links * 0.7, -0.11], [x + span / links * 0.7, 0.11], [x, 0.11]], i % 2 ? p.tertiary : p.secondary);
+  }
+  const bx = L + 0.1;
+  ctx.beginPath(); ctx.arc(bx, 0, 0.52, 0, TAU);                                             // the ball
+  ctx.fillStyle = p.primary; ctx.fill();
+  ctx.beginPath(); ctx.arc(bx - 0.14, -0.14, 0.2, 0, TAU);
+  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
+  for (let i = 0; i < 6; i++) {                                                              // spikes
+    const a = (i / 6) * TAU + 0.3;
+    poly(ctx, [[bx + Math.cos(a) * 0.45, Math.sin(a) * 0.45],
+      [bx + Math.cos(a) * 0.86, Math.sin(a) * 0.86],
+      [bx + Math.cos(a + 0.4) * 0.45, Math.sin(a + 0.4) * 0.45]], p.accent);
+  }
+}
+
+function shieldWeapon(ctx, p, L) {
+  // A kite shield seen edge-on-ish: tall, a boss in the middle, a rim that catches the light. It
+  // is drawn ACROSS the arm rather than along it, because that is how a shield is carried.
+  poly(ctx, [[-0.2, -L], [0.5, -L * 0.82], [0.72, 0], [0.5, L * 0.82], [-0.2, L], [-0.36, 0]], p.primary);
+  poly(ctx, [[-0.2, -L], [0.5, -L * 0.82], [0.56, -L * 0.5], [-0.24, -L * 0.6]], 'rgba(255,255,255,0.24)');
+  poly(ctx, [[-0.2, L], [0.5, L * 0.82], [0.56, L * 0.5], [-0.24, L * 0.6]], 'rgba(0,0,0,0.26)');
+  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.1;
+  ctx.beginPath();
+  ctx.moveTo(-0.2, -L); ctx.lineTo(0.5, -L * 0.82); ctx.lineTo(0.72, 0); ctx.lineTo(0.5, L * 0.82); ctx.lineTo(-0.2, L);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(0.22, 0, 0.3, 0, TAU);                                            // the boss
+  ctx.fillStyle = p.secondary; ctx.fill();
+  ctx.beginPath(); ctx.arc(0.22, 0, 0.14, 0, TAU);
+  ctx.fillStyle = p.glow || p.accent; ctx.fill();
+}
+
+function daggers(ctx, p, L) {
+  // TWO blades, offset from each other, because one dagger is a short sword. The second is drawn
+  // behind and reversed - the silhouette has to say "a pair" in the frame it is on screen.
+  poly(ctx, [[-0.62, -0.10], [-0.16, -0.10], [-0.16, 0.10], [-0.62, 0.10]], p.tertiary);     // back grip
+  poly(ctx, [[-0.2, -0.20], [-0.05, -0.20], [-0.05, 0.20], [-0.2, 0.20]], p.secondary);
+  poly(ctx, [[-0.05, -0.11], [-L * 0.62, -0.05], [-L * 0.78, 0], [-L * 0.62, 0.05], [-0.05, 0.11]], 'rgba(160,172,190,0.9)'); // reversed blade
+  poly(ctx, [[-0.5, -0.13], [0.0, -0.13], [0.0, 0.13], [-0.5, 0.13]], p.secondary);          // front grip
+  poly(ctx, [[-0.08, -0.26], [0.1, -0.26], [0.1, 0.26], [-0.08, 0.26]], p.tertiary);         // guard
+  poly(ctx, [[0.1, -0.15], [L - 0.28, -0.13], [L, 0], [L - 0.28, 0.13], [0.1, 0.15]], p.primary);
+  poly(ctx, [[0.1, -0.15], [L - 0.28, -0.13], [L - 0.2, -0.04], [0.1, -0.05]], 'rgba(255,255,255,0.26)');
+  poly(ctx, [[0.1, 0.05], [L - 0.2, 0.04], [L - 0.28, 0.13], [0.1, 0.15]], 'rgba(0,0,0,0.24)');
+  ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.05;
+  ctx.beginPath(); ctx.moveTo(0.2, 0); ctx.lineTo(L - 0.24, 0); ctx.stroke();
+}
+
 const SHAPES = { Sword: (c, p) => sword(c, p, 2.35), Scythe: (c, p) => scythe(c, p, 2.9), Blasters: blaster, Grimoire: grimoire,
-  Axe: (c, p) => axe(c, p, 2.9), Pike: (c, p) => pike(c, p, 5.4) };
+  Axe: (c, p) => axe(c, p, 2.9), Pike: (c, p) => pike(c, p, 5.4),
+  Gauntlets: gauntlets, Hammer: (c, p) => hammer(c, p, 3.1), Longbow: (c, p) => longbow(c, p, 1.5),
+  Flail: (c, p) => flail(c, p, 3.6), Shield: (c, p) => shieldWeapon(c, p, 1.5), Daggers: (c, p) => daggers(c, p, 1.5) };
 
 // Blade length per weapon, used to size the swing trail.
-export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9, Axe: 3.2, Pike: 5.9 };
+export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9, Axe: 3.2, Pike: 5.9,
+  Gauntlets: 1.0, Hammer: 3.7, Longbow: 1.2, Flail: 4.2, Shield: 1.3, Daggers: 1.7 };
 
 // A palette whose every entry is the same dark value, for the contour pass below.
 const CONTOUR = new Proxy({}, { get: () => 'rgba(22,18,26,0.62)' });

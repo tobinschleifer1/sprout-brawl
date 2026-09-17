@@ -234,6 +234,145 @@ function ultChannels(ch, f, m, t) {
       ch.lean = 0.28 * (1 - out); ch.armR.z = F * (1 - out); ch.armR.ext = 1 + 0.5 * (1 - out);
       ch.bob = -0.35 * (1 - out); ch.sy = 1 - 0.16 * (1 - out);
     }
+  } else if (wid === 'Gauntlets') {
+    // HUNDRED HANDS. No weapon, so the body IS the move: wound back, then a torso that never
+    // stops turning, then one straight right that puts everything behind it.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -1.5 * r; ch.armL.z = 0.4 + 1.0 * r;
+      ch.lean = -0.4 * r; ch.legL = 0.4 * r; ch.legR = -0.35 * r;
+      ch.sx = 1 - 0.08 * r; ch.bob = -0.2 * r;
+    } else if (live) {
+      const p2 = ak / Math.max(1, act);
+      const beat = Math.sin(ak * 1.9);
+      ch.armR.z = F + beat * 0.5; ch.armR.ext = 1 + 0.28 * Math.abs(beat);
+      ch.armL.z = -0.4 - beat * 0.5;
+      ch.lean = 0.2 + beat * 0.12;
+      ch.spinY = beat * 0.5;
+      ch.sx = 1 + 0.06 * Math.abs(beat);
+      ch.smear = 0.7;
+      ch.bob = -0.14;
+      if (ak > act - 10) { const f2 = (ak - (act - 10)) / 10; ch.armR.z = F; ch.armR.ext = 1 + 0.5 * f2; ch.lean = 0.42; ch.spinY = 0; ch.smear = 1; }
+    } else {
+      ch.lean = 0.42 * (1 - out); ch.armR.z = F * (1 - out); ch.armR.ext = 1 + 0.4 * (1 - out);
+    }
+  } else if (wid === 'Hammer') {
+    // METEOR. Forty frames going up with a hundred and twenty-five kilos of body, and one coming
+    // down. Everything here is the strain of the lift.
+    const CHOP = 7, riseEnd = Math.max(1, st - CHOP);
+    if (wind && mf <= riseEnd) {
+      const r = easeOut(mf / riseEnd);
+      ch.armL.z = 0.6 + 2.4 * r; ch.armR.z = -0.6 - 2.3 * r;
+      ch.sy = 1 + 0.3 * r; ch.sx = 1 - 0.16 * r;
+      ch.bob = 0.7 * r; ch.head = -0.4 * r;
+      ch.legL = -0.4 * r; ch.legR = -0.32 * r;
+      ch.shakeX = strain(0.16 * r);
+    } else if (wind) {
+      const c = easeIn((mf - riseEnd) / CHOP);
+      ch.armL.z = 3.0 - 2.7 * c; ch.armR.z = -2.9 + 2.5 * c;
+      ch.sy = 1.3 - 0.58 * c; ch.sx = 0.84 + 0.44 * c;
+      ch.bob = 0.7 - 1.05 * c; ch.lean = 0.34 * c;
+      ch.legL = -0.4 + 1.0 * c; ch.legR = -0.32 - 0.55 * c;
+      ch.head = -0.4 + 0.8 * c;
+      ch.smear = c;
+    } else {
+      const q = live ? 1 - Math.min(1, ak / 8) : 0;
+      ch.sy = 0.74 + 0.24 * (1 - q); ch.sx = 1.26 - 0.22 * (1 - q);
+      ch.lean = 0.3 - 0.18 * (1 - q); ch.bob = -0.34 + 0.24 * (1 - q);
+      ch.armL.z = 0.4; ch.armR.z = -0.5; ch.legL = 0.6; ch.legR = -0.8; ch.head = 0.36;
+      if (live) ch.shakeX = strain(0.2 * (1 - ak / Math.max(1, act)));
+    }
+  } else if (wid === 'Longbow') {
+    // ARROWFALL. One loose, straight up, and then the archer simply watches - which is the point:
+    // the move is not happening where they are standing.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -0.5 + (F + 1.1) * r; ch.armL.z = -0.3 + 1.9 * r;
+      ch.armR.ext = 1 - 0.2 * r;                       // drawing pulls the string hand IN
+      ch.lean = -0.3 * r; ch.head = -0.42 * r;
+      ch.sy = 1 + 0.12 * r; ch.legL = -0.25 * r; ch.legR = 0.3 * r;
+      ch.shakeX = strain(0.1 * r);
+    } else if (live) {
+      ch.armR.z = F + 0.9; ch.armL.z = 2.4; ch.armR.ext = 1.12;
+      ch.lean = -0.3; ch.head = -0.45; ch.sy = 1.12;
+      ch.legL = -0.25; ch.legR = 0.3;
+      const S = m.starfall;
+      let pulse = 0;
+      if (S) { const since = (ak - 1) % S.every; if (since < 10 && ak - 1 < S.perTarget * S.every) pulse = 1 - since / 10; }
+      ch.bob = 0.12 * pulse + Math.sin(t * 1.6) * 0.06;
+      ch.shakeX = strain(0.08 * pulse);
+    } else {
+      ch.armR.z = (F + 0.9) * (1 - out); ch.armL.z = 2.4 * (1 - out); ch.lean = -0.3 * (1 - out); ch.head = -0.45 * (1 - out);
+    }
+  } else if (wid === 'Flail') {
+    // MAELSTROM. Same shape as Reave and for the same reason - the head has taken over - but the
+    // chain is longer, so the fighter is pulled further off their own centre.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -1.8 * r; ch.armL.z = 0.4 + 1.3 * r;
+      ch.lean = -0.5 * r; ch.sy = 1 - 0.18 * r; ch.sx = 1 + 0.14 * r;
+      ch.legL = 0.5 * r; ch.legR = -0.45 * r; ch.bob = -0.35 * r; ch.head = -0.28 * r;
+      ch.shakeX = strain(0.12 * r);
+    } else if (live) {
+      const p2 = ak / Math.max(1, act);
+      ch.spinY = Math.pow(p2, 1.1) * PI * 7.0;
+      ch.lean = 0.22 + 0.14 * p2;
+      ch.armR.z = -0.25; ch.armL.z = -0.2;
+      ch.sx = 1 + 0.12 * p2; ch.sy = 1 - 0.08 * p2;
+      ch.legL = 0.3; ch.legR = -0.3;
+      ch.smear = 0.6 + 0.4 * p2;
+      ch.bob = -0.22 - 0.18 * p2;
+    } else {
+      ch.lean = 0.34 * (1 - out); ch.sx = 1 + 0.12 * (1 - out);
+      ch.armL.z = 1.1 * (1 - out); ch.armR.z = -0.9 * (1 - out);
+      ch.head = 0.3 * (1 - out) * Math.cos(out * PI * 2);
+      ch.bob = -0.36 * (1 - out);
+    }
+  } else if (wid === 'Shield') {
+    // LAST STAND. The only ultimate in the game whose performance is holding still. Everything
+    // that lands on it is absorbed into a body that compresses and does not move, and the release
+    // is the first thing that does.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armL.z = 0.4 + 1.1 * r; ch.armR.z = -0.4 - 0.6 * r;
+      ch.lean = 0.26 * r; ch.sy = 1 - 0.14 * r; ch.sx = 1 + 0.12 * r;
+      ch.legR = 0.7 * r; ch.legL = -0.5 * r; ch.bob = -0.24 * r; ch.head = 0.2 * r;
+    } else if (live) {
+      const rel = ak > act - 12 ? (ak - (act - 12)) / 12 : 0;
+      ch.armL.z = 1.5; ch.armR.z = -1.0;
+      ch.lean = 0.26 - 0.1 * rel;
+      ch.sy = 0.86 - 0.06 * (1 - rel) + 0.34 * rel;
+      ch.sx = 1.12 + 0.06 * (1 - rel) - 0.2 * rel;
+      ch.legR = 0.7; ch.legL = -0.5; ch.head = 0.2;
+      ch.bob = -0.24 + 0.3 * rel;
+      ch.shakeX = strain(0.06 + 0.1 * Math.sin(ak * 0.5));
+      ch.smear = rel;
+    } else {
+      ch.lean = 0.2 * (1 - out); ch.armL.z = 1.5 * (1 - out); ch.armR.z = -1.0 * (1 - out);
+      ch.sy = 1 + 0.18 * (1 - out); ch.bob = 0.06 * (1 - out);
+    }
+  } else if (wid === 'Daggers') {
+    // THOUSAND CUTS. A body that is never where it was a frame ago. The flicker is deliberate: it
+    // alternates between two poses rather than easing between them, because easing would read as
+    // one fighter moving quickly instead of one who keeps arriving somewhere else.
+    if (wind) {
+      const r = easeOut(k);
+      ch.armR.z = -1.4 * r; ch.armL.z = 0.4 + 1.2 * r;
+      ch.lean = -0.36 * r; ch.sx = 1 - 0.1 * r; ch.bob = -0.24 * r;
+      ch.legL = 0.4 * r; ch.legR = -0.3 * r; ch.head = -0.2 * r;
+    } else if (live) {
+      const flip = Math.floor(ak / 3) % 2 ? 1 : -1;
+      ch.armR.z = F * flip; ch.armL.z = -F * flip * 0.7;
+      ch.armR.ext = 1 + 0.35;
+      ch.lean = 0.3 * flip;
+      ch.spinY = flip > 0 ? 0 : PI * 0.85;              // facing away on the off beat
+      ch.opacity = 0.8;
+      ch.smear = 1;
+      ch.bob = -0.16;
+      if (ak > act - 10) { const f2 = (ak - (act - 10)) / 10; ch.spinY = 0; ch.opacity = 1; ch.lean = 0.44; ch.armR.z = F; ch.armR.ext = 1 + 0.5 * f2; }
+    } else {
+      ch.lean = 0.44 * (1 - out); ch.armR.z = F * (1 - out); ch.armR.ext = 1 + 0.4 * (1 - out);
+    }
   } else {
     // GRIMOIRE - ASTRAL RAIN. The book goes up and the fighter opens out under it, arched back,
     // pulsing with every wave that leaves the pages.

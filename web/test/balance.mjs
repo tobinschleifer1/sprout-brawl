@@ -10,7 +10,9 @@ export const STAGE = STAGES.find((s) => s.id === 'FoundryFloor');
 // 118 is the Battle Axe. Every KO percent in this project was computed across 90-108 and the axe
 // sits outside that range entirely — against an axe victim every published number moves 35 to 44
 // points, so a table that stops at 108 describes a fight that cannot happen.
-export const WEIGHTS = [90, 96, 100, 108, 118];
+// The roster spread, not a guess: Daggers 72, Gauntlets 78, Longbow 82, Blasters 90, Pike 94,
+// Scythe 96, Sword 100, Flail 101, Grimoire 108, Shield 110, Axe 118, Hammer 125.
+export const WEIGHTS = [72, 82, 94, 100, 110, 125];
 
 // Simulate a launched fighter to see whether it crosses a blast zone. This mirrors the real
 // integration in fighter._physics: gravity, the hitstun horizontal drag, and the raised terminal

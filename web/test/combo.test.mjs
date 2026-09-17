@@ -12,11 +12,21 @@ const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 
 const GRID = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180];
 
 // Where does a signature actually start killing? Used to tell a kill confirm from a damage combo.
+// A multi-hitbox signature is measured on the box that actually KILLS, not on the first one that
+// happens to override `base`. The old version took `find(h => h.base != null)`, which on a grinder
+// like the flail's Reaper or the daggers' Blade Storm picked the weak rehit tick and reported the
+// whole move as unable to kill at any percent. None of the original six exposed it because none of
+// them override base on a signature hitbox.
 function sigKO(w, id) {
   const m = w.moves[id];
-  const box = (m.hitboxes || []).find((h) => h.base != null);
-  const src = m.summon?.blast || box || m;
-  return koPercent(src.base ?? m.base, src.growth ?? m.growth, src.damage ?? m.damage, 100, { angle: m.angle });
+  const boxes = (m.hitboxes || []).length ? m.hitboxes : [m];
+  const sources = m.summon?.blast ? [m.summon.blast] : boxes;
+  let best = null;
+  for (const src of sources) {
+    const ko = koPercent(src.base ?? m.base, src.growth ?? m.growth, src.damage ?? m.damage, 100, { angle: src.angle ?? m.angle });
+    if (ko != null && (best === null || ko < best)) best = ko;
+  }
+  return best;
 }
 
 // Measure every advertised heavy route once; every assertion below reads this table.

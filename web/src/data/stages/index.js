@@ -95,11 +95,18 @@ export const STAGES = [
     // shelf overhead. Now falling in means crossing back, not hanging on.
     main: { x1: -34, x2: -11, y: 0, thickness: 7, ledges: 'outer' },
     platforms: [
-      // x 20, not 22.5: the pit is sized as a PROPORTION of the worst jump in the roster, not as
-      // an absolute. Adding the battle axe — heaviest body, lowest jump — took the worst-case
-      // horizontal jump from 24.7 studs to 21.0, and a 20-stud pit that was 81% of a jump became
-      // 95% of one, i.e. uncrossable for the weapon most likely to be knocked into it.
-      { id: 'east', x: 20, y: 0, w: 27, solid: true, thickness: 7, ledges: 'outer' },
+      // The pit is sized as a PROPORTION of the worst jump in the roster, not as an absolute, and
+      // it has now been resized twice for that reason. The battle axe took the worst-case
+      // horizontal jump from 24.7 studs to 21.0; the war hammer — heaviest body in the game and
+      // the lowest jump velocity — took it to 18.0, which made an 18-stud pit exactly 100% of a
+      // jump: a hard wall for the weapon most likely to be knocked into it, on the stage it most
+      // belongs on.
+      //
+      // x 17.5 rather than 20, for a 15-stud pit against the check's 85%-of-a-jump ceiling.
+      // Anything added to the roster from here that jumps shorter than the
+      // hammer moves this number again, which is worth knowing before adding it: this stage's
+      // geometry is pinned to the worst mobility in the game.
+      { id: 'east', x: 17.5, y: 0, w: 27, solid: true, thickness: 7, ledges: 'outer' },
       // the shelf over the gap is the only free crossing, and it sinks if you loiter
       { id: 'gantry', x: -1, y: 15, w: 9, soft: true, sinking: true },
       { id: 'westShelf', x: -27, y: 13, w: 12, soft: true },
@@ -108,7 +115,10 @@ export const STAGES = [
     blast: { left: -90, right: 90, top: 88, bottom: -46 },
     // Every spawn clears both the pit (-11..6.5) and the vent footprints at +/-20, which reach
     // 15.4 to 24.6 out once a fighter's 1.1 radius is added to the 7-stud vent mouth.
-    spawns: [-30, 28, -14, 14, -26, 27, -32, 32],
+    // The east platform ends at x=31 now that the pit was resized for the war hammer, so the
+    // outermost east spawn came in from 32 to 29. A spawn point over a gap drops that player
+    // straight into the pit on every respawn.
+    spawns: [-30, 28, -14, 14, -26, 27, -32, 29],
     // launch 62 was a 12.8-stud pop with no damage and no stun: a free extra jump, not a punish.
     hazards: [
       // A sustained column, not a pop. `lift` is an acceleration held for the whole eruption, so

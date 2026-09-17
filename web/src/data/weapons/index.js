@@ -4,8 +4,15 @@ import blasters from './blasters.js';
 import grimoire from './grimoire.js';
 import axe from './axe.js';
 import pike from './pike.js';
+import gauntlets from './gauntlets.js';
+import hammer from './hammer.js';
+import longbow from './longbow.js';
+import flail from './flail.js';
+import shield from './shield.js';
+import daggers from './daggers.js';
 
-export const WEAPONS = [sword, scythe, blasters, grimoire, axe, pike];
+export const WEAPONS = [sword, scythe, blasters, grimoire, axe, pike,
+  gauntlets, hammer, longbow, flail, shield, daggers];
 export const WEAPON_BY_ID = Object.fromEntries(WEAPONS.map((w) => [w.id, w]));
 export const DEFAULT_WEAPON = sword;
 

@@ -178,5 +178,65 @@ for (const w of WEAPONS) {
     `state='${a.state}' after firing the tether from 8 studs out`);
 }
 
+// ---- every weapon's recovery declares the fields its own kind reads ----
+//
+// Recovery kinds read different fields, and nothing checked that a weapon supplied the right ones.
+// The Chain Flail shipped `{ kind: 'tether', vy, vx }` while the tether branch of fighter.js reads
+// `range`, `speed` and `hopVy` - so a failed tether set `vy = undefined`, and a non-finite fighter
+// made two of the 144 weapon pairings unfinishable. The symptom was a whole match hanging; the
+// cause was two field names.
+{
+  const NEEDS = {
+    hop: ['vy', 'vx'],
+    puff: ['vy', 'vx'],
+    tether: ['range', 'speed', 'hopVy'],
+    teleport: ['range'],
+  };
+  const bad = [], rows = [];
+  for (const w of WEAPONS) {
+    const r = w.recovery;
+    if (!r || !r.kind) { bad.push(`${w.id} has no recovery`); continue; }
+    const need = NEEDS[r.kind];
+    if (!need) { bad.push(`${w.id}: recovery kind "${r.kind}" is not one fighter.js handles (${Object.keys(NEEDS).join(', ')})`); continue; }
+    const missing = need.filter((k) => typeof r[k] !== 'number' || !Number.isFinite(r[k]));
+    if (missing.length) bad.push(`${w.id}: ${r.kind} recovery is missing ${missing.join(', ')}`);
+    rows.push(`${w.id} ${r.kind}`);
+  }
+  check('every recovery declares the fields its kind reads', bad.length === 0,
+    bad.length ? bad.join('; ') : `${WEAPONS.length} weapons: ${rows.join(', ')}`);
+}
+
+// ---- every sub-object a move declares carries the fields the engine reads off it ----
+//
+// Two of these in one afternoon. The Chain Flail declared a tether recovery with the wrong field
+// names and produced a non-finite fighter; the War Hammer declared a crater without the optional
+// `minDamage` and `Math.max(undefined, n)` wrote NaN into a victim's percent, which corrupts a
+// match in a way nothing else notices. Both were valid-looking data.
+{
+  const NEEDS = {
+    crater: ['frame', 'every', 'count', 'step', 'radius', 'damage', 'minDamage', 'base', 'growth', 'angle'],
+    starfall: ['perTarget', 'every', 'height', 'speed', 'turn', 'size', 'radius', 'damage', 'base', 'growth', 'angle'],
+    vortex: ['targets', 'range', 'holdFrames', 'pullSpeed', 'orbOffset'],
+    projectile: ['speed', 'lifetime', 'size', 'spawnOffset'],
+    charge: ['maxHold', 'damage', 'base', 'growth'],
+    counter: ['multiplier', 'minDamage', 'burstFrames', 'burstRecovery', 'hitbox'],
+  };
+  const bad = [], seen = [];
+  for (const w of WEAPONS) for (const [id, mv] of Object.entries(w.moves)) {
+    for (const [key, need] of Object.entries(NEEDS)) {
+      const sub = mv[key];
+      if (!sub) continue;
+      seen.push(`${w.id}/${id}.${key}`);
+      for (const f of need) {
+        const v = sub[f];
+        const ok = Array.isArray(v) ? v.every(Number.isFinite) : (typeof v === 'object' && v !== null) || Number.isFinite(v);
+        if (!ok) bad.push(`${w.id} ${id}: ${key} is missing ${f}`);
+      }
+    }
+  }
+  check('every move sub-object declares the fields the engine reads', bad.length === 0,
+    bad.length ? bad.join('; ') : `${seen.length} sub-objects across ${WEAPONS.length} weapons, all complete`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

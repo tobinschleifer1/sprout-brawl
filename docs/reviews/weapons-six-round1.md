@@ -165,3 +165,53 @@ Score 1–10 for each, then one overall:
 8. **Art and animation** — do the six read distinctly at gameplay size, and do the ultimates?
 
 Finish with a ranked list of changes and say plainly whether the six are shippable.
+
+
+---
+
+## Round 1 result — scored 5.5/10 ("getting better, not good enough")
+
+The review found one broken mechanic, one balance outlier, and **three wrong numbers in this very
+brief**. All three corrections were verified independently before being accepted:
+
+| Brief claimed | Actually |
+|---|---|
+| worst hand-to-grip gap 0.35 studs | **0.50** (Hammer, tied with the old Scythe) |
+| three 0-180% CONFIRM windows, Gauntlets x1 / Daggers x2 | **four**, split 2/2 |
+| Breach at 106% is the earliest kill in the game | the Axe's Wide Arc kills at **97%**. Breach is the earliest *guaranteed-confirm* kill, which is the finding that matters |
+
+### Fixed in round 1
+
+1. **The Chain Flail's Snare was a complete no-op.** It added its pull to `vx`, which `_groundMove`
+   and `_friction` rewrite from the stick every frame. Measured over a full 90-frame hold the victim
+   moved **0.00 studs** and the attacker moved 29.99 — which is just the flail's own run speed. The
+   review's account of the mechanism was wrong (it described a runaway on small inputs, and drove
+   the wrong fighter's stick), but the finding was right and the truth was worse: dead in *both*
+   directions. Fixed by moving the pull onto `carryX`, the same fix hazard wind needed when
+   `_airDrift` was erasing every gust in the game, plus a brace that stops the attacker sprinting
+   away from their own pull. Now: 12 studs closes to 0.12 reeling yourself in, 0.36 reeling them in,
+   and 12.00 untouched with no input.
+2. **A fully drawn Power Shot killed from 37%, and from 21% with Draw banked.** The review only
+   flagged this as "worth confirming whether the two charge systems stack"; measured, it was a
+   projectile taking a stock at a fifth of the percent anything else needs. A `charge` block
+   silently replaces damage, base and growth, and every other measurement in the project reads the
+   *uncharged* move. Now 99%, against Overcharge's 129% and Starfall's 106%.
+3. **Four CONFIRM windows read 0-180%** — guaranteed from the first hit of the match. All four
+   traced to an opener carrying enough `extraHitstun` to cover the signature at zero percent. None
+   remain; the tightest is now 60-180%.
+4. **Breach nerfed** from a 106% guaranteed-confirm kill to 120%, against the Sword's 111% and the
+   Axe's 117%.
+5. **Blade Storm** confirmed at every percent and killed at 247%; now 163% on a 60-180% window.
+   **Meteor Fist** confirmed and could not kill at any percent; re-angled from 286 to 308 so a spike
+   also sends.
+
+Two new checks, both verified to fail when the fix is reverted: a charged move has to stay inside
+the roster's kill band, and the Snare has to move somebody in both directions and nobody when the
+stick is neutral.
+
+### Still open for round 2
+
+- The review could not measure **whether the Longbow survives being closed down** by the Gauntlets
+  or the Daggers, and correctly declined to guess from a small sample. That needs 15+ duels.
+- The **Daggers' "dies 30% of a stock earlier"** trade was never independently verified.
+- **Two weapons sharing the `Surge` mechanic** was disclosed and not resolved either way.

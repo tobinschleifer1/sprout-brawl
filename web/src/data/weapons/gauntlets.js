@@ -20,11 +20,11 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Body Blow +Heavy+side    -> Rush Elbow      CONFIRM 0-180%                      kills 126%
-//   Rising Fist +Heavy       -> Overdrive Blow  CONFIRM 0-180%                      kills 125%
-//   Rising Fist +Heavy+down  -> Meteor Fist     CONFIRM 20-180%     trap 0%         no KO angle
-//   Low Kick +Heavy+down     -> Meteor Fist     trap only 0-40%                     no KO angle
-//   Low Kick +Heavy          -> Meteor Fist     trap only 0-40%                     no KO angle
+//   Body Blow +Heavy+side    -> Rush Elbow      CONFIRM 60-180%     trap 0-40%      kills 126%
+//   Rising Fist +Heavy       -> Overdrive Blow  CONFIRM 80-180%     trap 0-60%      kills 125%
+//   Rising Fist +Heavy+down  -> Meteor Fist     CONFIRM 180%        trap 40-160%    kills 233%
+//   Low Kick +Heavy+down     -> Meteor Fist     trap only 0-40%                     kills 233%
+//   Low Kick +Heavy          -> Meteor Fist     trap only 0-40%                     kills 233%
 
 export default {
   id: 'Gauntlets', name: 'Gauntlets', archetype: 'Rushdown', tagline: 'Never let them breathe',
@@ -50,7 +50,7 @@ export default {
       hitboxes: [{ frames: [4, 5], offset: [1.9, 2.9], size: [2.2, 1.6] }] },
     // The cash-out link. Everything the gauntlets do is aimed at reaching this move with the
     // Overdrive counter full.
-    LightNeutral3: { label: 'Body Blow', startup: 5, active: 2, recovery: 12, damage: 4, base: 14, growth: 1.3, angle: 50, grounded: true, extraHitstun: 10,
+    LightNeutral3: { label: 'Body Blow', startup: 5, active: 2, recovery: 12, damage: 4, base: 14, growth: 1.3, angle: 50, grounded: true, extraHitstun: 1,
       chainsHeavy: { side: 'SigSide' },
       hitboxes: [{ frames: [6, 7], offset: [2.0, 2.7], size: [2.6, 2.2] }] },
 
@@ -60,7 +60,7 @@ export default {
     LightSide2: { label: 'Dash Punch', startup: 5, active: 3, recovery: 13, damage: 4, base: 15, growth: 1.5, angle: 36, grounded: true, lunge: 3.5, extraHitstun: 8,
       hitboxes: [{ frames: [6, 8], offset: [2.4, 2.7], size: [3.0, 1.9] }] },
 
-    LightUp: { label: 'Rising Fist', startup: 5, active: 3, recovery: 13, damage: 4, base: 13, growth: 1.5, angle: 85, grounded: true, extraHitstun: 6,
+    LightUp: { label: 'Rising Fist', startup: 5, active: 3, recovery: 13, damage: 4, base: 13, growth: 1.5, angle: 85, grounded: true,
       // the brief routes this into Meteor Fist, which is the spike
       chainsHeavy: { neutral: 'SigNeutral', down: 'SigDown' },
       hitboxes: [{ frames: [6, 8], offset: [1.3, 3.6], size: [2.4, 3.6] }] },
@@ -83,7 +83,7 @@ export default {
     SigSide: { label: 'Rush Elbow', startup: 13, active: 4, recovery: 26, damage: 11, base: 34, growth: 5.6, angle: 38, grounded: true, heavy: true, lunge: 6,
       hitboxes: [{ frames: [14, 17], offset: [2.6, 2.7], size: [3.6, 2.6] }] },
     // Meteor Fist: the spike, and the reason the gauntlets want you in the air.
-    SigDown: { label: 'Meteor Fist', startup: 15, active: 4, recovery: 30, damage: 12, base: 26, growth: 4.6, angle: 286, grounded: true, heavy: true,
+    SigDown: { label: 'Meteor Fist', startup: 15, active: 4, recovery: 30, damage: 12, base: 26, growth: 4.6, angle: 308, grounded: true, heavy: true,
       hitboxes: [{ frames: [16, 19], offset: [2.0, 1.4], size: [3.2, 3.4] }] },
     // The move Overdrive is for. Fast for a signature, because it has to be reachable off a
     // three-hit string that only holds them for eight frames.

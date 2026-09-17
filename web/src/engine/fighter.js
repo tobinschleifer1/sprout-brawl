@@ -81,6 +81,10 @@ export class Fighter {
     this.ultCharge = 0; this.ultActive = 0;
     this.ultTarget = null; this.ultHeld = []; this.ultShots = 0; this.ultCooldown = 0; this.ultEndAt = 0;
     this.carryX = 0;
+    // Frames remaining during which this fighter is on the end of a snare, so the carried pull
+    // holds instead of decaying like a gust. Set by the Snare branch on both fighters each frame.
+    this.snaredBy = 0;
+    this.reeling = 0;
     this.lastHitBy = null; this.lastHitFrame = -9999;
     this.inWater = false;
     // What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run
@@ -127,6 +131,7 @@ export class Fighter {
     if (this.item && this.item.def.guard && this.item.hp > 0) m *= this.item.def.guard.speedMul;
     // Drawing a bow is not something you do while moving.
     if (this.mech.id === 'Draw' && this.mech.draw > 6) m *= this.char.mechanic.slowMul;
+    if (this.reeling > 0) m *= 0.35;                 // braced against the chain, not running
     if (this.inWater) m *= 0.4;
     return m;
   }
@@ -755,7 +760,12 @@ export class Fighter {
     // Wind accumulates into a carried velocity that decays on its own. On the ground it bleeds
     // off fast, so a gust never drags a standing fighter.
     if (this.env.windX && !this.onGround) this.carryX += clampEnv(this.env.windX, -ENV_MAX, ENV_MAX) * FRAME;
-    this.carryX *= this.onGround ? 0.80 : 0.97;
+    // A gust dies the moment you are back on the ground; a rope does not. While anyone has this
+    // fighter snared the carried velocity holds instead of bleeding off at 0.80 a frame.
+    const roped = this.snaredBy > 0;
+    this.carryX *= roped ? 0.97 : (this.onGround ? 0.80 : 0.97);
+    if (this.snaredBy > 0) this.snaredBy--;
+    if (this.reeling > 0) this.reeling--;
     if (Math.abs(this.carryX) < 0.05) this.carryX = 0;
 
     if (!this.onGround && !noGravity) {
@@ -1025,10 +1035,28 @@ export class Fighter {
         const gone = !v.alive || v.state === 'ko' || v.state === 'respawn' || Math.abs(v.x - this.x) > M.range * 1.6;
         if (gone || --m.timer <= 0) { m.snared = null; m.timer = 0; }
         else {
+          // THE PULL RIDES `carryX`, NOT `vx`.
+          //
+          // The first version added to `vx` on both sides and was a complete no-op in both
+          // directions: measured over a full 90-frame hold, the victim moved 0.00 studs and the
+          // attacker moved 29.99 - which is just the flail's own run speed. `_groundMove` and
+          // `_friction` rewrite `vx` from the stick every single frame, so a 0.63-studs/frame
+          // nudge written before them never survives to the position step.
+          //
+          // This is the same bug, with the same fix, as hazard wind: `_airDrift` erased every gust
+          // in the game until wind was moved into its own carried velocity that composes with vx
+          // at the position step instead of fighting it. A snare is a wind with a rope on it.
           const toward = Math.sign(v.x - this.x) || 1;
           const pull = M.pullSpeed * FRAME;
-          if (this.input.x * toward > 0.4) this.vx += toward * pull;             // reel yourself in
-          else if (this.input.x * toward < -0.4) v.vx -= toward * pull * 1.2;    // reel them in
+          if (this.input.x * toward > 0.4) { this.carryX += toward * pull; this.snaredBy = 2; }
+          else if (this.input.x * toward < -0.4) {
+            v.carryX -= toward * pull * 1.2; v.snaredBy = 2;
+            // Reeling them in and running away are the same stick direction, so without this the
+            // pull and your own run cancel: measured, the gap still GREW from 12 studs to 17.4
+            // while dragging an idle victim. Hauling on a rope means planting your feet, so the
+            // frame you spend pulling is a frame you are not sprinting.
+            this.reeling = 3;
+          }
         }
       }
       m.ready = !!m.snared;

@@ -1,6 +1,7 @@
-import { makeMatch, skipCountdown } from './harness.mjs';
+import { makeMatch, skipCountdown, EMPTY } from './harness.mjs';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { buildLoadout } from '../src/data/loadout.js';
+import { koPercent } from './balance.mjs';
 let pass=0, fail=0;
 const check=(n,c,d)=>{ (c?pass++:fail++); console.log(`${c?'PASS':'FAIL'}  ${n}\n      ${d}`); };
 
@@ -236,6 +237,70 @@ for (const w of WEAPONS) {
   }
   check('every move sub-object declares the fields the engine reads', bad.length === 0,
     bad.length ? bad.join('; ') : `${seen.length} sub-objects across ${WEAPONS.length} weapons, all complete`);
+}
+
+// ---- a charged move has to stay inside the roster's kill band ----
+//
+// A `charge` block silently replaces damage, base AND growth, and every other measurement in this
+// project reads the UNCHARGED move. A fully drawn Power Shot killed from 37%, and from 21% with
+// the Longbow's Draw banked on top - a projectile taking a stock at a fifth of the percent
+// anything else needs - while combo.test.mjs happily reported the move at 149% and passed.
+//
+// The counter-intuitive part is why it happened: raising a move's damage LOWERS its kill percent
+// all by itself, because the victim's own percent goes up before knockback is computed. Charge
+// blocks that raise damage and base and growth together compound three ways at once.
+{
+  const bad = [], rows = [];
+  for (const w of WEAPONS) for (const [id, m] of Object.entries(w.moves)) {
+    if (!m.charge) continue;
+    const c = m.charge;
+    const ko = koPercent(c.base ?? m.base, c.growth ?? m.growth, c.damage ?? m.damage, 100, { angle: m.angle });
+    rows.push(`${w.id} ${m.label} ${ko === null ? 'never' : Math.round(ko) + '%'}`);
+    // The roster's signatures kill between 97% and 153%. A charge is worth paying for, so it may
+    // kill earlier than its own uncharged form - but not before the earliest thing in the game.
+    if (ko !== null && ko < 90) bad.push(`${w.id} ${m.label} fully charged kills from ${Math.round(ko)}%, earlier than any signature in the game`);
+  }
+  check('a fully charged move still kills inside the roster band', bad.length === 0,
+    bad.length ? bad.join('; ') : `charged kill percents: ${rows.join(', ')}`);
+}
+
+// ---- a mechanic that moves somebody has to actually move them ----
+//
+// The Chain Flail's Snare added its pull to `vx`, which `_groundMove` and `_friction` rewrite from
+// the stick every single frame. Measured over a full 90-frame hold, the victim moved 0.00 studs
+// and the attacker moved 29.99 - which is just the flail's own run speed. The mechanic was a
+// complete no-op in BOTH directions and every existing test passed.
+//
+// It is the same bug, with the same fix, as hazard wind: `_airDrift` erased every gust in the game
+// until wind moved into its own carried velocity. This check drives the real mechanic through the
+// real engine and measures displacement, because that is the only thing that would have caught it.
+{
+  const M = WEAPONS.find((w) => w.id === 'Flail').mechanic;
+  const run = (attackerStick) => {
+    const m = makeMatch({ loadouts: [['Classic', 'Flail'], ['Noir', 'Sword']] });
+    skipCountdown(m);
+    const [a, v] = m.fighters;
+    for (const [f, x] of [[a, -6], [v, 6]]) { f.x = x; f.y = 6; f.vx = 0; f.vy = 0; }
+    for (let i = 0; i < 240 && !(a.onGround && v.onGround && a.y < 1 && v.y < 1); i++) {
+      m.step(); m.events.length = 0; a.x = -6; v.x = 6; a.vx = 0; v.vx = 0;
+    }
+    a.facing = 1; v.facing = -1;
+    a.mech.snared = v; a.mech.timer = M.holdFrames;
+    const gap0 = Math.abs(v.x - a.x);
+    for (let i = 0; i < M.holdFrames; i++) {
+      m._input.set('p0', Object.assign({}, EMPTY(), { x: attackerStick }));
+      m.step(); m.events.length = 0;
+    }
+    return { gap0, gap: Math.abs(v.x - a.x) };
+  };
+  const toward = run(1), away = run(-1), idle = run(0);
+  const bad = [];
+  if (toward.gap > toward.gap0 * 0.5) bad.push(`reeling yourself in closed ${toward.gap0.toFixed(1)} studs to ${toward.gap.toFixed(1)} — the pull is not reaching the position step`);
+  if (away.gap > away.gap0 * 0.5) bad.push(`reeling them in closed ${away.gap0.toFixed(1)} studs to ${away.gap.toFixed(1)} — the victim is not being dragged`);
+  if (Math.abs(idle.gap - idle.gap0) > 0.5) bad.push(`a snare with no stick input moved somebody ${(idle.gap - idle.gap0).toFixed(1)} studs`);
+  check('the Snare actually pulls, both ways, and only when asked', bad.length === 0,
+    bad.length ? bad.join('; ')
+      : `over ${M.holdFrames} frames from ${toward.gap0.toFixed(0)} studs apart: hold toward -> ${toward.gap.toFixed(2)}, hold away -> ${away.gap.toFixed(2)}, no input -> ${idle.gap.toFixed(2)}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

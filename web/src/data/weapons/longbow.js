@@ -99,7 +99,17 @@ export default {
     // lands. Fully drawn it is the second largest single hit in the game - and the wind-up is 26
     // frames before the hold even starts, from a fighter who cannot move while drawing.
     SigNeutral: { label: 'Power Shot', startup: 26, active: 4, recovery: 34, damage: 14, base: 28, growth: 3.8, angle: 34, grounded: true, heavy: true, kind: 'projectile',
-      charge: { maxHold: 60, damage: 22, base: 36, growth: 4.6 },
+      // A FULLY DRAWN POWER SHOT KILLED FROM 37%, and from 21% with Draw banked on top - a
+      // projectile taking a stock at a fifth of the percent anything else needs. Nothing caught it
+      // because every combo measurement reads the UNCHARGED move (149%), and a `charge` block
+      // silently replaces damage, base and growth.
+      //
+      // The trap is that raising damage lowers the kill percent all by itself: the victim's own
+      // percent goes up before the knockback is computed. 22 damage on the uncharged 28/3.8 alone
+      // already kills from 67%. So the charged knockback goes DOWN, not up, and the extra damage
+      // is what makes it the biggest threat on the weapon. Charged now kills from 99%, in line
+      // with Overcharge (129%) and Starfall (106%), the game's other two charge moves.
+      charge: { maxHold: 60, damage: 22, base: 30, growth: 3.0 },
       projectile: { speed: 96, lifetime: 40, size: [3.0, 0.5], spawnOffset: [2.6, 3.0], shape: 'arrow' } },
 
     // ULTIMATE - Arrowfall. Not a bigger arrow: the bow fires once, straight up, and for three

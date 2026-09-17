@@ -21,12 +21,12 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Back Swing +Heavy+side   -> Breach         trap only 120-180%                  kills 106%
-//   Overhead +Heavy+side     -> Breach         CONFIRM 20-80%      trap 0%         kills 106%
-//   Wide Swing +Heavy+side   -> Breach         CONFIRM 120-180%    trap 100%       kills 106%
+//   Back Swing +Heavy+side   -> Breach         trap only 120-180%                  kills 120%
+//   Overhead +Heavy+side     -> Breach         CONFIRM 20-80%      trap 0%         kills 120%
+//   Wide Swing +Heavy+side   -> Breach         CONFIRM 120-180%    trap 100%       kills 120%
 //   Rising Hammer +Heavy     -> Crushing Blow  CONFIRM 60-180%     trap 0-40%      kills 133%
 //   Rising Hammer +Heavy+up  -> Crushing Blow  CONFIRM 60-180%     trap 0-40%      kills 133%
-//   Ground Slam +Heavy+side  -> Breach         trap only 80-100%                   kills 106%
+//   Ground Slam +Heavy+side  -> Breach         trap only 80-100%                   kills 120%
 
 export default {
   id: 'Hammer', name: 'War Hammer', archetype: 'Superheavy', tagline: 'Armour breaker',
@@ -81,7 +81,7 @@ export default {
       hitboxes: [{ frames: [17, 22], offset: [1.2, -0.9], size: [3.6, 4.6] }] },
 
     // ---- signatures ----
-    SigSide: { label: 'Breach', startup: 22, active: 5, recovery: 34, damage: 17, base: 31, growth: 4.2, angle: 40, grounded: true, heavy: true, lunge: 4,
+    SigSide: { label: 'Breach', startup: 22, active: 5, recovery: 34, damage: 17, base: 30, growth: 3.9, angle: 40, grounded: true, heavy: true, lunge: 4,
       shieldDamageMul: 3.4,                        // the armour breaker: this move eats a full shield
       hitboxes: [{ frames: [23, 27], offset: [3.4, 2.8], size: [6.4, 4.6] }] },
     // EARTHSHATTER. The brief's signature: slow, and what lands is not the head but the floor.

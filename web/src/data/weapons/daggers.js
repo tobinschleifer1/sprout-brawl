@@ -21,9 +21,9 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Twin Strike +Heavy+side  -> Execution    CONFIRM 0-180%                      kills 138%
-//   Rising Blades +Heavy     -> Blade Storm  CONFIRM 0-180%                      kills 247%
-//   Rising Blades +Heavy+up  -> Blade Storm  CONFIRM 0-180%                      kills 247%
+//   Twin Strike +Heavy+side  -> Execution    CONFIRM 60-180%     trap 0-40%      kills 138%
+//   Rising Blades +Heavy     -> Blade Storm  CONFIRM 60-180%     trap 0-40%      kills 163%
+//   Rising Blades +Heavy+up  -> Blade Storm  CONFIRM 60-180%     trap 0-40%      kills 163%
 //   Sweep +Heavy+down        -> Bloodrush    trap only 0-40%                     kills 128%
 //   Sweep +Heavy             -> Bloodrush    trap only 0-40%                     kills 128%
 
@@ -50,7 +50,7 @@ export default {
     LightNeutral2: { label: 'Cross Slash', startup: 3, active: 2, recovery: 7, damage: 2, base: 8, growth: 0.5, angle: 44, grounded: true,
       chains: { neutral: 'LightNeutral3', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [4, 5], offset: [2.0, 2.8], size: [2.4, 1.8] }] },
-    LightNeutral3: { label: 'Twin Strike', startup: 4, active: 3, recovery: 11, damage: 4, base: 13, growth: 1.2, angle: 50, grounded: true, extraHitstun: 11,
+    LightNeutral3: { label: 'Twin Strike', startup: 4, active: 3, recovery: 11, damage: 4, base: 13, growth: 1.2, angle: 50, grounded: true, extraHitstun: 1,
       chainsHeavy: { side: 'SigSide' },
       hitboxes: [{ frames: [5, 7], offset: [2.1, 2.8], size: [2.8, 2.4] }] },
 
@@ -61,7 +61,7 @@ export default {
     LightSide2: { label: 'Backstab', startup: 5, active: 3, recovery: 12, damage: 5, base: 15, growth: 1.5, angle: 38, grounded: true, lunge: 4, extraHitstun: 10,
       hitboxes: [{ frames: [6, 8], offset: [2.6, 2.8], size: [3.2, 2.0] }] },
 
-    LightUp: { label: 'Rising Blades', startup: 4, active: 3, recovery: 12, damage: 3, base: 12, growth: 1.4, angle: 86, grounded: true, extraHitstun: 7,
+    LightUp: { label: 'Rising Blades', startup: 4, active: 3, recovery: 12, damage: 3, base: 12, growth: 1.4, angle: 86, grounded: true,
       chainsHeavy: { neutral: 'SigNeutral', up: 'SigNeutral' },
       hitboxes: [{ frames: [5, 7], offset: [1.4, 3.6], size: [2.4, 3.8] }] },
     LightDown: { label: 'Sweep', startup: 5, active: 3, recovery: 13, damage: 3, base: 10, growth: 0.9, angle: 16, grounded: true, trip: 52,
@@ -88,7 +88,7 @@ export default {
     SigNeutral: { label: 'Blade Storm', startup: 11, active: 7, recovery: 30, damage: 3, base: 9, growth: 0.4, angle: 80, grounded: true, heavy: true,
       hitboxes: [
         { frames: [12, 16], offset: [1.8, 3.2], size: [3.4, 4.6], rehitEvery: 2, damage: 3, base: 8, growth: 0.3, angle: 84 },
-        { frames: [17, 18], offset: [1.8, 3.6], size: [3.6, 5.0], damage: 8, base: 34, growth: 5.6, angle: 76 },
+        { frames: [17, 18], offset: [1.8, 3.6], size: [3.6, 5.0], damage: 10, base: 36, growth: 6.0, angle: 80 },
       ] },
 
     // ULTIMATE - Thousand Cuts. The fighter disappears and the opponent is simply somewhere the

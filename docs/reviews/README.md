@@ -53,6 +53,7 @@ carry on anyway.
 
 ## Briefs
 
+- `weapons-six-round1.md` — the six weapons added from the owner's brief (round 1 outstanding)
 - `weapons-axe-pike-round1.md` — the Battle Axe and the Warpike
 - `../hazard-design-review.md` — stage hazards (rounds 1–2 done, round 3 outstanding)
 - bot AI — round 1 was launched twice and lost both times to process restarts; no brief written yet

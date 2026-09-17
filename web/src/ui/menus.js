@@ -155,7 +155,7 @@ export class Menus {
     const w = WEAPONS.find((x) => x.id === id);
     if (!w) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const px = 34;
+    const px = 38;
     cv.width = px * dpr; cv.height = px * dpr;
     const ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, cv.width, cv.height);
@@ -341,12 +341,11 @@ export class Menus {
           <select data-slot="${i}" data-field="type">${SLOT_TYPES.map(([v, l]) => `<option value="${v}" ${sl.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
           ${teams ? `<select data-slot="${i}" data-field="team"><option value="0" ${sl.team === 0 ? 'selected' : ''}>Green</option><option value="1" ${sl.team === 1 ? 'selected' : ''}>Orange</option></select>` : ''}
         </div>
-        ${off ? '' : `<div class="wepgrid">${WEAPONS.map((x) => `<button class="weptile ${x.id === sl.weaponId ? 'sel' : ''}" data-slot="${i}" data-weapon="${x.id}" title="${x.archetype} · ${x.tagline}">
-            <canvas class="wicon" data-weapon-icon="${x.id}" width="34" height="34"></canvas>
-            <span class="wname">${x.name}</span><span class="warch">${x.archetype}</span>
+        ${off ? '' : `<div class="wepgrid">${WEAPONS.map((x) => `<button class="weptile ${x.id === sl.weaponId ? 'sel' : ''}" data-slot="${i}" data-weapon="${x.id}" title="${x.name} — ${x.archetype} · ${x.tagline}">
+            <canvas class="wicon" data-weapon-icon="${x.id}" width="38" height="38"></canvas>
             <span class="wdiff" title="difficulty ${x.difficulty}/3">${dots(x.difficulty)}</span></button>`).join('')}</div>
-        <div class="wepinfo"><b>${w.tagline}</b>
-          <span class="mono">Weight ${L.weight} · Run ${L.runSpeed.toFixed(1)} · Air ${L.airSpeed.toFixed(1)} · ${w.mechanic.id} · ${L.recovery.kind} recovery</span></div>
+        <div class="wepinfo"><b class="wpick">${w.name}</b><span class="wparch">${w.archetype} · ${w.tagline}</span>
+          <span class="mono">Wt ${L.weight} · Run ${L.runSpeed.toFixed(1)} · Air ${L.airSpeed.toFixed(1)} · ${w.mechanic.id} · ${L.recovery.kind}</span></div>
         <div class="slot-foot">
           <span class="avlabel">Avatar</span>
           <span class="avrow">${allAvatars().map((a) => `<button class="avtile ${a.id === sl.avatarId ? 'sel' : ''}" data-slot="${i}" data-avatar="${a.id}" title="${a.name}">

@@ -45,18 +45,29 @@ h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;line-height:1.05}
 .chartile.sel{background:var(--leaf-soft);border-color:var(--leaf);box-shadow:0 2px 0 var(--leaf-ink)}
 .chartile .sw{display:flex;gap:2px}.chartile .sw i{width:10px;height:10px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.2)}
 /* --- weapon select: the weapon is the choice that matters, the avatar is a colour --- */
-.wepgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem}
-.weptile{padding:.5rem .3rem .4rem;font-size:.72rem;border-radius:10px;box-shadow:0 2px 0 var(--soil);display:flex;flex-direction:column;align-items:center;gap:.15rem;border-width:2px}
-.weptile.sel{background:var(--leaf-soft);border-color:var(--leaf);box-shadow:0 2px 0 var(--leaf-ink)}
+/* Twelve weapons, not four. The tile used to carry the name, the archetype AND the difficulty,
+   which at four weapons was a readable card and at twelve is a 48-tile wall where "War Hammer"
+   and "Precision zoner" both wrap onto two lines and every tile is a different height. The name
+   and archetype moved to the info line below, where there is room for them and where only the
+   SELECTED weapon's needs saying. */
+.wepgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:.3rem}
+.weptile{padding:.3rem .15rem .25rem;font-size:.72rem;border-radius:9px;box-shadow:0 2px 0 var(--soil);display:flex;flex-direction:column;align-items:center;gap:.1rem;border-width:2px}
+/* At four weapons a tinted background was enough to say "this one". At twelve, with the names
+   gone from the tiles, the selected weapon has to be findable at a glance across a 6x2 grid -
+   so it lifts, keeps a ring, and is the only tile with a coloured icon ground. */
+.weptile.sel{background:var(--leaf-soft);border-color:var(--leaf);box-shadow:0 3px 0 var(--leaf-ink),0 0 0 3px rgba(62,138,46,.28);transform:translateY(-2px)}
+.weptile.sel .wicon{background:rgba(62,138,46,.14);border-radius:6px}
+.weptile.sel .wdiff .d{background:rgba(44,102,33,.3)}
+.weptile.sel .wdiff .d.on{background:var(--leaf-ink)}
+.weptile:hover{border-color:var(--soil);transform:translateY(-1px)}
 .weptile img{image-rendering:pixelated;width:32px;height:32px;display:block}
-.weptile .wname{font-weight:800;font-size:.82rem}
-.weptile .warch{color:var(--muted);font-weight:700;font-size:.66rem;text-align:center;line-height:1.1}
-.weptile .wdiff{display:flex;gap:2px;margin-top:.1rem}
+.weptile .wdiff{display:flex;gap:2px}
 .weptile .wdiff .d{width:5px;height:5px;border-radius:50%;background:rgba(0,0,0,.16);display:block}
 .weptile .wdiff .d.on{background:var(--leaf-ink)}
-.wepinfo{display:flex;flex-direction:column;gap:.1rem;margin:.45rem 0 .1rem;font-size:.78rem}
-.wepinfo b{font-size:.86rem}
-.wepinfo .mono{color:var(--muted);font-size:.7rem}
+.wepinfo{display:flex;flex-direction:column;gap:.05rem;margin:.4rem 0 .1rem;font-size:.78rem}
+.wepinfo .wpick{font-family:var(--display);font-size:1.15rem;line-height:1.1}
+.wepinfo .wparch{color:var(--muted);font-weight:700;font-size:.74rem}
+.wepinfo .mono{color:var(--muted);font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .avlabel{color:var(--muted);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
 .avrow{display:inline-flex;gap:.25rem}
 .avtile{padding:0;width:26px;height:20px;border-radius:6px;border-width:2px;display:flex;overflow:hidden;box-shadow:0 2px 0 var(--soil)}
@@ -77,7 +88,12 @@ ul.strings em{font-style:normal;background:rgba(0,0,0,.06);padding:0 .28rem;bord
 .stagetile em{font-style:normal;font-size:.65rem;background:var(--leaf-soft);color:var(--leaf-ink);padding:.05rem .4rem;border-radius:999px;margin-left:.3rem;text-transform:uppercase;letter-spacing:.05em}
 .stagetile.sel{background:var(--leaf-soft);border-color:var(--leaf);box-shadow:0 3px 0 var(--leaf-ink)}
 .setup h3{margin-top:1rem;font-size:1.3rem}
-.setup-bottom{display:flex;justify-content:flex-end;position:sticky;bottom:12px}
+/* The sticky Fight button sat directly on top of whatever the last slot was showing. It now has
+   a ground of its own and the screen leaves room for it. */
+.setup-bottom{display:flex;justify-content:flex-end;position:sticky;bottom:0;padding:.7rem 0 .9rem;
+  background:linear-gradient(180deg,rgba(241,245,234,0),rgba(241,245,234,.92) 38%,rgba(241,245,234,.98));margin-top:.4rem}
+.screen.setup{padding-bottom:14px}
+.avrow{flex-wrap:wrap;max-width:100%}
 .screen.simple h2{font-size:2rem;margin:.8rem 0}
 .screen.wide{max-width:1400px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.8rem}
@@ -190,7 +206,7 @@ button.feat.sel{background:var(--leaf);color:#fff;border-color:var(--leaf-ink);b
 .warn{color:var(--hot);background:var(--hot-soft);border-radius:8px;padding:.4rem .6rem;font-size:.82rem;font-weight:700;margin:.2rem 0}
 .chario{background:#FBFCF6;border:2px solid var(--line);border-radius:12px;padding:.7rem;margin-top:.6rem}
 .chario textarea{width:100%;font-family:var(--mono);font-size:.72rem;border:2px solid var(--line);border-radius:8px;padding:.5rem;resize:vertical}
-.weptile .wicon{width:34px;height:34px;image-rendering:pixelated;display:block;margin:0 auto}
+.weptile .wicon{width:38px;height:38px;image-rendering:pixelated;display:block;margin:0 auto}
 .pixelpanel{display:flex;flex-direction:column;gap:.5rem}
 .pixelrow{display:flex;gap:.8rem;align-items:flex-start;flex-wrap:wrap}
 .pixgrid{image-rendering:pixelated;border:2px solid var(--soil);border-radius:8px;cursor:crosshair;touch-action:none;background:#e9eee2}

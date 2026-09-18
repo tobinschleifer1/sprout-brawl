@@ -20,9 +20,9 @@ Nothing here is required to play the web build.
 | `src/shared/Input.luau` | the input frame shape (polling is the client's job on Roblox) |
 | `src/shared/Hazards.luau` | all ten hazards, ported |
 | `src/shared/Rng.luau` | the seeded generator, bit-exact with the JavaScript |
-| `src/shared/Combat.luau` | **phase 3a** — hit resolution, grabs, throws, bursts. No projectiles, summons, items or ultimates yet |
+| `src/shared/Combat.luau` | **phases 3a-3b** — hit resolution, grabs, throws, bursts, projectiles, mine summons. No items or ultimates yet |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| Combat 3b/3c/3d (projectiles, summons, the twelve ultimates, items) | not started — every unported branch throws by name |
+| Combat 3c/3d (the twelve ultimates, items) | not started — every unported branch throws by name |
 | `Match` | not started |
 | Netcode, rigs, UI, audio, persistence | not started |
 
@@ -136,11 +136,15 @@ load-bearing today:
 | `sign(0)` | every call site is guarded by a threshold |
 | `resolveHit` armour branch | no move sets `armor` |
 | `resolveHit` command grab | no move sets `kind: "grab"` |
-| `onMoveActiveFrame` `field` kind | no weapon uses it — **not ported**, it throws instead |
+| `onMoveActiveFrame` `field` kind | no weapon used it — **deleted from the web build** |
+| `wall`, `cloud`, `node` summons | only `mine` is used — not ported |
+| the `pulse` move kind, `teleport` recovery, `nearestNode` | nothing spawns nodes — not ported |
+| the Fruiting, Network, Tangle and Chill mechanics | no weapon has them — `fruiting` not ported |
+| projectile-vs-summon damage threshold | every projectile that can reach a mine deals 15, well over the 4 it tests |
 
-`field` is the one worth deleting from the web build: it is eighteen lines of a complete ultimate
-kind plus a `fieldThrew` set that `Fighter.reset` never initialises, and nothing references the
-string anywhere else.
+`field` is now deleted from the web build. The rest are left in place: the five above are guards
+that would start working the moment the data changes, and the unused summon types and mechanics are
+plausibly for weapons that do not exist yet. They are simply not carried into the Luau.
 
 ### Two traps this port has already hit
 

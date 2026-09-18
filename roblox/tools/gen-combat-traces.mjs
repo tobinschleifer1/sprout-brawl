@@ -34,7 +34,10 @@ const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'sf', 'onGround', 'percent',
 // The numeric payload of every event kind Phase 3a can emit. Listing them rather than dumping the
 // object keeps the comparison numeric instead of a string compare, which would skip the tolerance
 // that Math.sin drift needs.
-const EVENT_NUMS = ['damage', 'launch', 'angle', 'facing', 'attacker', 'victim', 'marks', 'stored', 'back'];
+// x and y are in here deliberately. Without them the trace compared only event COUNTS, and a
+// projectile spawned at the wrong height - the volley's whole spread pattern - passed unnoticed.
+const EVENT_NUMS = ['damage', 'launch', 'angle', 'facing', 'attacker', 'victim', 'marks', 'stored',
+  'back', 'x', 'y', 'radius'];
 
 function snapEvents(evts) {
   return evts.map((e) => {
@@ -92,6 +95,12 @@ function run(spec) {
       for (const f of fighters) for (const k of F) row.push(n(f[k]));
       row.push(String(combat.bursts.length), String(combat.projectiles.length),
         String(combat.summons.length), String(combat.debugBoxes.length));
+      // Every live projectile and summon, not just how many. Counts alone let a mine cap evict the
+      // wrong one, a shot pass through cover it should stop at, and a volley spawn its spread at
+      // the wrong offset - all three passed a trace that only counted them.
+      row.push(combat.projectiles.map((p) => [n(p.x), n(p.y), n(p.vx), n(p.vy), n(p.life), p.shape]));
+      row.push(combat.summons.map((q) => [q.type, n(q.x), n(q.y), n(q.life), n(q.armed ?? -1), n(q.hp ?? -1)]));
+      row.push(combat.bursts.map((b) => [b.move.id, n(b.x), n(b.y), n(b.frames), n(b.move.damage)]));
       row.push(snapEvents(combat.events));
       // the fighters' own event stream too - jump, land, tech, shieldbreak, counter
       row.push(fighters.map((f) => f.events.map((e) => e.type).join(',')).join('|'));
@@ -224,6 +233,112 @@ S.push({ name: 'hit outside the counter window', stage: 'FoundryFloor', pin: tru
   // late hit to test.
   segments: [hold(1, {}, { heavy: true, anyPress: true }), hold(23, {}),
     hold(1, { light: true, anyPress: true }), hold(70, {})] });
+
+// ---------------------------------------------------------------- phase 3b ----
+// Projectiles. Only `mine` summons are used by the roster, so wall, cloud and node - and with them
+// the `pulse` kind, the `teleport` recovery and nearestNode - are refused by the port rather than
+// carried, and nothing here can reach them.
+
+// bolts flying, connecting, and being blocked
+S.push({ name: 'blaster bolts', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Blasters'], ['Noir', 'Sword']], at: [-9, 9],
+  segments: Array.from({ length: 10 }, (_, i) => hold(24,
+    { light: true, anyPress: true }, i % 3 === 2 ? { guard: true, guardHeld: true, anyPress: true } : {})) });
+
+// the longbow's arrows, at a range where travel time matters
+S.push({ name: 'longbow arrows', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Longbow'], ['Noir', 'Sword']], at: [-18, 18],
+  segments: Array.from({ length: 8 }, (_, i) => hold(30,
+    i % 2 === 0 ? { light: true, anyPress: true } : { light: true, x: 1, anyPress: true }, {})) });
+
+// a shot into a SOLID: Smeltworks has real cover, which is the branch that makes a tower scenery
+// or a wall
+S.push({ name: 'shot into cover', stage: 'Smeltworks', pin: true,
+  who: [['Classic', 'Blasters'], ['Noir', 'Sword']], at: [-24, 24],
+  segments: Array.from({ length: 8 }, () => hold(24, { light: true, anyPress: true }, {})) });
+
+// Barbed Volley: the only `volley` move, and the only thing that spends Spines ammo
+S.push({ name: 'volley', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Blasters'], ['Noir', 'Sword']], at: [-12, 12],
+  segments: [hold(10, {}), hold(1, { heavy: true, x: 1, anyPress: true }), hold(120, {}),
+    hold(1, { heavy: true, x: 1, anyPress: true }), hold(120, {})] });
+
+// a mine placed, armed, and walked into
+S.push({ name: 'mine triggered', stage: 'FoundryFloor',
+  who: [['Classic', 'Grimoire'], ['Noir', 'Sword']], at: [-6, 6],
+  segments: [hold(4, {}), hold(1, { heavy: true, y: -1, anyPress: true }), hold(40, {}),
+    hold(90, {}, { x: -1 }), hold(40, {})] });
+
+// a mine shot off the stage - `destructible`, which is the only reason summons appear in step()
+S.push({ name: 'mine destroyed', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Grimoire'], ['Noir', 'Hammer']], at: [-1.6, 1.6],
+  segments: [hold(4, {}), hold(1, { heavy: true, y: -1, anyPress: true }), hold(30, {}),
+    hold(1, {}, { heavy: true, anyPress: true }), hold(60, {})] });
+
+// mine cap: the roster's mine has a `max`, and placing past it removes the oldest
+S.push({ name: 'mine cap', stage: 'FoundryFloor',
+  who: [['Classic', 'Grimoire'], ['Noir', 'Sword']], at: [-10, 14],
+  segments: Array.from({ length: 6 }, () => hold(50, { heavy: true, y: -1, anyPress: true }, {})) });
+
+// A shot UNDER the mesa. `p.y > sp.bottom` is what lets a bolt pass beneath an elevated solid;
+// every other cover scenario fires at chest height where the bound cannot matter, so dropping it
+// passed the whole trace.
+S.push({ name: 'shot under the mesa', stage: 'Saltflat', pin: true,
+  who: [['Classic', 'Blasters'], ['Noir', 'Sword']], at: [20, 44],
+  segments: Array.from({ length: 8 }, () => hold(24, { light: true, anyPress: true }, {})) });
+
+// rangeMul scales a projectile's lifetime, and the rounding only shows when it is not 1. Bloom
+// sets it, and banking Bloom through inputs takes a sustained combo, so it is set directly.
+// 1.25, not 1.5: every Longbow lifetime is even, so x1.5 is a whole number and floor and round
+// agree. 26 x 1.25 is 32.5, which is the only place the rounding is visible.
+S.push({ name: 'bloomed projectile', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Longbow'], ['Noir', 'Sword']], at: [-20, 20],
+  segments: [{ frames: 2, a: {}, b: {}, set: { 0: { rangeMul: 1.25 } } },
+    { frames: 1, a: { light: true, anyPress: true }, b: {}, set: { 0: { rangeMul: 1.25 } } },
+    { frames: 90, a: {}, b: {}, set: { 0: { rangeMul: 1.25 } } }] });
+
+// A mine hit by something too weak to break it: `destructible` only yields to 4 damage or more.
+//
+// The swing has to land while the mine is still ARMING. Its trigger is 3 studs and no light in the
+// game reaches that far, so any fighter close enough to hit a live mine has already set it off -
+// which is why the first version of this tested nothing at all. The twenty arming frames are the
+// only window in which a mine can be struck.
+// A mine SHOT by something too weak to break it: `destructible` only yields to 4 damage or more.
+//
+// It has to be a projectile. A mine's trigger is 3 studs and no light in the game reaches that far,
+// so any fighter close enough to swing at a live mine has already set it off - two earlier versions
+// of this scenario tested nothing, one because the placer was knocked out of its own signature at
+// point-blank and never made a mine at all. A blaster bolt is 2 damage and arrives from twenty
+// studs away, which is outside the trigger and under the threshold.
+// A mine SHOT OUT by a projectile.
+//
+// Getting here at all took three tries. A mine's trigger is 3 studs and no light in the game
+// reaches that far, so any fighter close enough to swing at a live mine has already set it off; and
+// every bolt and arrow in the roster spawns at chest height (y 2.55 to 3.75) while a mine's box is
+// y 0.0 to 1.6, so they all fly straight over it. Grimoire's Runebrand is the one projectile tall
+// enough to touch a mine - 3.6 studs of it, y 0.60 to 4.20.
+//
+// Which also means the `>= 4` damage threshold on this branch is unreachable: the only projectile
+// that can reach a mine deals 15. The branch is covered; the threshold is not.
+S.push({ name: 'mine shot out', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Grimoire'], ['Noir', 'Grimoire']], at: [-1.6, 22],
+  segments: [hold(4, {}), hold(1, { heavy: true, y: -1, anyPress: true }), hold(40, {}),
+    ...Array.from({ length: 6 }, () => hold(40, {}, { heavy: true, x: -1, anyPress: true }))] });
+
+// The mirror: fighter ONE shoots, so the shot travels left. Every other projectile scenario has
+// fighter zero firing, who always faces right, so dropping `f.facing` from the spawn velocity
+// passed the whole trace.
+S.push({ name: 'shooting leftwards', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Sword'], ['Noir', 'Blasters']], at: [-14, 14],
+  segments: Array.from({ length: 8 }, () => hold(24, {}, { light: true, anyPress: true })) });
+
+// A mine dropped off the lip of a platform. Standing on the main floor the fighter's own y IS the
+// surface, so `surfaceUnder` and `f.y` agree and skipping the lookup changes nothing; from the left
+// shelf the mine lands fourteen studs below the hand that placed it.
+S.push({ name: 'mine off a platform edge', stage: 'FoundryFloor',
+  who: [['Classic', 'Grimoire'], ['Noir', 'Sword']], at: [-14.5, 20],
+  segments: [{ frames: 2, a: {}, b: {}, set: { 0: { y: 14 } } },
+    hold(1, { heavy: true, y: -1, anyPress: true }), hold(60, {})] });
 
 const scenarios = S.map((spec) => ({ ...spec, rows: run(spec) }));
 fs.writeFileSync(path.join(HERE, '../tests/trace-combat.json'), JSON.stringify({ fields: F, eventNums: EVENT_NUMS, scenarios }));

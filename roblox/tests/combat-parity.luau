@@ -20,6 +20,17 @@
 -- hitlag at 4 (the only burst here deals 5 damage, where the cap and the real value coincide),
 -- `hb.shieldDamageMul` (only ultimate hitboxes carry one), and skipping onHitLanded's
 -- `move.id ~= "Ultimate"` guard.
+--
+-- PHASE 3b ADDS FOUR MORE UNREACHABLE SPOTS, all established the same way:
+--   * `p.ghost` and all homing - only the sniper and Heartseeker set them, both Phase 3c.
+--   * the projectile out-of-bounds cull (|x| > 200) - nothing in the roster flies that far before
+--     its lifetime runs out.
+--   * the `>= 4` damage threshold on the projectile-versus-summon check. Every bolt and arrow
+--     spawns at chest height (y 2.55 to 3.75) and a mine's box is y 0.0 to 1.6, so they all fly
+--     over it; the one projectile tall enough to touch a mine is Runebrand, which deals 15. The
+--     branch is covered by 'mine shot out'; the threshold cannot be.
+--   * wall, cloud and node summons, the `pulse` kind, the `teleport` recovery, `nearestNode` and
+--     `fruiting` - no weapon in the roster uses any of them, so none is ported.
 
 local fs = require("@lune/fs")
 local serde = require("@lune/serde")
@@ -150,6 +161,52 @@ for _, spec in T.scenarios do
 						pair[2] :: string, pair[1] :: number, tostring(want[at])))
 					broke = true
 				end
+			end
+			if broke then break end
+
+			-- every live projectile, summon and burst, not just how many
+			local lists: { any } = {
+				{ combat.projectiles, "projectile", function(p: any): { any }
+					return { p.x, p.y, p.vx, p.vy, p.life, p.shape } end },
+				{ combat.summons, "summon", function(q: any): { any }
+					return { q.type, q.x, q.y, q.life, if q.armed ~= nil then q.armed else -1,
+						if q.hp ~= nil then q.hp else -1 } end },
+				{ combat.bursts, "burst", function(b: any): { any }
+					return { b.move.id, b.x, b.y, b.frames, b.move.damage } end },
+			}
+			for _, spec2 in lists do
+				at += 1
+				local wantList = want[at]
+				local live = spec2[1] :: { any }
+				checked += 1
+				if #live ~= #wantList then
+					fail(string.format("%s frame %d: %d %ss, JS had %d", spec.name, frame,
+						#live, spec2[2] :: string, #wantList))
+					broke = true
+					break
+				end
+				for li, obj in live do
+					local got = (spec2[3] :: any)(obj)
+					local w = wantList[li]
+					for ci, gv in got do
+						checked += 1
+						local wv = w[ci]
+						local ok
+						if typeof(gv) == "number" then
+							ok = wv ~= nil and near(gv, num(wv))
+						else
+							ok = gv == wv
+						end
+						if not ok then
+							fail(string.format("%s frame %d %s[%d] field %d: Luau %s, JS %s",
+								spec.name, frame, spec2[2] :: string, li, ci, tostring(gv), tostring(wv)))
+							broke = true
+							break
+						end
+					end
+					if broke then break end
+				end
+				if broke then break end
 			end
 			if broke then break end
 

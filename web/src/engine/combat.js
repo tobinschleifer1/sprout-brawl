@@ -672,21 +672,6 @@ export class Combat {
         this.emit({ type: 'exsanguinate', x: v.x, y: v.cy, marks, victim: v.index });
       }
 
-    } else if (m.kind === 'field') {
-      const F = m.field;
-      if (!f.fieldThrew || f.mf === f.startupEff + 1) f.fieldThrew = new Set();
-      for (const v of this.enemiesOf(f)) {
-        if (v.untouchable || !v.onGround || v.state === 'grabbed' || f.fieldThrew.has(v.index)) continue;
-        const dx = f.x - v.x, ad = Math.abs(dx);
-        if (ad > F.radius) continue;
-        if (ad <= F.throwRange + v.r + f.r) {
-          f.fieldThrew.add(v.index);
-          this.resolveHit(f, v, { ...m, kind: 'melee', unblockable: true }, null, rectFrom(v.x, v.cy, 2, 2), { facing: sign(v.x - f.x) });
-        } else {
-          v.x += sign(dx) * Math.min(ad, F.pullSpeed * FRAME);
-          if (v.state === 'idle' || v.state === 'run') v.vx *= 0.5;
-        }
-      }
     }
   }
 

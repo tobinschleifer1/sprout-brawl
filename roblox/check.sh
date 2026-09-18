@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
-# Type-check the Luau tree and confirm it still matches the JavaScript numerically.
+# Generate, type-check, and confirm the Luau still matches the JavaScript numerically.
+#
+# Generation runs FIRST and every time, on purpose. Both fixtures and the whole of
+# src/shared/Data are derived from web/, and a check that compares the port against a committed
+# snapshot of its own source can only catch drift somebody already noticed - which is exactly how
+# the knockback port went stale without this script saying a word.
 set -euo pipefail
 cd "$(dirname "$0")"
 export PATH="$HOME/.rokit/bin:$PATH"
 
+echo "== generating from web/src =="
+node tools/gen-data.mjs
+node tests/genfixture.mjs
+
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
 luau-lsp analyze --sourcemap=sourcemap.json --definitions=globalTypes.d.luau src/
-echo "== regenerating the fixture from the live JavaScript =="
-node tests/genfixture.mjs
-echo "== parity against web/src/engine/knockback.js =="
+
+echo "== parity: engine numbers vs web/src/engine/knockback.js =="
 lune run tests/parity
+echo "== parity: data layer vs web/src/data =="
+lune run tests/data-parity

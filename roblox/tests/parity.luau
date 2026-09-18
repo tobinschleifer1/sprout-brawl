@@ -8,50 +8,14 @@
 -- produces against that fixture. If the two ever drift, knockback stops feeling the same and this
 -- fails loudly rather than shipping a subtly different game.
 --
--- The shipping modules use Roblox-style `require(script.Parent.X)`. Rather than compromise that for
--- testability, this loads their source with a shimmed `script` and `require`.
 
 local fs = require("@lune/fs")
-local luau = require("@lune/luau")
 local serde = require("@lune/serde")
 local process = require("@lune/process")
+local Loader = require("./loader")
 
-local SHARED = "src/shared/"
-
-local loaded: { [string]: any } = {}
-
-local function loadModule(name: string): any
-	if loaded[name] then
-		return loaded[name]
-	end
-	local source = fs.readFile(SHARED .. name .. ".luau")
-
-	-- `script.Parent.Foo` resolves to the string "Foo", which the shimmed require turns back into
-	-- a loaded module. That is enough for a flat module folder, which is what Shared is.
-	local parentIndex = setmetatable({}, {
-		__index = function(_, key: string)
-			return key
-		end,
-	})
-	local fakeScript = { Parent = parentIndex, Name = name }
-
-	local env = {
-		script = fakeScript,
-		require = function(target: any): any
-			if typeof(target) == "string" then
-				return loadModule(target)
-			end
-			error("parity shim: unsupported require target " .. tostring(target))
-		end,
-	}
-
-	local chunk = luau.load(source, { debugName = name, environment = env, injectGlobals = true })
-	loaded[name] = chunk()
-	return loaded[name]
-end
-
-local Knockback = loadModule("Knockback")
-local Config = loadModule("Config")
+local Knockback = Loader.load("Knockback")
+local Config = Loader.load("Config")
 
 local fixture = serde.decode("json", fs.readFile("tests/knockback-fixture.json"))
 

@@ -13,8 +13,11 @@ Nothing here is required to play the web build.
 | Toolchain | installed (Rokit 1.2.0, Rojo 7.7.0, luau-lsp 1.69.0, Lune 0.10.5) |
 | `default.project.json` | written — `rojo build` produces a place file |
 | `src/shared/Config.luau` | ported, all constants |
+| `src/shared/Data/*.luau` | **generated** from `web/src/data` — 12 weapons, 6 avatars, 6 stages, 5 items |
+| `src/shared/Loadout.luau` | ported, all 72 avatar x weapon combinations checked against the JS |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| Everything else | not started |
+| Engine (`Fighter`, `Combat`, `Stage`, `Match`) | not started |
+| Netcode, rigs, UI, audio, persistence | not started |
 
 ```bash
 ./check.sh          # type-check the Luau tree, then verify parity with the JavaScript
@@ -45,6 +48,37 @@ Two curves, not one: `launchSpeed` is how far a hit sends you and `stunSpeed` is
 act. Whatever ports `Combat` must compute **both** for every hit and carry both into `applyHit` —
 feeding `launchSpeed` into `hitstun` compiles, runs, plays with different combos from the web build,
 and passes every check in this folder except the parity one.
+
+### The data layer is generated, not written
+
+Everything under `src/shared/Data/` is emitted from `web/src/data/**.js` by `tools/gen-data.mjs`.
+**Do not edit those files** — change the JavaScript and re-run `./check.sh`, which regenerates them
+on every invocation. The JavaScript keeps the design commentary and stays the single source of
+truth, and a Roblox build that disagrees with the web build becomes impossible rather than merely
+discouraged.
+
+The generator refuses anything it cannot translate faithfully: a function, a `null`, a shared or
+cyclic reference, or a number needing 17 significant digits (see below). `tests/data-parity.luau`
+then walks the emitted Luau against a JSON dump of what the generator was handed — in both
+directions, 6,648 leaves — so a dropped field, an invented field, a rounded number or an array
+emitted as a dictionary fails the build. All four were verified by deliberately introducing them.
+
+`Loadout.luau` is hand-written because it is logic rather than data, so all 72 avatar x weapon
+combinations are compared against `buildLoadout` in the JavaScript.
+
+**Lune's JSON decoder keeps about 16 significant digits.** Composed stats reach 17 — `18 * 0.778`
+is `14.004000000000001336` — so the loadout fixture carries them as decimal *strings* and parses
+them with `tonumber`. Without that, a bit-exact port fails the test. The generator asserts that
+every literal in the source data still fits in 16 digits, so this cannot start mattering silently.
+
+### Two traps this port has already hit
+
+**`math.round` is not `Math.round`.** Luau rounds halves away from zero, JavaScript rounds them
+toward +infinity, so they disagree at `-2.5`. `math.floor(x + 0.5)` is the JavaScript behaviour.
+
+**Luau arrays are 1-indexed.** Engine code that reads `hitboxes[0]` or `hitboxes[U.count - 1]`
+shifts by one. The data-parity test compares JS index *i* against Luau index *i + 1* for this
+reason.
 
 `sourcemap.json` and `globalTypes.d.luau` are generated/downloaded by `check.sh` and are gitignored.
 The definitions come from the luau-lsp repo:
@@ -93,8 +127,10 @@ In Studio: sign in, and turn on Game Settings → Security → "Enable Studio Ac
 
 The web build was written so that the port is mostly translation:
 
-- `web/src/config.js`, `knockback.js`, `data/weapons/*.js`, `data/avatars.js`, `data/stages/index.js`, `data/items.js`
-  are pure data and arithmetic. They become ModuleScripts under `ReplicatedStorage/Shared` unchanged in substance.
+- `web/src/config.js` and `knockback.js` are arithmetic and are hand-ported, held to the JavaScript by
+  `tests/parity.luau`. **Done.**
+- `data/weapons/*.js`, `data/avatars.js`, `data/stages/index.js` and `data/items.js` are pure data and are
+  **generated**, not hand-written — see below. **Done.**
 - `engine/fighter.js`, `combat.js`, `stage.js`, `match.js` become the server-authoritative modules described in
   design section 5 (`CombatServer`, `HitboxService`, `StageService`, `MatchService`). The hitbox rectangles become
   `workspace:GetPartBoundsInBox` queries against hurtbox parts.

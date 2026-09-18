@@ -123,7 +123,7 @@ same `weapons2d.js` the match uses, so it cannot drift from the game.
 - `src/engine/ai.js` – bots: difficulty is a perception handicap (`sight`, frames of staleness in what a bot sees) plus committed input chains, not an aggression dial
 - `src/render2d/*` – the 2D renderer, weapons and animation channels
 - `src/ui/*` – HUD and menus
-- `src/audio/*` – synthesised sound effects and a procedural chiptune sequencer with the final-stock intensity layer
+- `src/audio/*` – synthesised sound effects, and an original generative score: one mode, chord progression and seeded phrase generator per stage, no percussion, with a final-stock intensity layer
 
 Balance changes are data changes: edit a weapon file and reload. Then run `npm test` — the combo
 suite re-measures every advertised confirm against the engine and fails if a route stopped working.

@@ -16,7 +16,8 @@
     "test:soak": "node test/soak.test.mjs",
     "test:stages": "node test/stages.test.mjs",
     "test:ult": "node test/ultimate.test.mjs",
-    "test:weapons": "node test/weapons.test.mjs"
+    "test:weapons": "node test/weapons.test.mjs",
+    "headers": "node test/headers.mjs"
   },
   "license": "ISC",
   "type": "module"

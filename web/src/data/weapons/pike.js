@@ -22,11 +22,12 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Lunge Point +Heavy+Down -> Pin        CONFIRM 160-180%   trap 120-140%   kills 135%
-//   Poke        +Heavy      -> Pike Wall  trap only   0-180%                 kills 137%
-//   Raise Point +Heavy      -> Pike Wall  trap only 100-180%                 kills 137%
-//   Butt Spike  +Heavy      -> Pin        trap only   0-40%                  kills 135%
-//   Lunge Point +Heavy      -> Pike Wall  trap only 160-180%                 kills 137%
+//   Lunge Point  +Heavy+Down -> Pin         CONFIRM  160-260%   trap        -   kills  215%
+//   Raise Point  +Heavy      -> Pike Wall   CONFIRM  240-260%   trap 120-220%   kills  194%
+//   Lunge Point  +Heavy      -> Pike Wall   CONFIRM      260%   trap     160%   kills  194%
+//   Poke         +Heavy      -> Pike Wall   trap only    0-180%                 kills  194%
+//   Second Point +Heavy      -> Pike Wall   trap only     0-40%                 kills  194%
+//   Butt Spike   +Heavy      -> Pin         trap only     0-40%                 kills  215%
 //
 // Full Extension appears nowhere in that table on purpose. It is the longest single hitbox in the
 // game and it is thrown from outside everyone else's range, so it is a spacing tool rather than a
@@ -130,7 +131,7 @@ export default {
         // the last thrust: the full length of the lance, and the one that actually sends
         { frames: [58, 78], offset: [12.0, 3.1], size: [16.0, 2.6], rehitEvery: 20,
           // Same reasoning as Reave: the ramp has already banked the damage, so the last thrust
-          // has to kill late. At base 32 it KO'd from 45%.
+          // has to kill late. At base 32 it KO'd from 45%; at 26/3.5 it kills at 136%.
           damage: 13, base: 26, growth: 3.5, angle: 30 },
       ] },
   },

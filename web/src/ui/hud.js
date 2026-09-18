@@ -35,6 +35,21 @@ export class HUD {
     this.onPause = null;
     this.pause.addEventListener('click', (e) => { const a = e.target.dataset.act; if (a && this.onPause) this.onPause(a); });
     this.lastPercents = [];
+    // The camera has to know how much of the bottom edge the tiles are covering, so it can frame
+    // the fight above them instead of behind them. Measured rather than hard-coded: the band's
+    // height depends on the tile count, the wrap at narrow widths and the 700px media query.
+    this.safeDirty = true;
+    window.addEventListener('resize', () => { this.safeDirty = true; });
+  }
+
+  // CSS pixels of the bottom edge the tiles occupy, including their 14px offset and a little air.
+  _measureSafeBottom(view) {
+    if (!view) return;
+    if (!this.safeDirty) return;
+    const h = this.tiles.offsetHeight;
+    if (h <= 0) return;                 // still hidden; measure on a later frame
+    view.safeBottom = h + 20;
+    this.safeDirty = false;
   }
 
   show() { this.root.classList.remove('hidden'); }
@@ -43,6 +58,7 @@ export class HUD {
   bind(match) {
     this.match = match;
     this.tiles.innerHTML = ''; this.labels.innerHTML = '';
+    this.safeDirty = true;              // a different fighter count is a different band height
     this.tileEls = []; this.labelEls = [];
     for (const f of match.fighters) {
       const color = match.teams ? TEAM_COLORS[f.team] || PLAYER_COLORS[f.index] : PLAYER_COLORS[f.index];
@@ -80,6 +96,7 @@ export class HUD {
 
   update(match, view) {
     const M = match;
+    this._measureSafeBottom(view);
     if (M.timed && M.state !== 'suddendeath') { const left = Math.max(0, M.timeLimit - M.time); this.timer.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`; this.timer.classList.toggle('low', left < 30); }
     else if (M.state === 'suddendeath') { this.timer.textContent = 'SUDDEN DEATH'; this.timer.classList.add('low'); }
     else if (M.training) { this.timer.textContent = 'TRAINING'; this.timer.classList.remove('low'); }

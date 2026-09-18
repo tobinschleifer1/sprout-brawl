@@ -1,5 +1,5 @@
 import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG } from '../config.js';
-import { launchSpeed, hitlag as hitlagFor } from './knockback.js';
+import { launchSpeed, stunSpeed, hitlag as hitlagFor } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
 const overlap = (a, b) => a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
@@ -184,12 +184,18 @@ export class Combat {
       return true;
     }
     const angle = hb && hb.angle != null ? hb.angle : move.angle;
-    let launch = launchSpeed(base, growth, damage, victim.percent + damage, victim.weight) * (direct ? (attacker.launchMul || 1) : 1);
-    if (opts.fixedLaunch != null) launch = opts.fixedLaunch;
+    const after = victim.percent + damage;
+    const own = direct ? (attacker.launchMul || 1) : 1;
+    let launch = launchSpeed(base, growth, damage, after, victim.weight) * own;
+    // `stun` is the same hit on the hitstun curve. It travels with the launch all the way into
+    // applyHit so that every multiplier below applies to both.
+    let stun = stunSpeed(base, growth, damage, after, victim.weight) * own;
+    if (opts.fixedLaunch != null) { launch = opts.fixedLaunch; stun = opts.fixedLaunch; }
     // An ultimate does not just hit harder in the abstract - it multiplies the knockback the
     // victim would already have taken at their current percent, so it stays a finisher at 120%
     // instead of flattening into a fixed launch the way a raw `base` bump would.
-    launch *= (hb && hb.knockbackMul != null ? hb.knockbackMul : move.knockbackMul) || 1;
+    const kbMul = (hb && hb.knockbackMul != null ? hb.knockbackMul : move.knockbackMul) || 1;
+    launch *= kbMul; stun *= kbMul;
     const facing = move.behind ? -attacker.facing : (opts.facing ?? attacker.facing);
     const hl = hitlagFor(damage, move.heavy);
     if (direct) { attacker.hitlag = hl; attacker.moveLanded = true; }
@@ -198,7 +204,7 @@ export class Combat {
     // because moveLanded (which gates chaining) was set by melee contact alone.
     else if (opts.projectile && attacker.move === move) attacker.moveLanded = true;
     attacker.stats.damageDealt += damage;
-    victim.applyHit({ damage, launch, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip });
+    victim.applyHit({ damage, launch, stun, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip });
     if (direct && move.onHit) {
       if (move.onHit.bounce && !attacker.onGround) { attacker.vy = move.onHit.bounce; attacker.fastFalling = false; }
       if (move.onHit.regainJump) attacker.jumpsLeft = Math.max(attacker.jumpsLeft, 1);
@@ -234,9 +240,11 @@ export class Combat {
     if (td.behind) { facing = -attacker.facing; if (!td.keepFacing && !attacker.move) attacker.facing = facing; }
     victim.x = attacker.x + facing * (attacker.r + victim.r + 0.5); victim.y = attacker.y + 0.3;
     victim.holder = null;
-    const launch = launchSpeed(td.base, td.growth, damage, victim.percent + damage, victim.weight) * (attacker.launchMul || 1);
+    const mul = attacker.launchMul || 1;
+    const launch = launchSpeed(td.base, td.growth, damage, victim.percent + damage, victim.weight) * mul;
+    const stun = stunSpeed(td.base, td.growth, damage, victim.percent + damage, victim.weight) * mul;
     victim.onGround = false; victim.platform = null;
-    victim.applyHit({ damage, launch, angle: td.angle, facing, attacker, hitlag: hitlagFor(damage, true) });
+    victim.applyHit({ damage, launch, stun, angle: td.angle, facing, attacker, hitlag: hitlagFor(damage, true) });
     victim.hitlag = 2;
     if (tangle) victim._applyEffects({ tangle: 1 });
     attacker.stats.damageDealt += damage;
@@ -439,7 +447,12 @@ export class Combat {
           vx: f.facing * P.speed, vy: 0, w: P.size[0], h: P.size[1], life: P.lifetime, shape: 'tracer',
           grounded: false, gravity: 0, hitVictims: new Set(), facing: f.facing, item: false,
           ghost: true,                                   // a painted target is not saved by cover
-          homing: { target: f.ultTarget, turn: P.turn, speed: P.speed, expireAfter: P.expireAfter },
+          // Only the LAST round in the magazine launches. Three equal rounds killed from 25%:
+          // three launches stacked back to back carry a fighter out of any blast box from any
+          // percent. Damping the setup rounds is most of the cure (25% -> 111%), and it makes the
+          // move what it says it is - paint, chip, then the shot that kills.
+          knockbackMul: f.ultShots === 0 ? m.knockbackMul : (S.setupMul ?? 1) * m.knockbackMul,
+          homing: { target: f.ultTarget, turn: P.turn, speed: P.speed, expireAfter: P.expireAfter, dropOnHitstun: true },
         };
         pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
         this.projectiles.push(pr);
@@ -520,10 +533,15 @@ export class Combat {
       if (!v) return;
       const surf = this.surfaceUnder(v.x, v.y + 1.5);
       const y = (surf ? surf.top : v.y) + 1.0;
+      // The last column is the finisher, the same way Rundown's sixth punch is. Without it this
+      // was the only ultimate in the game that could not KO at any percent up to 400: five
+      // columns that each pop rather than launch add up to 60% damage and nothing else, so the
+      // move ended with the victim standing next to you.
+      const last = step === U.count - 1;
       this.spawnBurst(f, { id: 'Upheaval', x: v.x, y, damage: U.damage, base: U.base, growth: U.growth,
         angle: U.angle, frames: 5, size: [U.width, U.height], heavy: true, hitsOwner: false,
-        knockbackMul: U.knockbackMul, shieldDamageMul: U.shieldDamageMul });
-      this.emit({ type: 'upheaval', x: v.x, y, step, victim: v.index });
+        knockbackMul: last ? (U.finalMul ?? U.knockbackMul) : U.knockbackMul, shieldDamageMul: U.shieldDamageMul });
+      this.emit({ type: 'upheaval', x: v.x, y, step, last, victim: v.index });
 
     } else if (m.kind === 'pierce') {
       // LONGBOW - HEARTSEEKER. One arrow. It does not stop at the first thing it hits, it cannot
@@ -695,6 +713,13 @@ export class Combat {
         // every ordinary hit converted into a stock: correct DI has to be able to leave the cone.
         if (p.homing.expireAfter !== undefined && --p.homing.expireAfter <= 0) p.homing = null;
         else if (!tg.alive) p.homing = null;
+        // A tracked round does not chase a fighter who is already flying. Chasing used to be the
+        // point of the sniper - three rounds, each running down the victim the last one launched -
+        // which made a landed round a guaranteed edgeguard rather than a hit. Dropping the lock on
+        // hitstun is worth 20 points of kill percent on its own (111% -> 131%) and, more to the
+        // point, it means the move kills with the round the player aimed instead of with the two
+        // that followed the victim out.
+        else if (p.homing.dropOnHitstun && (tg.state === 'hitstun' || tg.hitstun > 0)) p.homing = null;
         else {
           const H = p.homing;
           if (H.axis === 'x') {
@@ -759,7 +784,10 @@ export class Combat {
             dead = true; break;
           }
           if (p.explode) { this.explode(p); dead = true; break; }
-          const hit = this.resolveHit(p.owner, v, p.move, { angle: p.move.angle }, p.rect, { projectile: true, facing: sign(p.vx), item: p.item });
+          // `p.knockbackMul` lets a move give one round in a magazine a different launch from
+          // the others - see the sniper stance above, whose setup rounds must not launch hard
+          // enough for the NEXT round to chase the victim off the stage.
+          const hit = this.resolveHit(p.owner, v, p.move, { angle: p.move.angle, knockbackMul: p.knockbackMul }, p.rect, { projectile: true, facing: sign(p.vx), item: p.item });
           // A piercing shot keeps going. `hitVictims` already stops it hitting the same fighter
           // twice, so it crosses the stage taking everyone on the line.
           if (hit && !p.pierce) { dead = true; break; }

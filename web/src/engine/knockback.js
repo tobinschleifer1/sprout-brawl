@@ -1,8 +1,17 @@
-import { HITSTUN_CAP, HITLAG_CAP, DI_MAX } from '../config.js';
+import { HITSTUN_CAP, HITLAG_CAP, DI_MAX, KNOCKBACK } from '../config.js';
 
-// launch = (base + growth × damage × (percent/100 + 0.4)) × (100 / weight)
+// launch = (base + growth × damage × (percent × slope + floor)) × (100 / weight)
+// See KNOCKBACK in config.js for why the slope is 1/140 and not 1/100.
 export function launchSpeed(base, growth, damage, percentAfterHit, weight) {
-  const scaled = base + growth * damage * (percentAfterHit / 100 + 0.4);
+  const scaled = base + growth * damage * (percentAfterHit * KNOCKBACK.slope + KNOCKBACK.floor);
+  return scaled * (100 / weight);
+}
+
+// How long the victim is stunned, as its own curve. Everything that launches must compute this
+// alongside the launch and hand both to applyHit - see KNOCKBACK in config.js for why they are
+// two numbers and not one.
+export function stunSpeed(base, growth, damage, percentAfterHit, weight) {
+  const scaled = base + growth * damage * (percentAfterHit * KNOCKBACK.stunSlope + KNOCKBACK.floor);
   return scaled * (100 / weight);
 }
 

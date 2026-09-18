@@ -686,7 +686,7 @@ export class Fighter {
 
   // ---------- hits ----------
   applyHit(hit) {
-    // hit: { damage, launch, angle, facing, attacker, hitlag, extraHitstun, applies, pull, trip, fixedVy }
+    // hit: { damage, launch, stun, angle, facing, attacker, hitlag, extraHitstun, applies, pull, trip, fixedVy }
     if (this.holder) this.holder.releaseHold();
     if (this.hold) this.releaseHold();
     this.percent = Math.min(999, this.percent + hit.damage);
@@ -704,10 +704,14 @@ export class Fighter {
     this.move = null; this.hold = null; this.tether = null; this.la = null;
     if (hit.trip && this.percent < hit.trip && this.onGround) { this.setState('knockdown'); this.sf = 6; this.vx = 0; return; }
     let launch = hit.launch;
-    if (this.effects.frozenBonus) { launch *= 1.2; this.effects.frozenBonus = false; }
+    // How long they cannot act is its own curve - see KNOCKBACK in config.js. Everything that
+    // scales the launch below scales the stun with it, so water and a frozen victim still change
+    // hitstun the way they always did.
+    let stun = hit.stun != null ? hit.stun : hit.launch;
+    if (this.effects.frozenBonus) { launch *= 1.2; stun *= 1.2; this.effects.frozenBonus = false; }
     // Deep water eats knockback. It is why the tide is a refuge at high percent as well as a trap.
-    if (this.env.damp < 1) launch *= this.env.damp;
-    this.hitstun = hitstunFor(launch) + (hit.extraHitstun || 0);
+    if (this.env.damp < 1) { launch *= this.env.damp; stun *= this.env.damp; }
+    this.hitstun = hitstunFor(stun) + (hit.extraHitstun || 0);
     if (hit.pull) { this.x += -hit.facing * Math.min(hit.pull, Math.abs(this.x - (hit.attackerX ?? this.x))); }
     // Two hitboxes can land on the SAME frame - a greatsword and the crater it opens, a burst
     // inside a swing. Taking the last one meant the weaker of the pair decided where the victim
@@ -719,7 +723,9 @@ export class Fighter {
       this.pendingLaunchFrame = this.frameCount;
     }
     if (this.hitlag <= 0) this._applyLaunch();
-    this.tumbling = launch >= TUMBLE_THRESHOLD;
+    // Tumble is about whether they are helpless, not about how far they go, so it reads the stun
+    // curve. On the launch curve the threshold would quietly move every time knockback is tuned.
+    this.tumbling = stun >= TUMBLE_THRESHOLD;
     this.fastFalling = false;
     this.setState('hitstun');
   }

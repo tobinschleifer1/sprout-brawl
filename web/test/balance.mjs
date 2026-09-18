@@ -1,6 +1,6 @@
 // Balance analysis: KO percents and combo slack, computed from the engine's own formulas.
 // Used both as a report (node test/balance.mjs) and as the source of truth for combo.test.mjs.
-import { launchSpeed, hitstun, velocity } from '../src/engine/knockback.js';
+import { launchSpeed, stunSpeed, hitstun, velocity } from '../src/engine/knockback.js';
 import { FRAME, GRAVITY, LAUNCH_DRAG } from '../src/config.js';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { buildLoadout } from '../src/data/loadout.js';
@@ -25,7 +25,10 @@ export function killsAt(base, growth, damage, percentAfter, weight, opts = {}) {
   const v = velocity(launch, angle, 1, null);
   let x = opts.x ?? 0, y = opts.y ?? 0, vx = v.vx, vy = v.vy;
   const b = STAGE.blast;
-  const frames = hitstun(launch) + 40;                  // hitstun, then a little drift
+  // Hitstun is its own curve in the engine (KNOCKBACK.stunSlope), so the frame budget has to come
+  // from that one and not from the launch, or this oracle measures a different fight.
+  const stun = stunSpeed(base, growth, damage, percentAfter, weight) * (opts.launchMul ?? 1);
+  const frames = hitstun(stun) + 40;                    // hitstun, then a little drift
   for (let i = 0; i < frames; i++) {
     vy -= GRAVITY * FRAME;
     if (vy < -80) vy = -80;                             // tumble terminal velocity
@@ -47,8 +50,7 @@ export const chainGap = (A, B) => A.active + B.startup;
 
 export function slack(weapon, A, B, percent) {
   const dmg = A.damage;
-  const launch = launchSpeed(A.base, A.growth, dmg, percent + dmg, 100);
-  const stun = hitstun(launch) + (A.extraHitstun || 0);
+  const stun = hitstun(stunSpeed(A.base, A.growth, dmg, percent + dmg, 100)) + (A.extraHitstun || 0);
   return stun - chainGap(A, B);
 }
 

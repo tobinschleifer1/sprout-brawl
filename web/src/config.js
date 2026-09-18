@@ -7,6 +7,22 @@ export const HITSTUN_CAP = 60;
 export const HITLAG_CAP = 12;
 export const DI_MAX = 12;            // degrees of directional influence
 
+// The launch curve: launch = (base + growth x damage x (percent x slope + floor)) x (100/weight).
+//
+// `slope` used to be 1/100 and players were dying far too cheaply - a signature killed from 97%
+// and an ultimate from 68%, so a stock could end on one read at less than half the percent the
+// damage numbers imply. Flattening it to 1/120 is the surgical version of "less knockback": at 0%
+// the term is unchanged (the `floor` dominates), so nothing about early-percent play moves, and
+// the reduction grows with percent, which is exactly where kills come from. At 100% a launch is
+// 9% smaller, at 200% it is 14% smaller.
+//
+// `stunSlope` is the same curve at its ORIGINAL 1/100, and it exists because hitstun must not
+// follow the launch down. It did, at first, and shortening hitstun at high percent silently
+// deleted the guaranteed kill confirm of seven of the twelve weapons - combo.test.mjs caught it.
+// How far a victim flies and how long they cannot act are separate design questions and the engine
+// now treats them separately: less knockback, same combos.
+export const KNOCKBACK = { slope: 1 / 120, stunSlope: 1 / 100, floor: 0.4 };
+
 export const MOVE = {
   groundAccelFrames: 6,   // frames to reach run speed
   groundStopFrames: 6,

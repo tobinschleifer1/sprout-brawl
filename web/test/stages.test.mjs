@@ -190,14 +190,20 @@ for (const data of STAGES) {
 }
 
 // ---- 6. blast zones must be far enough that a ledge-side hit is not an instant KO ----
+// The floors here are not arbitrary - they are the 1.2x widening that fixed "players get knocked
+// out far too cheaply", written down so a later edit cannot quietly give it back. At the previous
+// margins (side 43-99, ceiling 78-94, floor -44 to -52) a signature killed from 97% and an
+// ultimate from 68%. The FLOOR bound matters as much as the side one: with the sides widened and
+// the floor left alone, the floor became 73% of all ring-outs instead of 36%.
 for (const data of STAGES) {
   const { st, solids } = geometry(data);
   const leftEdge = Math.min(...solids.map((s) => s.x1));
   const rightEdge = Math.max(...solids.map((s) => s.x2));
   const l = leftEdge - st.blast.left, r = st.blast.right - rightEdge;
-  const ceil = st.blast.top;
-  check(`${data.name}: blast zones give room to recover`, l >= 40 && r >= 40 && ceil >= 60,
-    `side room ${l.toFixed(0)}/${r.toFixed(0)} studs (want 40+), ceiling ${ceil} (want 60+)`);
+  const ceil = st.blast.top, floor = st.blast.bottom;
+  const ok = l >= 60 && r >= 60 && ceil >= 90 && floor <= -52;
+  check(`${data.name}: blast zones give room to recover`, ok,
+    `side room ${l.toFixed(0)}/${r.toFixed(0)} studs (want 60+), ceiling ${ceil} (want 90+), floor ${floor} (want -52 or lower)`);
 }
 
 // ---- 7. a spawn must have ground under it at respawn height ----

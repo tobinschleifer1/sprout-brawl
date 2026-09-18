@@ -183,8 +183,18 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     m.subscribe ? null : null;
     m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
     m.step();
-    const reflects = WEAPONS.find((w) => w.id === weaponId).moves.Ultimate.kind === 'reflect';
+    const kind = WEAPONS.find((w) => w.id === weaponId).moves.Ultimate.kind;
+    // The sniper's setup rounds are deliberately damped (sniper.setupMul) so that only the last
+    // round in the magazine launches. This probe takes the BIGGEST launch it sees, and at 90% the
+    // finisher sent the victim clear of the next round - so the biggest launch on record was a
+    // setup round and the move measured as scaling DOWNWARD. Cutting the magazine to one leaves
+    // only the finisher, which is the hit whose scaling this assertion is about. It is clamped
+    // inside the loop, not before it: the stance loads the magazine on its first ACTIVE frame,
+    // eighteen frames after activation, so a write before the loop is overwritten.
+    const oneShot = () => { if (kind === 'sniper' && a.ultShots > 1) a.ultShots = 1; };
+    const reflects = kind === 'reflect';
     for (let i = 0; i < 400 && (a.state === 'attack' || a.hitlag > 0); i++) {
+      oneShot();
       if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
       else m._input.clear('p0');
       // Same reason as the connect probe: a reflect launches nobody unless somebody swings at it.
@@ -314,37 +324,79 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
 // ---- 13. KILL PERCENT, pinned ----
 // Every other assertion in this file measures plumbing, and all sixteen of them passed while
 // Colossus killed at 226% (a same-frame crater was overwriting its own blade's launch) and Soul
-// Harvest killed two people at 17%. Damage thresholds cannot catch that. Kill percent can, so it
-// is pinned here per move, with knockbackMul applied - which is the whole point, since a KO
-// percent measured without the multiplier describes a move the game does not contain.
+// Harvest killed two people at 17%. Damage thresholds cannot catch that. Kill percent can.
+//
+// This used to be pinned per HITBOX through balance.koPercent, and that could only ever describe
+// the ultimates whose kill is one launch off one sub-object. It said nothing about the six whose
+// kill comes out of a mechanic - a magazine, a stack of marks, a chain that drags. Measured for
+// real, four of those killed between 4% and 85% while this test was green, and Upheaval could not
+// kill at ANY percent up to 400.
+//
+// So it fires the actual move at a victim standing centre stage and asks whether the LAUNCH took
+// them out - they have to leave the blast box within hitstun + 40 frames of the last hit, the same
+// rule balance.killsAt uses. Anything looser just measures a do-nothing dummy drifting off the
+// edge, which every horizontal launch does eventually.
 {
-  const { koPercent } = await import('./balance.mjs');
-  // [what it is, expected KO% at weight 100, tolerance]  — measured, then pinned.
-  const rows = [];
-  const ko = (b, g, d, ang, mul) => koPercent(b, g, d, 100, { angle: ang, launchMul: mul });
-  const S = WEAPONS.find((w) => w.id === 'Sword').moves.Ultimate;
-  const C = WEAPONS.find((w) => w.id === 'Scythe').moves.Ultimate;
-  const B = WEAPONS.find((w) => w.id === 'Blasters').moves.Ultimate;
-  const G = WEAPONS.find((w) => w.id === 'Grimoire').moves.Ultimate;
-  rows.push(['Colossus blade', ko(S.base, S.growth, S.damage, S.angle, S.knockbackMul), 80, 110]);
-  // The epicentre and the outward ring throw at different angles, so they are different moves as
-  // far as kill percent is concerned and both have to be pinned.
-  rows.push(['Colossus crater centre', ko(S.crater.base, S.crater.growth, S.crater.damage, S.crater.centreAngle, S.crater.knockbackMul), 80, 110]);
-  rows.push(['Colossus crater ring', ko(S.crater.base, S.crater.growth, S.crater.minDamage, S.crater.angle, S.crater.knockbackMul), 110, 170]);
-  rows.push(['Soul Harvest', ko(C.vortex.burst.base, C.vortex.burst.growth, C.vortex.burst.damage, C.vortex.burst.angle, C.vortex.burst.knockbackMul), 95, 135]);
-  rows.push(['Deadeye round', ko(B.base, B.growth, B.damage, B.angle, B.knockbackMul), 115, 155]);
-  rows.push(['Astral Rain orb', ko(G.starfall.base, G.starfall.growth, G.starfall.damage, G.starfall.angle, G.starfall.knockbackMul), 115, 155]);
-  // The two grinders are pinned on their FINISHER, and their band sits lower than the single-hit
-  // ultimates' on purpose: by the time the last hit lands, their own multi-hit has already put
-  // about fifty percent on the victim. Tuned at the single-hit band they killed from zero.
-  for (const [id, lo, hi] of [['Axe', 90, 130], ['Pike', 90, 130]]) {
-    const U = WEAPONS.find((w) => w.id === id).moves.Ultimate;
-    const fin = U.hitboxes[U.hitboxes.length - 1];
-    rows.push([`${U.label} finisher`, ko(fin.base, fin.growth, fin.damage, fin.angle ?? U.angle, U.knockbackMul), lo, hi]);
+  const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
+    Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0 };
+
+  function ultKills(weaponId, percent) {
+    const m = makeMatch({ loadouts: [['Classic', weaponId], ['Noir', 'Sword']], stocks: 3 });
+    skipCountdown(m);
+    for (let i = 0; i < 120; i++) m.step();
+    const [a, v] = m.fighters;
+    const d = RANGE_FOR[weaponId];
+    a.x = -d / 2; v.x = d / 2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
+    v.setState('idle'); v.percent = percent;
+    a.setState('idle'); a.ultCharge = ULTIMATE.hitsRequired;
+    // A reflect launches nobody unless somebody swings at it.
+    const reflects = WEAPONS.find((w) => w.id === weaponId).moves.Ultimate.kind === 'reflect';
+    m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+    m.step();
+    let pct = v.percent, deadline = -1;
+    for (let i = 0; i < 700; i++) {
+      // The sniper needs a trigger pull per round, so the button is re-pressed periodically.
+      if (i % 20 === 0) m._input.set('p0', Object.assign({}, EMPTY_IN, { ult: true, anyPress: true }));
+      else m._input.clear('p0');
+      if (reflects && i < 120) m._input.set('p1', Object.assign({}, EMPTY_IN, { light: i % 10 === 0, anyPress: i % 10 === 0 }));
+      m.step();
+      if (v.percent > pct) { pct = v.percent; deadline = i + v.hitstun + 40; }
+      if (m.stage.outsideBlast(v) || v.stocks < 3 || !v.alive) return deadline >= 0 && i <= deadline;
+      if (deadline >= 0 && i > deadline && a.state !== 'attack' && v.onGround) return false;
+    }
+    return false;
   }
-  const bad = rows.filter(([, v, lo, hi]) => v === null || v < lo || v > hi);
-  check('every ultimate kills in its intended band', bad.length === 0,
-    rows.map(([n, v, lo, hi]) => `${n} ${v === null ? 'NEVER' : v + '%'} [${lo}-${hi}]`).join(', '));
+  const ultKo = (weaponId) => {
+    for (let p = 0; p <= 400; p += 5) if (ultKills(weaponId, p)) {
+      for (let q = Math.max(0, p - 4); q <= p; q++) if (ultKills(weaponId, q)) return q;
+      return p;
+    }
+    return null;
+  };
+
+  // [expected kill %, tolerance] - measured, then pinned. The band is +/-18 because a few of these
+  // resolve through positioning (whether the third round still reaches, which column catches them)
+  // and land a few points either side of a rerun.
+  const EXPECT = { Sword: 134, Scythe: 161, Blasters: 131, Grimoire: 191, Axe: 155, Pike: 136,
+    Gauntlets: 213, Hammer: 146, Longbow: 133, Flail: 148, Shield: 193, Daggers: 142 };
+  // An ultimate is the biggest commitment in the game and it is allowed to be the thing that
+  // closes a stock. It is not allowed to be a contact kill: before this floor existed, Deadeye
+  // killed from 4%, Heartseeker from 21% and Exsanguinate from 24%, which meant twenty landed
+  // hits bought a stock outright rather than the chance at one.
+  const FLOOR = 120, CEILING = 260;
+  const rows = [], bad = [];
+  for (const w of WEAPONS) {
+    const k = ultKo(w.id);
+    const want = EXPECT[w.id];
+    rows.push(`${w.moves.Ultimate.label} ${k === null ? 'NEVER' : k + '%'}${want == null ? ' (unpinned)' : ''}`);
+    if (k === null) bad.push(`${w.id} cannot KO at all`);
+    else if (k < FLOOR || k > CEILING) bad.push(`${w.id} kills at ${k}%, outside ${FLOOR}-${CEILING}`);
+    else if (want != null && Math.abs(k - want) > 18) bad.push(`${w.id} kills at ${k}%, pinned at ${want}%`);
+    else if (want == null) bad.push(`${w.id} has no pinned kill percent`);
+  }
+  check('every ultimate kills late, and every one of them kills', bad.length === 0,
+    bad.length ? bad.join('; ') : rows.join(', '));
 }
 
 // ---- 14. the vortex hold is escapable ----

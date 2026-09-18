@@ -21,11 +21,10 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Return +Heavy+side         -> Reaper        trap only 0-60%                     kills 120%
-//   Full Circle +Heavy+side    -> Reaper        CONFIRM 80-100%     trap 20-60%     kills 120%
-//   Chain Breaker +Heavy+side  -> Reaper        CONFIRM 60%         trap 20-40%     kills 120%
-//   Rising Chain +Heavy+up     -> Chain Reaper  trap only 120-180%                  kills 139%
-//   Rising Chain +Heavy        -> Chain Reaper  trap only 120-180%                  kills 139%
+//   Rising Chain  +Heavy      -> Chain Reaper   CONFIRM  240-260%   trap 140-220%   kills  196%
+//   Chain Breaker +Heavy+Side -> Reaper         CONFIRM       60%   trap   20-40%   kills  199%
+//   Full Circle   +Heavy+Side -> Reaper         CONFIRM   80-120%   trap   20-60%   kills  199%
+//   Return        +Heavy+Side -> Reaper         trap only     0-80%                 kills  199%
 
 export default {
   id: 'Flail', name: 'Chain Flail', archetype: 'Space control', tagline: 'Unpredictable',
@@ -123,7 +122,9 @@ export default {
       anchor: { throwDistance: 9, maxLength: 26, every: 8, thickness: 1.6,
         damage: 3, base: 9, growth: 0.6, angle: 62, shieldDamageMul: 1.8,
         // and the snap-back, which is the move's finisher
-        snapDamage: 13, snapBase: 15, snapGrowth: 5.2, snapAngle: 44 },
+        // snapGrowth was 5.2, the steepest number in the game, and the snap killed from 85%
+        // AFTER the chain had already put its own damage on. 13/4.6 kills at 148%.
+        snapDamage: 13, snapBase: 13, snapGrowth: 4.6, snapAngle: 44 },
     },
   },
 };

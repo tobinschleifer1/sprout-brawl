@@ -13,12 +13,12 @@
 //   Light+Down                 Ankle Hook                      trips under 70%, drags in
 //
 // Signature cash-outs, measured against a dodging victim (CONFIRM = unescapable, trap = a read):
-//   Uproot     +Heavy      -> Soul Tether     CONFIRM 120-180%   trap  40-100%   kills 145%
-//   Crossreap  +Heavy      -> Reaper's Arc    CONFIRM 120-140%   trap  60-100%   kills 113%
-//   Hook       +Heavy+Side -> Reaper's Arc    CONFIRM     180%   trap  80-160%   kills 113%
-//   Hook       +Heavy+Down -> Harvest         CONFIRM     180%   trap  80-160%   kills 142%
-//   Hook       +Heavy      -> Soul Tether     trap only  60-80%                  kills 145%
-//   Ankle Hook +Heavy      -> Harvest         trap only   0-60%                  kills 142%
+//   Uproot     +Heavy      -> Soul Tether    CONFIRM  120-260%   trap  40-100%   kills  204%
+//   Crossreap  +Heavy      -> Reaper's Arc   CONFIRM      140%   trap  60-120%   kills  189%
+//   Hook       +Heavy+Side -> Reaper's Arc   CONFIRM  200-260%   trap  80-180%   kills  189%
+//   Hook       +Heavy+Down -> Harvest        CONFIRM  200-260%   trap  80-180%   kills  200%
+//   Ankle Hook +Heavy      -> Harvest        trap only     0-60%                 kills  200%
+//   Hook       +Heavy      -> Soul Tether    trap only   60-100%                 kills  204%
 //
 // Recovery is a tether, not a jump: it grabs a ledge from 22 studs out, or fails outright.
 

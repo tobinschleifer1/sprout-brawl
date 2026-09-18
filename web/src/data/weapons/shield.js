@@ -22,12 +22,11 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Boss Strike +Heavy+side  -> Bulwark Charge  trap only 40-100%                   kills 140%
-//   Boss Strike +Heavy+down  -> Aegis Slam      trap only 0%                        kills 153%
-//   Wall Break +Heavy+side   -> Bulwark Charge  CONFIRM 140-180%    trap 60-80%     kills 140%
-//   Rising Bash +Heavy+down  -> Aegis Slam      CONFIRM 80-160%     trap 20-60%     kills 153%
-//   Low Bash +Heavy+down     -> Aegis Slam      trap only 0-40%                     kills 153%
-//   Low Bash +Heavy          -> Aegis Slam      trap only 0-40%                     kills 153%
+//   Rising Bash +Heavy+Down -> Aegis Slam       CONFIRM  100-200%   trap   20-80%   kills  240%
+//   Wall Break  +Heavy+Side -> Bulwark Charge   CONFIRM  160-220%   trap      80%   kills  229%
+//   Low Bash    +Heavy      -> Aegis Slam       trap only     0-40%                 kills  240%
+//   Boss Strike +Heavy+Down -> Aegis Slam       trap only        0%                 kills  240%
+//   Boss Strike +Heavy+Side -> Bulwark Charge   trap only   20-120%                 kills  229%
 
 export default {
   id: 'Shield', name: 'Shield', archetype: 'Counter attacker', tagline: 'Defensive',

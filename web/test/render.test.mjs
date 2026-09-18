@@ -192,5 +192,49 @@ for (const data of STAGES) {
       : `${files.length} UI files checked against the asset tree; weapon tiles are drawn from weapons2d.js rather than from per-weapon PNGs`);
 }
 
+// ---- the camera must frame the fight ABOVE the HUD tiles ----
+// Send one fighter up with a launch and the camera pulls up to keep them in frame, which pushed
+// everyone still on the floor down behind the tile row - you could not see the fighter you were
+// about to land on. The camera subtracts the HUD band from the height it is allowed to use, so
+// this checks the grounded fighter's projected y against the band rather than against the canvas.
+{
+  const view = new Renderer2D(stubCanvas());
+  const m = makeMatch({ loadouts: [['Classic', 'Sword'], ['Noir', 'Sword']] });
+  view.setStage(m.stage);
+  skipCountdown(m);
+  const [low, high] = m.fighters;
+  const rect = view.canvas.getBoundingClientRect();
+  // The real band: four tiles plus their offset, as HUD._measureSafeBottom reports it.
+  const BAND = 120;
+
+  const frameThem = () => {
+    for (const f of m.fighters) { f.vx = 0; f.vy = 0; }
+    low.x = -6; low.y = 0; low.onGround = true; low.platform = m.stage.main;
+    high.x = 6; high.y = 46; high.onGround = false; high.platform = null;
+    // settle the smoothing so the assertion is about the target framing, not the lerp
+    for (let i = 0; i < 4; i++) view.frame(m, 1 / 60, i / 60, true);
+    return view.project(low.x, low.y).y;
+  };
+
+  view.safeBottom = 0;
+  const without = frameThem();
+  view.safeBottom = BAND;
+  const withBand = frameThem();
+  const limit = rect.height - BAND;
+
+  check('the camera keeps a launched-apart pair clear of the HUD band',
+    without > limit && withBand <= limit,
+    `grounded fighter projects to y=${without.toFixed(0)}px with no reserve (behind the tiles, which start at y=${limit}) `
+    + `and y=${withBand.toFixed(0)}px with the ${BAND}px band reserved`);
+
+  // And the reserve must not be free: zooming out to fit the same pair into less height is the
+  // price, and a camera that ignored `safeBottom` would report an identical ppu.
+  view.safeBottom = 0; frameThem();
+  const ppuWithout = view.cam.tppu;
+  view.safeBottom = BAND; frameThem();
+  check('reserving the band costs zoom rather than being ignored', view.cam.tppu < ppuWithout,
+    `ppu ${ppuWithout.toFixed(2)} -> ${view.cam.tppu.toFixed(2)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

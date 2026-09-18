@@ -16,9 +16,9 @@
 //   Down+Light                 Ward                            trips under 60%
 //
 // Signature cash-outs, measured against a dodging victim (CONFIRM = unescapable, trap = a read):
-//   Nova     +Heavy        -> Runebrand       CONFIRM  40-180%   trap   0-20%    kills 120%
-//   Updraft  +Heavy        -> Runebrand       CONFIRM  80-180%   trap   0-60%    kills 120%
-//   Backlash +Heavy        -> Runebrand       CONFIRM 160-180%   trap  0-140%    kills 120%
+//   Updraft  +Heavy -> Runebrand   CONFIRM  100-260%   trap    0-80%   kills  199%
+//   Backlash +Heavy -> Runebrand   CONFIRM  120-180%   trap   0-100%   kills  199%
+//   Nova     +Heavy -> Runebrand   CONFIRM   40-260%   trap    0-20%   kills  199%
 
 export default {
   id: 'Grimoire', name: 'Grimoire', archetype: 'Heavy zoner', tagline: 'Own the ground you stand on',

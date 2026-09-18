@@ -20,11 +20,10 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Body Blow +Heavy+side    -> Rush Elbow      CONFIRM 60-180%     trap 0-40%      kills 126%
-//   Rising Fist +Heavy       -> Overdrive Blow  CONFIRM 80-180%     trap 0-60%      kills 125%
-//   Rising Fist +Heavy+down  -> Meteor Fist     CONFIRM 180%        trap 40-160%    kills 233%
-//   Low Kick +Heavy+down     -> Meteor Fist     trap only 0-40%                     kills 233%
-//   Low Kick +Heavy          -> Meteor Fist     trap only 0-40%                     kills 233%
+//   Rising Fist +Heavy+Down -> Meteor Fist      CONFIRM  180-240%   trap  40-160%   kills  360%
+//   Body Blow   +Heavy+Side -> Rush Elbow       CONFIRM   80-260%   trap    0-60%   kills  209%
+//   Rising Fist +Heavy      -> Overdrive Blow   CONFIRM   80-260%   trap    0-60%   kills  177%
+//   Low Kick    +Heavy      -> Meteor Fist      trap only     0-40%                 kills  360%
 
 export default {
   id: 'Gauntlets', name: 'Gauntlets', archetype: 'Rushdown', tagline: 'Never let them breathe',

@@ -1,7 +1,7 @@
 # Blockfall
 
 A **2D** platform fighter. Your Roblox avatar is who you look like; the **weapon** you pick is how
-you play. Four weapons, six avatars, six stages, percent-based knockback, ring-outs on four sides.
+you play. Twelve weapons, six avatars, six stages, percent-based knockback, ring-outs on four sides.
 
 The avatar is cosmetic — every avatar shares one stat line, so a match is decided by the weapon and
 by how you use it.
@@ -109,7 +109,7 @@ same `weapons2d.js` the match uses, so it cannot drift from the game.
 ### What is in the web build
 
 - `src/config.js` – global constants (frame rate, gravity, shield, ledge, dodge, grab and throw numbers)
-- `src/engine/knockback.js` – the launch, hitstun, blockstun and hitlag formulas
+- `src/engine/knockback.js` – the launch, hitstun, blockstun and hitlag formulas. Launch and hitstun are deliberately two curves (`KNOCKBACK.slope` vs `KNOCKBACK.stunSlope`): how far a hit sends you is tuned separately from how long you cannot act
 - `src/data/weapons/*.js` – one file per weapon: moves with frame data and hitboxes, combo tree, mechanic, stat spread, palette
 - `src/data/avatars.js` – the shared base stat line and the cosmetic avatar presets
 - `src/data/loadout.js` – composes avatar + weapon into the character-shaped object the engine consumes

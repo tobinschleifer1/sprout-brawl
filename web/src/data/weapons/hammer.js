@@ -21,12 +21,11 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Back Swing +Heavy+side   -> Breach         trap only 120-180%                  kills 120%
-//   Overhead +Heavy+side     -> Breach         CONFIRM 20-80%      trap 0%         kills 120%
-//   Wide Swing +Heavy+side   -> Breach         CONFIRM 120-180%    trap 100%       kills 120%
-//   Rising Hammer +Heavy     -> Crushing Blow  CONFIRM 60-180%     trap 0-40%      kills 133%
-//   Rising Hammer +Heavy+up  -> Crushing Blow  CONFIRM 60-180%     trap 0-40%      kills 133%
-//   Ground Slam +Heavy+side  -> Breach         trap only 80-100%                   kills 120%
+//   Wide Swing    +Heavy+Side -> Breach          CONFIRM  120-220%   trap        -   kills  200%
+//   Overhead      +Heavy+Side -> Breach          CONFIRM    40-80%   trap    0-20%   kills  200%
+//   Rising Hammer +Heavy      -> Crushing Blow   CONFIRM   60-260%   trap   20-40%   kills  189%
+//   Back Swing    +Heavy+Side -> Breach          trap only  120-260%                 kills  200%
+//   Ground Slam   +Heavy+Side -> Breach          trap only   80-120%                 kills  200%
 
 export default {
   id: 'Hammer', name: 'War Hammer', archetype: 'Superheavy', tagline: 'Armour breaker',
@@ -107,8 +106,12 @@ export default {
       hitboxes: [],
       // Each column pops rather than launches, so the next one can still reach them; the move's
       // kill comes from the sum, not from one hit.
+      // `finalMul` is the fifth column, and it is what makes the move a kill at all: with five
+      // equal columns Upheaval was the only ultimate that could not KO at any percent up to 400%.
+      // 3.4 puts it at 145%, and it is a vertical kill - the hammer sends them through the roof.
       upheaval: { every: 13, count: 5, width: 5.0, height: 11.0,
-        damage: 12, base: 14, growth: 1.6, angle: 82, knockbackMul: 1.0, shieldDamageMul: 4.0 },
+        damage: 12, base: 14, growth: 1.6, angle: 82, knockbackMul: 1.0, finalMul: 3.4,
+        shieldDamageMul: 4.0 },
     },
   },
 };

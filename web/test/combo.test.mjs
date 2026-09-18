@@ -9,7 +9,10 @@ import { confirmsAt, edges, koPercent } from './balance.mjs';
 
 let pass = 0, fail = 0;
 const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
-const GRID = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180];
+// The grid has to reach past where signatures kill, or assertion 2 cannot see a kill confirm at
+// all. It stopped at 180 when a signature killed from 97%; the blast boxes are 1.2x bigger and the
+// launch curve is flatter now, so the roster kills between 153% and 260% and the grid follows.
+const GRID = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 260];
 
 // Where does a signature actually start killing? Used to tell a kill confirm from a damage combo.
 // A multi-hitbox signature is measured on the box that actually KILLS, not on the first one that

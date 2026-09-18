@@ -13,12 +13,12 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Rising Cut +Heavy      -> Skyward         CONFIRM 120-160%   trap  20-100%   kills 129%
-//   Riposte    +Heavy      -> Crescent Rush   CONFIRM 140-180%   trap  80-120%   kills 111%
-//   Cross Cut  +Heavy      -> Skyward         CONFIRM     160%   trap  60-140%   kills 129%
-//   Cross Cut  +Heavy+Down -> Earthsplitter   CONFIRM     180%   trap  80-160%   kills 120%
-//   Cross Cut  +Heavy+Side -> Crescent Rush   trap only 140-180%                 kills 111%
-//   Low Sweep  +Heavy      -> Earthsplitter   trap only   0-40%                  kills 120%
+//   Rising Cut +Heavy      -> Skyward         CONFIRM  120-180%   trap  40-100%   kills  184%
+//   Cross Cut  +Heavy      -> Skyward         CONFIRM  180-200%   trap  60-160%   kills  184%
+//   Cross Cut  +Heavy+Down -> Earthsplitter   CONFIRM  200-260%   trap  80-180%   kills  172%
+//   Riposte    +Heavy      -> Crescent Rush   CONFIRM  220-260%   trap  80-140%   kills  185%
+//   Cross Cut  +Heavy+Side -> Crescent Rush   CONFIRM      260%   trap 140-240%   kills  185%
+//   Low Sweep  +Heavy      -> Earthsplitter   trap only     0-40%                 kills  172%
 //
 // Momentum: 60 frames of running buys +1 damage and x1.01 launch on the next SIGNATURE, worth about
 // 16 points of kill percent. A light does not burn it, so it can ride a cash-out.

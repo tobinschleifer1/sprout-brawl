@@ -31,7 +31,7 @@ export const STAGES = [
       { id: 'right', x: 21, y: 14, w: 16, soft: true },
       { id: 'top', x: 0, y: 27, w: 14, soft: true },
     ],
-    blast: { left: -96, right: 96, top: 85, bottom: -50 },
+    blast: { left: -115, right: 115, top: 102, bottom: -60 },
     spawns: [-24, 24, -10, 10, -30, 30, -4, 4],
     // Ranked, so the one environmental element is a piece of LAYOUT rather than an event: two
     // fixed columns of rising heat off the pour below, sitting just OUTSIDE each ledge. Neutral is
@@ -59,11 +59,11 @@ export const STAGES = [
     // Deliberately bare. With a shelf it was Foundry Floor with a longer floor - same recovery
     // envelope, same side room, same problem. Stripping the platforms makes it a genuinely
     // different question: there is no vertical escape, no platform to reset on, and the ceiling at
-    // 94 is far enough that up-angled signatures stop being kill moves. Side room drops to 52 so
+    // 113 is far enough that up-angled signatures stop being kill moves. Side room is 72 so
     // the horizontal blast zone does all the work.
     main: { x1: -46, x2: 46, y: 0, thickness: 8 },
     platforms: [],
-    blast: { left: -98, right: 98, top: 94, bottom: -48 },
+    blast: { left: -118, right: 118, top: 113, bottom: -58 },
     spawns: [-30, 30, -12, 12, -40, 40, -4, 4],
     // Ranked, so this never touches grounded play. A bridge in the open gets wind; the wind
     // changes every recovery and every edgeguard and nothing else. Strictly alternating direction
@@ -112,7 +112,7 @@ export const STAGES = [
       { id: 'westShelf', x: -27, y: 13, w: 12, soft: true },
       { id: 'eastShelf', x: 26, y: 17, w: 12, soft: true },
     ],
-    blast: { left: -90, right: 90, top: 88, bottom: -46 },
+    blast: { left: -108, right: 108, top: 106, bottom: -55 },
     // Every spawn clears both the pit (-11..6.5) and the vent footprints at +/-20, which reach
     // 15.4 to 24.6 out once a fighter's 1.1 radius is added to the 7-stud vent mouth.
     // The east platform ends at x=31 now that the pit was resized for the war hammer, so the
@@ -159,9 +159,14 @@ export const STAGES = [
       { id: 'crane', x: -22, y: 33, w: 11, soft: true },
     ],
     // Ceiling was 66: up-signatures killed at 65% here against 100% everywhere else, and bots died
-    // off the top four times as often. 78 keeps it the tightest roof in the roster without making
-    // the showcase move of two weapons a 65% finisher.
-    blast: { left: -92, right: 92, top: 78, bottom: -46 },
+    // off the top four times as often. 94 keeps it the tightest roof in the roster - the next
+    // lowest is 96 and the highest 113 - without making the showcase move of two weapons an
+    // early finisher. Every box in this file was widened 1.2x on ALL FOUR sides: players were
+    // leaving the stage far too cheaply. The floor is scaled with the rest on purpose - with only
+    // the sides and the ceiling widened, the floor became 73% of every ring-out in a bot match
+    // (up from 36%), because a launch that used to end at the side zone instead ended as a
+    // recovery from a hundred studs out that nobody can complete.
+    blast: { left: -110, right: 110, top: 94, bottom: -55 },
     // All four primary spawns sit on the main floor at the same height. Slot 4 was x=35 - inside
     // the east tower's body with no platform at or below the respawn height of 14, so a fourth
     // player fell straight past the stage and lost a stock in three seconds. Slot 3 at x=-34 landed
@@ -209,7 +214,7 @@ export const STAGES = [
       { id: 'shade', x: -34, y: 14, w: 13, soft: true },
       { id: 'perch', x: -8, y: 20, w: 11, soft: true },
     ],
-    blast: { left: -110, right: 100, top: 80, bottom: -52 },
+    blast: { left: -132, right: 120, top: 96, bottom: -62 },
     spawns: [-34, 18, -6, 6, -42, 24, -24, 2],
     // crossSeconds 4.2 over ~100 studs was 23.3 studs/s - exactly run speed, so running was never
     // an escape. 6.5 seconds brings it to 15 studs/s: you can outrun it, or jump it, or eat it.
@@ -263,7 +268,7 @@ export const STAGES = [
         moving: { y: { from: 7, to: 15, period: 6.5, phase: 0.62 } } },
       { id: 'gull', x: 0, y: 27, w: 10, soft: true },
     ],
-    blast: { left: -92, right: 92, top: 84, bottom: -44 },
+    blast: { left: -110, right: 110, top: 101, bottom: -53 },
     // Slots 7 and 8 were both x=0 - two fighters at the identical point - and 3/4 started on the
     // moving raft while 1/2 started on the floor.
     spawns: [-14, 14, -7, 7, -18, 18, -11, 11],

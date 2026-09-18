@@ -24,12 +24,15 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Uppercut Swing +Heavy  -> Uproot          CONFIRM 60-180%    trap  0-40%     kills 117%
-//   Chop           +Heavy  -> Executioner     trap only  0-180%                  kills 134%
-//   Chop     +Heavy+Side   -> Wide Arc        trap only  0-120%                  kills  97%
-//   Backhand       +Heavy  -> Executioner     trap only  0-160%                  kills 134%
-//   Floor Sweep    +Heavy  -> Executioner     trap only 60-180%                  kills 134%
-//   Follow Through +Heavy+Side -> Wide Arc    trap only 120-160%                 kills  97%
+//   Follow Through +Heavy+Side -> Wide Arc      CONFIRM  160-260%   trap        -   kills  167%
+//   Uppercut Swing +Heavy      -> Uproot        CONFIRM   60-260%   trap    0-40%   kills  167%
+//   Chop           +Heavy+Side -> Wide Arc      trap only    0-140%                 kills  167%
+//   Backhand       +Heavy      -> Executioner   trap only    0-180%                 kills  191%
+//   Chop           +Heavy      -> Executioner   trap only    0-260%                 kills  191%
+//   Backhand       +Heavy+Side -> Wide Arc      trap only     0-60%                 kills  167%
+//   Cleave         +Heavy      -> Executioner   trap only        0%                 kills  191%
+//   Follow Through +Heavy      -> Executioner   trap only        0%                 kills  191%
+//   Floor Sweep    +Heavy      -> Executioner   trap only   60-220%                 kills  191%
 //
 // The shape of that table IS the weapon. One guaranteed route, off the one fast move it owns, and
 // everything else is a read you have to earn. Executioner kills at 134% and can never be
@@ -108,7 +111,13 @@ export default {
     // All three are the same sentence said three ways: HAUL IT UP, then let it fall. The wind-ups
     // are the longest in the game and they are supposed to be — the lift is the telegraph, and the
     // fighter is visibly straining through every frame of it.
-    SigSide: { label: 'Wide Arc', startup: 24, active: 5, recovery: 36, damage: 17, base: 32, growth: 4.4, angle: 40, grounded: true, heavy: true, lunge: 5,
+    // lunge was 5, and at 5 the LightSide2 -side-> SigSide route was inert at every percent: the
+    // 24-frame wind-up gives the victim time to drift out of a 7-stud arc, and it only ever
+    // connected in a narrow band where the opener's launch happened to park them in the right
+    // place. 9 studs of step-through makes it a genuine kill confirm from 160% up, which is where
+    // Wide Arc kills. Safe on the ledge: `grounded` lunges are clamped to the platform they start
+    // on, which is the fix for the run-off-the-map bug this weapon used to have.
+    SigSide: { label: 'Wide Arc', startup: 24, active: 5, recovery: 36, damage: 17, base: 32, growth: 4.4, angle: 40, grounded: true, heavy: true, lunge: 9,
       hitboxes: [{ frames: [25, 29], offset: [3.6, 2.6], size: [7.0, 5.2] }] },
     // The one the weapon is named for: overhead, held a beat, then dropped. It splits the floor.
     SigDown: { label: 'Executioner', startup: 28, active: 5, recovery: 38, damage: 19, base: 30, growth: 4.0, angle: 66, grounded: true, heavy: true,

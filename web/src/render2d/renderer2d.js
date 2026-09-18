@@ -39,6 +39,11 @@ export class Renderer2D {
     this.buf.width = this.BW; this.buf.height = BH;
     this.b = this.buf.getContext('2d');
     this.cam = { x: 0, y: 12, ppu: 5, tx: 0, ty: 12, tppu: 5 };
+    // Height in CSS pixels along the bottom edge that something else is drawing over - the HUD
+    // tiles. The camera treats it as not-there: it frames the fight into the space ABOVE it. The
+    // HUD sets this itself in HUD.update, because the HUD is the thing that knows how tall it is.
+    this.safeBottom = 0;
+    this._cssH = 0;
     this.shake = 0;
     this.debug = false;
     this.stage = null;
@@ -51,6 +56,7 @@ export class Renderer2D {
   resize() {
     const r = this.canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    this._cssH = r.height;
     this.canvas.width = Math.max(1, Math.round(r.width * dpr));
     this.canvas.height = Math.max(1, Math.round(r.height * dpr));
     const aspect = r.height > 0 ? r.width / r.height : 16 / 9;
@@ -82,11 +88,21 @@ export class Renderer2D {
     if (!isFinite(x0)) { x0 = x1 = 0; y0 = 0; y1 = 10; }
     const pad = 20;
     const w = Math.max(42, x1 - x0 + pad * 2);
+    // The HUD tiles sit along the bottom edge, so the bottom of the backbuffer is not usable
+    // screen. Send someone high with a launch and the camera pulls up to keep them framed, which
+    // pushed everyone still on the floor down behind the tiles - you could not see the fighter you
+    // were about to land on. The band is subtracted from the height the camera is allowed to use,
+    // and the centre is then lifted by half of it, so the fight is framed into the clear part.
+    const band = clamp(this.safeBottom * (this._cssH > 0 ? BH / this._cssH : 0), 0, BH * 0.45);
+    const usable = BH - band;
     const hgt = Math.max(28, y1 - y0 + pad);
     // Capped at both ends: too far in and the stage vanishes, too far out and the fighters do.
-    const ppu = clamp(Math.min(this.BW / w, BH / hgt), 2.4, 7.2);
+    // The floor is 2.0, not 2.4: the blast boxes are 1.2x wider than they were and at 2.4 a chase
+    // to opposite blast zones (230 studs on Foundry Floor) no longer fit in the 480-pixel
+    // backbuffer, so one of the two fighters was framed off the edge of the screen.
+    const ppu = clamp(Math.min(this.BW / w, usable / hgt), 2.0, 7.2);
     this.cam.tx = (x0 + x1) / 2;
-    this.cam.ty = (y0 + y1) / 2 + 2;
+    this.cam.ty = (y0 + y1) / 2 + 2 - band / (2 * ppu);
     this.cam.tppu = ppu;
     const k = instant ? 1 : 1 - Math.pow(0.0025, dt);
     this.cam.x = lerp(this.cam.x, this.cam.tx, k);

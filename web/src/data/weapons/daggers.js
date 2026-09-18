@@ -21,11 +21,9 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Twin Strike +Heavy+side  -> Execution    CONFIRM 60-180%     trap 0-40%      kills 138%
-//   Rising Blades +Heavy     -> Blade Storm  CONFIRM 60-180%     trap 0-40%      kills 163%
-//   Rising Blades +Heavy+up  -> Blade Storm  CONFIRM 60-180%     trap 0-40%      kills 163%
-//   Sweep +Heavy+down        -> Bloodrush    trap only 0-40%                     kills 128%
-//   Sweep +Heavy             -> Bloodrush    trap only 0-40%                     kills 128%
+//   Rising Blades +Heavy      -> Blade Storm   CONFIRM   60-260%   trap    0-40%   kills  228%
+//   Twin Strike   +Heavy+Side -> Execution     CONFIRM   80-260%   trap    0-60%   kills  227%
+//   Sweep         +Heavy      -> Bloodrush     trap only     0-40%                 kills  205%
 
 export default {
   id: 'Daggers', name: 'Dual Daggers', archetype: 'Combo monster', tagline: 'Glass cannon',
@@ -104,8 +102,12 @@ export default {
       grounded: true, heavy: true, kind: 'bleed', ultimate: true, knockbackMul: 1.0, shieldDamageMul: 3.0,
       // the window's own contact: small, fast, and it is only there to put marks on
       hitboxes: [{ frames: [13, 88], offset: [2.0, 2.8], size: [5.6, 4.2], shieldDamageMul: 2.4, rehitEvery: 6, damage: 2, base: 4, growth: 0.08, angle: 48 }],
-      bleed: { maxMarks: 12, perMark: 2.4, base: 12, basePerMark: 2.2, growth: 2.6, angle: 52, radius: 4.0,
-        knockbackMul: 1.35, shieldDamageMul: 3.0 },
+      // basePerMark was 2.2 on top of base 12, so a full twelve marks popped with a base of 38 -
+      // the biggest in the game - and killed from 81%. It still scales with marks, which is the
+      // whole mechanic; it just no longer turns a stack into a guaranteed stock. 12 marks now
+      // kills at 142%, and a half stack is a launch rather than a KO.
+      bleed: { maxMarks: 12, perMark: 2.4, base: 10, basePerMark: 1.4, growth: 2.6, angle: 52, radius: 4.0,
+        knockbackMul: 1.15, shieldDamageMul: 3.0 },
     },
   },
 };

@@ -22,13 +22,11 @@
 //   CONFIRM = lands while they are still in hitstun, so there is no escape.
 //   trap    = lands on the recovery of the dodge they escaped with. A real option, but a read.
 //
-//   Quick Shot +Heavy+side  -> Rainfall    trap only 0-160%                    kills 244%
-//   Bowstave +Heavy+down    -> Tripwire    CONFIRM 20-40%      trap 0%         kills 150%
-//   Pierce +Heavy+side      -> Rainfall    trap only 0-100%                    kills 244%
-//   Sky Arrow +Heavy+up     -> Power Shot  CONFIRM 100-180%    trap 20-80%     kills 149%
-//   Sky Arrow +Heavy        -> Power Shot  CONFIRM 100-180%    trap 20-80%     kills 149%
-//   Low Arrow +Heavy+down   -> Tripwire    trap only 0-60%                     kills 150%
-//   Low Arrow +Heavy        -> Tripwire    trap only 0-60%                     kills 150%
+//   Sky Arrow  +Heavy      -> Power Shot   CONFIRM  100-260%   trap   20-80%   kills  242%
+//   Bowstave   +Heavy+Down -> Tripwire     CONFIRM    20-40%   trap       0%   kills  235%
+//   Pierce     +Heavy+Side -> Rainfall     trap only    0-120%                 kills  335%
+//   Quick Shot +Heavy+Side -> Rainfall     trap only    0-180%                 kills  335%
+//   Low Arrow  +Heavy      -> Tripwire     trap only     0-60%                 kills  235%
 
 export default {
   id: 'Longbow', name: 'Longbow', archetype: 'Precision zoner', tagline: 'Charge your shots',
@@ -118,8 +116,13 @@ export default {
     // first, and it cannot be blocked. Every other ultimate in the game is a duration you survive;
     // this is a single frame of commitment behind a second and a half of drawing, which is the
     // most a precision weapon can honestly say. Miss and you have spent the whole meter on nothing.
-    Ultimate: { label: 'Heartseeker', startup: 44, active: 8, recovery: 40, damage: 21, base: 34, growth: 3.4, angle: 30,
-      grounded: true, heavy: true, kind: 'pierce', ultimate: true, knockbackMul: 1.4, shieldDamageMul: 3.0,
+    // base was 34 with a 1.4x multiplier, which killed from 59% - the earliest of the twelve, on
+    // the weapon that also has the safest approach in the game. The identity is meant to live in
+    // `growth` (3.4, the steepest in the roster): the arrow barely moves a fresh fighter and gets
+    // frightening as the percent climbs. base 20 x 1.1 kills at 133%, in line with Colossus (134)
+    // and Deadeye (131), and it keeps the curve rather than the floor.
+    Ultimate: { label: 'Heartseeker', startup: 44, active: 8, recovery: 40, damage: 21, base: 20, growth: 3.4, angle: 30,
+      grounded: true, heavy: true, kind: 'pierce', ultimate: true, knockbackMul: 1.1, shieldDamageMul: 3.0,
       hitboxes: [],
       pierce: { speed: 150, lifetime: 70, height: 3.0, size: [4.0, 0.7] },
     },

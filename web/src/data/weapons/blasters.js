@@ -15,11 +15,11 @@
 //   Down+Light                 Ricochet                            free when the magazine is dry
 //
 // Signature cash-outs, measured against a dodging victim (CONFIRM = unescapable, trap = a read):
-//   Flak        +Heavy      -> Scattergun     CONFIRM 100-180%   trap  20-80%    kills 140%
-//   Point Blank +Heavy+Down -> Scattergun     CONFIRM 140-180%   trap  40-120%   kills 140%
-//   Kickback    +Heavy      -> Scattergun     CONFIRM     160%   trap  40-140%   kills 140%
-//   Point Blank +Heavy+Side -> Full Auto      trap only 80-180%                  never KOs
-//   Ricochet    +Heavy      -> Scattergun     trap only  0-40%                   kills 140%
+//   Flak        +Heavy      -> Scattergun   CONFIRM  120-260%   trap  20-100%   kills  227%
+//   Kickback    +Heavy      -> Scattergun   CONFIRM  140-160%   trap  40-120%   kills  227%
+//   Point Blank +Heavy+Down -> Scattergun   CONFIRM  160-260%   trap  60-140%   kills  227%
+//   Ricochet    +Heavy      -> Scattergun   trap only     0-40%                 kills  227%
+//   Point Blank +Heavy+Side -> Full Auto    trap only   80-260%                 kills  n/a
 //
 // Overcharge is deliberately absent from the tree: a 24-frame charged beam stays a read.
 
@@ -94,7 +94,7 @@ export default {
       // the previous one. At 5.5 the third shot chased a launched victim and expired behind them.
       // `expireAfter` is what keeps that from being a guaranteed edgeguard: the round steers for
       // 40 frames and then flies straight, so DI away from a landed shot can leave the cone.
-      sniper: { shots: 3, range: 220, reload: 16, holdAfterLast: 14,
+      sniper: { shots: 3, range: 220, reload: 16, holdAfterLast: 14, setupMul: 0.45,
         projectile: { speed: 78, turn: 9, expireAfter: 75, lifetime: 110, size: [2.2, 0.45], spawnOffset: [2.9, 3.5] } },
     },
   },

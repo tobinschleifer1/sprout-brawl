@@ -18,8 +18,9 @@ Nothing here is required to play the web build.
 | `src/shared/Stage.luau` | ported (geometry, platforms, ledges, collision, sudden death) |
 | `src/shared/Fighter.luau` | ported, including snapshot/restore for client-side prediction |
 | `src/shared/Input.luau` | the input frame shape (polling is the client's job on Roblox) |
+| `src/shared/Hazards.luau` | all ten hazards, ported |
+| `src/shared/Rng.luau` | the seeded generator, bit-exact with the JavaScript |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| Hazards (Phase 2b) | not started — `Stage.step` throws rather than skipping them |
 | `Combat`, `Match` | not started |
 | Netcode, rigs, UI, audio, persistence | not started |
 
@@ -95,6 +96,25 @@ holes in the tests themselves, and each one is written up where it was fixed:
   the source comment specifically warns about — passed all thirty scenarios.
 - Every hit passed `stun == launch`, which made the two knockback curves indistinguishable.
 - `isDodgeInvincible` and the other computed properties were not recorded at all.
+- Sweeping probes across a stage found the hazards that cover ground and missed the ones that do
+  not: across 7,700 frames the first hazard trace triggered **two** hazard hits in total, leaving
+  the slag drip, the antenna arc and the dust devil's throw untested. Probes are now parked on each
+  hazard's own coordinates.
+
+### The match is seeded, not random
+
+`Math.random` is gone from `stage.js` and `hazards.js`. The stage owns a seeded generator
+(`new StageRuntime(data, seed)`) that the slag drip and the item spawner draw from, and `Match`
+picks a seed once at construction and keeps it. A match is now a pure function of its seed and its
+inputs, which is what makes it replayable, what a server-authoritative build needs, and what lets
+the hazards be parity-tested at all. Unseeded play still varies — the seed is drawn once rather
+than a thousand times a second from inside the simulation.
+
+The generator is xorshift32, chosen because it is shifts and xors only: no multiply, so `bit32`
+reproduces it exactly with no 32-bit-multiply workaround. `tests/rng-parity.luau` checks 12,000
+outputs across six seeds, bit-exact with no tolerance.
+
+`combat.js` still has two `Math.random` calls. They become Phase 3's problem.
 
 Snapshot/restore is checked three ways: structurally (every field the fighter owns is in the
 snapshot), for independence (the snapshot is poked and must not follow the fighter, and vice versa
@@ -112,6 +132,13 @@ shifts by one. Every `inv[0]`/`inv[1]` pair in config became `[1]`/`[2]`, and
 
 **`sign(0)` is +1 in this engine, and 0 in `math.sign`.** The JavaScript defines its own
 `sign = (v) => (v < 0 ? -1 : 1)`; the port keeps that helper rather than reaching for the built-in.
+
+**Unreachable branches are worth knowing about.** Three places in the engine cannot be reached by
+the current data, each found by deliberately breaking the port and watching nothing fail: `collide`'s
+moving-solid ejection (no stage has a moving solid), the antenna arc's 30-frame per-fighter cooldown
+(the arc is only live for 22), and `sign(0)` (every call site is guarded by a threshold). All three
+stay — they are correct defensive code — but none of them is load-bearing today, and the tests say
+so rather than implying coverage they do not have.
 
 **`table.insert(t, nil)` inserts nothing.** It does not leave a hole, it shifts everything after it.
 This cost an hour: a nil `moveId` shifted every later column of the trace snapshot left, and the

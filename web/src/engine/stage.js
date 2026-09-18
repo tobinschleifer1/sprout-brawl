@@ -1,5 +1,6 @@
 import { stepHazard } from './hazards.js';
-import { FRAME, LEDGE } from '../config.js';// Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
+import { FRAME, LEDGE } from '../config.js';
+import { makeRng } from './rng.js';// Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
 // accurate than sqrt(x*x + y*y), and Luau's math library does not - so the two builds disagreed in
 // the last two bits on every distance, which showed up in the Roblox port's parity trace. The
 // difference is sub-ulp and irrelevant to play; computing the same expression on both sides is
@@ -9,9 +10,14 @@ const hypot = (x, y) => Math.sqrt(x * x + y * y);
 
 // Runtime stage: platforms (including moving and sinking ones), ledges, blast zones and hazards.
 export class StageRuntime {
-  constructor(data) {
+  constructor(data, seed) {
     this.data = data;
     this.time = 0;
+    // The stage owns the randomness, so everything stochastic about a match - hazard jitter, where
+    // an item lands - is a pure function of the seed. Math.random made a match unreplayable, which
+    // a server-authoritative build cannot afford and the Roblox port cannot test against.
+    this.seed = seed === undefined ? 1 : seed >>> 0;
+    this.rng = makeRng(this.seed);
     this.blast = { ...data.blast };
     this.platforms = [];
     const m = data.main;
@@ -204,7 +210,7 @@ export class StageRuntime {
 
   // Random spawn spot for an item: a point on top of a platform.
   itemSpawn() {
-    const p = this.platforms[Math.floor(Math.random() * this.platforms.length)];
-    return { x: p.x1 + 2 + Math.random() * (p.w - 4), y: p.top + 8 };
+    const p = this.platforms[Math.floor(this.rng() * this.platforms.length)];
+    return { x: p.x1 + 2 + this.rng() * (p.w - 4), y: p.top + 8 };
   }
 }

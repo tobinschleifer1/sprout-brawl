@@ -112,8 +112,10 @@ export const HAZARDS = {
       s.drops = s.drops || [];
       s.next = (s.next || 0) - FRAME;
       if (s.next <= 0) {
-        s.next = h.every * (0.6 + Math.random() * 0.8);
-        s.drops.push({ x: h.x + (Math.random() - 0.5) * h.spread, y: h.from, vy: 0, hit: false, life: 0 });
+        // From the stage's seeded generator, not Math.random: this is the only stochastic hazard
+        // in the game, and one unseeded call makes a whole match unreplayable.
+        s.next = h.every * (0.6 + ctx.stage.rng() * 0.8);
+        s.drops.push({ x: h.x + (ctx.stage.rng() - 0.5) * h.spread, y: h.from, vy: 0, hit: false, life: 0 });
       }
       for (let i = s.drops.length - 1; i >= 0; i--) {
         const d = s.drops[i];

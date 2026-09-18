@@ -3,11 +3,13 @@
 -- Ported 1:1 from web/src/engine/stage.js. tests/trace-parity.luau replays recorded JavaScript
 -- traces through this and fails on any divergence.
 --
--- HAZARDS ARE NOT PORTED YET (Phase 2b). Rather than quietly doing nothing - which is how this
--- project keeps growing authored-but-unreachable data - `step` throws on a hazard it has no
--- stepper for. A stage with hazards is therefore loudly unfinished rather than subtly wrong.
+-- The stage owns the match's randomness. `Stage.new(data, seed)` seeds a generator that the slag
+-- drip and the item spawner draw from, so everything stochastic about a match is a pure function of
+-- the seed - which is what makes a server-authoritative match replayable and this port testable.
 
 local Config = require(script.Parent.Config)
+local Hazards = require(script.Parent.Hazards)
+local Rng = require(script.Parent.Rng)
 
 local FRAME = Config.FRAME
 local LEDGE = Config.LEDGE
@@ -31,12 +33,15 @@ export type Stage = typeof(setmetatable({} :: {
 	data: any, time: number, blast: { left: number, right: number, top: number, bottom: number },
 	platforms: { Platform }, solids: { Platform }, main: Platform, ledges: { Ledge },
 	hazards: { any }, waterLevel: number?, events: { any }, visual: any,
+	seed: number, rng: () -> number,
 }, Stage))
 
-function Stage.new(data: any): Stage
+function Stage.new(data: any, seed: number?): Stage
 	local self = setmetatable({}, Stage) :: any
 	self.data = data
 	self.time = 0
+	self.seed = if seed == nil then 1 else bit32.band(seed, 0xFFFFFFFF)
+	self.rng = Rng.make(self.seed)
 	self.blast = { left = data.blast.left, right = data.blast.right, top = data.blast.top, bottom = data.blast.bottom }
 	self.platforms = {}
 	local m = data.main
@@ -195,9 +200,9 @@ function Stage.step(self: Stage, match: any)
 		f.env.damp = 1
 	end
 	self.visual = {}
-	if #self.hazards > 0 then
-		error(`Stage: hazard "{self.hazards[1].kind or "?"}" has no stepper - hazards land in Phase 2b. `
-			.. `Until then, run stages with their hazards stripped rather than silently skipped.`)
+	local ctx = { stage = self, match = match, fighters = match.fighters, visual = self.visual }
+	for _, h in self.hazards do
+		Hazards.step(h, ctx)
 	end
 end
 
@@ -308,6 +313,12 @@ function Stage.ledgeFor(self: Stage, f: any, guardPressed: boolean): Ledge?
 		end
 	end
 	return nil
+end
+
+-- Spawn spot for an item: a point on top of a platform, from the stage's seeded generator.
+function Stage.itemSpawn(self: Stage): { x: number, y: number }
+	local p = self.platforms[math.floor(self.rng() * #self.platforms) + 1]
+	return { x = p.x1 + 2 + self.rng() * (p.w - 4), y = p.top + 8 }
 end
 
 function Stage.nearestLedge(self: Stage, x: number, y: number): { ledge: Ledge?, dist: number }

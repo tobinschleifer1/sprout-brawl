@@ -13,7 +13,11 @@ export class Match {
     this.teams = this.mode.includes('Teams');
     this.timed = this.mode.startsWith('Timed');
     this.training = this.mode === 'Training';
-    this.stage = new StageRuntime(cfg.stage);
+    // A match is deterministic given its seed, and the seed is kept so a match can be replayed
+    // from its inputs. Unseeded play still varies - the default is drawn once, here, rather than
+    // a thousand times a second from inside the simulation.
+    this.seed = cfg.seed === undefined ? (Math.random() * 0xFFFFFFFF) >>> 0 : cfg.seed >>> 0;
+    this.stage = new StageRuntime(cfg.stage, this.seed);
     this.input = cfg.input;
     this.frame = 0; this.time = 0;
     this.timeLimit = cfg.timeLimit || 180;

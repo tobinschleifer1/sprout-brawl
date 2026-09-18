@@ -14,11 +14,15 @@ node tools/gen-data.mjs
 node tests/genfixture.mjs
 node tools/gen-traces.mjs
 node tools/gen-fighter-traces.mjs
+node tools/gen-hazard-traces.mjs
+node tools/gen-rng-fixture.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
 luau-lsp analyze --sourcemap=sourcemap.json --definitions=globalTypes.d.luau src/
 
+echo "== parity: the seeded generator vs web/src/engine/rng.js =="
+lune run tests/rng-parity
 echo "== parity: engine numbers vs web/src/engine/knockback.js =="
 lune run tests/parity
 echo "== parity: data layer vs web/src/data =="
@@ -27,3 +31,5 @@ echo "== parity: Stage vs web/src/engine/stage.js =="
 lune run tests/stage-parity
 echo "== parity: Fighter vs web/src/engine/fighter.js =="
 lune run tests/fighter-parity
+echo "== parity: Hazards vs web/src/engine/hazards.js =="
+lune run tests/hazard-parity

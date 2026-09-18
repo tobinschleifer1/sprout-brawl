@@ -22,14 +22,19 @@ const { Combat } = await import('../../web/src/engine/combat.js');
 const { STAGES } = await import('../../web/src/data/stages/index.js');
 const { buildLoadout } = await import('../../web/src/data/loadout.js');
 const { emptyFrame } = await import('../../web/src/engine/input.js');
+const { ITEM_BY_ID } = await import('../../web/src/data/items.js');
 
 const n = (v) => (typeof v === 'number' ? String(v) : v);
 const I = (o = {}) => Object.assign(emptyFrame(), o);
 
 // Everything about a fighter that a hit changes, plus what drives the next one.
+// jumpsLeft is in here because a spring plate hands a jump back to a fighter who has none, and
+// without it that was unobservable: the plate fired, the victim's jump count changed, and the trace
+// recorded neither. The four after it are the same kind of insurance.
 const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'sf', 'onGround', 'percent', 'hitstun', 'hitlag',
   'shield', 'blockstun', 'tumbling', 'moveId', 'mf', 'moveLanded', 'ultCharge', 'armorUsed',
-  'invincible', 'alive', 'stocks', 'bonusDamage', 'launchMul'];
+  'invincible', 'alive', 'stocks', 'bonusDamage', 'launchMul',
+  'jumpsLeft', 'carryX', 'ultActive', 'ultShots', 'recoveryUsed'];
 
 // The numeric payload of every event kind Phase 3a can emit. Listing them rather than dumping the
 // object keeps the comparison numeric instead of a string compare, which would skip the tolerance
@@ -86,6 +91,13 @@ function run(spec) {
       if (seg.set) for (const [k, kv] of Object.entries(seg.set)) {
         for (const [field, value] of Object.entries(kv)) fighters[Number(k)][field] = value;
       }
+      // Items never appear on their own inside a trace: maybeSpawnItem is on a fourteen-second
+      // timer and Match, which drives it, is Phase 4. `act` puts them where the scenario needs them.
+      if (seg.act) for (const act of seg.act) {
+        if (act.kind === 'give') combat.giveItem(fighters[act.f], ITEM_BY_ID[act.item]);
+        else if (act.kind === 'spawn') combat.spawnItem(ITEM_BY_ID[act.item], act.x, act.y);
+        else if (act.kind === 'maybeSpawn') { combat.itemTimer = act.timer; combat.maybeSpawnItem(act.n ?? fighters.length); }
+      }
       fighters[0].applyInput(I(seg.a));
       for (let k = 1; k < fighters.length; k++) fighters[k].applyInput(I(seg.b || {}));
       stage.step(match);
@@ -102,6 +114,9 @@ function run(spec) {
       row.push(combat.projectiles.map((p) => [n(p.x), n(p.y), n(p.vx), n(p.vy), n(p.life), p.shape]));
       row.push(combat.summons.map((q) => [q.type, n(q.x), n(q.y), n(q.life), n(q.armed ?? -1), n(q.hp ?? -1)]));
       row.push(combat.bursts.map((b) => [b.move.id, n(b.x), n(b.y), n(b.frames), n(b.move.damage)]));
+      row.push(combat.items.map((it) => [it.def.id, n(it.x), n(it.y), n(it.vx), n(it.vy), n(it.uses),
+        n(it.life), n(it.cd), n(it.hp), it.onGround, it.held ? String(it.held.index) : null]));
+      row.push(combat.plates.map((pl) => [n(pl.x), n(pl.y), n(pl.life), n(pl.cd), n(pl.vy)]));
       row.push(snapEvents(combat.events));
       // the fighters' own event stream too - jump, land, tech, shieldbreak, counter
       row.push(fighters.map((f) => f.events.map((e) => e.type).join(',')).join('|'));
@@ -417,6 +432,144 @@ S.push({ name: 'bleed into a shield', stage: 'FoundryFloor',
     { frames: 1, a: { ult: true, anyPress: true }, b: { guard: true, guardHeld: true, anyPress: true },
       set: { 0: { ultCharge: 20 } } },
     ...Array.from({ length: 14 }, () => hold(20, {}, { guardHeld: true }))] });
+
+// ---------------------------------------------------------------- phase 3d ----
+const give = (f, item) => ({ kind: 'give', f, item });
+
+// Each item's own verb, light and heavy, at a range where the result lands on somebody.
+S.push({ name: 'item: blast keg thrown', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-8, 8],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'BlastKeg')] },
+    hold(1, { light: true, anyPress: true }), hold(200, {})] });
+
+// The keg is VOLATILE: any melee hitbox sets it off, the thrower's included.
+S.push({ name: 'item: keg shot out of the air', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-10, 10],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'BlastKeg')] },
+    hold(1, { light: true, anyPress: true }),
+    ...Array.from({ length: 10 }, () => hold(10, {}, { light: true, anyPress: true }))] });
+
+// Catching one out of the air: a guard press on an incoming keg takes it and puts it in your hands.
+S.push({ name: 'item: keg caught', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-9, 9],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'BlastKeg')] },
+    hold(1, { light: true, anyPress: true }),
+    ...Array.from({ length: 14 }, () => hold(8, {}, { guard: true, anyPress: true }))] });
+
+S.push({ name: 'item: rivet gun until empty', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-11, 11],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'RivetGun')] },
+    ...Array.from({ length: 22 }, () => hold(12, { light: true, anyPress: true }, {}))] });
+
+// The Bulwark: bashing with it, hiding behind it, and it breaking under damage from the front.
+S.push({ name: 'item: bulwark bash and break', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Sword'], ['Noir', 'Hammer']], at: [-1.6, 1.6],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'Bulwark')] },
+    ...Array.from({ length: 16 }, (_, i) => hold(22,
+      i % 2 === 0 ? { light: true, anyPress: true } : {},
+      { heavy: true, anyPress: true }))] });
+
+// Heavy on a held Bulwark bashes rather than throws, while it still has hit points and you are
+// grounded - and throws once either stops being true.
+S.push({ name: 'item: bulwark heavy in the air', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-6, 6],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'Bulwark')] },
+    hold(1, { heavy: true, anyPress: true }), hold(40, {}),
+    hold(1, { jump: true, jumpHeld: true, anyPress: true }), hold(10, { jumpHeld: true }),
+    hold(1, { heavy: true, anyPress: true }), hold(90, {})] });
+
+// A spring plate placed, then jumped onto.
+S.push({ name: 'item: spring plate', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-3, 3],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'SpringPlate')] },
+    hold(1, { light: true, anyPress: true }), hold(30, {}),
+    hold(1, {}, { jump: true, jumpHeld: true, anyPress: true }), hold(40, {}, { x: -1 }),
+    hold(120, {}, { x: -1 })] });
+
+// Two things the simple version cannot show, both about who the plate is allowed to launch:
+//   * `v.vy <= 12` stops it re-launching somebody already rising, which only matters if a fighter
+//     jumps from ON the plate;
+//   * `jumpsLeft = max(jumpsLeft, 1)` only does anything to a fighter who has NO jumps left.
+//
+// The third thing - a plate placed in the AIR - is not here because it cannot happen: Fighter only
+// calls useItem from _stepGround, so an airborne fighter cannot use an item at all. That makes the
+// `if not f.onGround then return end` guard in the `place` branch unreachable, along with the
+// `f.onGround` term in the Bulwark's throw exception.
+S.push({ name: 'item: spring plate edge cases', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-2, 6],
+  segments: [{ frames: 2, a: {}, b: {}, act: [give(0, 'SpringPlate')] },
+    hold(1, { light: true, anyPress: true }), hold(24, {}),
+    // the victim burns both jumps getting there, arriving with none left
+    hold(1, {}, { jump: true, jumpHeld: true, anyPress: true }), hold(10, {}, { jumpHeld: true, x: -1 }),
+    hold(1, {}, { jump: true, anyPress: true, x: -1 }), hold(40, {}, { x: -1 }),
+    // then it stands on the plate and jumps, which is a rise the plate must not re-launch
+    ...Array.from({ length: 12 }, () => hold(16, {}, { jump: true, jumpHeld: true, anyPress: true }))] });
+
+// The plate's two guards, set up directly.
+//
+// Neither is reachable by input with any reliability. A fighter jumping off a plate is sprung
+// during jumpsquat, while vy is still 0, so it never crosses the plate RISING with the cooldown
+// expired; and a fighter with no jumps left has to arrive airborne, which means landing on the
+// plate from a double jump before touching the ground, which restores the jumps on the way. So the
+// victim is placed on the plate with the velocity and jump count each branch needs.
+S.push({ name: 'item: plate guards', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-2, 6],
+  segments: [{ frames: 2, a: {}, b: {}, act: [give(0, 'SpringPlate')] },
+    hold(1, { light: true, anyPress: true }), hold(30, {}),
+    // rising over the plate: vy above 12, so it must NOT fire
+    ...Array.from({ length: 10 }, () => ({ frames: 4, a: {}, b: {},
+      set: { 1: { x: -2, y: 0.4, vy: 30, onGround: false, platform: null } } })),
+    hold(30, {}),
+    // falling onto it with no jumps left: it must fire, and hand a jump back
+    ...Array.from({ length: 10 }, () => ({ frames: 4, a: {}, b: {},
+      set: { 1: { x: -2, y: 0.4, vy: -5, jumpsLeft: 0, onGround: false, platform: null } } })),
+    hold(60, {})] });
+
+// The Lodestone sticks to whoever it hits and drags them down for five seconds.
+S.push({ name: 'item: lodestone', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-8, 8],
+  segments: [{ frames: 4, a: {}, b: {}, act: [give(0, 'Lodestone')] },
+    hold(1, { light: true, anyPress: true }), hold(60, {}),
+    hold(1, {}, { jump: true, jumpHeld: true, anyPress: true }), hold(200, {})] });
+
+// A loose item on the ground: picked up, dropped, and KNOCKED out of someone's hands.
+//
+// The knocked drop is the only thing that gives an item horizontal velocity, so without a hit big
+// enough to cause one (knockOutDamage is 12) the item's vx stayed 0 all trace and both the drop
+// velocities and the 0.95 air damping were untestable. The hammer is pinned at swinging range.
+S.push({ name: 'item: pickup and drop', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Sword'], ['Noir', 'Hammer']], at: [-1.5, 1.5],
+  segments: [{ frames: 2, a: {}, b: {}, act: [{ kind: 'spawn', item: 'RivetGun', x: -1.5, y: 6 }] },
+    hold(40, {}), hold(1, { pickup: true, anyPress: true }), hold(20, {}),
+    hold(1, { pickup: true, y: -1, anyPress: true }), hold(30, {}),
+    hold(1, { pickup: true, anyPress: true }), hold(20, {}),
+    ...Array.from({ length: 8 }, () => hold(26, {}, { heavy: true, anyPress: true }))] });
+
+// An item just out of reach. itemNear is 3 studs wide and 3.5 tall, and every other scenario drops
+// the item on the fighter's own feet, so widening the radius to six changed nothing.
+S.push({ name: 'item: just out of reach', stage: 'FoundryFloor', pin: true,
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-1.5, 12],
+  segments: [{ frames: 2, a: {}, b: {}, act: [{ kind: 'spawn', item: 'RivetGun', x: 2.9, y: 4 },
+      { kind: 'spawn', item: 'Bulwark', x: -1.5, y: 9.2 }] },
+    ...Array.from({ length: 20 }, () => hold(10, { pickup: true, anyPress: true }, {}))] });
+
+// A loose item left alone until it despawns, and one dropped off the bottom of the world.
+S.push({ name: 'item: despawn and fall', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-20, 20],
+  segments: [{ frames: 2, a: {}, b: {}, act: [{ kind: 'spawn', item: 'Bulwark', x: 0, y: 8 },
+      { kind: 'spawn', item: 'BlastKeg', x: 60, y: 4 }] },
+    hold(400, {})] });
+
+// The spawner itself, driven straight off the seeded generator.
+//
+// `n: 5` raises the cap to two loose items, and one fighter is holding a third: the cap counts only
+// LOOSE items, so a version where held items counted too would stop spawning a beat early. With
+// n = 2 the cap is one item and the spawner fired exactly once in ten calls, which tested neither.
+S.push({ name: 'item: seeded spawning', stage: 'FoundryFloor',
+  who: [['Classic', 'Sword'], ['Noir', 'Sword']], at: [-20, 20],
+  segments: [{ frames: 2, a: {}, b: {}, act: [give(0, 'Bulwark')] },
+    ...Array.from({ length: 14 }, () => ({ frames: 30, a: {}, b: {},
+      act: [{ kind: 'maybeSpawn', timer: 999, n: 5 }] }))] });
 
 const scenarios = S.map((spec) => ({ ...spec, rows: run(spec) }));
 fs.writeFileSync(path.join(HERE, '../tests/trace-combat.json'), JSON.stringify({ fields: F, eventNums: EVENT_NUMS, scenarios }));

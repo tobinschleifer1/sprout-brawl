@@ -13,12 +13,15 @@
 
 local Config = require(script.Parent.Config)
 local Knockback = require(script.Parent.Knockback)
+local ItemData = require(script.Parent.Data.Items)
 
 local FRAME = Config.FRAME
+local GRAVITY = Config.GRAVITY
 local SHIELD = Config.SHIELD
 local GRAB = Config.GRAB
 local GROUND_POUND = Config.GROUND_POUND
 local LEDGE = Config.LEDGE
+local ITEM_CFG = Config.ITEMS
 
 local function hypot(x: number, y: number): number
 	return math.sqrt(x * x + y * y)
@@ -196,8 +199,8 @@ function Combat.step(self)
 	Combat.stepProjectiles(self)
 	Combat.stepSummons(self)
 	Combat.stepBursts(self)
-	if #self.items > 0 then later("stepItems") end
-	if #self.plates > 0 then later("stepPlates") end
+	Combat.stepItems(self)
+	Combat.stepPlates(self)
 end
 
 -- ---------------------------------------------------------------- hit resolution ----
@@ -255,7 +258,8 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 			growth *= G.launchMul
 			Combat.emit(self, { type = "bulwark", x = cx, y = cy, victim = victim.index, broke = bw.hp <= 0 })
 			if bw.hp <= 0 then
-				later("removeItem (a Bulwark breaking)")
+				Combat.removeItem(self, bw)
+				Combat.emit(self, { type = "itembreak", x = victim.x, y = victim.cy })
 			end
 		end
 	end
@@ -368,8 +372,8 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		victim.pendingLaunch = { vx = attacker.vx * 0.95, vy = 6 }
 	end
 	Combat.onHitLanded(self, attacker, victim, move, isMelee)
-	if victim.item then
-		later("dropItem (a fighter losing their item to a big hit)")
+	if victim.item and damage >= ITEM_CFG.knockOutDamage then
+		Combat.dropItem(self, victim, true)
 	end
 	Combat.emit(self, { type = "hit", x = cx, y = cy, damage = damage, launch = launch,
 		heavy = not not move.heavy, weight = victim.weight, attacker = attacker.index,
@@ -1112,11 +1116,23 @@ function Combat.stepProjectiles(self)
 					-- aborted the whole trace on a branch the JavaScript never takes.
 					if p.explode and v.buffer.guard > 0 and not v.item
 						and CATCHABLE_STATES[v.state] then
-						later("giveItem (catching a thrown keg out of the air)")
+						v.buffer.guard = 0
+						Combat.giveItem(self, v, p.itemDef or ItemData.BY_ID.BlastKeg)
+						dead = true
+						Combat.emit(self, { type = "catch", x = v.x, y = v.cy })
+						break
 					end
 					p.hitVictims[v.index] = true
+					-- The Lodestone does not launch: it ATTACHES. Two percent, no knockback worth
+					-- the name, and then five seconds of falling like a dropped anvil.
 					if p.stick then
-						later("the Lodestone's stick effect, which is an item")
+						Combat.resolveHit(self, p.owner, v, p.move, { angle = p.move.angle }, p.rect,
+							{ projectile = true, facing = sign(p.vx), item = true })
+						v.effects.lodestone = p.stick.frames
+						v.effects.lodestoneDef = p.stick
+						Combat.emit(self, { type = "lodestone", x = v.x, y = v.cy, fighter = v.index })
+						dead = true
+						break
 					end
 					if p.explode then
 						Combat.explode(self, p)
@@ -1254,20 +1270,284 @@ function Combat.destroySummon(self, s: any)
 	Combat.emit(self, { type = "summonbreak", kind = s.type, x = s.x, y = s.y })
 end
 
--- ---------------------------------------------------------------- item stubs ----
--- Fighter calls into these; with nothing spawning items in Phase 3b they are correctly empty,
--- which is why these can answer honestly rather than throw.
+-- ---------------------------------------------------------------- items ----
+function Combat.spawnItem(self, def: any, x: number, y: number): any
+	local it = { def = def, x = x, y = y, vx = 0, vy = 0, held = nil, uses = def.uses,
+		life = ITEM_CFG.despawnAfter * 60, onGround = false, cd = 0,
+		hp = if def.guard then def.guard.hp else 0 }
+	table.insert(self.items, it)
+	Combat.emit(self, { type = "itemspawn", x = x, y = y, item = def.id })
+	return it
+end
+
+function Combat.giveItem(self, f: any, def: any)
+	local it = { def = def, x = f.x, y = f.y, vx = 0, vy = 0, held = f, uses = def.uses,
+		life = 0, onGround = false, cd = 0, hp = if def.guard then def.guard.hp else 0 }
+	table.insert(self.items, it)
+	f.item = it
+end
+
 function Combat.itemNear(self, f: any): any
+	for _, it in self.items do
+		if not it.held and math.abs(it.x - f.x) < 3 and math.abs(it.y - f.y) < 3.5 then
+			return it
+		end
+	end
 	return nil
 end
-function Combat.useItem(self, f: any, button: string)
-	later("useItem")
-end
-function Combat.dropItem(self, f: any, knocked: boolean?)
-	later("dropItem")
-end
+
 function Combat.pickupItem(self, f: any, it: any)
-	later("pickupItem")
+	it.held = f
+	f.item = it
+	it.life = 0
+	Combat.emit(self, { type = "pickup", x = f.x, y = f.cy, item = it.def.id })
+end
+
+function Combat.dropItem(self, f: any, knocked: boolean?)
+	local it = f.item
+	if not it then
+		return
+	end
+	it.held = nil
+	f.item = nil
+	it.x = f.x
+	it.y = f.y + 2
+	it.vy = if knocked then 22 else 0
+	it.vx = if knocked then -f.facing * 10 else 0
+	it.onGround = false
+	it.life = ITEM_CFG.despawnAfter * 60
+	if it.uses <= 0 and it.def.kind == "shoot" then
+		Combat.removeItem(self, it)                 -- an empty gun is litter
+	end
+	if f.state == "attack" and f.move and f.move.id == "ItemSwing" then
+		f:endMove()
+	end
+	Combat.emit(self, { type = "itemdrop", x = it.x, y = it.y })
+end
+
+function Combat.removeItem(self, it: any)
+	local i = table.find(self.items, it)
+	if i then
+		table.remove(self.items, i)
+	end
+	if it.held then
+		it.held.item = nil
+	end
+end
+
+-- One verb per item. `button` is "light" or "heavy"; heavy always throws whatever you are holding,
+-- which is the universal escape hatch and the reason no item can trap you in a stance.
+function Combat.useItem(self, f: any, button: string)
+	local it = f.item
+	if not it then
+		return
+	end
+	local def = it.def
+
+	-- The Bulwark is the exception while it still has hit points: throwing a shield you are
+	-- actively hiding behind, with the same button you bash with, was the first thing that felt
+	-- wrong in testing.
+	local wantsThrow = button == "heavy" and not (def.id == "Bulwark" and it.hp > 0 and f.onGround)
+	if wantsThrow and def.thrown then
+		Combat.throwItem(self, f, it, def.thrown)
+		return
+	end
+
+	if def.kind == "throw" then
+		local T = def["throw"]
+		local pr: any = {
+			owner = f, x = f.x + f.facing * 1.5, y = f.y + 3,
+			vx = f.facing * T.vx + f.vx * 0.5, vy = T.vy, w = T.size[1], h = T.size[2],
+			life = T.fuse, gravity = T.gravity, hitVictims = {}, facing = f.facing, item = true,
+			shape = def.id, itemDef = def,
+		}
+		if def.explode then
+			pr.move = { id = def.id, damage = def.explode.damage, base = def.explode.base,
+				growth = def.explode.growth, angle = def.explode.angle, kind = "melee", heavy = true }
+			pr.explode = def.explode
+			-- `volatile` makes the keg a hazard for everyone, the thrower included: any melee
+			-- hitbox that touches it sets it off.
+			pr.volatile = not not def.volatile
+		elseif def.stick then
+			pr.move = { id = def.id, damage = def.stick.damage, base = 4, growth = 0.1, angle = 80,
+				kind = "melee" }
+			pr.stick = def.stick
+		end
+		pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)
+		table.insert(self.projectiles, pr)
+		Combat.removeItem(self, it)
+		f.lag = 12
+		f:setState("landing")
+		Combat.emit(self, { type = "throwitem", x = f.x, y = f.cy, item = def.id })
+		return
+	end
+
+	if def.kind == "shoot" then
+		if it.cd > 0 then
+			return
+		end
+		local S = def.shot
+		local pr: any = {
+			owner = f,
+			move = { id = "Rivet", damage = S.damage, base = S.base, growth = S.growth,
+				angle = S.angle, kind = "melee", extraHitstun = S.extraHitstun },
+			x = f.x + f.facing * 1.8, y = f.y + 3.1, vx = f.facing * S.speed, vy = 0,
+			w = S.size[1], h = S.size[2], life = S.lifetime, gravity = 0, hitVictims = {},
+			facing = f.facing, item = true, shape = "rivet", itemDef = def,
+		}
+		pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)
+		table.insert(self.projectiles, pr)
+		it.cd = S.cooldown
+		it.uses -= 1
+		f.lag = 4
+		f:setState("landing")
+		Combat.emit(self, { type = "rivet", x = pr.x, y = pr.y, facing = f.facing })
+		if it.uses <= 0 then
+			Combat.removeItem(self, it)
+			Combat.emit(self, { type = "itembreak", x = f.x, y = f.cy })
+		end
+		return
+	end
+
+	if def.kind == "place" then
+		if not f.onGround then
+			return                                   -- a plate needs a floor to sit on
+		end
+		local P = def.plate
+		table.insert(self.plates, { x = f.x, y = f.y, w = P.size[1], h = P.size[2], vy = P.vy,
+			life = P.life, cd = 0, owner = f })
+		Combat.removeItem(self, it)
+		f.lag = 10
+		f:setState("landing")
+		Combat.emit(self, { type = "placeitem", x = f.x, y = f.y, item = def.id })
+		return
+	end
+
+	if def.kind == "hold" then
+		local sw = table.clone(def.bash)
+		sw.id = "ItemSwing"
+		sw.kind = "melee"
+		sw.total = def.bash.startup + def.bash.active + def.bash.recovery
+		f:startMove(sw)
+		return
+	end
+end
+
+function Combat.throwItem(self, f: any, it: any, T: any)
+	local pr: any = {
+		owner = f,
+		move = { id = "ThrownItem", damage = T.damage, base = T.base, growth = T.growth,
+			angle = T.angle, kind = "melee" },
+		x = f.x + f.facing * 1.5, y = f.y + 3, vx = f.facing * T.speed, vy = 4,
+		w = T.size[1], h = T.size[2], life = T.lifetime, gravity = 40, hitVictims = {},
+		facing = f.facing, item = true, shape = it.def.id, itemDef = it.def,
+	}
+	pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)
+	table.insert(self.projectiles, pr)
+	Combat.removeItem(self, it)
+	f.lag = 12
+	f:setState("landing")
+	Combat.emit(self, { type = "throwitem", x = f.x, y = f.cy, item = it.def.id })
+end
+
+-- ---------------------------------------------------------------- spring plates ----
+-- A placed plate is part of the STAGE, not a hitbox: it never damages anyone and it does not care
+-- who put it there. Whoever comes down on it goes up.
+function Combat.stepPlates(self)
+	for i = #self.plates, 1, -1 do
+		local pl = self.plates[i]
+		pl.life -= 1
+		if pl.cd > 0 then
+			pl.cd -= 1
+		end
+		if pl.life <= 0 then
+			table.remove(self.plates, i)
+			Combat.emit(self, { type = "itemgone", x = pl.x, y = pl.y })
+		elseif pl.cd <= 0 then
+			for _, v in self.match.fighters do
+				if v.alive and not v.untouchable
+					and math.abs(v.x - pl.x) <= pl.w / 2 + v.r
+					and not (v.y > pl.y + 2.2 or v.y < pl.y - 1.6)
+					and v.vy <= 12 then                 -- already going up: do not re-launch a rise
+					v.vy = pl.vy
+					v.onGround = false
+					v.platform = nil
+					v.jumpsLeft = math.max(v.jumpsLeft, 1)  -- a plate gives you your options back
+					local st = v.state
+					if st == "idle" or st == "run" or st == "landing" or st == "shield" then
+						v:setState("air")
+					end
+					pl.cd = 24
+					Combat.emit(self, { type = "spring", x = pl.x, y = pl.y, fighter = v.index })
+					break
+				end
+			end
+		end
+	end
+end
+
+function Combat.stepItems(self)
+	for i = #self.items, 1, -1 do
+		local it = self.items[i]
+		if it.held then
+			if it.cd > 0 then
+				it.cd -= 1
+			end
+			-- `spent` is read here and set nowhere in the engine, so this can never fire. Ported
+			-- as-is rather than dropped, because it is one condition.
+			if it.spent and it.held.state ~= "attack" then
+				Combat.removeItem(self, it)
+				Combat.emit(self, { type = "itembreak", x = it.held.x, y = it.held.cy })
+			end
+		else
+			it.vy = math.max(-40, it.vy - GRAVITY * FRAME)
+			local py = it.y
+			it.x += it.vx * FRAME
+			it.y += it.vy * FRAME
+			it.vx *= 0.95
+			it.onGround = false
+			if it.vy <= 0 then
+				for _, p in self.match.stage.platforms do
+					if it.x > p.x1 and it.x < p.x2 and py >= p.top - 0.3 and it.y <= p.top then
+						it.y = p.top
+						it.vy = 0
+						it.onGround = true
+						break
+					end
+				end
+			end
+			if it.onGround then
+				it.life -= 1
+			end
+			if it.life <= 0 or it.y < self.match.stage.blast.bottom then
+				table.remove(self.items, i)
+				Combat.emit(self, { type = "itemgone", x = it.x, y = it.y })
+			end
+		end
+	end
+end
+
+function Combat.maybeSpawnItem(self, playerCount: number)
+	self.itemTimer += FRAME
+	if self.itemTimer < ITEM_CFG.spawnEvery then
+		return
+	end
+	local max = if playerCount >= 5 then 2 else 1
+	local loose = 0
+	for _, it in self.items do
+		if not it.held then
+			loose += 1
+		end
+	end
+	if loose >= max then
+		return
+	end
+	self.itemTimer = 0
+	-- From the match's seeded generator: which item appears is part of what a replay has to
+	-- reproduce, and it was the last Math.random in the simulation.
+	local def = ItemData.LIST[math.floor(self.match.stage.rng() * #ItemData.LIST) + 1]
+	local p = self.match.stage:itemSpawn()
+	Combat.spawnItem(self, def, p.x, p.y)
 end
 function Combat.fruiting(self, f: any)
 	-- The Fruiting mechanic is not on any weapon in the roster, so this cannot be reached: Fighter

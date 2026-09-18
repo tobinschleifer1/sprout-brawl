@@ -100,10 +100,14 @@ for _, c in counts do
 	end
 end
 
--- Every move must carry the derived fields weapons/index.js fills in at import time. The engine
--- reads move.id, move.total, move.kind and move.hitboxes unconditionally, so a generator that
--- snapshotted the data BEFORE that loop ran would produce a table that looks complete and breaks
--- the first time anything is thrown.
+-- Every move must carry the derived fields weapons/index.js fills in at import time. A generator
+-- that snapshotted the data BEFORE that loop ran would produce a table that looks complete and
+-- breaks the first time anything is thrown.
+--
+-- One correction to the note this used to carry: the engine does NOT read `move.total`. It is
+-- written by weapons/index.js for every move and by combat.js for the Bulwark's swing, and read
+-- nowhere in the simulation, the renderer or the UI - Fighter recomputes the same sum itself from
+-- startupEff. It is checked here anyway, because it is still evidence that the derivation loop ran.
 local moves = 0
 for _, w in Weapons.LIST do
 	for id, m in w.moves do

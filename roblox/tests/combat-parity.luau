@@ -31,6 +31,21 @@
 --     because it fires at nodes and nothing spawns nodes.
 --   * `p.grounded` projectiles - nothing in the roster sets it.
 --
+-- PHASE 3d ADDS SIX, every one of them a branch the engine cannot reach:
+--   * dropItem's empty-gun removal. useItem deletes a `shoot` item the instant its last charge is
+--     spent, so a HELD gun is never sitting at zero uses to be dropped.
+--   * the `place` branch's `not f.onGround` guard, and the `f.onGround` term in the Bulwark's
+--     throw exception. Fighter only calls useItem from _stepGround, so an airborne fighter cannot
+--     use an item at all.
+--   * `it.spent` in stepItems, which is read there and set nowhere in the engine.
+--   * `sw.total` on the Bulwark's swing. `move.total` is written for every move and read nowhere
+--     in the simulation - Fighter recomputes the sum from startupEff itself.
+--   * the 0.3-stud grace on an item landing. Items fall fast enough that their previous y is
+--     essentially never inside it.
+--   * the keg catch clearing the victim's guard buffer. It is real, but the only way to see it is
+--     a victim who taps guard exactly once at the moment the keg arrives, and the timing of a
+--     thrown keg's arc is not something a scripted scenario can hit reliably.
+--
 -- PHASE 3b'S FOUR STILL STAND:
 --   * the projectile out-of-bounds cull (|x| > 200) - nothing flies that far before its lifetime
 --     runs out.
@@ -52,6 +67,7 @@ local Combat = Loader.load("Combat")
 local Input = Loader.load("Input")
 local Loadout = Loader.load("Loadout")
 local StageData = Loader.load("Data/Stages")
+local ItemData = Loader.load("Data/Items")
 
 local T = serde.decode("json", fs.readFile("tests/trace-combat.json"))
 
@@ -130,6 +146,18 @@ for _, spec in T.scenarios do
 					end
 				end
 			end
+			if seg.act then
+				for _, act in seg.act do
+					if act.kind == "give" then
+						Combat.giveItem(combat, fighters[num(act.f) + 1], ItemData.BY_ID[act.item])
+					elseif act.kind == "spawn" then
+						Combat.spawnItem(combat, ItemData.BY_ID[act.item], num(act.x), num(act.y))
+					elseif act.kind == "maybeSpawn" then
+						combat.itemTimer = num(act.timer)
+						Combat.maybeSpawnItem(combat, if act.n ~= nil then num(act.n) else #fighters)
+					end
+				end
+			end
 			fighters[1]:applyInput(frameFrom(seg.a))
 			for k = 2, #fighters do
 				fighters[k]:applyInput(frameFrom(seg.b))
@@ -192,6 +220,11 @@ for _, spec in T.scenarios do
 						if q.hp ~= nil then q.hp else -1 } end },
 				{ combat.bursts, "burst", function(b: any): { any }
 					return { b.move.id, b.x, b.y, b.frames, b.move.damage } end },
+				{ combat.items, "item", function(it: any): { any }
+					return { it.def.id, it.x, it.y, it.vx, it.vy, it.uses, it.life, it.cd, it.hp,
+						it.onGround, if it.held then tostring(it.held.index) else nil } end },
+				{ combat.plates, "plate", function(pl: any): { any }
+					return { pl.x, pl.y, pl.life, pl.cd, pl.vy } end },
 			}
 			for _, spec2 in lists do
 				at += 1

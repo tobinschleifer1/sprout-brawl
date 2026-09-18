@@ -15,8 +15,12 @@ Nothing here is required to play the web build.
 | `src/shared/Config.luau` | ported, all constants |
 | `src/shared/Data/*.luau` | **generated** from `web/src/data` — 12 weapons, 6 avatars, 6 stages, 5 items |
 | `src/shared/Loadout.luau` | ported, all 72 avatar x weapon combinations checked against the JS |
+| `src/shared/Stage.luau` | ported (geometry, platforms, ledges, collision, sudden death) |
+| `src/shared/Fighter.luau` | ported, including snapshot/restore for client-side prediction |
+| `src/shared/Input.luau` | the input frame shape (polling is the client's job on Roblox) |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| Engine (`Fighter`, `Combat`, `Stage`, `Match`) | not started |
+| Hazards (Phase 2b) | not started — `Stage.step` throws rather than skipping them |
+| `Combat`, `Match` | not started |
 | Netcode, rigs, UI, audio, persistence | not started |
 
 ```bash
@@ -71,14 +75,47 @@ is `14.004000000000001336` — so the loadout fixture carries them as decimal *s
 them with `tonumber`. Without that, a bit-exact port fails the test. The generator asserts that
 every literal in the source data still fits in 16 digits, so this cannot start mattering silently.
 
+### The engine is checked by replay, not by reading
+
+`tools/gen-traces.mjs` and `tools/gen-fighter-traces.mjs` drive the **real JavaScript classes** and
+record what they did, frame by frame; `tests/stage-parity.luau` and `tests/fighter-parity.luau`
+replay the same scripts through the Luau and report the first frame that differs. The scenarios are
+data inside the trace file, so the two harnesses cannot drift apart and quietly test different
+things. 112,237 stage values and 564,445 fighter values across 44 scenarios.
+
+Reading two files side by side does not catch a flipped comparison or an off-by-one index, so every
+check here was verified by deliberately breaking the port and confirming it failed. That found real
+holes in the tests themselves, and each one is written up where it was fixed:
+
+- No stage has a moving **solid**, so `collide`'s ejection branch was unreachable and could be
+  deleted without failing anything. It now runs against a synthetic stage carried in the trace.
+- No probe had `vy == 0`, and none had a fighter standing still while a platform rose into them —
+  the only case that reads `prevTop = p.top - p.dy`.
+- No scenario pressed a button near a hit, so ticking the input buffers during hitlag — the thing
+  the source comment specifically warns about — passed all thirty scenarios.
+- Every hit passed `stun == launch`, which made the two knockback curves indistinguishable.
+- `isDodgeInvincible` and the other computed properties were not recorded at all.
+
+Snapshot/restore is checked three ways: structurally (every field the fighter owns is in the
+snapshot), for independence (the snapshot is poked and must not follow the fighter, and vice versa
+after a restore), and behaviourally (snapshot, run on, restore, replay — the replayed frames must
+still match the JavaScript). That last one is what client-side prediction actually does.
+
 ### Two traps this port has already hit
 
 **`math.round` is not `Math.round`.** Luau rounds halves away from zero, JavaScript rounds them
 toward +infinity, so they disagree at `-2.5`. `math.floor(x + 0.5)` is the JavaScript behaviour.
 
 **Luau arrays are 1-indexed.** Engine code that reads `hitboxes[0]` or `hitboxes[U.count - 1]`
-shifts by one. The data-parity test compares JS index *i* against Luau index *i + 1* for this
-reason.
+shifts by one. Every `inv[0]`/`inv[1]` pair in config became `[1]`/`[2]`, and
+`LEDGE.invinc[min(grabs - 1, 2)]` became `LEDGE.invinc[min(grabs, 3)]`.
+
+**`sign(0)` is +1 in this engine, and 0 in `math.sign`.** The JavaScript defines its own
+`sign = (v) => (v < 0 ? -1 : 1)`; the port keeps that helper rather than reaching for the built-in.
+
+**`table.insert(t, nil)` inserts nothing.** It does not leave a hole, it shifts everything after it.
+This cost an hour: a nil `moveId` shifted every later column of the trace snapshot left, and the
+test reported forty scenarios failing on a field that was correct.
 
 `sourcemap.json` and `globalTypes.d.luau` are generated/downloaded by `check.sh` and are gitignored.
 The definitions come from the luau-lsp repo:

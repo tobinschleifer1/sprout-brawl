@@ -78,7 +78,7 @@ export class Fighter {
     this.shield = SHIELD.max; this.blockstun = 0;
     this.hitstun = 0; this.hitlag = 0; this.tumbling = false; this.pendingLaunch = null;
     this.invincible = opts.invincible == null ? RESPAWN.invinc : opts.invincible;
-    this.move = null; this.moveId = null; this.mf = 0; this.startupEff = 0; this.startupShift = 0; this.hitVictims = new Map(); this.moveLanded = false; this.charge = 0; this.armorUsed = false;
+    this.move = null; this.moveId = null; this.mf = 0; this.startupEff = 0; this.startupShift = 0; this.hitVictims = new Map(); this.moveLanded = false; this.charge = 0; this.armorUsed = false; this.spawnedActive = false;
     this.bonusDamage = 0; this.launchMul = 1;
     this.hold = null; this.holder = null; this.la = null; this.lag = 0; this.tether = null; this.frozenFrames = 0;
     this.di = { x: 0, y: 0 };

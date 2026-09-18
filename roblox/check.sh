@@ -13,6 +13,7 @@ echo "== generating from web/src =="
 node tools/gen-data.mjs
 node tests/genfixture.mjs
 node tools/gen-traces.mjs
+node tools/gen-fighter-traces.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
@@ -24,3 +25,5 @@ echo "== parity: data layer vs web/src/data =="
 lune run tests/data-parity
 echo "== parity: Stage vs web/src/engine/stage.js =="
 lune run tests/stage-parity
+echo "== parity: Fighter vs web/src/engine/fighter.js =="
+lune run tests/fighter-parity

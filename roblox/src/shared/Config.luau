@@ -75,9 +75,19 @@ Config.TECH = { window = 8, inPlace = { frames = 30, inv = { 1, 14 } }, roll = {
 Config.KNOCKDOWN = { frames = 26, getupInv = { 1, 10 } }
 Config.TAUNT_FRAMES = 90
 Config.RESPAWN = { delay = 2.0, invinc = 120, height = 14 }
-Config.ITEMS = { spawnEvery = 25, despawnAfter = 20, knockOutDamage = 12 }
+-- spawnEvery was 25 seconds and despawnAfter 20, which in a three-minute match is about seven
+-- items, most of which timed out untouched. 14 seconds keeps one in play most of the time without
+-- the match becoming about the floor.
+Config.ITEMS = { spawnEvery = 14, despawnAfter = 22, knockOutDamage = 12 }
 Config.SUDDEN_DEATH = { percent = 300, shrinkEvery = 10, shrinkFactor = 0.8 }
 Config.INPUT_BUFFER = 6
+
+-- Ultimates. Charge by landing hits; spend the whole meter in one activation. The meter is wiped
+-- when you lose a stock, so an ultimate is a reward for a run of pressure, not a consolation prize
+-- for dying. invincibleFrames is 22, not 30, because the activation freeze does not tick timers:
+-- 30 would have covered Colossus's entire active window, making the biggest commitment in the game
+-- untradeable. 22 runs out before the blade does.
+Config.ULTIMATE = { hitsRequired = 20, freezeFrames = 26, invincibleFrames = 22 }
 
 function Config.WEIGHT_CLASS(w: number): string
 	if w <= 90 then return "Light" elseif w <= 105 then return "Mid" else return "Heavy" end

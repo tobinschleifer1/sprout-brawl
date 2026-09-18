@@ -8,6 +8,7 @@
 // Luau port silently stopped matching it and `./check.sh` still printed "matches exactly".
 // Regenerating first makes the check compare the port against the CURRENT JavaScript.
 import * as K from '../../web/src/engine/knockback.js';
+import * as CONFIG from '../../web/src/config.js';
 import fs from 'node:fs';
 
 const BASES = [8, 12, 16, 20, 26, 30, 32, 34];
@@ -38,6 +39,35 @@ for (const l of [8, 20, 33.5, 45, 60, 88]) for (const a of [20, 40, 55, 70, 88, 
 const misc = [];
 for (const d of [0, 1, 2, 3, 5, 8, 12, 15, 17, 20, 30]) misc.push([d, K.blockstun(d), K.hitlag(d, false), K.hitlag(d, true)]);
 
+// The WHOLE of config.js, every leaf, as strings.
+//
+// Config.luau is hand-ported and the parity test used to check ten constants chosen by hand. That
+// is not a check, it is a sample: ULTIMATE was missing from the Luau entirely and ITEMS.spawnEvery
+// still said 25 against the JavaScript's 14, and both had been that way since the values changed.
+// Numbers as strings for the usual reason - see the header.
+const config = (function dump(v) {
+  if (typeof v === 'function') return undefined;          // WEIGHT_CLASS is sampled separately
+  if (Array.isArray(v)) return v.map(dump);
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const [k, x] of Object.entries(v)) {
+      const d = dump(x);
+      if (d !== undefined) o[k] = d;
+    }
+    return o;
+  }
+  if (typeof v === 'number') return String(v);
+  return v;
+})(Object.fromEntries(Object.entries(CONFIG)));
+
+// WEIGHT_CLASS is a function, so it is sampled either side of both thresholds.
+const weightClass = [];
+for (const w of [60, 72, 82, 89, 90, 91, 94, 100, 104, 105, 106, 110, 118, 125, 200]) {
+  weightClass.push([w, CONFIG.WEIGHT_CLASS(w)]);
+}
+
 const out = new URL('./knockback-fixture.json', import.meta.url);
-fs.writeFileSync(out, JSON.stringify({ launch, velocity, misc }));
-console.log(`fixture regenerated: ${launch.length} launch rows, ${velocity.length} velocity rows, ${misc.length} misc rows`);
+fs.writeFileSync(out, JSON.stringify({ launch, velocity, misc, config, weightClass }));
+const leaves = JSON.stringify(config).match(/"[^"]*"\s*:/g)?.length ?? 0;
+console.log(`fixture regenerated: ${launch.length} launch rows, ${velocity.length} velocity rows, `
+  + `${misc.length} misc rows, ${leaves} config keys`);

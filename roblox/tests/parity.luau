@@ -89,26 +89,61 @@ for _, row in fixture.misc do
 	end
 end
 
--- a handful of constants that the rest of the port reads
-local constants: { { any } } = {
-	{ "FRAME", Config.FRAME, 1 / 60 },
-	{ "GRAVITY", Config.GRAVITY, 150 },
-	{ "LAUNCH_DRAG", Config.LAUNCH_DRAG, 0.985 },
-	{ "TUMBLE_THRESHOLD", Config.TUMBLE_THRESHOLD, 45 },
-	{ "HITSTUN_CAP", Config.HITSTUN_CAP, 60 },
-	{ "HITLAG_CAP", Config.HITLAG_CAP, 12 },
-	{ "DI_MAX", Config.DI_MAX, 12 },
-	{ "KNOCKBACK.slope", Config.KNOCKBACK.slope, 1 / 120 },
-	{ "KNOCKBACK.stunSlope", Config.KNOCKBACK.stunSlope, 1 / 100 },
-	{ "KNOCKBACK.floor", Config.KNOCKBACK.floor, 0.4 },
-	{ "INPUT_BUFFER", Config.INPUT_BUFFER, 6 },
-	{ "TECH.window", Config.TECH.window, 8 },
-	{ "SHIELD.max", Config.SHIELD.max, 50 },
-}
-for _, c in constants do
+-- ---------------------------------------------------------------- config ----
+-- EVERY leaf of web/src/config.js, in both directions.
+--
+-- This used to be ten constants picked by hand, which is a sample and not a check. While it was
+-- green, Config.ULTIMATE did not exist in the Luau at all and Config.ITEMS.spawnEvery still said
+-- 25 against the JavaScript's 14 - both had been wrong since the day those values changed. A
+-- hand-written list can only ever catch drift in the things somebody already thought to list.
+local function join(path: string, k: any): string
+	return if path == "" then tostring(k) else path .. "." .. tostring(k)
+end
+
+local function compareConfig(js: any, lua: any, path: string)
+	local jt, lt = typeof(js), typeof(lua)
+	if jt == "string" and lt == "number" then
+		-- numbers travel as decimal strings; see tests/genfixture.mjs
+		checked += 1
+		if lua ~= tonumber(js) then
+			fail(string.format("Config.%s = %.17g, JS says %s", path, lua, js))
+		end
+		return
+	end
+	if jt ~= lt then
+		fail(string.format("Config.%s: JS has %s, Luau has %s", path, jt, lt))
+		return
+	end
+	if jt ~= "table" then
+		checked += 1
+		if js ~= lua then
+			fail(string.format("Config.%s = %s, JS says %s", path, tostring(lua), tostring(js)))
+		end
+		return
+	end
+	for k, v in js do
+		local got = lua[k]
+		if got == nil then
+			fail(string.format("Config.%s is in the JavaScript and missing from the Luau", join(path, k)))
+		else
+			compareConfig(v, got, join(path, k))
+		end
+	end
+	for k, v in lua do
+		-- Functions are excluded from the JS dump and sampled separately (WEIGHT_CLASS), so they
+		-- are not "extra" here.
+		if js[k] == nil and typeof(v) ~= "function" then
+			fail(string.format("Config.%s is in the Luau and not in the JavaScript", join(path, k)))
+		end
+	end
+end
+compareConfig(fixture.config, Config, "")
+
+for _, row in fixture.weightClass do
 	checked += 1
-	if not near(c[2] :: number, c[3] :: number) then
-		fail(string.format("Config.%s = %s, expected %s", c[1] :: string, tostring(c[2]), tostring(c[3])))
+	local got = Config.WEIGHT_CLASS(row[1])
+	if got ~= row[2] then
+		fail(string.format("WEIGHT_CLASS(%s) = %s, JS says %s", tostring(row[1]), got, tostring(row[2])))
 	end
 end
 

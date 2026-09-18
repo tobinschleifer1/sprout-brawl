@@ -13,7 +13,7 @@ Nothing here is required to play the web build.
 | Toolchain | installed (Rokit 1.2.0, Rojo 7.7.0, luau-lsp 1.69.0, Lune 0.10.5) |
 | `default.project.json` | written — `rojo build` produces a place file |
 | `src/shared/Config.luau` | ported, all constants |
-| `src/shared/Knockback.luau` | ported, verified numerically identical to the JS |
+| `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
 | Everything else | not started |
 
 ```bash
@@ -25,26 +25,26 @@ rojo build --output Blockfall.rbxl
 ### Parity with the JavaScript
 
 `web/src/engine/knockback.js` is the source of truth for the damage model. `tests/parity.luau`
-checks **25,995 values** — `launchSpeed`, `hitstun`, `blockstun`, `hitlag` and the full DI-bent
-`velocity` across a grid of bases, growths, damages, percents, weights, angles and stick directions
-— against a fixture generated from the JavaScript, and fails on any drift. Run it with
-`lune run tests/parity`, or via `./check.sh`.
+checks **38,542 values** — `launchSpeed`, `stunSpeed`, `hitstun`, `blockstun`, `hitlag` and the full
+DI-bent `velocity` across a grid of bases, growths, damages, percents, weights, angles and stick
+directions — against a fixture generated from the JavaScript, and fails on any drift.
 
-Regenerate the fixture after any change to the JS damage model:
+`check.sh` regenerates that fixture from the live JavaScript on every run, and that is deliberate.
+The fixture used to be a committed snapshot rebuilt by hand from a command in this README, which
+meant the check could only catch drift somebody had already noticed. The day the web build split the
+launch curve in two (`KNOCKBACK.slope` vs `stunSlope`) the Luau port silently stopped matching it and
+`./check.sh` still printed "matches exactly". Now the check compares the port against the JavaScript
+as it is on disk:
 
 ```bash
-cd ../web && node --input-type=module -e "
-import * as K from './src/engine/knockback.js'; import fs from 'fs';
-const launch=[]; for (const base of [8,12,16,20,26,30,32,34]) for (const growth of [0,0.8,1.6,2.4,3.2,4.4,5.2,5.7])
- for (const damage of [1,3,5,8,12,15,17]) for (const pct of [0,37,80,113,150,199,300]) for (const weight of [90,96,100,108]) {
-   const L=K.launchSpeed(base,growth,damage,pct,weight); launch.push([base,growth,damage,pct,weight,+L.toFixed(9),K.hitstun(L)]); }
-const velocity=[]; for (const l of [8,20,33.5,45,60,88]) for (const a of [20,40,55,70,88,275]) for (const f of [1,-1])
- for (const di of [null,{x:0,y:1},{x:0,y:-1},{x:1,y:0},{x:-1,y:0},{x:0.5,y:-0.5}]) {
-   const v=K.velocity(l,a,f,di); velocity.push([l,a,f,di?di.x:0,di?di.y:0,di?1:0,+v.vx.toFixed(9),+v.vy.toFixed(9)]); }
-const misc=[]; for (const d of [0,1,2,3,5,8,12,15,17,20,30]) misc.push([d,K.blockstun(d),K.hitlag(d,false),K.hitlag(d,true)]);
-fs.writeFileSync('../roblox/tests/knockback-fixture.json', JSON.stringify({launch,velocity,misc}));
-console.log('fixture regenerated');"
+node tests/genfixture.mjs   # what check.sh runs first; needs node
+./check.sh                  # analyze + regenerate + parity, exits 1 on any drift
 ```
+
+Two curves, not one: `launchSpeed` is how far a hit sends you and `stunSpeed` is how long you cannot
+act. Whatever ports `Combat` must compute **both** for every hit and carry both into `applyHit` —
+feeding `launchSpeed` into `hitstun` compiles, runs, plays with different combos from the web build,
+and passes every check in this folder except the parity one.
 
 `sourcemap.json` and `globalTypes.d.luau` are generated/downloaded by `check.sh` and are gitignored.
 The definitions come from the luau-lsp repo:

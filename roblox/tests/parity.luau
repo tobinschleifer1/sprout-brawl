@@ -75,17 +75,24 @@ end
 
 -- launchSpeed + hitstun
 for _, row in fixture.launch do
-	local base, growth, damage, pct, weight, expectLaunch, expectStun =
-		row[1], row[2], row[3], row[4], row[5], row[6], row[7]
+	local base, growth, damage, pct, weight, expectLaunch, expectStunFrames, expectStunSpeed =
+		row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8]
 	local got = Knockback.launchSpeed(base, growth, damage, pct, weight)
 	checked += 1
 	if not near(got, expectLaunch) then
 		fail(string.format("launchSpeed(%g,%g,%g,%g,%g) = %.9f, JS says %.9f", base, growth, damage, pct, weight, got, expectLaunch))
 	end
-	local stun = Knockback.hitstun(got)
+	-- The stun curve is a separate formula, so it is checked separately - and hitstun is taken
+	-- from IT, not from the launch, which is the ordering combat.js uses.
+	local stunSpeed = Knockback.stunSpeed(base, growth, damage, pct, weight)
 	checked += 1
-	if stun ~= expectStun then
-		fail(string.format("hitstun(%.6f) = %d, JS says %d", got, stun, expectStun))
+	if not near(stunSpeed, expectStunSpeed) then
+		fail(string.format("stunSpeed(%g,%g,%g,%g,%g) = %.9f, JS says %.9f", base, growth, damage, pct, weight, stunSpeed, expectStunSpeed))
+	end
+	local stun = Knockback.hitstun(stunSpeed)
+	checked += 1
+	if stun ~= expectStunFrames then
+		fail(string.format("hitstun(%.6f) = %d, JS says %d", stunSpeed, stun, expectStunFrames))
 	end
 end
 
@@ -127,6 +134,9 @@ local constants: { { any } } = {
 	{ "HITSTUN_CAP", Config.HITSTUN_CAP, 60 },
 	{ "HITLAG_CAP", Config.HITLAG_CAP, 12 },
 	{ "DI_MAX", Config.DI_MAX, 12 },
+	{ "KNOCKBACK.slope", Config.KNOCKBACK.slope, 1 / 120 },
+	{ "KNOCKBACK.stunSlope", Config.KNOCKBACK.stunSlope, 1 / 100 },
+	{ "KNOCKBACK.floor", Config.KNOCKBACK.floor, 0.4 },
 	{ "INPUT_BUFFER", Config.INPUT_BUFFER, 6 },
 	{ "TECH.window", Config.TECH.window, 8 },
 	{ "SHIELD.max", Config.SHIELD.max, 50 },

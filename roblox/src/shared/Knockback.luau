@@ -8,9 +8,20 @@ local Config = require(script.Parent.Config)
 
 local Knockback = {}
 
--- launch = (base + growth * damage * (percent/100 + 0.4)) * (100 / weight)
+-- launch = (base + growth * damage * (percent * slope + floor)) * (100 / weight)
+-- See Config.KNOCKBACK for why the slope is 1/120 and not 1/100.
 function Knockback.launchSpeed(base: number, growth: number, damage: number, percentAfterHit: number, weight: number): number
-	local scaled = base + growth * damage * (percentAfterHit / 100 + 0.4)
+	local K = Config.KNOCKBACK
+	local scaled = base + growth * damage * (percentAfterHit * K.slope + K.floor)
+	return scaled * (100 / weight)
+end
+
+-- How long the victim is stunned, as its own curve. Everything that launches must compute this
+-- alongside the launch and carry both - a port that feeds `launchSpeed` into `hitstun` will play
+-- with subtly different combos from the web build and every parity check here will still pass.
+function Knockback.stunSpeed(base: number, growth: number, damage: number, percentAfterHit: number, weight: number): number
+	local K = Config.KNOCKBACK
+	local scaled = base + growth * damage * (percentAfterHit * K.stunSlope + K.floor)
 	return scaled * (100 / weight)
 end
 

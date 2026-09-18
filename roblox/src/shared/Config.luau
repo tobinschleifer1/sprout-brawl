@@ -13,6 +13,13 @@ Config.HITSTUN_CAP = 60
 Config.HITLAG_CAP = 12
 Config.DI_MAX = 12          -- degrees of directional influence
 
+-- The launch curve, and the hitstun curve, deliberately separate. `slope` is how far a hit sends
+-- you; `stunSlope` is how long you cannot act. They were one number in both builds, and flattening
+-- the launch to stop players dying at 97% also shortened hitstun at high percent, which deleted the
+-- guaranteed kill confirm of seven of the twelve weapons. Anything here that launches must compute
+-- BOTH and carry both into the hit it applies.
+Config.KNOCKBACK = { slope = 1 / 120, stunSlope = 1 / 100, floor = 0.4 }
+
 Config.MOVE = {
 	groundAccelFrames = 6,
 	groundStopFrames = 6,

@@ -1,5 +1,11 @@
 import { stepHazard } from './hazards.js';
-import { FRAME, LEDGE } from '../config.js';
+import { FRAME, LEDGE } from '../config.js';// Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
+// accurate than sqrt(x*x + y*y), and Luau's math library does not - so the two builds disagreed in
+// the last two bits on every distance, which showed up in the Roblox port's parity trace. The
+// difference is sub-ulp and irrelevant to play; computing the same expression on both sides is
+// worth more than the extra accuracy. (It is also faster.)
+const hypot = (x, y) => Math.sqrt(x * x + y * y);
+
 
 // Runtime stage: platforms (including moving and sinking ones), ledges, blast zones and hazards.
 export class StageRuntime {
@@ -24,7 +30,7 @@ export class StageRuntime {
       const built = { id: p.id, solid: !!p.solid, soft: !p.solid, cx: p.x, cy: p.y, baseY: p.y, w: p.w,
         x1: p.x - p.w / 2, x2: p.x + p.w / 2, top: p.y, bottom: p.y - thickness, dx: 0, dy: 0,
         thickness, tris: p.tris || null,
-        moving: move, bobPhase: Math.random() * Math.PI * 2,
+        moving: move,
         sinking: !!p.sinking, sink: 0, occupiedFrames: 0,
         // A solid can opt out of being grabbable, for blocks you are meant to fight on top of
         // rather than hang off.
@@ -190,7 +196,7 @@ export class StageRuntime {
   nearestLedge(x, y) {
     let best = null, bd = Infinity;
     for (const L of this.ledges) {
-      const d = Math.hypot(L.x - x, L.y - y);
+      const d = hypot(L.x - x, L.y - y);
       if (d < bd) { bd = d; best = L; }
     }
     return { ledge: best, dist: bd };

@@ -2,6 +2,12 @@ import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG } 
 import { launchSpeed, stunSpeed, hitlag as hitlagFor } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
+// Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
+// accurate than sqrt(x*x + y*y), and Luau's math library does not - so the two builds disagreed in
+// the last two bits on every distance, which showed up in the Roblox port's parity trace. The
+// difference is sub-ulp and irrelevant to play; computing the same expression on both sides is
+// worth more than the extra accuracy. (It is also faster.)
+const hypot = (x, y) => Math.sqrt(x * x + y * y);
 const overlap = (a, b) => a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
 const rectFrom = (cx, cy, w, h) => ({ x1: cx - w / 2, x2: cx + w / 2, y1: cy - h / 2, y2: cy + h / 2, cx, cy, w, h });
 const sign = (v) => (v < 0 ? -1 : 1);
@@ -31,7 +37,7 @@ export class Combat {
     let best = null, bd = range;
     for (const v of this.enemiesOf(f)) {
       if (v.untouchable || (exclude && exclude.includes(v))) continue;
-      const d = Math.hypot(v.x - f.x, v.cy - f.cy);
+      const d = hypot(v.x - f.x, v.cy - f.cy);
       if (d <= bd) { bd = d; best = v; }
     }
     return best;
@@ -306,7 +312,7 @@ export class Combat {
       const M = f.char.mechanic;
       for (const v of this.enemiesOf(f)) {
         if (v.untouchable || v.effects.chill.stacks < 3) continue;
-        if (Math.hypot(v.x - f.x, v.cy - f.cy) > m.freeze.range) continue;
+        if (hypot(v.x - f.x, v.cy - f.cy) > m.freeze.range) continue;
         v.percent = Math.min(999, v.percent + m.damage); v.stats.damageTaken += m.damage; f.stats.damageDealt += m.damage;
         v.effects.chill.stacks = 0;
         v.freeze(M.freezeFrames);
@@ -401,7 +407,7 @@ export class Combat {
           // Hard drag, but the victim's stick still bends where in the ball they end up, which
           // decides the angle they eat when it goes off.
           const dx = ox - v.x, dy = oy - v.cy;
-          const d = Math.hypot(dx, dy) || 1;
+          const d = hypot(dx, dy) || 1;
           // Enough mashing turns the pull negative and the victim starts drifting back out.
           const rate = (V.pullSpeed - (v.ultEscape || 0) * V.escapeBite) * FRAME;
           const step = rate >= 0 ? Math.min(d, rate) : rate;
@@ -414,7 +420,7 @@ export class Combat {
           // Only a victim who has actually fought their way out is released - the check cannot
           // fire on frame one, when everyone the scythe reached for is still standing where the
           // grab found them and is legitimately outside the ball.
-          if ((v.ultEscape || 0) > 0 && Math.hypot(ox - v.x, oy - v.cy) > V.burst.radius * 1.6) {
+          if ((v.ultEscape || 0) > 0 && hypot(ox - v.x, oy - v.cy) > V.burst.radius * 1.6) {
             held.splice(i, 1); v.ultEscape = 0;
             this.emit({ type: 'soulescape', x: v.x, y: v.cy, victim: v.index });
           }
@@ -598,7 +604,7 @@ export class Combat {
       // The chain is a line: sample it and hit anything standing on it.
       const ax = f.ultAnchor.x, ay = f.ultAnchor.y;
       const hx = f.x, hy = f.y + 2.4;
-      const span = Math.hypot(hx - ax, hy - ay);
+      const span = hypot(hx - ax, hy - ay);
       if (span > A.maxLength) { f.ultAnchor = null; this.emit({ type: 'anchorsnap', x: ax, y: ay }); return; }
       // ONE hit per fighter per tick. The first version sampled the line into overlapping bursts
       // and spawned one at each sample, so a victim standing on the chain was caught by three or
@@ -610,7 +616,7 @@ export class Combat {
         const len2 = dx * dx + dy * dy || 1;
         const t = Math.max(0, Math.min(1, ((v.x - ax) * dx + (v.cy - ay) * dy) / len2));
         const px = ax + dx * t, py = ay + dy * t;
-        if (Math.hypot(v.x - px, v.cy - py) > A.thickness + v.r) continue;
+        if (hypot(v.x - px, v.cy - py) > A.thickness + v.r) continue;
         this.spawnBurst(f, { id: 'Chain', x: px, y: py,
           damage: A.damage, base: A.base, growth: A.growth, angle: A.angle, frames: 2,
           size: [A.thickness * 2, A.thickness * 2], heavy: false, hitsOwner: false, shieldDamageMul: A.shieldDamageMul });
@@ -726,7 +732,7 @@ export class Combat {
             p.vx += clamp((tg.x - p.x) * H.turn, -H.speed * 0.6, H.speed * 0.6) - p.vx * 0.12;
           } else {
             const dx = tg.x - p.x, dy = tg.cy - p.y;
-            const d = Math.hypot(dx, dy) || 1;
+            const d = hypot(dx, dy) || 1;
             const wx = (dx / d) * H.speed, wy = (dy / d) * H.speed;
             const blend = Math.min(1, H.turn * FRAME);
             p.vx += (wx - p.vx) * blend; p.vy += (wy - p.vy) * blend;
@@ -834,7 +840,7 @@ export class Combat {
   hasFruit(f) { return this.summons.some((s) => (s.type === 'cloud' || s.type === 'mine') && s.owner === f); }
   nearestNode(f, range) {
     let best = null, bd = range;
-    for (const n of this.nodesOf(f)) { const d = Math.hypot(n.x - f.x, n.y - f.y); if (d <= bd) { bd = d; best = n; } }
+    for (const n of this.nodesOf(f)) { const d = hypot(n.x - f.x, n.y - f.y); if (d <= bd) { bd = d; best = n; } }
     return best;
   }
   removeSummon(s) { const i = this.summons.indexOf(s); if (i >= 0) this.summons.splice(i, 1); }
@@ -902,7 +908,7 @@ export class Combat {
         this.debugBoxes.push({ rect: s.rect, kind: 'summon' });
         for (const v of this.enemiesOf(s.owner)) {
           if (v.untouchable) continue;
-          if (Math.hypot(v.x - s.x, v.cy - s.y) > s.r + v.r) continue;
+          if (hypot(v.x - s.x, v.cy - s.y) > s.r + v.r) continue;
           v.effects.slow = Math.max(v.effects.slow, 4);
           const last = s.ticks.get(v.index);
           if (last != null && this.match.frame - last < s.tickEvery) continue;
@@ -916,7 +922,7 @@ export class Combat {
         else {
           for (const v of this.enemiesOf(s.owner)) {
             if (v.untouchable) continue;
-            if (Math.hypot(v.x - s.x, v.cy - (s.y + 1)) <= s.trigger + v.r) {
+            if (hypot(v.x - s.x, v.cy - (s.y + 1)) <= s.trigger + v.r) {
               this.spawnBurst(s.owner, { x: s.x, y: s.y + 1, ...s.blast, frames: 3, size: [s.radius * 2, s.radius * 2], heavy: true });
               this.emit({ type: 'explosion', x: s.x, y: s.y + 1, radius: s.radius });
               this.removeSummon(s); break;
@@ -930,7 +936,7 @@ export class Combat {
           s.tick = 0;
           for (const v of this.enemiesOf(s.owner)) {
             if (v.untouchable) continue;
-            if (Math.hypot(v.x - s.x, v.cy - (s.y + 1)) <= s.radius + v.r) this.resolveHit(s.owner, v, NODE_MOVE, null, s.rect, { summon: true, chip: true });
+            if (hypot(v.x - s.x, v.cy - (s.y + 1)) <= s.radius + v.r) this.resolveHit(s.owner, v, NODE_MOVE, null, s.rect, { summon: true, chip: true });
           }
         }
       }

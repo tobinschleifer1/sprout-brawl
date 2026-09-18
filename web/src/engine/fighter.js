@@ -2,6 +2,12 @@ import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DAS
 import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockstunFor } from './knockback.js';
 import { emptyFrame } from './input.js';
 
+// Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
+// accurate than sqrt(x*x + y*y), and Luau's math library does not - so the two builds disagreed in
+// the last two bits on every distance, which showed up in the Roblox port's parity trace. The
+// difference is sub-ulp and irrelevant to play; computing the same expression on both sides is
+// worth more than the extra accuracy. (It is also faster.)
+const hypot = (x, y) => Math.sqrt(x * x + y * y);
 const sign = (v) => (v < 0 ? -1 : 1);
 // The ceiling on any environmental acceleration, in studs/s².
 //
@@ -429,7 +435,7 @@ export class Fighter {
 
   _startAirDodge(inp) {
     this.airDodgeUsed = true; this.tumbling = false; this.fastFalling = false;
-    const len = Math.hypot(inp.x, inp.y);
+    const len = hypot(inp.x, inp.y);
     if (len > 0.3) { this.vx = (inp.x / len) * 36; this.vy = (inp.y / len) * 36; } else { this.vx = 0; this.vy = 0; }
     this.setState('airdodge');
     this.emit({ type: 'dodge' });
@@ -488,7 +494,7 @@ export class Fighter {
 
   _stepTether(ctx) {
     const t = this.tether;
-    const dx = t.tx - this.x, dy = t.ty - this.y, d = Math.hypot(dx, dy);
+    const dx = t.tx - this.x, dy = t.ty - this.y, d = hypot(dx, dy);
     const stepLen = t.speed * FRAME;
     this.noGravityFrame = true; this.vx = 0; this.vy = 0;
     if (d <= stepLen) { this.x = t.tx; this.y = t.ty; this.tether = null; this.grabLedge(t.ledge); return; }

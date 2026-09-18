@@ -25,7 +25,12 @@ npm-debug.log*
 # see blender/blends/README.md — so they don't need to live in git)
 blender/blends/*.blend
 
-# Roblox port: generated or downloaded, not sources
+# Roblox port: generated or downloaded, not sources.
+# The test FIXTURES are rebuilt from web/ by roblox/check.sh on every run - about 2 MB of JSON that
+# would otherwise produce a diff every time anyone ran the checks. The generated LUAU under
+# roblox/src/shared/Data stays in git, because Rojo and Studio need it and neither has node.
+roblox/tests/*-fixture.json
+roblox/tests/trace-*.json
 roblox/sourcemap.json
 roblox/globalTypes.d.luau
 roblox/*.rbxl

@@ -233,6 +233,14 @@ function methods.jumpMul(self): number
 	return (1 - 0.08 * self.effects.chill.stacks) * (if L then L.jumpMul else 1)
 end
 
+-- How many stocks this fighter has left, which in a team match is the TEAM's pool rather than
+-- their own. match.js patches this onto Fighter.prototype; here it simply lives on Fighter, which
+-- is where it always belonged.
+function methods.stocksLeft(self): number
+	local m = self._match
+	return if m then m:stocksLeftFor(self) else self.stocks
+end
+
 function methods.setState(self, s: string)
 	self.state = s
 	self.sf = 0
@@ -1601,10 +1609,15 @@ local SCALARS = {
 	-- is a no-op. They are here because a snapshot that cannot rebuild the whole fighter is a
 	-- snapshot somebody will eventually use for something else and be wrong about.
 	"name", "source", "isBot", "botLevel",
+	-- Written onto the fighter by Match rather than by Fighter itself, but they are simulation
+	-- state all the same: a rollback that forgot koTimer would respawn somebody at the wrong frame.
+	"koTimer", "eliminatedAt",
 }
 -- Kept by reference; see above.
 local REFS = { "platform", "ledge", "move", "holder", "lastHitBy", "char", "reflecting", "marking",
-	"ultTarget", "ultAnchor", "chargeMods", "item" }
+	"ultTarget", "ultAnchor", "chargeMods", "item",
+	-- The match this fighter belongs to. A reference, never copied.
+	"_match" }
 
 local function shallow(t: any): any
 	return if t == nil then nil else table.clone(t)

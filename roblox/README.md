@@ -22,8 +22,8 @@ Nothing here is required to play the web build.
 | `src/shared/Rng.luau` | the seeded generator, bit-exact with the JavaScript |
 | `src/shared/Combat.luau` | **done** — hit resolution, grabs, throws, bursts, projectiles, mine summons, all twelve ultimates, the whole item system |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| `Match` | not started |
-| `ai.js` (bots) | after Match |
+| `src/shared/Match.luau` | ported — countdown, KOs, respawns, stocks, timer, sudden death, results |
+| `ai.js` (bots) | not started — a fighter marked `isBot` throws in Match |
 | Netcode, rigs, UI, audio, persistence | not started |
 
 ```bash
@@ -103,6 +103,17 @@ holes in the tests themselves, and each one is written up where it was fixed:
   the slag drip, the antenna arc and the dust devil's throw untested. Probes are now parked on each
   hazard's own coordinates.
 
+### The sort that had to change
+
+`match.js` sorts its results table, and JavaScript's sort is stable where Luau's `table.sort` is
+not. Two fighters tied on elimination order, stocks and percent — which is what the surviving
+members of a winning team look like — kept their original order in the web build by luck of the
+spec, and would have come out in a different order on Roblox. Both builds now break that tie on
+`index`, which makes the ordering total and means the same thing in both languages.
+
+This is the only place the port asked for a change in the web build's behaviour rather than a
+change in the port.
+
 ### The match is seeded, not random
 
 `Math.random` is gone from `stage.js` and `hazards.js`. The stage owns a seeded generator
@@ -148,6 +159,7 @@ load-bearing today:
 | the `place` guard and the Bulwark throw exception's `onGround` term | `useItem` is only reachable from `_stepGround` |
 | `it.spent` in `stepItems` | read there, set nowhere |
 | `move.total` | written for every move, read nowhere in the simulation, renderer or UI |
+| the respawn timer's rounding | `RESPAWN.delay` is 2.0, so 2.0 x 60 is exact |
 
 `field` is now deleted from the web build. The rest are left in place: the five above are guards
 that would start working the moment the data changes, and the unused summon types and mechanics are

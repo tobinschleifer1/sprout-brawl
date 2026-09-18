@@ -160,9 +160,14 @@ export class Match {
       index: f.index, name: f.name, char: f.char, team: f.team, kos: f.stats.kos, falls: f.stats.falls, sds: f.stats.selfDestructs, damage: Math.round(f.stats.damageDealt), percent: f.percent,
       stocks: f.stocksLeft(), score: this.teamScore(f.team), eliminatedAt: f.eliminatedAt == null ? Infinity : f.eliminatedAt,
     }));
+    // The final `a.index - b.index` makes the order TOTAL. JavaScript's sort is stable, so two
+    // fighters tied on every other key kept their original order here by luck of the spec; Luau's
+    // table.sort is not stable, and the Roblox port would have produced a different scoreboard for
+    // the same match. Breaking the tie explicitly is the only version that means the same thing in
+    // both languages.
     rows.sort((a, b) => {
-      if (this.timed) return b.score - a.score || a.percent - b.percent;
-      return b.eliminatedAt - a.eliminatedAt || b.stocks - a.stocks || a.percent - b.percent;
+      if (this.timed) return b.score - a.score || a.percent - b.percent || a.index - b.index;
+      return b.eliminatedAt - a.eliminatedAt || b.stocks - a.stocks || a.percent - b.percent || a.index - b.index;
     });
     const winnerTeam = rows[0].team;
     this.results = { rows, winnerTeam, teams: this.teams, timed: this.mode.startsWith('Timed'), mode: this.mode };

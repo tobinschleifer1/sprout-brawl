@@ -15,6 +15,7 @@ node tests/genfixture.mjs
 node tools/gen-traces.mjs
 node tools/gen-fighter-traces.mjs
 node tools/gen-hazard-traces.mjs
+node tools/gen-combat-traces.mjs
 node tools/gen-rng-fixture.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
@@ -33,3 +34,5 @@ echo "== parity: Fighter vs web/src/engine/fighter.js =="
 lune run tests/fighter-parity
 echo "== parity: Hazards vs web/src/engine/hazards.js =="
 lune run tests/hazard-parity
+echo "== parity: Combat vs web/src/engine/combat.js (phase 3a) =="
+lune run tests/combat-parity

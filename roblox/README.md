@@ -20,8 +20,10 @@ Nothing here is required to play the web build.
 | `src/shared/Input.luau` | the input frame shape (polling is the client's job on Roblox) |
 | `src/shared/Hazards.luau` | all ten hazards, ported |
 | `src/shared/Rng.luau` | the seeded generator, bit-exact with the JavaScript |
+| `src/shared/Combat.luau` | **phase 3a** — hit resolution, grabs, throws, bursts. No projectiles, summons, items or ultimates yet |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| `Combat`, `Match` | not started |
+| Combat 3b/3c/3d (projectiles, summons, the twelve ultimates, items) | not started — every unported branch throws by name |
+| `Match` | not started |
 | Netcode, rigs, UI, audio, persistence | not started |
 
 ```bash
@@ -120,6 +122,25 @@ Snapshot/restore is checked three ways: structurally (every field the fighter ow
 snapshot), for independence (the snapshot is poked and must not follow the fighter, and vice versa
 after a restore), and behaviourally (snapshot, run on, restore, replay — the replayed frames must
 still match the JavaScript). That last one is what client-side prediction actually does.
+
+### Unreachable code the port keeps finding
+
+Breaking the port on purpose and watching the tests *not* fail turns out to be a good way to find
+code the game cannot run. Six so far, all faithfully ported (except `field`) and none of them
+load-bearing today:
+
+| where | why it cannot run |
+|---|---|
+| `stage.collide` moving-solid ejection | no stage has a moving solid |
+| `antennaarc` per-fighter cooldown | 30 frames, but the arc is only live for 22 |
+| `sign(0)` | every call site is guarded by a threshold |
+| `resolveHit` armour branch | no move sets `armor` |
+| `resolveHit` command grab | no move sets `kind: "grab"` |
+| `onMoveActiveFrame` `field` kind | no weapon uses it — **not ported**, it throws instead |
+
+`field` is the one worth deleting from the web build: it is eighteen lines of a complete ultimate
+kind plus a `fieldThrew` set that `Fighter.reset` never initialises, and nothing references the
+string anywhere else.
 
 ### Two traps this port has already hit
 

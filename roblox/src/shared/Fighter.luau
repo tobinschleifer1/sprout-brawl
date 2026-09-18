@@ -1593,7 +1593,7 @@ local SCALARS = {
 	"ledgeCooldown", "shield", "blockstun", "hitstun", "hitlag", "tumbling", "invincible",
 	"moveId", "mf", "startupEff", "startupShift", "moveLanded", "charge", "percent", "carryX",
 	"snaredBy", "reeling", "techPress", "techRoll", "ultCharge", "ultActive", "ultShots",
-	"ultCooldown", "ultEndAt", "frozenFrames", "lag", "alive", "stocks", "spawnedActive",
+	"ultCooldown", "ultEndAt", "ultEscape", "frozenFrames", "lag", "alive", "stocks", "spawnedActive",
 	"armorUsed", "bonusDamage", "launchMul", "rangeMul", "noGravityFrame", "frameCount",
 	"volleyCount", "inWater", "lastHitFrame", "skin", "team", "index", "r", "h", "weight",
 	"pendingLaunchFrame",

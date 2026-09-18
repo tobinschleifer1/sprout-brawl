@@ -141,10 +141,15 @@ function botMatch(opts = {}) {
 // game AI literature does it and is the reason the rungs below are separated rather than merely
 // ordered.
 {
-  const ladder = (lo, hi, n) => {
+  // SEEDED, one distinct seed per game. The bots used to draw from Math.random, so this test was
+  // a different experiment every run and failed roughly one run in twenty with nothing behind it.
+  // Sixteen fixed seeds is still a real sample - it is a fixed one, so a failure is reproducible
+  // and a pass means the same thing tomorrow.
+  const ladder = (lo, hi, n, rung) => {
     let hiS = 0, loS = 0, games = 0;
     for (let g = 0; g < n; g++) {
-      const m = makeMatch({ mode: 'StockFFA', stocks: 3, loadouts: [['Classic', 'Sword'], ['Noir', 'Sword']] });
+      const m = makeMatch({ mode: 'StockFFA', stocks: 3, seed: g * 7919 + rung * 104729,
+        loadouts: [['Classic', 'Sword'], ['Noir', 'Sword']] });
       skipCountdown(m);
       m.fighters[0].isBot = true; m.fighters[0].botLevel = lo;
       m.fighters[1].isBot = true; m.fighters[1].botLevel = hi;
@@ -156,11 +161,11 @@ function botMatch(opts = {}) {
   const RUNGS = [['easy', 'normal'], ['normal', 'hard'], ['hard', 'just_dont']];
   const rows = [], weak = [];
   for (const [lo, hi] of RUNGS) {
-    const d = ladder(lo, hi, 16);
+    const d = ladder(lo, hi, 16, RUNGS.findIndex((r) => r[1] === hi));
     rows.push(`${hi} beat ${lo} ${d.hiS}-${d.loS} (${d.r.toFixed(1)}x over ${d.games})`);
     // The bar is deliberately far below what these actually measure (4x to 75x on longer runs).
-    // Twelve games is a small sample and this metric has historically swung by a factor of two
-    // between runs, so this exists to catch the LADDER BREAKING, not to certify a number.
+    // Sixteen games is a small sample, so this exists to catch the LADDER BREAKING, not to
+    // certify a number.
     if (d.r < 1.2) weak.push(`${hi} vs ${lo} only ${d.r.toFixed(2)}x`);
   }
   check('every difficulty beats the one below it', weak.length === 0,

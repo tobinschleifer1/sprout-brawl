@@ -11,7 +11,7 @@ export class FakeInput {
 export function makeMatch(o={}){
   const input=new FakeInput();
   const m=new Match({ mode:o.mode||'StockFFA', stage:STAGES.find(s=>s.id===(o.stageId||'FoundryFloor')), input,
-    stocks:o.stocks??3, timeLimit:o.timeLimit??180, items:false,
+    stocks:o.stocks??3, timeLimit:o.timeLimit??180, items:false, seed:o.seed??1,
     // `loadouts` takes [avatarId, weaponId] pairs; `fighters` still takes legacy character ids.
     fighters:(o.loadouts
       ? o.loadouts.map(([a,w],i)=>{ const L=buildLoadout(a,w); return {char:L,skin:0,team:i,source:'p'+i,isBot:false,name:L.weapon.id}; })

@@ -475,7 +475,7 @@ export class Combat {
       if (wave >= S.perTarget) return;
       for (const v of this.enemiesOf(f)) {
         if (v.untouchable) continue;
-        const jitter = (Math.random() - 0.5) * S.jitter + (wave ? v.vx * 0.18 : 0);
+        const jitter = (this.match.stage.rng() - 0.5) * S.jitter + (wave ? v.vx * 0.18 : 0);
         const pr = {
           owner: f, move: m, x: v.x + jitter, y: v.cy + S.height,
           vx: 0, vy: -S.speed, w: S.size, h: S.size, life: 200, shape: 'orb',
@@ -1120,7 +1120,9 @@ export class Combat {
     const max = playerCount >= 5 ? 2 : 1;
     if (this.items.filter((it) => !it.held).length >= max) return;
     this.itemTimer = 0;
-    const def = ITEM_LIST[Math.floor(Math.random() * ITEM_LIST.length)];
+    // From the match's seeded generator: which item appears is part of what a replay has to
+    // reproduce, and it was the last Math.random in the simulation.
+    const def = ITEM_LIST[Math.floor(this.match.stage.rng() * ITEM_LIST.length)];
     const p = this.stage.itemSpawn();
     this.spawnItem(def, p.x, p.y);
   }

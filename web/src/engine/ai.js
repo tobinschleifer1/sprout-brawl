@@ -39,7 +39,19 @@ export const LEVELS = {
 };
 LEVELS.imposible = LEVELS.impossible;
 const sign = (v) => (v < 0 ? -1 : 1);
-const chance = (p) => Math.random() < p;
+
+// The generator every decision in this file draws from, swapped in at the top of computeBotInput.
+//
+// Bots were the last thing in the engine still calling Math.random, and it mattered more than it
+// looks: a match with bots was NOT reproducible from its seed, which is the property the Roblox
+// build is being built around, and it is why test/bots.test.mjs failed roughly one run in twenty
+// with no code change behind it.
+//
+// Module-scoped rather than threaded through 33 call sites and five signatures. It is set on entry
+// to computeBotInput and the engine is single-threaded with no awaits, so two matches running in
+// one place still each get their own - whoever is mid-call owns it.
+let RNG = Math.random;
+const chance = (p) => RNG() < p;
 
 // ------------------------------------------------------------------------- perception -----
 // One ring of snapshots per match, written once per frame by whichever bot runs first, read by all
@@ -77,7 +89,7 @@ function seen(H, v, sight) {
 // not an easier opponent, it is an absent one.
 function fumble(frame, L, st) {
   if (!L.slip || st.noFumble || !chance(L.slip)) return frame;
-  const r = Math.random();
+  const r = RNG();
   if (r < 0.45) { frame.light = false; frame.heavy = false; frame.grab = false; frame.anyPress = false; }
   else if (r < 0.8) frame.x = -frame.x;
   else { frame.jump = false; frame.dodge = false; frame.guardHeld = false; frame.guard = false; }
@@ -235,6 +247,8 @@ function itemAction(f, match, L, st, tv, dir, adx, frame) {
 }
 
 export function computeBotInput(f, match) {
+  // Draw from the match's own generator, so a bot match replays from its seed.
+  RNG = (match.stage && match.stage.rng) || Math.random;
   if (f.botLevel === 'dummy') return emptyFrame();            // dummy stands still
   const L = LEVELS[f.botLevel] || LEVELS.normal;
   if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false, fetch: 0, fetchCd: 0 };
@@ -281,7 +295,7 @@ function decide(f, match, L, st) {
   // ---- ledge ----
   if (f.state === 'ledge') {
     if (st.timer <= 0) {
-      const r = Math.random();
+      const r = RNG();
       const enemyNear = adx < 10;
       if (r < 0.3 && !enemyNear) frame.x = -f.ledge.side;
       else if (r < 0.55) frame.dodge = true;
@@ -303,7 +317,7 @@ function decide(f, match, L, st) {
     return frame;
   }
   if (f.state === 'attack' || f.state === 'holding' || f.state === 'grab') {
-    if (f.state === 'holding') { const r = Math.random(); frame.x = r < 0.4 ? f.facing : r < 0.6 ? -f.facing : 0; frame.y = r > 0.8 ? 1 : 0; }
+    if (f.state === 'holding') { const r = RNG(); frame.x = r < 0.4 ? f.facing : r < 0.6 ? -f.facing : 0; frame.y = r > 0.8 ? 1 : 0; }
     if (f.move && f.move.charge && f.state === 'attack') frame.heavyHeld = f.charge < (f.move.charge.maxHold * 0.6);
     if (f.move && f.move.chainsTo && f.moveLanded) frame.light = chance(0.7);
     if (f.state === 'attack' && f.move && !f.onGround) frame.x = dir * 0.6;
@@ -358,7 +372,7 @@ function decide(f, match, L, st) {
     st.timer = L.commit;
     const arche = f.char.archetype;
     const inRange = adx < 6 && Math.abs(dy) < 5;
-    const r = Math.random();
+    const r = RNG();
     // The archetype strings come from the WEAPON, and there are exactly four: All-rounder,
     // Reach / combo, Zoner, Heavy zoner. This used to branch on 'Charge', 'Trap', 'Summoner' and
     // 'Grappler' — none of which exist — so the `setup` and `lasso` plans were unreachable, and
@@ -407,7 +421,7 @@ function decide(f, match, L, st) {
     else if (tv.state === 'shield' && chance(0.6)) { frame.grab = true; }
     else if (dy > 4 && chance(0.6)) { frame.jump = true; st.hold = 8; }
     else {
-      const r = Math.random();
+      const r = RNG();
       frame.x = dir;
       if (r < 0.45) frame.light = true;
       else if (r < 0.75) { frame.x = 0; frame.light = true; }

@@ -130,5 +130,44 @@ function onFloor(weapon, x){
   check('a lunge at the ledge does not fling you off the stage', bad.length===0,
     bad.length?bad.join('; '):`studs past the edge, one stud from it: ${rows.join(', ')} (blast zone is 60 out)`); }
 
+// A match is a pure function of its seed and its inputs.
+//
+// This is the property the Roblox port is being built around - a server-authoritative match has to
+// be replayable, and a desync is only debuggable if the same inputs produce the same frame. It was
+// NOT true until the engine's randomness was routed through one seeded generator: bots drew from
+// Math.random, so a bot match diverged from itself, which is also why the difficulty-ladder test
+// failed about one run in twenty with nothing behind it.
+//
+// Positions alone are not enough to check it. With two idle fighters the seed changes where things
+// SPAWN long before it changes where anybody stands, and a digest of positions reported "the seed
+// is ignored" for a stage whose slag drip was landing somewhere different every run.
+{
+  const digest = (seed, frames = 900) => {
+    const m = makeMatch({ stocks: 5, stageId: 'Smeltworks', seed,
+      loadouts: [['Classic', 'Sword'], ['Noir', 'Pike']] });
+    for (const f of m.fighters) { f.isBot = true; f.botLevel = 'hard'; }
+    m.itemsOn = true;
+    skipCountdown(m);
+    const out = [];
+    for (let i = 0; i < frames; i++) {
+      m.step(); m.events.length = 0;
+      if (i % 30 === 0) {
+        const fs = m.fighters.map((f) => `${f.x.toFixed(6)},${f.y.toFixed(6)},${f.percent},${f.state}`).join('|');
+        const items = m.combat.items.map((it) => `${it.def.id}@${it.x.toFixed(3)}`).join('|');
+        const haz = (m.stage.hazards || []).map((h) => (h.state && h.state.drops)
+          ? h.state.drops.map((d) => d.x.toFixed(3)).join(',') : String((h.state && h.state.timer) || 0)).join('|');
+        out.push(`${fs}#${items}#${haz}`);
+      }
+    }
+    return out.join(';');
+  };
+  const a1 = digest(12345), a2 = digest(12345), b1 = digest(999);
+  check('a match replays exactly from its seed', a1 === a2,
+    a1 === a2 ? 'two bot matches on seed 12345, with items and hazards, ran identically for 900 frames'
+      : `the same seed diverged at sample ${a1.split(';').findIndex((v, i) => v !== a2.split(';')[i])}`);
+  check('a different seed is a different match', a1 !== b1,
+    a1 !== b1 ? 'seed 999 diverges from 12345' : 'seed 999 produced an identical match - the seed is being ignored');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail?1:0);

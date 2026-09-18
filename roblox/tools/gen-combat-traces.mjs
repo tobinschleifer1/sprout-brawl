@@ -87,12 +87,13 @@ function run(spec) {
         for (const [field, value] of Object.entries(kv)) fighters[Number(k)][field] = value;
       }
       fighters[0].applyInput(I(seg.a));
-      fighters[1].applyInput(I(seg.b || {}));
+      for (let k = 1; k < fighters.length; k++) fighters[k].applyInput(I(seg.b || {}));
       stage.step(match);
       for (const f of fighters) f.step(ctx);
       combat.step();
       const row = [];
       for (const f of fighters) for (const k of F) row.push(n(f[k]));
+      row.push(String(fighters.length));
       row.push(String(combat.bursts.length), String(combat.projectiles.length),
         String(combat.summons.length), String(combat.debugBoxes.length));
       // Every live projectile and summon, not just how many. Counts alone let a mine cap evict the
@@ -339,6 +340,83 @@ S.push({ name: 'mine off a platform edge', stage: 'FoundryFloor',
   who: [['Classic', 'Grimoire'], ['Noir', 'Sword']], at: [-14.5, 20],
   segments: [{ frames: 2, a: {}, b: {}, set: { 0: { y: 14 } } },
     hold(1, { heavy: true, y: -1, anyPress: true }), hold(60, {})] });
+
+// ---------------------------------------------------------------- phase 3c ----
+// The twelve ultimates. NOT pinned: Rundown teleports the attacker to its target and Soul Harvest
+// drags victims to the caster, so holding anybody in place would be testing the harness instead of
+// the move. They are placed at the range each one is meant to be used at and left to run.
+//
+// The meter is set directly rather than earned - twenty landed hits is a minute of scripted combo
+// per scenario - and `ult` is re-pressed periodically because Deadeye reads the buffer for each of
+// its three rounds.
+const ULT_RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
+  Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0 };
+for (const [w, gap] of Object.entries(ULT_RANGE)) {
+  // Aegis does nothing at all unless the opponent swings at it, and Exsanguinate needs the victim
+  // to still be standing there to collect the marks it puts on.
+  const foeSwings = w === 'Shield';
+  const charged = { 0: { ultCharge: 20 } };
+  S.push({ name: `ultimate ${w}`, stage: 'FoundryFloor',
+    who: [['Classic', w], ['Noir', 'Sword']], at: [-gap / 2, gap / 2],
+    segments: [
+      { frames: 4, a: {}, b: {}, set: charged },
+      { frames: 1, a: { ult: true, anyPress: true }, b: {}, set: charged },
+      ...Array.from({ length: 16 }, (_, i) => ({
+        frames: 20,
+        // re-press ult for the sniper's magazine; everything else ignores it mid-move
+        a: i % 1 === 0 ? { ult: true, anyPress: true } : {},
+        b: foeSwings ? { light: true, anyPress: true } : {},
+      })),
+    ] });
+}
+
+// Soul Harvest with somebody mashing out of it, and with a third and fourth body in range so the
+// two-target pick has something to choose between.
+S.push({ name: 'vortex with four bodies', stage: 'FoundryFloor',
+  who: [['Classic', 'Scythe'], ['Noir', 'Sword'], ['Ember', 'Pike'], ['Moss', 'Hammer']],
+  at: [-4, 2, 6, 11],
+  segments: [{ frames: 4, a: {}, b: {}, set: { 0: { ultCharge: 20 } } },
+    { frames: 1, a: { ult: true, anyPress: true }, b: {}, set: { 0: { ultCharge: 20 } } },
+    ...Array.from({ length: 12 }, (_, i) => ({ frames: 16, a: {},
+      b: i % 2 === 0 ? { jump: true, anyPress: true } : { dodge: true, anyPress: true } }))] });
+
+// A vortex victim grabbed from far enough out to still be OUTSIDE the release radius after the
+// first frame's drag. Soul Harvest reaches 17 studs but releases at burst.radius * 1.6 = 6.4, and
+// the `ultEscape > 0` gate is what stops everyone beyond 6.4 being let go on frame one - before
+// they have done anything to earn it. Every other vortex scenario grabs from inside 6.4, or close
+// enough that one frame of pull brings them in, so dropping the gate changed nothing.
+S.push({ name: 'vortex grab from long range', stage: 'FoundryFloor',
+  who: [['Classic', 'Scythe'], ['Noir', 'Sword'], ['Ember', 'Sword']], at: [-6, -2, 9],
+  segments: [{ frames: 4, a: {}, b: {}, set: { 0: { ultCharge: 20 } } },
+    { frames: 1, a: { ult: true, anyPress: true }, b: {}, set: { 0: { ultCharge: 20 } } },
+    ...Array.from({ length: 12 }, () => hold(16, {}, {}))] });
+
+// Astral Rain into a held shield. The first wave is blockable and the second is not, and with the
+// target simply standing there neither orb ever met a shield, so making both blockable passed.
+S.push({ name: 'starfall into a shield', stage: 'FoundryFloor',
+  who: [['Classic', 'Grimoire'], ['Noir', 'Sword']], at: [-4.5, 4.5],
+  segments: [{ frames: 4, a: {}, b: { guard: true, guardHeld: true, anyPress: true }, set: { 0: { ultCharge: 20 } } },
+    { frames: 1, a: { ult: true, anyPress: true }, b: { guardHeld: true }, set: { 0: { ultCharge: 20 } } },
+    ...Array.from({ length: 14 }, () => hold(20, {}, { guard: true, guardHeld: true, anyPress: true }))] });
+
+// Upheaval and Rundown both cycle through every enemy, which a two-player scenario cannot show.
+for (const w of ['Hammer', 'Gauntlets']) {
+  S.push({ name: `ultimate ${w} in a crowd`, stage: 'FoundryFloor',
+    who: [['Classic', w], ['Noir', 'Sword'], ['Ember', 'Sword'], ['Moss', 'Sword']],
+    at: [-8, -2, 5, 12],
+    segments: [{ frames: 4, a: {}, b: {}, set: { 0: { ultCharge: 20 } } },
+      { frames: 1, a: { ult: true, anyPress: true }, b: {}, set: { 0: { ultCharge: 20 } } },
+      ...Array.from({ length: 14 }, () => hold(20, { ult: true, anyPress: true }, {}))] });
+}
+
+// Exsanguinate against a shield: marks land on a blocking victim, and the collection is what
+// exercises hb.shieldDamageMul, which no non-ultimate hitbox in the game carries.
+S.push({ name: 'bleed into a shield', stage: 'FoundryFloor',
+  who: [['Classic', 'Daggers'], ['Noir', 'Sword']], at: [-1.5, 1.5],
+  segments: [{ frames: 4, a: {}, b: {}, set: { 0: { ultCharge: 20 } } },
+    { frames: 1, a: { ult: true, anyPress: true }, b: { guard: true, guardHeld: true, anyPress: true },
+      set: { 0: { ultCharge: 20 } } },
+    ...Array.from({ length: 14 }, () => hold(20, {}, { guardHeld: true }))] });
 
 const scenarios = S.map((spec) => ({ ...spec, rows: run(spec) }));
 fs.writeFileSync(path.join(HERE, '../tests/trace-combat.json'), JSON.stringify({ fields: F, eventNums: EVENT_NUMS, scenarios }));

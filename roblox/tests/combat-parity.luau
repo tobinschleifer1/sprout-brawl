@@ -21,10 +21,19 @@
 -- `hb.shieldDamageMul` (only ultimate hitboxes carry one), and skipping onHitLanded's
 -- `move.id ~= "Ultimate"` guard.
 --
--- PHASE 3b ADDS FOUR MORE UNREACHABLE SPOTS, all established the same way:
---   * `p.ghost` and all homing - only the sniper and Heartseeker set them, both Phase 3c.
---   * the projectile out-of-bounds cull (|x| > 200) - nothing in the roster flies that far before
---     its lifetime runs out.
+-- PHASE 3c LEAVES FOUR, all established the same way:
+--   * the crater's fade rounding. Colossus is the only `slam` in the game and its crater carries
+--     `minDamage: 10`, which dominates every faded step - the only step where the rounding could
+--     show is step 0, where fade is 1 and 12 x 1 is exact. Rounding or flooring makes no
+--     difference to any crater that exists.
+--   * the `burst` and `freeze` move kinds, and `pulse`. No weapon uses any of them. `burst` and
+--     `freeze` are ported anyway because they are a dozen lines between them; `pulse` is not,
+--     because it fires at nodes and nothing spawns nodes.
+--   * `p.grounded` projectiles - nothing in the roster sets it.
+--
+-- PHASE 3b'S FOUR STILL STAND:
+--   * the projectile out-of-bounds cull (|x| > 200) - nothing flies that far before its lifetime
+--     runs out.
 --   * the `>= 4` damage threshold on the projectile-versus-summon check. Every bolt and arrow
 --     spawns at chest height (y 2.55 to 3.75) and a mine's box is y 0.0 to 1.6, so they all fly
 --     over it; the one projectile tall enough to touch a mine is Runebrand, which deals 15. The
@@ -122,7 +131,9 @@ for _, spec in T.scenarios do
 				end
 			end
 			fighters[1]:applyInput(frameFrom(seg.a))
-			fighters[2]:applyInput(frameFrom(seg.b))
+			for k = 2, #fighters do
+				fighters[k]:applyInput(frameFrom(seg.b))
+			end
 			Stage.step(stage, match)
 			for _, f in fighters do
 				f:step(ctx)
@@ -152,6 +163,14 @@ for _, spec in T.scenarios do
 				if broke then break end
 			end
 			if broke then break end
+			at += 1
+			checked += 1
+			if #fighters ~= num(want[at]) then
+				fail(string.format("%s frame %d: %d fighters, JS had %s", spec.name, frame,
+					#fighters, tostring(want[at])))
+				broke = true
+				break
+			end
 			for _, pair in { { #combat.bursts, "bursts" }, { #combat.projectiles, "projectiles" },
 				{ #combat.summons, "summons" }, { #combat.debugBoxes, "debugBoxes" } } do
 				at += 1

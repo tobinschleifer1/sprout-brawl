@@ -20,9 +20,9 @@ Nothing here is required to play the web build.
 | `src/shared/Input.luau` | the input frame shape (polling is the client's job on Roblox) |
 | `src/shared/Hazards.luau` | all ten hazards, ported |
 | `src/shared/Rng.luau` | the seeded generator, bit-exact with the JavaScript |
-| `src/shared/Combat.luau` | **phases 3a-3b** — hit resolution, grabs, throws, bursts, projectiles, mine summons. No items or ultimates yet |
+| `src/shared/Combat.luau` | **phases 3a-3c** — hit resolution, grabs, throws, bursts, projectiles, mine summons, all twelve ultimates. No items yet |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
-| Combat 3c/3d (the twelve ultimates, items) | not started — every unported branch throws by name |
+| Combat 3d (items) | not started — every unported branch throws by name |
 | `Match` | not started |
 | Netcode, rigs, UI, audio, persistence | not started |
 
@@ -141,6 +141,9 @@ load-bearing today:
 | the `pulse` move kind, `teleport` recovery, `nearestNode` | nothing spawns nodes — not ported |
 | the Fruiting, Network, Tangle and Chill mechanics | no weapon has them — `fruiting` not ported |
 | projectile-vs-summon damage threshold | every projectile that can reach a mine deals 15, well over the 4 it tests |
+| the crater's fade rounding | Colossus is the only `slam`, and its `minDamage: 10` dominates every faded step |
+| the `burst` and `freeze` move kinds | no weapon uses either — ported anyway, they are a dozen lines |
+| `p.grounded` projectiles | nothing in the roster sets it |
 
 `field` is now deleted from the web build. The rest are left in place: the five above are guards
 that would start working the moment the data changes, and the unused summon types and mechanics are

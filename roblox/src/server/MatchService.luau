@@ -1,0 +1,206 @@
+--!strict
+-- Runs the match. This is the only place in the game where the simulation advances.
+--
+-- The shared modules under ReplicatedStorage are the same code the web build runs, verified
+-- frame-for-frame against it. This file does not reimplement any of it: it feeds Match a stage, a
+-- roster and an input source, steps it at a fixed 60Hz, and broadcasts what came out.
+--
+-- Fixed step, not delta time. Heartbeat fires at the render rate and varies; the simulation is
+-- defined only at 1/60 and every parity guarantee in roblox/tests depends on that. So the
+-- accumulator converts wall time into whole ticks and the leftover waits for the next frame.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local Shared = ReplicatedStorage.Shared
+local Match = require(Shared.Match)
+local Stages = require(Shared.Data.Stages)
+local Loadout = require(Shared.Loadout)
+local Config = require(Shared.Config)
+local Net = require(Shared.Net)
+local RemoteInput = require(script.Parent.RemoteInput)
+
+local FRAME = Config.FRAME
+
+-- A long hitch must not turn into a burst of thirty simulated frames: the match would fast-forward
+-- past whatever the player was doing. Past this many ticks of debt the server drops the rest and
+-- the match simply loses that time, which is visible but survivable.
+local MAX_CATCHUP = 8
+
+local MatchService = {}
+MatchService.__index = MatchService
+
+function MatchService.new(): any
+	local self = setmetatable({}, MatchService)
+	self.match = nil :: any
+	self.input = RemoteInput.new()
+	self.accum = 0
+	self.conn = nil :: RBXScriptConnection?
+	self.sources = {} :: { [number]: string }   -- userId -> input source key
+	self.userIds = {} :: { [string]: number }  -- and back, so the roster can name a rig's owner
+	return self
+end
+
+function MatchService.sourceFor(_self: any, player: Player): string
+	return `p{player.UserId}`
+end
+
+-- ---------------------------------------------------------------- start ----
+-- `roster` is a list of { player = Player? , avatar = string, weapon = string, isBot = boolean?,
+-- botLevel = string? }. A nil player means a bot, which is how a single player tests against a CPU.
+function MatchService.start(self: any, roster: { any }, opts: any?)
+	local o = opts or {}
+	self:stop()
+
+	local stageId = o.stage or "FoundryFloor"
+	local stage = nil
+	for _, s in Stages.LIST do
+		if s.id == stageId then
+			stage = s
+		end
+	end
+	assert(stage, `no such stage: {stageId}`)
+
+	local fighters = {}
+	for i, entry in roster do
+		local source = if entry.player then self:sourceFor(entry.player) else `bot{i}`
+		if entry.player then
+			self.sources[entry.player.UserId] = source
+			self.userIds[source] = entry.player.UserId
+		end
+		self.input:register(source)
+		table.insert(fighters, {
+			char = Loadout.build(entry.avatar, entry.weapon),
+			skin = entry.skin or 0,
+			team = entry.team,
+			source = source,
+			isBot = entry.player == nil,
+			botLevel = entry.botLevel or "normal",
+			name = if entry.player then entry.player.DisplayName else nil,
+		})
+	end
+
+	self.match = Match.new({
+		mode = o.mode or "StockFFA",
+		stage = stage,
+		fighters = fighters,
+		stocks = o.stocks or 3,
+		timeLimit = o.timeLimit or 180,
+		items = o.items or false,
+		input = self.input,
+		-- The seed is what makes this match reproducible from its inputs. It is generated once,
+		-- here, and sent to every client so a replay can be rebuilt later.
+		seed = o.seed or math.random(1, 2 ^ 31 - 1),
+	})
+
+	Net.remote("Match"):FireAllClients({
+		stage = stageId,
+		seed = self.match.seed,
+		mode = self.match.mode,
+		fighters = self:roster(),
+	})
+
+	self.accum = 0
+	self.conn = RunService.PostSimulation:Connect(function(dt: number)
+		self:tick(dt)
+	end)
+	return self.match
+end
+
+function MatchService.roster(self: any): { any }
+	local out = {}
+	for _, f in self.match.fighters do
+		table.insert(out, {
+			index = f.index, name = f.name, team = f.team,
+			avatar = f.char.avatar.id, weapon = f.char.weapon.id,
+			isBot = f.isBot, source = f.source,
+			userId = self.userIds[f.source],
+			height = f.h, radius = f.r,
+		})
+	end
+	return out
+end
+
+function MatchService.stop(self: any)
+	if self.conn then
+		self.conn:Disconnect()
+		self.conn = nil
+	end
+	self.match = nil
+	self.sources = {}
+	self.userIds = {}
+	self.input = RemoteInput.new()
+end
+
+-- ---------------------------------------------------------------- loop ----
+function MatchService.tick(self: any, dt: number)
+	local m = self.match
+	if not m then
+		return
+	end
+	self.accum += dt
+	local steps = 0
+	while self.accum >= FRAME and steps < MAX_CATCHUP do
+		self.accum -= FRAME
+		steps += 1
+		Match.step(m)
+	end
+	if self.accum >= FRAME then
+		-- Debt we are choosing not to pay. Drop it rather than spiral.
+		self.accum = 0
+	end
+	if steps > 0 then
+		self:broadcast()
+	end
+end
+
+-- ---------------------------------------------------------------- broadcast ----
+-- Snapshots are unreliable on purpose: a snapshot that arrives late is worse than one that never
+-- arrives, because the next one supersedes it entirely. Events are reliable, because a missed KO
+-- or a missed hitspark is a missed KO or hitspark.
+function MatchService.broadcast(self: any)
+	local m = self.match
+	local fighters = table.create(#m.fighters)
+	for i, f in m.fighters do
+		-- Named fields, not a positional array. `moveId` and the held item are nil most of the
+		-- time, and a nil in the middle of an array is a hole that Roblox's table serialiser is
+		-- entitled to truncate at - which would silently drop every field after it.
+		fighters[i] = {
+			i = f.index, x = f.x, y = f.y, vx = f.vx, vy = f.vy, fc = f.facing,
+			st = f.state, sf = f.sf, mf = f.mf, mv = f.moveId,
+			pc = f.percent, sk = f.stocks, sh = f.shield, ult = f.ultCharge,
+			al = f.alive, gr = f.onGround, tb = f.tumbling, inv = f.invincible,
+			it = if f.item then f.item.id else nil,
+		}
+	end
+	Net.remote("Snapshot"):FireAllClients({
+		frame = m.frame, state = m.state, time = m.time,
+		countdown = m.countdown, fighters = fighters,
+	})
+	if #m.events > 0 then
+		Net.remote("Events"):FireAllClients(m.events)
+		m.events = {}
+	end
+end
+
+-- ---------------------------------------------------------------- input ----
+function MatchService.bindRemotes(self: any)
+	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any)
+		local source = self.sources[player.UserId]
+		if not source or type(packed) ~= "table" then
+			return
+		end
+		-- Length is bounded here as well as in RemoteInput: an unbounded table from a client is a
+		-- way to make the server walk a million entries before the queue cap ever runs.
+		if #packed > 16 then
+			return
+		end
+		self.input:push(source, packed)
+	end)
+	Players.PlayerRemoving:Connect(function(player: Player)
+		self.sources[player.UserId] = nil
+	end)
+end
+
+return MatchService

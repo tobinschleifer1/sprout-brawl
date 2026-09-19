@@ -24,8 +24,17 @@ Nothing here is required to play the web build.
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
 | `src/shared/Match.luau` | ported — countdown, KOs, respawns, stocks, timer, sudden death, results |
 | `src/shared/Ai.luau` | ported — the whole difficulty ladder, chains, item use and edgeguarding |
-| **The simulation** | **complete.** Everything left is Roblox-side: rigs, camera, netcode, UI, persistence |
-| Netcode, rigs, UI, audio, persistence | not started |
+| **The simulation** | **complete.** Everything left is Roblox-side |
+| `src/shared/InputCodec.luau` | the input frame packed into one integer, round-trip tested exhaustively |
+| `src/shared/Net.luau` | remotes and the wire format |
+| `src/server/*` | **runs the match**: fixed 60Hz loop, remote input with a jitter buffer, snapshots |
+| `src/client/*` | 60Hz input sampling, snapshot interpolation, the locked-plane camera, R15 rigs |
+| Prediction, HUD, audio, persistence, matchmaking | not started |
+
+**The Roblox-side code has never been run.** Everything above the line is verified against the
+JavaScript by replay; everything from `Net.luau` down type-checks, builds a place file, and has had
+its one testable pure part (the codec) mutation-tested, but no part of it has executed inside
+Studio. Treat the first playtest as the real test.
 
 ```bash
 ./check.sh          # type-check the Luau tree, then verify parity with the JavaScript
@@ -251,4 +260,26 @@ The web build was written so that the port is mostly translation:
 - Data persistence, the store, the battle pass, matchmaking and anti-exploit are Roblox-only and are specified in
   design sections 5.7, 5.8, 6 and 9.
 
-`src/` here is an empty Rojo-style skeleton (`shared`, `server`, `client`) ready for that work.
+### The Roblox half: what is built and what it assumes
+
+- **Server authority, no prediction.** `MatchService` is the only place the simulation advances, at
+  a fixed 60Hz accumulator - never on delta time, because the simulation is only defined at 1/60 and
+  every parity guarantee in `tests/` depends on it. The client simulates nothing. That costs a round
+  trip of input latency on your own fighter and it is the deliberate first step:
+  `Fighter:snapshot()`/`restore()` exist for the prediction that replaces it, and doing both at once
+  would mean every bug had two possible homes before either half was known good.
+- **Input is sampled at 60Hz on the client**, not per render frame. The server consumes exactly one
+  frame per tick; a 144Hz client sampling per render would send 144 frames a second into a queue
+  that drains at 60 and spend the match falling behind its own inputs.
+- **A starved tick repeats the holds and none of the presses** (`InputCodec.holdOnly`). Repeating a
+  whole frame through packet loss would re-fire jump; clearing `guardHeld` would drop a shield.
+  `guard` is cleared too, despite being how you shield - it is also the tech buffer, and repeating it
+  would hand a player an automatic tech for the length of their packet loss.
+- **Stage parts are `CanCollide = false` and anchored.** Collision is resolved by `Stage.collide`
+  against the numbers, exactly as in the web build. If a part and the simulation disagreed the
+  simulation would be right and the player would be confused, so nothing physical touches a fighter.
+- **Rigs are normalized.** The hurtbox is `char.height` tall for everyone on a weapon, so every R15
+  rig is forced to identical proportions and scaled to exactly that height. A player keeps their
+  colours, clothing and face; they do not get to look like a bigger or smaller target than they are.
+- **Limb animation is not built.** `render2d/weapons2d.js` is the spec for it and reproducing it as
+  Motor6D poses is its own phase. Bodies currently place, face, spin while tumbling, and nothing else.

@@ -23,7 +23,8 @@ Nothing here is required to play the web build.
 | `src/shared/Combat.luau` | **done** — hit resolution, grabs, throws, bursts, projectiles, mine summons, all twelve ultimates, the whole item system |
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
 | `src/shared/Match.luau` | ported — countdown, KOs, respawns, stocks, timer, sudden death, results |
-| `ai.js` (bots) | not started — a fighter marked `isBot` throws in Match |
+| `src/shared/Ai.luau` | ported — the whole difficulty ladder, chains, item use and edgeguarding |
+| **The simulation** | **complete.** Everything left is Roblox-side: rigs, camera, netcode, UI, persistence |
 | Netcode, rigs, UI, audio, persistence | not started |
 
 ```bash
@@ -160,6 +161,7 @@ load-bearing today:
 | `it.spent` in `stepItems` | read there, set nowhere |
 | `move.total` | written for every move, read nowhere in the simulation, renderer or UI |
 | the respawn timer's rounding | `RESPAWN.delay` is 2.0, so 2.0 x 60 is exact |
+| the bots' `setup` plan | read by a branch, assigned by nothing |
 
 `field` is now deleted from the web build. The rest are left in place: the five above are guards
 that would start working the moment the data changes, and the unused summon types and mechanics are

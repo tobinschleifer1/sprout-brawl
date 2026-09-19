@@ -1649,6 +1649,14 @@ function methods.snapshot(self): any
 		slow = e.slow, frozenBonus = e.frozenBonus, lodestone = e.lodestone,
 		lodestoneDef = e.lodestoneDef, bleed = e.bleed,
 	}
+	-- The bot's own scratch state. Fighter-owned, written by Ai, and a rollback that dropped it
+	-- would hand the bot a fresh plan and a cleared chain mid-decision.
+	if self.ai then
+		s.ai = table.clone(self.ai)
+		if self.ai.chain then
+			s.ai.chain = table.clone(self.ai.chain)
+		end
+	end
 	s.mech = table.clone(self.mech)
 	-- mech.hits is a list of frame numbers and is the one nested table in there
 	if self.mech.hits then
@@ -1682,6 +1690,14 @@ function methods.restore(self, s: any)
 		slow = e.slow, frozenBonus = e.frozenBonus, lodestone = e.lodestone,
 		lodestoneDef = e.lodestoneDef, bleed = e.bleed,
 	}
+	if s.ai then
+		self.ai = table.clone(s.ai)
+		if s.ai.chain then
+			self.ai.chain = table.clone(s.ai.chain)
+		end
+	else
+		self.ai = nil
+	end
 	self.mech = table.clone(s.mech)
 	if s.mech.hits then
 		self.mech.hits = table.clone(s.mech.hits)

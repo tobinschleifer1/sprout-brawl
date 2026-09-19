@@ -2,10 +2,6 @@
 -- One match: countdown, fight, KOs, respawns, items, the timer, sudden death, results.
 -- Ported 1:1 from web/src/engine/match.js.
 --
--- BOTS ARE NOT PORTED YET. ai.js is the last file and lands after this one, so a fighter marked
--- `isBot` throws here rather than silently receiving an empty input frame and standing still - a
--- bot that does nothing looks enough like a bot that is losing to go unnoticed for a long time.
---
 -- `cfg.input` is any object with `poll()` and `get(source)`. On the web that is the keyboard and
 -- gamepad reader; on Roblox it will be whatever the server assembles from client remotes. The
 -- simulation never learns the difference.
@@ -15,6 +11,7 @@ local Stage = require(script.Parent.Stage)
 local Fighter = require(script.Parent.Fighter)
 local Combat = require(script.Parent.Combat)
 local Input = require(script.Parent.Input)
+local Ai = require(script.Parent.Ai)
 
 local FRAME = Config.FRAME
 local RESPAWN = Config.RESPAWN
@@ -131,12 +128,7 @@ function Match.step(self)
 	for _, f in self.fighters do
 		local frame = Input.emptyFrame()
 		if inputsOn then
-			if f.isBot then
-				error("Match: bot input is not ported yet (ai.js is the next phase). A bot here "
-					.. "would receive an empty frame and stand still, which looks too much like a "
-					.. "bot that is simply losing.")
-			end
-			frame = self.input:get(f.source)
+			frame = if f.isBot then Ai.computeBotInput(f, self) else self.input:get(f.source)
 		end
 		f:applyInput(frame)
 	end

@@ -27,11 +27,13 @@ Nothing here is required to play the web build.
 | **The simulation** | **complete.** Everything left is Roblox-side |
 | `src/shared/InputCodec.luau` | the input frame packed into one integer, round-trip tested exhaustively |
 | `src/shared/Net.luau` | remotes and the wire format |
+| `src/shared/Snapshot.luau` | the fighter snapshot, encoded and decoded in one place |
 | `src/server/*` | **runs the match**: fixed 60Hz loop, remote input with a jitter buffer, snapshots |
 | `src/client/*` | 60Hz input sampling, snapshot interpolation, the locked-plane camera, R15 rigs |
 | Prediction, HUD, audio, persistence, matchmaking | not started |
 
-**The Roblox-side code has never been run.** Everything above the line is verified against the
+**The Roblox-side code has had one playtest.** It reached Studio, synced, and ran; the first bug it
+found is below. Everything above the line is verified against the
 JavaScript by replay; everything from `Net.luau` down type-checks, builds a place file, and has had
 its one testable pure part (the codec) mutation-tested, but no part of it has executed inside
 Studio. Treat the first playtest as the real test.
@@ -281,5 +283,12 @@ The web build was written so that the port is mostly translation:
 - **Rigs are normalized.** The hurtbox is `char.height` tall for everyone on a weapon, so every R15
   rig is forced to identical proportions and scaled to exactly that height. A player keeps their
   colours, clothing and face; they do not get to look like a bigger or smaller target than they are.
+- **The wire's field names exist in exactly one file.** `Snapshot.encode`/`decode` are paired in
+  `src/shared/Snapshot.luau` and nothing downstream of `decode` knows the short names. This is not
+  tidiness: the first Studio playtest found `Rigs.pose` reading `s.facing` from a table whose field
+  is `fc`, because the format changed and the camera's call site was updated while the rigs' was
+  not. Nil is not an error in Luau until something compares it, so the rigs drew with no facing, no
+  tumble, no KO hiding and no invincibility, and the only symptom was one console line. Adding a
+  field is now one edit, and `tests/snapshot.luau` fails if a consumer's name and the wire's drift.
 - **Limb animation is not built.** `render2d/weapons2d.js` is the spec for it and reproducing it as
   Motor6D poses is its own phase. Bodies currently place, face, spin while tumbling, and nothing else.

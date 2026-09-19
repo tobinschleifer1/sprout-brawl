@@ -24,6 +24,8 @@ rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
 luau-lsp analyze --sourcemap=sourcemap.json --definitions=globalTypes.d.luau src/
 
+echo "== snapshot: the fighter state, encoded and decoded =="
+lune run tests/snapshot
 echo "== codec: the input frame, packed and unpacked =="
 lune run tests/codec
 echo "== parity: the seeded generator vs web/src/engine/rng.js =="

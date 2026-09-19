@@ -34,6 +34,7 @@ roblox/tests/trace-*.json
 roblox/sourcemap.json
 roblox/globalTypes.d.luau
 roblox/*.rbxl
+roblox/*.rbxl.lock
 roblox/*.rbxlx
 
 # Scratch space for throwaway measurement scripts (agents and humans both use it).

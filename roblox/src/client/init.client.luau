@@ -18,6 +18,7 @@ local Lighting = game:GetService("Lighting")
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local Snapshot = require(Shared.Snapshot)
 local InputClient = require(script.InputClient)
 local Camera2D = require(script.Camera2D)
 local Rigs = require(script.Rigs)
@@ -83,7 +84,8 @@ local function lerp(a: number, b: number, t: number): number
 	return a + (b - a) * t
 end
 
--- Returns the fighter states to draw, interpolated between the two snapshots bracketing `at`.
+-- Returns the fighter states to draw, interpolated between the two snapshots bracketing `at`,
+-- and decoded: past this point nothing in the client knows the wire's field names.
 local function interpolate(at: number): { any }?
 	if #buffer == 0 then
 		return nil
@@ -104,17 +106,16 @@ local function interpolate(at: number): { any }?
 	local t = if b then math.clamp((at - a.t) / span, 0, 1) else 0
 
 	local out = {}
-	for i, fa in a.fighters do
-		local fb = if b then b.fighters[i] else nil
-		local s = table.clone(fa)
-		if fb then
-			s.x = lerp(fa.x, fb.x, t)
-			s.y = lerp(fa.y, fb.y, t)
-			-- Everything else is discrete. Interpolating a state name or a percent produces a
-			-- value the simulation never held, so the newer sample simply wins at the halfway mark.
-			if t >= 0.5 then
-				s.st, s.fc, s.mv, s.pc = fb.st, fb.fc, fb.mv, fb.pc
-				s.al, s.tb, s.inv, s.sh = fb.al, fb.tb, fb.inv, fb.sh
+	for i, wa in a.fighters do
+		local wb = if b then b.fighters[i] else nil
+		-- The newer sample wins outright at the halfway mark, and only then are the continuous
+		-- fields blended back in. Decoding the nearer snapshot whole, rather than copying field
+		-- by field, is what stops a field added later from being silently left behind.
+		local s = Snapshot.decode(if wb and t >= 0.5 then wb else wa)
+		if wb then
+			local da, db = Snapshot.decode(wa), Snapshot.decode(wb)
+			for _, key in Snapshot.CONTINUOUS do
+				s[key] = lerp(da[key], db[key], t)
 			end
 		end
 		out[i] = s
@@ -140,10 +141,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 	local bodies = {}
 	for _, s in states do
-		local entry = roster[s.i + 1]
+		local entry = roster[s.index + 1]
 		if entry then
-			rigs:pose(s.i, s)
-			table.insert(bodies, { x = s.x, y = s.y, h = entry.height, alive = s.al })
+			rigs:pose(s.index, s)
+			table.insert(bodies, { x = s.x, y = s.y, h = entry.height, alive = s.alive })
 		end
 	end
 	if #bodies > 0 then

@@ -19,6 +19,7 @@ local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local Snapshot = require(Shared.Snapshot)
 local RemoteInput = require(script.Parent.RemoteInput)
 
 local FRAME = Config.FRAME
@@ -163,16 +164,7 @@ function MatchService.broadcast(self: any)
 	local m = self.match
 	local fighters = table.create(#m.fighters)
 	for i, f in m.fighters do
-		-- Named fields, not a positional array. `moveId` and the held item are nil most of the
-		-- time, and a nil in the middle of an array is a hole that Roblox's table serialiser is
-		-- entitled to truncate at - which would silently drop every field after it.
-		fighters[i] = {
-			i = f.index, x = f.x, y = f.y, vx = f.vx, vy = f.vy, fc = f.facing,
-			st = f.state, sf = f.sf, mf = f.mf, mv = f.moveId,
-			pc = f.percent, sk = f.stocks, sh = f.shield, ult = f.ultCharge,
-			al = f.alive, gr = f.onGround, tb = f.tumbling, inv = f.invincible,
-			it = if f.item then f.item.id else nil,
-		}
+		fighters[i] = Snapshot.encode(f)
 	end
 	Net.remote("Snapshot"):FireAllClients({
 		frame = m.frame, state = m.state, time = m.time,

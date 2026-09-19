@@ -41,10 +41,17 @@ local rigs = Rigs.new(rigsFolder)
 local roster: { any } = {}
 local buffer: { any } = {}        -- snapshots, oldest first, each tagged with arrival time
 local pendingFrames: { number } = {}
+-- Posing errors are reported once per fighter. Reported every frame, a single broken rig produces
+-- sixty lines a second and buries whatever else the console had to say.
+local posedWarned: { [number]: boolean } = {}
+local startedAt = os.clock()
+local warnedSilent = false
+local sawFirst = false
 
 -- ---------------------------------------------------------------- match setup ----
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	rigs:clear()
+	posedWarned = {}
 	buffer = {}
 	roster = cfg.fighters
 	for _, entry in roster do
@@ -137,19 +144,48 @@ RunService.RenderStepped:Connect(function(dt: number)
 
 	local states = interpolate(os.clock() - INTERP_DELAY)
 	if not states then
+		-- A black screen has several causes that look identical, so say which one this is. Without
+		-- this the first question after every failed playtest is "is the server even running?".
+		if not warnedSilent and os.clock() - startedAt > 5 then
+			warnedSilent = true
+			warn(`[Blockfall] no snapshots after 5s. roster={#roster}. `
+				.. `If roster is 0 the server never started a match; if it is not 0 the match `
+				.. `started and the Snapshot remote is not arriving.`)
+		end
 		return
 	end
+	if not sawFirst then
+		sawFirst = true
+		print(`[Blockfall] first snapshot: {#states} fighters, drawing`)
+	end
+
+	-- Camera FIRST, and rigs after, and this order is load-bearing. It used to be the other way
+	-- round, and when Rigs.pose threw on one fighter the whole RenderStepped callback unwound -
+	-- so the camera never moved and the screen was black. A renderer bug should cost you the thing
+	-- that is broken, not the view of the world.
 	local bodies = {}
 	for _, s in states do
 		local entry = roster[s.index + 1]
 		if entry then
-			rigs:pose(s.index, s)
 			table.insert(bodies, { x = s.x, y = s.y, h = entry.height, alive = s.alive })
 		end
 	end
 	if #bodies > 0 then
 		cam2d:update(bodies, dt)
 	end
+
+	-- Each rig is posed in isolation for the same reason. A rig that fails is one missing body,
+	-- reported once; it is not the other three fighters disappearing too.
+	for _, s in states do
+		if roster[s.index + 1] then
+			local ok, err = pcall(rigs.pose, rigs, s.index, s)
+			if not ok and not posedWarned[s.index] then
+				posedWarned[s.index] = true
+				warn(`[Blockfall] rig {s.index} failed to pose, and will not be reported again: {err}`)
+			end
+		end
+	end
+
 	if cam2d.shake > 0 then
 		cam2d.shake = math.max(0, cam2d.shake - dt * 4)
 	end

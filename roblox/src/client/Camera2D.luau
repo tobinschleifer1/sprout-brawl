@@ -77,6 +77,12 @@ function Camera2D.update(self: any, bodies: { any }, dt: number, instant: boolea
 end
 
 function Camera2D.apply(self: any)
+	-- Re-asserted every frame, not just at construction. Roblox's own camera script is still
+	-- running and will put CameraType back to Custom whenever it feels it has a claim - and then
+	-- every CFrame written here is overwritten before it is drawn.
+	if self.camera.CameraType ~= Enum.CameraType.Scriptable then
+		self.camera.CameraType = Enum.CameraType.Scriptable
+	end
 	local visibleHeight = BH / self.ppu
 	local dist = (visibleHeight / 2) / math.tan(math.rad(FOV) / 2)
 	local sx, sy = 0, 0

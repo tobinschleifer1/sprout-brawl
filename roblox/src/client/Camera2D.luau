@@ -1,11 +1,10 @@
 --!strict
 -- The locked-plane camera, ported from web/src/render2d/renderer2d.js `_camera`.
 --
--- The web build's camera works in pixels-per-unit against a fixed 270-pixel backbuffer. Roblox has
--- no orthographic camera, so the same framing is reproduced with a perspective camera pushed far
--- enough back that the world height it sees matches: at distance d and vertical field of view fov,
--- the visible height is 2 * d * tan(fov/2). Solve for d and the framing is identical; the only
--- difference is a little perspective on the stage's 8 studs of depth, which reads as thickness.
+-- The camera is pixels-per-unit against a fixed 270-pixel backbuffer, which is what it is in the
+-- JavaScript too. It briefly had to fake that with a perspective camera pushed far enough back that
+-- the world height matched; drawing to a canvas instead means ppu means exactly what it says again,
+-- and this file is now a straight port with no conversion in it at all.
 --
 -- Everything the original does about framing carries over unchanged, including the two fixes that
 -- are not obvious: the zoom floor is 2.0 (at 2.4 a chase to opposite blast zones no longer fits
@@ -14,26 +13,23 @@
 -- the HUD when somebody is launched high.
 
 local BH = 270                -- the web backbuffer height, in "pixels". The unit ppu is measured in.
-local FOV = 55                -- degrees, vertical
 local ZOOM_MIN, ZOOM_MAX = 2.0, 7.2
 local PAD = 20
 
 local Camera2D = {}
 Camera2D.__index = Camera2D
 
-function Camera2D.new(camera: Camera): any
+function Camera2D.new(): any
 	local self = setmetatable({}, Camera2D)
-	self.camera = camera
 	self.x, self.y, self.ppu = 0, 10, 4
-	self.safeBottom = 0        -- studs of screen the HUD covers, set by the HUD
+	self.safeBottom = 0        -- backbuffer pixels the HUD covers, set by the HUD
 	self.shake = 0
-	camera.CameraType = Enum.CameraType.Scriptable
-	camera.FieldOfView = FOV
+	self.shakeX, self.shakeY = 0, 0
 	return self
 end
 
--- `bodies` is a list of { x, y, h, alive }.
-function Camera2D.update(self: any, bodies: { any }, dt: number, instant: boolean?)
+-- `bodies` is a list of { x, y, h, alive }. `viewport` is the canvas size in pixels.
+function Camera2D.update(self: any, bodies: { any }, dt: number, viewport: Vector2, instant: boolean?)
 	local src = {}
 	for _, b in bodies do
 		if b.alive then
@@ -56,8 +52,7 @@ function Camera2D.update(self: any, bodies: { any }, dt: number, instant: boolea
 	-- The web backbuffer is 480x270 and its width varies with the window; here the width that
 	-- matters is the viewport's own, expressed in the same 270-tall units. Hard-coding 480 would
 	-- frame an ultrawide monitor as if it were 16:9 and zoom out for room it already had.
-	local vp = self.camera.ViewportSize
-	local BW = BH * (if vp.Y > 0 then vp.X / vp.Y else 16 / 9)
+	local BW = BH * (if viewport.Y > 0 then viewport.X / viewport.Y else 16 / 9)
 
 	local w = math.max(42, x1 - x0 + PAD * 2)
 	local band = math.clamp(self.safeBottom, 0, BH * 0.45)
@@ -73,31 +68,22 @@ function Camera2D.update(self: any, bodies: { any }, dt: number, instant: boolea
 	self.x += (tx - self.x) * k
 	self.y += (ty - self.y) * k
 	self.ppu += (ppu - self.ppu) * k
-	self:apply()
+	Camera2D.apply(self)
 end
 
+-- Shake is resolved here rather than inside the transform so that every draw in a frame shares one
+-- offset. Resolving it per primitive would shake the fighters apart from the stage.
 function Camera2D.apply(self: any)
-	-- Re-asserted every frame, not just at construction. Roblox's own camera script is still
-	-- running and will put CameraType back to Custom whenever it feels it has a claim - and then
-	-- every CFrame written here is overwritten before it is drawn.
-	if self.camera.CameraType ~= Enum.CameraType.Scriptable then
-		self.camera.CameraType = Enum.CameraType.Scriptable
-	end
-	local visibleHeight = BH / self.ppu
-	local dist = (visibleHeight / 2) / math.tan(math.rad(FOV) / 2)
-	local sx, sy = 0, 0
 	if self.shake > 0 then
-		sx = (math.random() - 0.5) * self.shake * 2
-		sy = (math.random() - 0.5) * self.shake * 2
+		self.shakeX = (math.random() - 0.5) * self.shake * 2
+		self.shakeY = (math.random() - 0.5) * self.shake * 2
+	else
+		self.shakeX, self.shakeY = 0, 0
 	end
-	-- +Z looking back toward the origin: with that orientation Roblox's +X is screen-right and +Y
-	-- is screen-up, which is the web build's coordinate system with no sign flips anywhere.
-	local pos = Vector3.new(self.x + sx, self.y + sy, dist)
-	self.camera.CFrame = CFrame.lookAt(pos, Vector3.new(self.x + sx, self.y + sy, 0))
 end
 
-function Camera2D.snapTo(self: any, bodies: { any })
-	Camera2D.update(self, bodies, 1, true)
+function Camera2D.snapTo(self: any, bodies: { any }, viewport: Vector2)
+	Camera2D.update(self, bodies, 1, viewport, true)
 end
 
 return Camera2D

@@ -2,6 +2,8 @@
 -- Client entry point.
 --
 -- The client simulates nothing. It samples input, ships it, and draws the snapshots that come back.
+-- Drawing is a 2D canvas of pooled Frames, not 3D: see Canvas2D. Workspace is empty and the
+-- Roblox camera is never touched.
 -- That is a deliberate first step and not the end state: Fighter:snapshot()/restore() were built in
 -- Phase 2 precisely so the client can later predict its own fighter and roll back on correction.
 -- Doing that now would mean every bug had two possible homes before either half was known good.
@@ -12,16 +14,20 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
 
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
+local Loadout = require(Shared.Loadout)
+local Stages = require(Shared.Data.Stages)
+local Stage = require(Shared.Stage)
 local InputClient = require(script.InputClient)
 local Camera2D = require(script.Camera2D)
-local Rigs = require(script.Rigs)
+local Canvas2D = require(script.Canvas2D)
+local Stage2D = require(script.Stage2D)
+local Fighter2D = require(script.Fighter2D)
 
 local FRAME = Config.FRAME
 -- Two frames of buffer. Snapshots arrive at 60Hz but not evenly, and drawing the newest one the
@@ -29,16 +35,17 @@ local FRAME = Config.FRAME
 -- past costs 33ms of latency on other people's fighters and removes it.
 local INTERP_DELAY = FRAME * 2
 
-local camera = Workspace.CurrentCamera
-
 local input = InputClient.new()
-local cam2d = Camera2D.new(camera)
-local rigsFolder = Instance.new("Folder")
-rigsFolder.Name = "Fighters"
-rigsFolder.Parent = Workspace
-local rigs = Rigs.new(rigsFolder)
+local cam2d = Camera2D.new()
+local canvas = Canvas2D.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 
 local roster: { any } = {}
+-- The client builds each fighter's character from the same Loadout the server used. The roster
+-- carries the two ids that decide it, so the palette and proportions are derived rather than sent -
+-- they never change during a match, and sending them every frame would be sixty copies a second of
+-- a constant.
+local chars: { any } = {}
+local stageView: any = nil
 local buffer: { any } = {}        -- snapshots, oldest first, each tagged with arrival time
 local pendingFrames: { number } = {}
 -- Posing errors are reported once per fighter. Reported every frame, a single broken rig produces
@@ -50,12 +57,21 @@ local sawFirst = false
 
 -- ---------------------------------------------------------------- match setup ----
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
-	rigs:clear()
+	canvas:clear()
 	posedWarned = {}
 	buffer = {}
 	roster = cfg.fighters
-	for _, entry in roster do
-		rigs:spawn(entry)
+	chars = {}
+	for i, entry in roster do
+		chars[i] = Loadout.build(entry.avatar, entry.weapon)
+	end
+	for _, data in Stages.LIST do
+		if data.id == cfg.stage then
+			-- A view-only Stage, built from the same data and seed as the server's, and never
+			-- stepped. It exists to be READ for its geometry - platform extents, ledges - and it
+			-- decides nothing.
+			stageView = Stage.new(data, cfg.seed)
+		end
 	end
 	print(`[Blockfall] match: {cfg.stage} seed={cfg.seed} fighters={#roster}`)
 end)
@@ -159,32 +175,46 @@ RunService.RenderStepped:Connect(function(dt: number)
 		print(`[Blockfall] first snapshot: {#states} fighters, drawing`)
 	end
 
-	-- Camera FIRST, and rigs after, and this order is load-bearing. It used to be the other way
-	-- round, and when Rigs.pose threw on one fighter the whole RenderStepped callback unwound -
-	-- so the camera never moved and the screen was black. A renderer bug should cost you the thing
-	-- that is broken, not the view of the world.
+	-- Camera first, then the draw. It used to be the other way round, and when a renderer error
+	-- threw, the whole RenderStepped callback unwound - so the camera never moved and the screen
+	-- was black. A renderer bug should cost you the thing that is broken, not the view of the world.
 	local bodies = {}
-	for _, s in states do
-		local entry = roster[s.index + 1]
+	for _, st in states do
+		local entry = roster[st.index + 1]
 		if entry then
-			table.insert(bodies, { x = s.x, y = s.y, h = entry.height, alive = s.alive })
+			table.insert(bodies, { x = st.x, y = st.y, h = entry.height, alive = st.alive })
 		end
 	end
 	if #bodies > 0 then
-		cam2d:update(bodies, dt)
+		cam2d:update(bodies, dt, canvas:viewport())
 	end
 
-	-- Each rig is posed in isolation for the same reason. A rig that fails is one missing body,
-	-- reported once; it is not the other three fighters disappearing too.
-	for _, s in states do
-		if roster[s.index + 1] then
-			local ok, err = pcall(rigs.pose, rigs, s.index, s)
-			if not ok and not posedWarned[s.index] then
-				posedWarned[s.index] = true
-				warn(`[Blockfall] rig {s.index} failed to pose, and will not be reported again: {err}`)
+	-- The client does NOT step stageView, and must not. Stage.step is simulation: it advances
+	-- moving platforms off its own clock and draws hazard RNG from the seeded generator. Running it
+	-- here would run it once per RENDER frame rather than once per sim frame, so within seconds the
+	-- platforms would be somewhere the server does not agree with and the shared seed would be
+	-- consumed a different number of times. Static geometry is correct on the two stages in play;
+	-- moving platforms need the server to send their offsets in the snapshot, which is the next
+	-- thing to add to Snapshot.FIELDS.
+	Stage2D.sky(canvas, stageView or { data = {} })
+	canvas:world(cam2d.x, cam2d.y, cam2d.ppu, cam2d.shakeX, cam2d.shakeY)
+	if stageView then
+		Stage2D.draw(canvas, stageView)
+	end
+	for _, st in states do
+		local char = chars[st.index + 1]
+		if char then
+			local ok, err = pcall(function()
+				local surface = if stageView then Stage.surfaceUnder(stageView, st.x, st.y + 0.1) else nil
+				Fighter2D.draw(canvas, st, char, if surface then surface.top else nil)
+			end)
+			if not ok and not posedWarned[st.index] then
+				posedWarned[st.index] = true
+				warn(`[Blockfall] fighter {st.index} failed to draw, and will not be reported again: {err}`)
 			end
 		end
 	end
+	canvas:finish()
 
 	if cam2d.shake > 0 then
 		cam2d.shake = math.max(0, cam2d.shake - dt * 4)
@@ -192,8 +222,5 @@ RunService.RenderStepped:Connect(function(dt: number)
 end)
 
 -- ---------------------------------------------------------------- go ----
-Lighting.Ambient = Color3.fromRGB(120, 124, 132)
-Lighting.ClockTime = 14
-
 Net.remote("Hello"):FireServer()
 print("[Blockfall] client ready")

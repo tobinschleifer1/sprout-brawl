@@ -16,6 +16,17 @@ local Input = require(ReplicatedStorage.Shared.Input)
 -- enough that a client cannot bank a second of inputs and replay them in a burst.
 local MAX_QUEUED = 6
 
+-- How deep the buffer is allowed to SIT. This is the number that decides felt input latency, and
+-- MAX_QUEUED was never it: the client sends one frame per tick and the server drains one per tick,
+-- so in-rate equals out-rate and a queue that ever gets deep STAYS deep. Every input after it
+-- waits exactly that long, forever, and MAX_QUEUED only capped the damage at six frames - 100ms of
+-- standing latency, with the oldest frames dropped outright once it filled.
+--
+-- Two frames is 33ms: enough to absorb ordinary jitter, shallow enough to feel direct. Anything
+-- above it is drained in the same tick by coalescing, so the backlog costs a frame of precision
+-- rather than a permanent handicap.
+local TARGET_QUEUED = 2
+
 local RemoteInput = {}
 RemoteInput.__index = RemoteInput
 
@@ -64,9 +75,18 @@ function RemoteInput.get(self: any, source: string): Input.Frame
 		s.starved += 1
 		return Net.holdOnly(s.last)
 	end
+	local frame = Net.unpackFrame(n)
+	-- Drain anything above the target in this same tick rather than letting it sit. Coalescing
+	-- keeps every press and takes the newest axes, so catching up costs precision on one frame
+	-- instead of adding permanent latency to every frame after it.
+	while #s.queue > TARGET_QUEUED do
+		-- The loop condition guarantees a value; the checker cannot see that through table.remove.
+		local nxt = table.remove(s.queue, 1) :: number
+		frame = Net.coalesce(frame, Net.unpackFrame(nxt))
+	end
 	s.starved = 0
-	s.last = Net.unpackFrame(n)
-	return s.last
+	s.last = frame
+	return frame
 end
 
 return RemoteInput

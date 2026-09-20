@@ -63,6 +63,32 @@ function InputCodec.unpackFrame(n: number): Input.Frame
 	return f
 end
 
+-- Merge an older frame into a newer one, for draining a jitter buffer that has backed up.
+--
+-- Presses are EDGE triggered and must survive: dropping the older frame loses a jump outright,
+-- which is how the old MAX_QUEUED overflow behaved and is the worst possible way to lose an input.
+-- Holds and the two axes are LEVELS, so the newer sample is simply the truth and the older one is
+-- stale. The result is one frame that did everything both frames did, at the newer position.
+--
+-- This can put two presses on one frame that the player made on two - a light and a heavy become a
+-- frame with both. That only happens while the buffer is draining, and a move coming out a frame
+-- early beats a move not coming out at all.
+local PRESSES = { "jump", "light", "heavy", "dodge", "guard", "grab", "taunt", "pickup", "ult",
+	"downTap", "anyPress" }
+local HOLDS = { "jumpHeld", "guardHeld", "heavyHeld", "lightHeld" }
+
+function InputCodec.coalesce(older: Input.Frame, newer: Input.Frame): Input.Frame
+	local out = Input.emptyFrame()
+	out.x, out.y = newer.x, newer.y
+	for _, key in HOLDS do
+		(out :: any)[key] = (newer :: any)[key]
+	end
+	for _, key in PRESSES do
+		(out :: any)[key] = (older :: any)[key] or (newer :: any)[key]
+	end
+	return out
+end
+
 -- Every press bit cleared, every held bit kept. This is what the server feeds a fighter when the
 -- client's next frame has not arrived: holding a direction through a hiccup is right, and firing a
 -- second jump out of a repeated packet is not.

@@ -53,6 +53,10 @@ local pendingFrames: { number } = {}
 local posedWarned: { [number]: boolean } = {}
 local startedAt = os.clock()
 local warnedSilent = false
+-- Which fighter is ours. Everyone else is drawn two frames in the past to smooth out jitter;
+-- ours is drawn from the newest snapshot there is, because that delay is pure input latency on
+-- the only fighter whose latency the player can feel.
+local localIndex: number? = nil
 local sawFirst = false
 
 -- ---------------------------------------------------------------- match setup ----
@@ -62,8 +66,12 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	buffer = {}
 	roster = cfg.fighters
 	chars = {}
+	localIndex = nil
 	for i, entry in roster do
 		chars[i] = Loadout.build(entry.avatar, entry.weapon)
+		if entry.userId and entry.userId == Players.LocalPlayer.UserId then
+			localIndex = entry.index
+		end
 	end
 	for _, data in Stages.LIST do
 		if data.id == cfg.stage then
@@ -157,9 +165,13 @@ local function interpolate(at: number): { any }?
 end
 
 -- ---------------------------------------------------------------- loop ----
-RunService.RenderStepped:Connect(function(dt: number)
-	-- Sample and ship. Frames are batched into whatever the render step covered, so a 144Hz client
-	-- usually sends nothing and sometimes sends one, and a 30Hz client sends two.
+-- Input is sampled on HEARTBEAT, not on the render step. The accumulator in InputClient already
+-- stopped a 144Hz client flooding the queue, but it did nothing about the other end: driven by
+-- RenderStepped, a client rendering at 15Hz called this once every 66ms and emitted four frames
+-- that all sampled the same instant of keyboard state - so the input was both stale and
+-- duplicated. Heartbeat runs at 60Hz whether or not the frame was drawn, which is the rate the
+-- simulation consumes, and it is measurably what the README always said this did.
+RunService.Heartbeat:Connect(function(dt: number)
 	for _, f in input:sample(dt, FRAME) do
 		table.insert(pendingFrames, Net.packFrame(f))
 	end
@@ -167,9 +179,24 @@ RunService.RenderStepped:Connect(function(dt: number)
 		Net.remote("Input"):FireServer(pendingFrames)
 		pendingFrames = {}
 	end
+end)
 
+RunService.RenderStepped:Connect(function(dt: number)
 	local drawAt = os.clock()
 	local states = interpolate(drawAt - INTERP_DELAY)
+	-- Our own fighter, live. Interpolation exists to hide other people's packet jitter; applying
+	-- it to the local fighter buys nothing and costs INTERP_DELAY - 33ms - of latency on every
+	-- input the player makes. The server is still the only authority: this draws the newest thing
+	-- it said, rather than predicting anything.
+	if states and localIndex and #buffer > 0 then
+		local newest = buffer[#buffer]
+		for i, st in states do
+			if st.index == localIndex then
+				states[i] = Snapshot.decode(newest.fighters[i])
+				break
+			end
+		end
+	end
 	if not states then
 		-- A black screen has several causes that look identical, so say which one this is. Without
 		-- this the first question after every failed playtest is "is the server even running?".

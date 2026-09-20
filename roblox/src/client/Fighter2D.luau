@@ -102,12 +102,15 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.scale(c, s.facing, 1)
 	applyRigRot()
 	c.alpha = ch.opacity
+	-- Every alpha passed to a primitive below is RELATIVE - Canvas2D multiplies it by c.alpha
+	-- itself. Passing c.alpha through as well squares the opacity, which is invisible at full
+	-- opacity and wrong everywhere it matters: an air dodge draws at 0.12 instead of 0.35.
 
 	-- Ground shadow, tied to how far above the platform the fighter is, so height off the stage is
 	-- readable without looking away from the fighter.
 	if platformTop then
 		local d = math.clamp(1 - (s.y - platformTop) / 14, 0.25, 1)
-		Canvas2D.ellipse(c, 0, platformTop - s.y + 0.1, r * 1.25 * d, 0.45 * d, BLACK, c.alpha * 0.22)
+		Canvas2D.ellipse(c, 0, platformTop - s.y + 0.1, r * 1.25 * d, 0.45 * d, BLACK, 0.22)
 	end
 
 	local HIP, SHO = h * 0.34, h * 0.70
@@ -124,7 +127,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Canvas2D.save(c)
 		Canvas2D.translate(c, dx, HIP)
 		Canvas2D.rotate(c, -rot)
-		Canvas2D.rect(c, -lw / 2, -ll, lw, ll, tertiary, c.alpha * shade)
+		Canvas2D.rect(c, -lw / 2, -ll, lw, ll, tertiary, shade)
 		Canvas2D.restore(c)
 	end
 
@@ -134,39 +137,50 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.rotate(c, -ch.lean)
 	Canvas2D.scale(c, ch.sx, ch.sy)
 
-	-- Back arm, then torso, then front arm: the torso has to hide the far shoulder.
-	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, c.alpha * 0.74)
+	-- Back arm, then torso, then head, then front arm and the weapon it is holding. The torso has
+	-- to hide the far shoulder, and the front arm has to sit over the head.
+	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74)
 	Canvas2D.rect(c, -r * 0.80, 0, r * 1.60, SHO - HIP, primary)
-	-- The swing trail goes BEHIND the front arm, around the shoulder: it is where the blade has
-	-- been, so anything drawn after it should sit on top.
+
+	-- The head is a plain box here; avatar2d.js owns its real shape, face and headgear. It takes
+	-- the head channel at 0.4 as a nod rather than a full turn, as the JavaScript does.
+	local HEAD = h * 0.78
+	local hs = r * 1.15
+	Canvas2D.save(c)
+	Canvas2D.translate(c, 0, HEAD - HIP)
+	Canvas2D.rotate(c, -ch.head * 0.4)
+	Canvas2D.rect(c, -hs / 2, -hs * 0.15, hs, hs, primary)
+	Canvas2D.restore(c)
+
+	-- THE FRONT ARM IS DRIVEN BY THE WEAPON, not by armR.z, so the swing and the limb always
+	-- agree. Posing the arm from the channels and then hanging the weapon off it is the same
+	-- motion computed twice from two sources, and they disagree the moment a swing arc and a
+	-- body pose are not the same curve - which is most of the moveset.
 	local wpal = char.weaponPalette or pal
-	Canvas2D.save(c)
-	Canvas2D.translate(c, r * 0.55, SHO - HIP)
-	Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale)
-	Canvas2D.restore(c)
+	local armAng = if wid then wpose.angle else ch.armR.z - math.pi / 2
+	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
+	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = ch.armR.x, ext = ext }, h, true, 1)
 
-	arm(c, secondary, r, SHO - HIP, ch.armR, h, true, c.alpha)
-
-	-- The weapon is welded to the front hand, which is the far end of the front arm - so it hangs
-	-- off the same joint, extended by the same armR.ext a thrust uses. Anchoring it to the
-	-- shoulder instead is what leaves a pike's grip further from the hand than the fighter is tall.
-	Canvas2D.save(c)
-	Canvas2D.translate(c, r * 0.55, SHO - HIP)
-	Canvas2D.rotate(c, ch.armR.z + ch.armR.x)
-	Canvas2D.translate(c, 0, -h * 0.30 * (if ch.armR.ext ~= 0 then ch.armR.ext else 1))
-	-- The arm points along local -Y and the weapon is authored along +X, so it is turned a
-	-- quarter turn to lie along the limb before its own pose angle is applied.
-	Canvas2D.rotate(c, -math.pi / 2)
-	Weapons2D.draw(c, wid, wpal, wpose)
-	Canvas2D.restore(c)
-
-	-- The head is a plain box here, and it carries the head channel as a nod rather than a shape.
-	local hs = h * 0.24
-	Canvas2D.save(c)
-	Canvas2D.translate(c, 0, SHO)
-	Canvas2D.rotate(c, -ch.head)
-	Canvas2D.rect(c, -hs / 2, 0, hs, hs, primary)
-	Canvas2D.restore(c)
+	if wid and not wpose.hide then
+		-- The hand is the far end of the arm, at the length the arm was actually drawn at, so a
+		-- thrust's armR.ext carries the weapon with it instead of leaving the grip behind.
+		local AL = h * 0.30 * ext
+		local hx = r * 0.55 + math.cos(armAng) * AL
+		local hy = (SHO - HIP) + math.sin(armAng) * AL
+		-- The trail sweeps around the SHOULDER, not the hand: it is where the blade has been.
+		if wpose.trail then
+			Canvas2D.save(c)
+			Canvas2D.translate(c, r * 0.55, SHO - HIP)
+			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale)
+			Canvas2D.restore(c)
+		end
+		-- No rotation here. Weapons2D.draw applies pose.angle itself, and turning the frame by the
+		-- arm angle first would apply it twice.
+		Canvas2D.save(c)
+		Canvas2D.translate(c, hx, hy)
+		Weapons2D.draw(c, wid, wpal, wpose)
+		Canvas2D.restore(c)
+	end
 
 	Canvas2D.restore(c)   -- torso
 	Canvas2D.restore(c)   -- bob

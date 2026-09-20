@@ -108,5 +108,46 @@ if h.x ~= 1 or h.y ~= -1 then
 end
 checked += 2
 
+-- coalesce: draining a backed-up jitter buffer must not lose a press.
+--
+-- Every press is checked on BOTH sides of the merge, because a coalesce that simply returned the
+-- newer frame would pass a test that only put presses on the newer one - and it would lose every
+-- input the player made while their connection hiccuped, which is precisely the case this exists
+-- for. The holds and axes are checked to come from the newer frame only.
+local PRESS_KEYS = { "jump", "light", "heavy", "dodge", "guard", "grab", "taunt", "pickup", "ult",
+	"downTap", "anyPress" }
+local HOLD_KEYS = { "jumpHeld", "guardHeld", "heavyHeld", "lightHeld" }
+
+for _, key in PRESS_KEYS do
+	for _, onOlder in { true, false } do
+		local older, newer = Input.emptyFrame(), Input.emptyFrame()
+		;(if onOlder then older else newer :: any)[key] = true
+		local m = InputCodec.coalesce(older, newer)
+		if not (m :: any)[key] then
+			fail(`coalesce lost the press {key} from the {if onOlder then "older" else "newer"} frame`)
+		end
+		checked += 1
+	end
+end
+
+-- Holds and axes are levels: the newer frame is the truth and the older one is stale.
+local older, newer = Input.emptyFrame(), Input.emptyFrame()
+older.x, older.y = 1, 1
+newer.x, newer.y = -1, 0
+for _, key in HOLD_KEYS do
+	(older :: any)[key] = true
+end
+local m = InputCodec.coalesce(older, newer)
+if m.x ~= -1 or m.y ~= 0 then
+	fail(`coalesce took the stale axes: {m.x}, {m.y}`)
+end
+for _, key in HOLD_KEYS do
+	if (m :: any)[key] then
+		fail(`coalesce kept the stale hold {key} after the newer frame released it`)
+	end
+	checked += 1
+end
+checked += 2
+
 print(`checked {checked} codec values`)
 print("InputCodec round-trips every flag combination and every axis step.")

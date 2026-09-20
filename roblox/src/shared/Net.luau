@@ -23,6 +23,7 @@ local Net = {}
 Net.packFrame = InputCodec.packFrame
 Net.unpackFrame = InputCodec.unpackFrame
 Net.holdOnly = InputCodec.holdOnly
+Net.coalesce = InputCodec.coalesce
 Net.MAX_PACKED = InputCodec.MAX_PACKED
 
 -- ---------------------------------------------------------------- remotes ----

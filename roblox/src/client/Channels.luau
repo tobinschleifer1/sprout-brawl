@@ -834,8 +834,14 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 		ch.armL.z = 1.2; ch.armR.z = -1.2
 	end
 
+	-- Tumble spins from the MOMENT OF THE HIT, not off the fighter's lifetime counter. frameCount
+	-- is set once at construction and only ever incremented, so `-frameCount * 0.3` meant the body
+	-- snapped to an essentially arbitrary angle the instant a tumble began, spun from there, and
+	-- snapped back when it ended. What a launch is supposed to read as is a body that starts
+	-- upright and goes over; what it read as was a body that teleported into a pose.
 	if f.tumbling and (s == "air" or s == "hitstun") then
-		ch.spinZ = -f.frameCount * 0.3 * f.facing
+		local since = math.max(0, f.frameCount - f.lastHitFrame)
+		ch.spinZ = -since * 0.3 * f.facing
 		ch.smear = math.max(ch.smear, 0.5)
 	end
 	if f.invincible > 0 and s ~= "ledge" and s ~= "respawn" and f.frameCount % 6 < 3 then

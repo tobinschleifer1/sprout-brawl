@@ -730,7 +730,16 @@ export function channelsFor(f, t) {
     case 'ko': ch.visible = false; break;
     case 'respawn': ch.yOff = Math.sin(t * 4) * 0.3; ch.opacity = 0.85; ch.armL.z = 1.2; ch.armR.z = -1.2; break;
   }
-  if (f.tumbling && (s === 'air' || s === 'hitstun')) { ch.spinZ = -f.frameCount * 0.3 * f.facing; ch.smear = Math.max(ch.smear, 0.5); }
+  // Tumble spins from the MOMENT OF THE HIT, not off the fighter's lifetime counter. frameCount
+  // is set once at construction and only ever incremented, so `-frameCount * 0.3` meant the body
+  // snapped to an essentially arbitrary angle the instant a tumble began, spun from there, and
+  // snapped back when it ended. What a launch is supposed to read as is a body that starts
+  // upright and goes over; what it read as was a body that teleported into a pose.
+  if (f.tumbling && (s === 'air' || s === 'hitstun')) {
+    const since = Math.max(0, f.frameCount - f.lastHitFrame);
+    ch.spinZ = -since * 0.3 * f.facing;
+    ch.smear = Math.max(ch.smear, 0.5);
+  }
   if (f.invincible > 0 && s !== 'ledge' && s !== 'respawn' && f.frameCount % 6 < 3) ch.opacity *= 0.55;
   if (f.effects.chill.stacks > 0 && !ch.tint) ch.tint = ['#C9E6F5', '#A9D8F0', '#7FC0E6'][f.effects.chill.stacks - 1];
   if (f.hitlag > 0) ch.shakeX = (f.frameCount % 2 ? 0.12 : -0.12);

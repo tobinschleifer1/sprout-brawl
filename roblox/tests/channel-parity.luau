@@ -75,6 +75,7 @@ for i, p in trace.probes do
 		stateFrame = tonumber(p.sf), moveFrame = tonumber(p.mf),
 		moveId = p.moveId,
 		startupEff = tonumber(p.startupEff), frameCount = tonumber(p.frameCount),
+		lastHitFrame = tonumber(p.lastHitFrame),
 		charge = tonumber(p.charge), hitlag = tonumber(p.hitlag),
 		fastFalling = p.fastFalling, ultCooldown = tonumber(p.ultCooldown),
 		techRoll = tonumber(p.techRoll), onGround = p.onGround, tumbling = p.tumbling,
@@ -115,6 +116,33 @@ for i, p in trace.probes do
 	checked += 2
 	states[p.state] = true
 	weapons[p.weapon] = true
+end
+
+-- A property, not a comparison: a tumble that has only just started must draw UPRIGHT. The parity
+-- check above would happily agree with the JavaScript about a body snapped to an arbitrary angle,
+-- because for most of this file's life that is exactly what both of them did.
+do
+	local char = charFor("Classic", "Sword")
+	local function tumbleAt(since: number): number
+		local f = {
+			index = 0, x = 0, y = 0, vx = 0, vy = -10, facing = 1,
+			state = "hitstun", stateFrame = 2, moveFrame = 0, moveId = nil,
+			startupEff = 0, frameCount = 5000, lastHitFrame = 5000 - since,
+			charge = 0, hitlag = 0, fastFalling = false, ultCooldown = 0, techRoll = 0,
+			onGround = false, tumbling = true, invincible = 0, shield = 0,
+			percent = 0, stocks = 1, ultCharge = 0, alive = true,
+			chillStacks = 0, ledgeAction = nil,
+		}
+		return Channels.For(f, char, nil, 0).rigRotZ
+	end
+	if tumbleAt(0) ~= 0 then
+		fail(`a tumble on its first frame draws at {tumbleAt(0)} radians, not upright - the spin is `
+			.. `being driven by the fighter's lifetime counter rather than by the hit`)
+	end
+	if tumbleAt(10) == 0 then
+		fail("a tumble ten frames in is still upright - it is not spinning at all")
+	end
+	checked += 2
 end
 
 local ns, nw = 0, 0

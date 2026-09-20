@@ -36,6 +36,10 @@ local FIELDS = {
 	-- name alone says a fighter IS in hitstun and not how much of it is left, so a client that
 	-- knew only the name replayed a launch under ordinary air control and drifted.
 	{ "hitstun", "hs" },
+	-- The frame the fighter was last hit on. Only the tumble spin reads it, and only as
+	-- `frameCount - lastHitFrame`, but that difference is what makes a launch start upright
+	-- instead of at whatever angle the fighter's lifetime counter happened to be at.
+	{ "lastHitFrame", "lhf" },
 	-- Flattened, not nested. channels.js reads exactly one leaf out of each of these, and sending
 	-- the objects would put a timer and a ledge reference on the wire 60 times a second to deliver
 	-- one integer and one string.

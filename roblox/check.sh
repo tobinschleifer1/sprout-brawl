@@ -9,6 +9,32 @@ set -euo pipefail
 cd "$(dirname "$0")"
 export PATH="$HOME/.rokit/bin:$PATH"
 
+# ---------------------------------------------------------------- preflight ----
+# Everything below needs four tools and one downloaded file, and the failure when they are missing
+# is unhelpful enough to have cost real time: without globalTypes.d.luau, luau-lsp does not say
+# "missing definitions", it reports thousands of "Unknown global 'Enum'" errors that look like the
+# port is broken. So check for them here and say what to do.
+missing=""
+for tool in node rojo lune luau-lsp; do
+	command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+done
+if [ -n "$missing" ]; then
+	echo "missing tools:$missing" >&2
+	echo "node comes from your package manager; the rest are Rokit tools:" >&2
+	echo "  curl -fsSL https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash" >&2
+	echo "  rokit add --global rojo-rbx/rojo JohnnyMorganz/luau-lsp lune-org/lune" >&2
+	echo "  (then open a new shell, or: export PATH=\"\$HOME/.rokit/bin:\$PATH\")" >&2
+	exit 1
+fi
+
+# The Roblox API definitions luau-lsp type-checks against. Gitignored because it is downloaded
+# rather than written, and fetched here so a fresh clone can just run this script.
+if [ ! -f globalTypes.d.luau ]; then
+	echo "== fetching globalTypes.d.luau =="
+	curl -fsSL -o globalTypes.d.luau \
+		https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.d.luau
+fi
+
 echo "== generating from web/src =="
 node tools/gen-data.mjs
 node tests/genfixture.mjs

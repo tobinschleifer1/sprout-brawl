@@ -1,41 +1,107 @@
 --!strict
--- A fighter's body. The rig half of `_fighter` in web/src/render2d/renderer2d.js.
+-- A fighter's body: the rig half of `_fighter` in web/src/render2d/renderer2d.js.
 --
--- NEUTRAL POSE ONLY, for now. In the web build every limb angle, the bob, the lean, the squash and
--- the smear come out of render2d/channels.js, which is 746 lines and reads far more fighter state
--- than a snapshot currently carries. Porting it is the next step. What this draws is the same
--- skeleton at rest, from the same proportions, so the canvas, the camera and the stage can be
--- confirmed against something recognisable before the animation goes on top of it.
+-- The pose comes from Channels.luau, which is a parity-tested port of render2d/channels.js, so
+-- every limb angle, lean, squash, smear and flash here is the same number the web build computes.
+-- What is left in this file is only the painting: where the joints are and what order they are
+-- drawn in.
 --
--- Proportions are the JavaScript's, and they are load-bearing: HIP, SHO and HEAD are where the
--- weapon welds and every hitbox visual will hang off.
+-- STILL TO COME: the avatar's head shape, face and headgear (avatar2d.js), the weapon and its
+-- swing (weapons2d.js), and hand-drawn character parts. The head is a plain box until then. None
+-- of those change the skeleton - they hang off HIP, SHO and HEAD, which is why those three are
+-- load-bearing and why they are the JavaScript's proportions rather than convenient ones.
 
 local Canvas2D = require(script.Parent.Canvas2D)
+local Channels = require(script.Parent.Channels)
+local WeaponPose = require(script.Parent.WeaponPose)
+local Weapons2D = require(script.Parent.Weapons2D)
 
 local BLACK = Color3.new(0, 0, 0)
+local SHIELD = Color3.fromRGB(159, 209, 232)
 
 local Fighter2D = {}
 
-function Fighter2D.draw(c: any, s: any, char: any, platformTop: number?)
+local function sign(v: number): number
+	return if v < 0 then -1 else 1
+end
+
+-- `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere, and
+-- sliding the PROP forward off a fixed-length arm is what put the pike's grip further from the hand
+-- than the fighter is tall. Extending the arm moves the hand, so the weapon travels with it.
+local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number)
+	local w = r * 0.34
+	local L = h * 0.30 * (if a.ext ~= 0 then a.ext else 1)
+	Canvas2D.save(c)
+	Canvas2D.translate(c, if front then r * 0.55 else -r * 0.35, len)
+	-- Arm channels are "direction the limb points, +X forward, +Y up", the same convention the
+	-- weapon uses. The limb is drawn along local -Y, so pointing it at angle A needs rotate(A) -
+	-- `a.z` already holds it. Negating it mirrors every channel-driven arm: a ledge hang (armL.z
+	-- 2.9, meant to be overhead) draws pointing backwards and down.
+	-- `a.x` is the across-the-body component; the run writes its whole arm swing into it.
+	Canvas2D.rotate(c, a.z + a.x)
+	Canvas2D.rect(c, -w / 2, -L, w, L, colour, alpha)
+	Canvas2D.restore(c)
+end
+
+-- `s` is a decoded snapshot; `t` is wall clock, for the poses that breathe.
+function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: number?)
 	if not s.alive or s.state == "ko" then
 		return
 	end
+	-- `move` is not on the wire: everything the poses read off it is static weapon data the
+	-- client already has, so it is looked up from moveId here.
+	local move = if s.moveId then char.moves[s.moveId] else nil
+	local ch = Channels.For(s, char, move, t)
+	local wpose = WeaponPose.For(s, char, move, t)
+	local wid = if char.weapon then char.weapon.id else nil
+	if not ch.visible then
+		return
+	end
+
 	local h, r = char.height, char.radius
 	local pal = char.palette or {}
 	local primary = Canvas2D.hex(pal.primary, Color3.fromRGB(210, 212, 220))
 	local secondary = Canvas2D.hex(pal.secondary, Color3.fromRGB(150, 155, 170))
 	local tertiary = Canvas2D.hex(pal.tertiary, Color3.fromRGB(96, 102, 120))
 
+	-- Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole drawing
+	-- out of its own hurtbox - a tech roll spans a full body height below the floor, and an air
+	-- dodge's centre swings several studs across. `rotPivot` is the fraction of height to pivot at,
+	-- so knockdown keeps its deliberate feet-pivot.
+	local function applyRigRot()
+		if ch.rigRotZ ~= 0 then
+			local pv = h * (if ch.rotPivot then ch.rotPivot else 0.5)
+			Canvas2D.translate(c, 0, pv)
+			Canvas2D.rotate(c, ch.rigRotZ * s.facing)
+			Canvas2D.translate(c, 0, -pv)
+		end
+	end
+
+	-- Smear: two ghosts of the body trailing the direction of travel, drawn before the fighter.
+	-- Hand-drawn fighting games solve fast motion with smear frames, because at 60Hz a genuinely
+	-- fast move is between frames more than it is on them.
+	if ch.smear > 0.02 then
+		-- Ghosts TRAIL. Using -facing puts both of them in front, so the streak leads the swing.
+		local dir = if math.abs(s.vx) > 1 then sign(s.vx) else s.facing
+		local dist = math.min(2.6, 0.7 + math.abs(s.vx) * 0.035) * ch.smear
+		for g = 1, 2 do
+			Canvas2D.save(c)
+			local a = ch.opacity * ch.smear * (0.45 / g)
+			Canvas2D.translate(c, s.x - dir * dist * g * 0.55, s.y + ch.yOff)
+			Canvas2D.scale(c, s.facing, 1)
+			applyRigRot()
+			Canvas2D.rect(c, -r * 0.82, h * 0.06, r * 1.64, h * 0.72, primary, a)
+			Canvas2D.restore(c)
+		end
+	end
+
 	Canvas2D.save(c)
-	Canvas2D.translate(c, s.x, s.y)
+	Canvas2D.translate(c, s.x + ch.shakeX, s.y + ch.yOff)
 	-- One drawing, both facings. Everything below is drawn facing +X and mirrored here, which is
 	-- why a weapon that looked right for months can turn out to have been mirrored the whole time.
 	Canvas2D.scale(c, s.facing, 1)
-
-	-- Respawn invincibility has to be legible or it reads as the game ignoring hits.
-	if s.invincible > 0 then
-		c.alpha = 0.45 + 0.25 * math.sin(os.clock() * 24)
-	end
+	applyRigRot()
+	c.alpha = ch.opacity
 
 	-- Ground shadow, tied to how far above the platform the fighter is, so height off the stage is
 	-- readable without looking away from the fighter.
@@ -47,24 +113,77 @@ function Fighter2D.draw(c: any, s: any, char: any, platformTop: number?)
 	local HIP, SHO = h * 0.34, h * 0.70
 	local lw, ll = r * 0.42, HIP
 
-	-- Legs. The far one first, and in the darker palette entry, which is where the depth in this
-	-- art style comes from - there is no lighting to do it.
-	Canvas2D.rect(c, -r * 0.30 - lw / 2, 0, lw, ll, tertiary, 0.74)
-	Canvas2D.rect(c, r * 0.30 - lw / 2, 0, lw, ll, tertiary)
+	Canvas2D.save(c)
+	Canvas2D.translate(c, 0, ch.bob)
+
+	-- Legs, far one first and in the darker palette entry, which is where the depth in this art
+	-- style comes from - there is no lighting to do it. The channels rotate them about the hip.
+	local legs = { { ch.legL, -r * 0.30, 0.74 }, { ch.legR, r * 0.30, 1 } }
+	for _, leg in legs do
+		local rot, dx, shade = leg[1], leg[2], leg[3]
+		Canvas2D.save(c)
+		Canvas2D.translate(c, dx, HIP)
+		Canvas2D.rotate(c, -rot)
+		Canvas2D.rect(c, -lw / 2, -ll, lw, ll, tertiary, c.alpha * shade)
+		Canvas2D.restore(c)
+	end
+
+	-- The torso carries the lean and the squash, so everything welded to it inherits both.
+	Canvas2D.save(c)
+	Canvas2D.translate(c, 0, HIP)
+	Canvas2D.rotate(c, -ch.lean)
+	Canvas2D.scale(c, ch.sx, ch.sy)
 
 	-- Back arm, then torso, then front arm: the torso has to hide the far shoulder.
-	local aw, al = r * 0.34, SHO - HIP
-	Canvas2D.rect(c, -aw / 2, HIP + al * 0.1, aw, al * 0.9, secondary, 0.74)
-	Canvas2D.rect(c, -r * 0.82, HIP, r * 1.64, SHO - HIP, primary)
-	Canvas2D.rect(c, r * 0.22, HIP + al * 0.1, aw, al * 0.9, secondary)
-
-	-- The head is a plain box here. avatar2d.js owns its real shape, face and headgear, and that is
-	-- the whole of what a player-made character gets to choose - it lands in the next step.
-	local hs = h * 0.24
-	Canvas2D.rect(c, -hs / 2, SHO, hs, hs, primary)
-
-	c.alpha = 1
+	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, c.alpha * 0.74)
+	Canvas2D.rect(c, -r * 0.80, 0, r * 1.60, SHO - HIP, primary)
+	-- The swing trail goes BEHIND the front arm, around the shoulder: it is where the blade has
+	-- been, so anything drawn after it should sit on top.
+	local wpal = char.weaponPalette or pal
+	Canvas2D.save(c)
+	Canvas2D.translate(c, r * 0.55, SHO - HIP)
+	Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale)
 	Canvas2D.restore(c)
+
+	arm(c, secondary, r, SHO - HIP, ch.armR, h, true, c.alpha)
+
+	-- The weapon is welded to the front hand, which is the far end of the front arm - so it hangs
+	-- off the same joint, extended by the same armR.ext a thrust uses. Anchoring it to the
+	-- shoulder instead is what leaves a pike's grip further from the hand than the fighter is tall.
+	Canvas2D.save(c)
+	Canvas2D.translate(c, r * 0.55, SHO - HIP)
+	Canvas2D.rotate(c, ch.armR.z + ch.armR.x)
+	Canvas2D.translate(c, 0, -h * 0.30 * (if ch.armR.ext ~= 0 then ch.armR.ext else 1))
+	-- The arm points along local -Y and the weapon is authored along +X, so it is turned a
+	-- quarter turn to lie along the limb before its own pose angle is applied.
+	Canvas2D.rotate(c, -math.pi / 2)
+	Weapons2D.draw(c, wid, wpal, wpose)
+	Canvas2D.restore(c)
+
+	-- The head is a plain box here, and it carries the head channel as a nod rather than a shape.
+	local hs = h * 0.24
+	Canvas2D.save(c)
+	Canvas2D.translate(c, 0, SHO)
+	Canvas2D.rotate(c, -ch.head)
+	Canvas2D.rect(c, -hs / 2, 0, hs, hs, primary)
+	Canvas2D.restore(c)
+
+	Canvas2D.restore(c)   -- torso
+	Canvas2D.restore(c)   -- bob
+	Canvas2D.restore(c)   -- fighter
+
+	-- The shield bubble and the hit flash are drawn in world space around the fighter rather than
+	-- welded to the rig: both are about the fighter rather than part of them, and neither should
+	-- squash when the body does.
+	if ch.bubble > 0 then
+		Canvas2D.ellipse(c, s.x, s.y + h * 0.5,
+			h * 0.62 * (0.55 + ch.bubble * 0.45), h * 0.62 * (0.55 + ch.bubble * 0.45),
+			SHIELD, 0.30 + ch.bubble * 0.25)
+	end
+	if ch.tint then
+		Canvas2D.rect(c, s.x - r, s.y, r * 2, h, Canvas2D.hex(ch.tint, BLACK), 0.5)
+	end
+	c.alpha = 1
 end
 
 return Fighter2D

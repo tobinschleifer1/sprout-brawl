@@ -168,7 +168,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 		pendingFrames = {}
 	end
 
-	local states = interpolate(os.clock() - INTERP_DELAY)
+	local drawAt = os.clock()
+	local states = interpolate(drawAt - INTERP_DELAY)
 	if not states then
 		-- A black screen has several causes that look identical, so say which one this is. Without
 		-- this the first question after every failed playtest is "is the server even running?".
@@ -216,7 +217,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		if char then
 			local ok, err = pcall(function()
 				local surface = if stageView then Stage.surfaceUnder(stageView, st.x, st.y + 0.1) else nil
-				Fighter2D.draw(canvas, st, char, if surface then surface.top else nil)
+				Fighter2D.draw(canvas, st, char, drawAt, if surface then surface.top else nil)
 			end)
 			if not ok and not posedWarned[st.index] then
 				posedWarned[st.index] = true

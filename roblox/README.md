@@ -29,8 +29,11 @@ Nothing here is required to play the web build.
 | `src/shared/Net.luau` | remotes and the wire format |
 | `src/shared/Snapshot.luau` | the fighter snapshot, encoded and decoded in one place |
 | `src/server/*` | **runs the match**: fixed 60Hz loop, remote input with a jitter buffer, snapshots |
-| `src/client/*` | 60Hz input sampling, snapshot interpolation, the locked-plane camera, R15 rigs |
-| Prediction, HUD, audio, persistence, matchmaking | not started |
+| `src/client/*` | 60Hz input sampling, snapshot interpolation, the 2D canvas, camera and stage |
+| `src/client/Channels.luau` | ported - the whole pose system, 30 states and all twelve ultimate bodies |
+| `src/client/WeaponPose.luau` | ported - every swing arc, the aimed weapons, and all twelve ultimate poses |
+| `src/client/Weapons2D.luau` | the twelve weapon shapes, as hybrid rect-and-tip silhouettes (see below) |
+| Avatar heads/faces/hats, ultimate VFX, prediction, HUD, audio, persistence, matchmaking | not started |
 
 **The Roblox-side code has had one playtest.** It reached Studio, synced, and ran; the first bug it
 found is below. Everything above the line is verified against the
@@ -173,6 +176,8 @@ load-bearing today:
 | `move.total` | written for every move, read nowhere in the simulation, renderer or UI |
 | the respawn timer's rounding | `RESPAWN.delay` is 2.0, so 2.0 x 60 is exact |
 | the bots' `setup` plan | read by a branch, assigned by nothing |
+| `weaponPose`'s `REST[wid] ?? 0` fallback | all twelve weapons have a REST entry |
+| `weaponScale`/`holdFrames`/`reload` falling back through `||` | no weapon datum is 0, so the JavaScript's falsy-zero path never fires |
 
 `field` is now deleted from the web build. The rest are left in place: the five above are guards
 that would start working the moment the data changes, and the unused summon types and mechanics are
@@ -290,5 +295,57 @@ The web build was written so that the port is mostly translation:
   not. Nil is not an error in Luau until something compares it, so the rigs drew with no facing, no
   tumble, no KO hiding and no invincibility, and the only symptom was one console line. Adding a
   field is now one edit, and `tests/snapshot.luau` fails if a consumer's name and the wire's drift.
-- **Limb animation is not built.** `render2d/weapons2d.js` is the spec for it and reproducing it as
-  Motor6D poses is its own phase. Bodies currently place, face, spin while tumbling, and nothing else.
+- **Bodies are animated; weapons are not.** `render2d/channels.js` is ported as
+  `src/client/Channels.luau` and held to the JavaScript by `tests/channel-parity.luau`: 632,408
+  channel values across 27,496 poses, 30 states and all twelve weapons, exact. Fighters now lean,
+  squash, swing their limbs, smear, flash and settle exactly as they do on the web.
+
+  What is still missing above the skeleton is the avatar's head shape, face and headgear
+  (`avatar2d.js`), and the weapon and its swing (`weapons2d.js`). The head is a plain box until
+  then. Both hang off `HIP`, `SHO` and `HEAD`, which is why those proportions are the
+  JavaScript's rather than convenient ones.
+
+  `channelsFor` turned out to be a pure function of the snapshot plus the weapon data, which is
+  what made it testable at all: `tools/gen-channel-traces.mjs` writes every field it reads into the
+  trace, so the fixture doubles as the proof that `Snapshot.FIELDS` carries enough to draw with.
+  Nine fields had to be added for it - `startupEff`, `frameCount`, `charge`, `hitlag`,
+  `fastFalling`, `ultCooldown`, `techRoll`, and `chillStacks`/`ledgeAction` flattened out of
+  `f.effects.chill.stacks` and `f.la.kind`. `move` is NOT sent: everything the poses read off it is
+  static weapon data the client already has, so it is looked up from `moveId`.
+
+  Ten deliberate mutations, ten caught - including the one this port was always going to be at risk
+  of, the chill tint table indexed JavaScript-style at `stacks - 1` against Luau's 1-indexed array.
+
+- **Weapons swing.** `weaponPose` and `ultimatePose` are ported as `src/client/WeaponPose.luau` and
+  held to the JavaScript by `tests/weapon-parity.luau`: 384,808 values across 22,696 poses and 41
+  distinct output keys, exact. The key SET is compared as well as the values, in both directions,
+  because `out.ult` carries a different set per weapon and per phase - a port that stops emitting
+  `ult.chop` is a renderer that stops drawing the chop, and that has to fail rather than look
+  slightly wrong. Twelve mutations, ten caught; the two survivors are recorded in the unreachable
+  table above.
+
+  The phase curve is SHARED with the body rather than copied: `WeaponPose` calls `Channels.swing`,
+  exactly as weapons2d.js imports `swing` from channels.js. They were separate once and the torso
+  and the weapon ended up fifteen frames out of phase.
+
+  `ultShots` is the one snapshot field this needed, for Deadeye's round counter.
+
+- **The weapon shapes are a deliberate divergence.** `weapons2d.js` builds each weapon from five to
+  nine arbitrary polygons with bevels and fullers. Roblox UI cannot fill a polygon - `Canvas2D.tri`
+  staircases one into six Frames - so a faithful sword is about ninety-six Frames, and four
+  fighters with trails would run into the high hundreds every frame.
+
+  `Weapons2D.luau` draws mass as rotated rectangles, which a Frame reproduces exactly, and spends a
+  staircased triangle only where the silhouette needs a point: a blade tip, an axe bit, a spear
+  head. Twelve to twenty Frames a weapon. Measured in Studio: four armed fighters cost **0.483 ms**
+  a frame, 2.9% of a 16.7ms budget, against 117 pooled Frames. At gameplay size what distinguishes
+  a hammer from an axe is the outline, not the bevel, and the outline is intact.
+
+  The contour pass is NOT optional and is kept: every weapon is drawn twice, once flat in a dark
+  value offset back and down. At gameplay zoom a weapon is twenty to thirty pixels of mid-grey
+  against a sky of mid-grey, and without it the blade vanishes the moment it leaves the fighter's
+  silhouette.
+
+  `drawUltimate` - the afterimages, the reaper's moon, the second pistol, the rune stack - is not
+  ported. Those are effects around the weapon rather than the weapon, and the ultimates read
+  without them.

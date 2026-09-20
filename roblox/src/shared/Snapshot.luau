@@ -24,6 +24,17 @@ local FIELDS = {
 	{ "percent", "pc" }, { "stocks", "sk" }, { "shield", "sh" }, { "ultCharge", "ult" },
 	{ "alive", "al" }, { "onGround", "gr" }, { "tumbling", "tb" }, { "invincible", "inv" },
 	{ "item", "it" },
+	-- Everything below is read by render2d/channels.js and by nothing else in the client. A pose is
+	-- not derivable from position and a state name: the same `attack` state looks different on the
+	-- startup frames than the active ones, and startupEff is the boundary between them.
+	{ "startupEff", "se" }, { "frameCount", "fn" }, { "charge", "cg" }, { "hitlag", "hl" },
+	{ "fastFalling", "ff" }, { "ultCooldown", "uc" }, { "techRoll", "tr" },
+	-- Read by render2d/weapons2d.js only: Deadeye counts its rounds on the rifle.
+	{ "ultShots", "us" },
+	-- Flattened, not nested. channels.js reads exactly one leaf out of each of these, and sending
+	-- the objects would put a timer and a ledge reference on the wire 60 times a second to deliver
+	-- one integer and one string.
+	{ "chillStacks", "cs" }, { "ledgeAction", "la" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -42,6 +53,12 @@ function Snapshot.encode(f: any): { [string]: any }
 		if name == "item" then
 			-- The item is a live object with a hitbox and a timer on it. Only its identity crosses.
 			out[wire] = if f.item then f.item.id else nil
+		elseif name == "chillStacks" then
+			out[wire] = f.effects.chill.stacks
+		elseif name == "ledgeAction" then
+			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
+			-- from the stage. Only the kind changes the pose.
+			out[wire] = if f.la then f.la.kind else nil
 		else
 			out[wire] = f[FROM_FIGHTER[name] or name]
 		end

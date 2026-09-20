@@ -19,6 +19,8 @@ node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-ai-traces.mjs
 node tools/gen-rng-fixture.mjs
+node tools/gen-channel-traces.mjs
+node tools/gen-weapon-traces.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
@@ -46,3 +48,7 @@ echo "== parity: Match vs web/src/engine/match.js =="
 lune run tests/match-parity
 echo "== parity: Ai vs web/src/engine/ai.js =="
 lune run tests/ai-parity
+echo "== parity: Channels vs web/src/render2d/channels.js =="
+lune run tests/channel-parity
+echo "== parity: WeaponPose vs web/src/render2d/weapons2d.js =="
+lune run tests/weapon-parity

@@ -28,6 +28,8 @@ local EXPECTED = {
 	"index", "x", "y", "vx", "vy", "facing", "state", "stateFrame", "moveFrame", "moveId",
 	"percent", "stocks", "shield", "ultCharge", "alive", "onGround", "tumbling", "invincible",
 	"item",
+	"startupEff", "frameCount", "charge", "hitlag", "fastFalling", "ultCooldown", "techRoll", "ultShots",
+	"chillStacks", "ledgeAction",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation
@@ -82,12 +84,28 @@ f.alive = true
 f.onGround = false
 f.tumbling = true
 f.invincible = 6
+-- The pose fields. Every value here is distinct from every other and from the fresh-fighter
+-- default, so a field read off the wrong source shows up as a wrong number rather than a matching 0.
+f.startupEff = 9
+f.frameCount = 41
+f.charge = 17
+f.hitlag = 5
+f.fastFalling = true
+f.ultCooldown = 27
+f.techRoll = -1
+f.ultShots = 4
+f.effects.chill.stacks = 2
+f.la = { kind = "attack", L = {} }
 
 local EXPECT_VALUE: { [string]: any } = {
 	index = 3, x = 12.5, y = 7.25, vx = -4.5, vy = 9.75, facing = -1,
 	state = "hitstun", stateFrame = 11, moveFrame = 23, moveId = "ForwardAir",
 	percent = 87.5, stocks = 2, shield = 33.25, ultCharge = 14,
 	alive = true, onGround = false, tumbling = true, invincible = 6,
+	startupEff = 9, frameCount = 41, charge = 17, hitlag = 5, fastFalling = true,
+	ultCooldown = 27, techRoll = -1, ultShots = 4,
+	-- Flattened out of f.effects.chill.stacks and f.la.kind respectively.
+	chillStacks = 2, ledgeAction = "attack",
 }
 
 local decoded = Snapshot.decode(Snapshot.encode(f))
@@ -116,6 +134,19 @@ end
 f.item = { id = "Keg", hp = 3, def = {} }
 if Snapshot.decode(Snapshot.encode(f)).item ~= "Keg" then
 	fail("a held item did not send its id")
+end
+checked += 2
+
+-- 6. Not on a ledge sends no ledge action. `la` is nil for all but a few frames of a match, so the
+-- nil case is the common one and the flattening has to survive it rather than indexing nil.
+f.la = nil
+if Snapshot.decode(Snapshot.encode(f)).ledgeAction ~= nil then
+	fail("a fighter not on a ledge sent a ledgeAction")
+end
+-- And a zeroed effect sends 0, not nil: channels.js compares chillStacks > 0.
+f.effects.chill.stacks = 0
+if Snapshot.decode(Snapshot.encode(f)).chillStacks ~= 0 then
+	fail("an unchilled fighter did not send chillStacks = 0")
 end
 checked += 2
 

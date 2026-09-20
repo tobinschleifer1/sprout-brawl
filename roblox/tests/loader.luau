@@ -29,6 +29,37 @@ end
 
 local Loader = {}
 
+-- Modules outside src/shared are loaded by their own root. Channels.luau is the case this exists
+-- for: it is client code because it is rendering, but it is pure arithmetic with no Roblox API in
+-- it, so it is testable exactly like the shared modules and is held to the JavaScript the same way.
+function Loader.loadFrom(root: string, name: string): any
+	local key = root .. name
+	if loaded[key] then
+		return loaded[key]
+	end
+	local source = fs.readFile(root .. name .. ".luau")
+	local dir = string.match(name, "^(.*)/[^/]*$")
+	local env = {
+		script = { Parent = proxy(dir or ""), Name = name },
+		require = function(target: any): any
+			local p = paths[target]
+			if p then
+				-- Siblings resolve against the SAME root. Routing them to src/shared would make
+				-- WeaponPose's `require(script.Parent.Channels)` look for a shared Channels that
+				-- does not exist, which is exactly what it did the first time.
+				if fs.isFile(root .. p .. ".luau") then
+					return Loader.loadFrom(root, p)
+				end
+				return Loader.load(p)
+			end
+			error("test loader: unsupported require target " .. tostring(target))
+		end,
+	}
+	local chunk = luau.load(source, { debugName = name, environment = env, injectGlobals = true })
+	loaded[key] = chunk()
+	return loaded[key]
+end
+
 function Loader.load(name: string): any
 	if loaded[name] then
 		return loaded[name]

@@ -28,6 +28,7 @@ local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
 local Stage2D = require(script.Stage2D)
 local Fighter2D = require(script.Fighter2D)
+local Predictor = require(script.Predictor)
 
 local FRAME = Config.FRAME
 -- Two frames of buffer. Snapshots arrive at 60Hz but not evenly, and drawing the newest one the
@@ -57,10 +58,11 @@ local warnedSilent = false
 -- one, so a fighter and the raft they are standing on are drawn at the same instant - taking the
 -- newest platform state while drawing bodies two frames back slides them across the deck.
 local interpBase: any = nil
--- Which fighter is ours. Everyone else is drawn two frames in the past to smooth out jitter;
--- ours is drawn from the newest snapshot there is, because that delay is pure input latency on
--- the only fighter whose latency the player can feel.
+-- Which fighter is ours, and the simulation that runs it ahead of the server. Everyone else is
+-- drawn two frames in the past to smooth out jitter; ours is predicted, so it answers the frame
+-- the input was sampled on rather than a round trip later.
 local localIndex: number? = nil
+local predictor: any = nil
 local sawFirst = false
 
 -- ---------------------------------------------------------------- match setup ----
@@ -85,7 +87,12 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 			stageView = Stage.new(data, cfg.seed)
 		end
 	end
-	print(`[Blockfall] match: {cfg.stage} seed={cfg.seed} fighters={#roster}`)
+	predictor = nil
+	if localIndex and stageView then
+		predictor = Predictor.new(chars[localIndex + 1], localIndex, stageView)
+	end
+	print(`[Blockfall] match: {cfg.stage} seed={cfg.seed} fighters={#roster}`
+		.. (if predictor then " (predicting)" else ""))
 end)
 
 Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
@@ -97,6 +104,19 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
 	end
 	snap.t = os.clock()
 	table.insert(buffer, snap)
+	-- Reconcile before the frame is drawn, not during the draw: a correction is simulation, and
+	-- doing it inside RenderStepped would run it at the render rate rather than once per snapshot.
+	if predictor and localIndex and snap.acks then
+		for _, a in snap.acks do
+			if a.i == localIndex then
+				for i, entry in roster do
+					if entry.index == localIndex then
+						predictor:reconcile(Snapshot.decode(snap.fighters[i]), a.n)
+					end
+				end
+			end
+		end
+	end
 	while #buffer > 8 do
 		table.remove(buffer, 1)
 	end
@@ -179,6 +199,11 @@ end
 RunService.Heartbeat:Connect(function(dt: number)
 	for _, f in input:sample(dt, FRAME) do
 		table.insert(pendingFrames, Net.packFrame(f))
+		-- Simulated here, immediately. The server counts exactly the frames we send, so this has
+		-- to see every one of them and no others or the replay window drifts.
+		if predictor then
+			predictor:push(f)
+		end
 	end
 	if #pendingFrames > 0 then
 		Net.remote("Input"):FireServer(pendingFrames)
@@ -189,15 +214,14 @@ end)
 RunService.RenderStepped:Connect(function(dt: number)
 	local drawAt = os.clock()
 	local states = interpolate(drawAt - INTERP_DELAY)
-	-- Our own fighter, live. Interpolation exists to hide other people's packet jitter; applying
-	-- it to the local fighter buys nothing and costs INTERP_DELAY - 33ms - of latency on every
-	-- input the player makes. The server is still the only authority: this draws the newest thing
-	-- it said, rather than predicting anything.
-	if states and localIndex and #buffer > 0 then
-		local newest = buffer[#buffer]
+	-- Our own fighter, predicted. Interpolation exists to hide other people's packet jitter, and
+	-- applying it to the local fighter cost INTERP_DELAY on top of the round trip. This is the
+	-- fighter as our own inputs have already taken it, corrected against the server on every
+	-- snapshot - so it answers on the frame the key went down.
+	if states and predictor and predictor.ready then
 		for i, st in states do
 			if st.index == localIndex then
-				states[i] = Snapshot.decode(newest.fighters[i])
+				states[i] = predictor:state()
 				break
 			end
 		end

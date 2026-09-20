@@ -223,11 +223,27 @@ function MatchService.broadcast(self: any)
 		countdown = m.countdown, fighters = fighters,
 		-- Nil on the four stages with nothing that moves.
 		platforms = Stage.dynamicState(m.stage),
+		-- Per human fighter: how many of the frames it has sent are already consumed. A predicting
+		-- client replays everything after this and nothing before it. Sent as a list rather than a
+		-- table keyed by index, because a sparse integer-keyed table does not survive the wire
+		-- intact.
+		acks = self:acks(),
 	})
 	if #m.events > 0 then
 		Net.remote("Events"):FireAllClients(m.events)
 		m.events = {}
 	end
+end
+
+function MatchService.acks(self: any): { any }?
+	local out = nil
+	for _, f in self.match.fighters do
+		if not f.isBot then
+			out = out or {}
+			table.insert(out, { i = f.index, n = self.input:consumedBy(f.source) })
+		end
+	end
+	return out
 end
 
 -- ---------------------------------------------------------------- input ----

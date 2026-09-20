@@ -28,7 +28,7 @@ local EXPECTED = {
 	"index", "x", "y", "vx", "vy", "facing", "state", "stateFrame", "moveFrame", "moveId",
 	"percent", "stocks", "shield", "ultCharge", "alive", "onGround", "tumbling", "invincible",
 	"item",
-	"startupEff", "frameCount", "charge", "hitlag", "fastFalling", "ultCooldown", "techRoll", "ultShots",
+	"startupEff", "frameCount", "charge", "hitlag", "fastFalling", "ultCooldown", "techRoll", "ultShots", "hitstun",
 	"chillStacks", "ledgeAction",
 }
 
@@ -94,6 +94,7 @@ f.fastFalling = true
 f.ultCooldown = 27
 f.techRoll = -1
 f.ultShots = 4
+f.hitstun = 13
 f.effects.chill.stacks = 2
 f.la = { kind = "attack", L = {} }
 
@@ -103,7 +104,7 @@ local EXPECT_VALUE: { [string]: any } = {
 	percent = 87.5, stocks = 2, shield = 33.25, ultCharge = 14,
 	alive = true, onGround = false, tumbling = true, invincible = 6,
 	startupEff = 9, frameCount = 41, charge = 17, hitlag = 5, fastFalling = true,
-	ultCooldown = 27, techRoll = -1, ultShots = 4,
+	ultCooldown = 27, techRoll = -1, ultShots = 4, hitstun = 13,
 	-- Flattened out of f.effects.chill.stacks and f.la.kind respectively.
 	chillStacks = 2, ledgeAction = "attack",
 }

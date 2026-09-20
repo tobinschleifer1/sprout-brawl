@@ -33,7 +33,8 @@ Nothing here is required to play the web build.
 | `src/client/Channels.luau` | ported - the whole pose system, 30 states and all twelve ultimate bodies |
 | `src/client/WeaponPose.luau` | ported - every swing arc, the aimed weapons, and all twelve ultimate poses |
 | `src/client/Weapons2D.luau` | the twelve weapon shapes, as hybrid rect-and-tip silhouettes (see below) |
-| Avatar heads/faces/hats, ultimate VFX, prediction, HUD, audio, persistence, matchmaking | not started |
+| `src/client/Predictor.luau` | client-side prediction: rollback and replay for the local fighter |
+| Avatar heads/faces/hats, ultimate VFX, HUD, audio, persistence, matchmaking | not started |
 
 **The Roblox-side code has had one playtest.** It reached Studio, synced, and ran; the first bug it
 found is below. Everything above the line is verified against the
@@ -269,12 +270,37 @@ The web build was written so that the port is mostly translation:
 
 ### The Roblox half: what is built and what it assumes
 
-- **Server authority, no prediction.** `MatchService` is the only place the simulation advances, at
-  a fixed 60Hz accumulator - never on delta time, because the simulation is only defined at 1/60 and
-  every parity guarantee in `tests/` depends on it. The client simulates nothing. That costs a round
-  trip of input latency on your own fighter and it is the deliberate first step:
-  `Fighter:snapshot()`/`restore()` exist for the prediction that replaces it, and doing both at once
-  would mean every bug had two possible homes before either half was known good.
+- **Server authority, with prediction on the local fighter.** `MatchService` is still the only
+  place the simulation advances, at a fixed 60Hz accumulator - never on delta time, because the
+  simulation is only defined at 1/60 and every parity guarantee in `tests/` depends on it. The
+  client now runs its own fighter ahead of the server and rolls back when corrected, which is what
+  `Fighter:snapshot()`/`restore()` were built for in Phase 2.
+
+  Only the local fighter, and only its movement: combat is a silent stub of the same shape
+  `tests/fighter-parity.luau` replays against, so a predicted frame never invents a hit, a grab or
+  a pickup. Those arrive from the server and land at the next reconcile. A fighter who gets hit
+  mid-prediction visibly snaps; a fighter running and jumping does not.
+
+  Reconciliation is lossy and has to be: `Fighter:snapshot()` carries object references - the
+  platform, a grab victim - that cannot cross a network. So the server sends the wire fields, the
+  client restores its OWN full snapshot from the acknowledged frame, writes the server's fields
+  over the top, and replays. Restoring the local snapshot is the part that is easy to skip and
+  impossible to get away with: without it the replay applies inputs the fighter has already
+  consumed and every buffered press is counted twice.
+
+  The server echoes how many input frames it has CONSUMED per player, not how many it received.
+  Frames coalesced away by the jitter-buffer drain and frames dropped on overflow are both counted,
+  because a client whose replay window drifted by one after the first hiccup would drift forever.
+
+  `tests/prediction.luau` runs two fighters from one start on identical inputs - one stepped
+  straight through as the server, one predicted and reconciled at lags of 0, 1, 2, 4 and 7 frames -
+  and compares every wire field plus the non-wire state the wire cannot carry. 225,264 values
+  across 5,944 reconciles, four weapons. It injects genuine mispredicts the client could not have
+  seen (a launch, a chill, a move it is not in) and asserts convergence once the correction has
+  been delivered, refusing to pass if no such comparison ever ran. Eight mutations, eight caught.
+
+  `hitstun` had to join the wire because of it: the state name says a fighter IS in hitstun and not
+  how much of it is left, so a predicting client replayed a launch under ordinary air control.
 - **Input is sampled at 60Hz on the client**, not per render frame. The server consumes exactly one
   frame per tick; a 144Hz client sampling per render would send 144 frames a second into a queue
   that drains at 60 and spend the match falling behind its own inputs.

@@ -31,6 +31,11 @@ local FIELDS = {
 	{ "fastFalling", "ff" }, { "ultCooldown", "uc" }, { "techRoll", "tr" },
 	-- Read by render2d/weapons2d.js only: Deadeye counts its rounds on the rifle.
 	{ "ultShots", "us" },
+	-- Not drawn - simulated. A predicting client replays its own movement, and hitstun changes
+	-- the rules of that movement: how long control is gone and how DI bends the launch. The state
+	-- name alone says a fighter IS in hitstun and not how much of it is left, so a client that
+	-- knew only the name replayed a launch under ordinary air control and drifted.
+	{ "hitstun", "hs" },
 	-- Flattened, not nested. channels.js reads exactly one leaf out of each of these, and sending
 	-- the objects would put a timer and a ledge reference on the wire 60 times a second to deliver
 	-- one integer and one string.
@@ -42,9 +47,14 @@ local FIELDS = {
 Snapshot.FIELDS = FIELDS
 
 -- Fighter fields whose name differs from the snapshot's. The rest are read straight off the fighter.
+--
+-- Exported, because there is now a second reader: the predictor writes a correction back ONTO a
+-- Fighter and has to undo this mapping. Two copies of it is the same bug this module was created
+-- to make impossible, one direction further along.
 local FROM_FIGHTER: { [string]: string } = {
 	stateFrame = "sf", moveFrame = "mf",
 }
+Snapshot.FROM_FIGHTER = FROM_FIGHTER
 
 function Snapshot.encode(f: any): { [string]: any }
 	local out = {}

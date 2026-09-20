@@ -34,6 +34,11 @@ export type Source = {
 	queue: { number },
 	last: Input.Frame,
 	starved: number,
+	-- How many frames this source has had CONSUMED, including ones coalesced away or dropped on
+	-- overflow. The client knows how many it has sent, so this one number tells it exactly which
+	-- of its inputs the server has already accounted for - which is the whole basis of rollback.
+	-- Counting sends rather than consumes would drift the moment the queue overflowed.
+	consumed: number,
 }
 
 function RemoteInput.new(): any
@@ -44,7 +49,7 @@ function RemoteInput.new(): any
 end
 
 function RemoteInput.register(self: any, source: string)
-	self.sources[source] = { queue = {}, last = Input.emptyFrame(), starved = 0 }
+	self.sources[source] = { queue = {}, last = Input.emptyFrame(), starved = 0, consumed = 0 }
 end
 
 -- Called from the remote handler. `packed` is a list of frames the client sampled since its last
@@ -61,6 +66,9 @@ function RemoteInput.push(self: any, source: string, packed: { number })
 	end
 	while #s.queue > MAX_QUEUED do
 		table.remove(s.queue, 1)
+		-- Dropped, but the client must still count it as accounted for or its replay would be one
+		-- frame long forever after the first overflow.
+		s.consumed += 1
 	end
 end
 
@@ -75,6 +83,7 @@ function RemoteInput.get(self: any, source: string): Input.Frame
 		s.starved += 1
 		return Net.holdOnly(s.last)
 	end
+	s.consumed += 1
 	local frame = Net.unpackFrame(n)
 	-- Drain anything above the target in this same tick rather than letting it sit. Coalescing
 	-- keeps every press and takes the newest axes, so catching up costs precision on one frame
@@ -82,11 +91,18 @@ function RemoteInput.get(self: any, source: string): Input.Frame
 	while #s.queue > TARGET_QUEUED do
 		-- The loop condition guarantees a value; the checker cannot see that through table.remove.
 		local nxt = table.remove(s.queue, 1) :: number
+		s.consumed += 1
 		frame = Net.coalesce(frame, Net.unpackFrame(nxt))
 	end
 	s.starved = 0
 	s.last = frame
 	return frame
+end
+
+-- What the client needs to know to replay: how many of its frames are already in the past.
+function RemoteInput.consumedBy(self: any, source: string): number
+	local s: Source = self.sources[source]
+	return if s then s.consumed else 0
 end
 
 return RemoteInput

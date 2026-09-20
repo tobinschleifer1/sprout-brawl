@@ -27,6 +27,21 @@ local function proxy(prefix: string): any
 	return t
 end
 
+-- A `game` with just enough shape for the client modules, which reach the shared tree the way a
+-- Roblox script does rather than through script.Parent. ReplicatedStorage.Shared resolves to the
+-- same proxy a sibling require produces, so `require(game:GetService("ReplicatedStorage").Shared.
+-- Fighter)` loads src/shared/Fighter.luau.
+local function gameStub(): any
+	return {
+		GetService = function(_, name: string): any
+			if name == "ReplicatedStorage" then
+				return { Shared = proxy("") }
+			end
+			error("test loader: unsupported service " .. name)
+		end,
+	}
+end
+
 local Loader = {}
 
 -- Modules outside src/shared are loaded by their own root. Channels.luau is the case this exists
@@ -40,6 +55,7 @@ function Loader.loadFrom(root: string, name: string): any
 	local source = fs.readFile(root .. name .. ".luau")
 	local dir = string.match(name, "^(.*)/[^/]*$")
 	local env = {
+		game = gameStub(),
 		script = { Parent = proxy(dir or ""), Name = name },
 		require = function(target: any): any
 			local p = paths[target]
@@ -67,6 +83,7 @@ function Loader.load(name: string): any
 	local source = fs.readFile(SHARED .. name .. ".luau")
 	local dir = string.match(name, "^(.*)/[^/]*$")     -- a module's Parent is its folder
 	local env = {
+		game = gameStub(),
 		script = { Parent = proxy(dir or ""), Name = name },
 		require = function(target: any): any
 			local p = paths[target]

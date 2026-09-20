@@ -36,6 +36,8 @@ echo "== parity: engine numbers vs web/src/engine/knockback.js =="
 lune run tests/parity
 echo "== parity: data layer vs web/src/data =="
 lune run tests/data-parity
+echo "== prediction: rollback and replay against a straight simulation =="
+lune run tests/prediction
 echo "== the client's view-only stage, moved by the server =="
 lune run tests/stage-view
 echo "== parity: Stage vs web/src/engine/stage.js =="

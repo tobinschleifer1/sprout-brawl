@@ -739,6 +739,13 @@ export function channelsFor(f, t) {
     const since = Math.max(0, f.frameCount - f.lastHitFrame);
     ch.spinZ = -since * 0.3 * f.facing;
     ch.smear = Math.max(ch.smear, 0.5);
+    // And the legs TUCK. Hitstun splays them about seventy degrees apart, which reads as a
+    // reaction while the body is still upright and reads as two sticks coming off a box once it
+    // is spinning at seventeen degrees a frame. A tumbling body is one mass: pull them toward a
+    // compact pose over the first six frames, by which point the spin is fast enough to matter.
+    const tuck = clamp(since / 6, 0, 1);
+    ch.legL = ch.legL * (1 - tuck) + 0.26 * tuck;
+    ch.legR = ch.legR * (1 - tuck) - 0.20 * tuck;
   }
   if (f.invincible > 0 && s !== 'ledge' && s !== 'respawn' && f.frameCount % 6 < 3) ch.opacity *= 0.55;
   if (f.effects.chill.stacks > 0 && !ch.tint) ch.tint = ['#C9E6F5', '#A9D8F0', '#7FC0E6'][f.effects.chill.stacks - 1];

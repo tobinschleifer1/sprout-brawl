@@ -140,6 +140,12 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Canvas2D.restore(c)
 	end
 
+	-- The pelvis: a short block spanning both hip joints, drawn after the legs and before the
+	-- torso so it covers where they attach. Without it the torso starts AT the hip and goes up,
+	-- the legs hang from the hip and go down, and the joint is simply open - which is invisible
+	-- standing still and reads as two detached limbs the moment the body rotates away from them.
+	Canvas2D.rect(c, -r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10, secondary)
+
 	-- The torso carries the lean and the squash, so everything welded to it inherits both.
 	Canvas2D.save(c)
 	Canvas2D.translate(c, 0, HIP)

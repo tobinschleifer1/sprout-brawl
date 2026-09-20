@@ -843,6 +843,14 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 		local since = math.max(0, f.frameCount - f.lastHitFrame)
 		ch.spinZ = -since * 0.3 * f.facing
 		ch.smear = math.max(ch.smear, 0.5)
+		-- And the legs TUCK. Hitstun splays them about seventy degrees apart, which reads as a
+		-- reaction while the body is still upright and reads as two sticks coming off a box once
+		-- it is spinning at seventeen degrees a frame. A tumbling body is one mass: pull them
+		-- toward a compact pose over the first six frames, by which point the spin is fast enough
+		-- to matter.
+		local tuck = clamp(since / 6, 0, 1)
+		ch.legL = ch.legL * (1 - tuck) + 0.26 * tuck
+		ch.legR = ch.legR * (1 - tuck) - 0.20 * tuck
 	end
 	if f.invincible > 0 and s ~= "ledge" and s ~= "respawn" and f.frameCount % 6 < 3 then
 		ch.opacity *= 0.55

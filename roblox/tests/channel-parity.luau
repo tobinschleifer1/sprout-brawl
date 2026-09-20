@@ -142,7 +142,31 @@ do
 	if tumbleAt(10) == 0 then
 		fail("a tumble ten frames in is still upright - it is not spinning at all")
 	end
-	checked += 2
+
+	-- And the legs tuck rather than splaying. A seventy degree stride on a body spinning at
+	-- seventeen degrees a frame is what reads as two sticks coming off a box.
+	local function splayAt(since: number): number
+		local f = {
+			index = 0, x = 0, y = 0, vx = -9, vy = 12, facing = 1,
+			state = "hitstun", stateFrame = 1 + since, moveFrame = 0, moveId = nil,
+			startupEff = 0, frameCount = 5000, lastHitFrame = 5000 - since,
+			charge = 0, hitlag = 0, fastFalling = false, ultCooldown = 0, techRoll = 0,
+			onGround = false, tumbling = true, invincible = 0, shield = 0,
+			percent = 0, stocks = 1, ultCharge = 0, alive = true,
+			chillStacks = 0, ledgeAction = nil,
+		}
+		local c = Channels.For(f, char, nil, 0)
+		return math.abs(c.legL - c.legR)
+	end
+	local wide, tucked = splayAt(0), splayAt(8)
+	if tucked >= wide then
+		fail(`a tumble's legs splay {tucked} radians apart eight frames in, against {wide} on the `
+			.. `first frame - they are not tucking`)
+	end
+	if tucked > 0.55 then
+		fail(`a settled tumble still splays its legs {tucked} radians apart`)
+	end
+	checked += 4
 end
 
 local ns, nw = 0, 0

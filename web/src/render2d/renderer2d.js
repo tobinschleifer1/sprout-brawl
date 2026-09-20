@@ -328,6 +328,13 @@ export class Renderer2D {
       farLeg = false;
     }
 
+    // The pelvis: a short block spanning both hip joints, drawn after the legs and before the
+    // torso so it covers where they attach. Without it the torso starts AT the hip and goes up,
+    // the legs hang from the hip and go down, and the joint is simply open - which is invisible
+    // standing still and reads as two detached limbs the moment the body rotates away from them.
+    b.fillStyle = pal.secondary;
+    b.fillRect(-r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10);
+
     // body, leaning
     b.save();
     b.translate(0, HIP);

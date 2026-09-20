@@ -20,6 +20,7 @@ local Loadout = require(Shared.Loadout)
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
+local Stage = require(Shared.Stage)
 local RemoteInput = require(script.Parent.RemoteInput)
 
 local FRAME = Config.FRAME
@@ -220,6 +221,8 @@ function MatchService.broadcast(self: any)
 	Net.remote("Snapshot"):FireAllClients({
 		frame = m.frame, state = m.state, time = m.time,
 		countdown = m.countdown, fighters = fighters,
+		-- Nil on the four stages with nothing that moves.
+		platforms = Stage.dynamicState(m.stage),
 	})
 	if #m.events > 0 then
 		Net.remote("Events"):FireAllClients(m.events)

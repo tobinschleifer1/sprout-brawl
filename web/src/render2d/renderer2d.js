@@ -262,6 +262,21 @@ export class Renderer2D {
     // across the distance it covered — because at 60Hz a genuinely fast move is between frames
     // more than it is on them. The channel bag asks for it; without this it was being computed
     // and thrown away.
+    // Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole
+    // drawing out of its own hurtbox: a tech roll at frame 6 spanned y -4.5..0.3, a full body
+    // height below the floor, and an air dodge's centre swung 4.5 studs across. `rotPivot` is the
+    // fraction of height to pivot at, so knockdown can keep its deliberate feet-pivot.
+    //
+    // This applies to the FIGHTER as much as to its smear ghosts, and for most of this file's life
+    // it did not: the block sat inside the ghost loop - the stray indentation was the giveaway -
+    // so the ghosts pivoted about the body's centre and the body they were ghosting still swung
+    // about its feet. Shared here so the two cannot drift apart again.
+    const rigRotate = () => {
+      if (!ch.rigRotZ) return;
+      const pv = h * (ch.rotPivot ?? 0.5);
+      b.translate(0, pv); b.rotate(ch.rigRotZ * f.facing); b.translate(0, -pv);
+    };
+
     if (ch.smear > 0.02 && ch.visible) {
       // Ghosts trail. Standing still this used -facing, which put both of them IN FRONT of the
       // fighter, so the streak led the swing instead of following it.
@@ -272,14 +287,7 @@ export class Renderer2D {
         b.globalAlpha = ch.opacity * ch.smear * (0.45 / g);
         b.translate(f.x - dir * dist * g * 0.55, f.y + ch.yOff);
         b.scale(f.facing, 1);
-        // Rotate about the body's centre, not its feet. Pivoting at the origin swung the whole
-    // drawing out of its own hurtbox: a tech roll at frame 6 spanned y -4.5..0.3, a full body
-    // height below the floor, and an air dodge's centre swung 4.5 studs across. `rotPivot` is the
-    // fraction of height to pivot at, so knockdown can keep its deliberate feet-pivot.
-    if (ch.rigRotZ) {
-      const pv = h * (ch.rotPivot ?? 0.5);
-      b.translate(0, pv); b.rotate(ch.rigRotZ * f.facing); b.translate(0, -pv);
-    }
+        rigRotate();
         b.fillStyle = pal.primary;
         b.fillRect(-r * 0.82, h * 0.06, r * 1.64, h * 0.72);
         b.restore();
@@ -290,7 +298,7 @@ export class Renderer2D {
     b.save();
     b.translate(f.x + ch.shakeX, f.y + ch.yOff);
     b.scale(f.facing, 1);                       // one drawing, both facings
-    b.rotate(ch.rigRotZ * f.facing);
+    rigRotate();
     b.globalAlpha = ch.opacity;
 
     // ground shadow

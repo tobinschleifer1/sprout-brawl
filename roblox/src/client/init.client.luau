@@ -53,6 +53,10 @@ local pendingFrames: { number } = {}
 local posedWarned: { [number]: boolean } = {}
 local startedAt = os.clock()
 local warnedSilent = false
+-- The snapshot interpolate() based this frame on. The moving platforms are applied from the same
+-- one, so a fighter and the raft they are standing on are drawn at the same instant - taking the
+-- newest platform state while drawing bodies two frames back slides them across the deck.
+local interpBase: any = nil
 -- Which fighter is ours. Everyone else is drawn two frames in the past to smooth out jitter;
 -- ours is drawn from the newest snapshot there is, because that delay is pure input latency on
 -- the only fighter whose latency the player can feel.
@@ -146,6 +150,7 @@ local function interpolate(at: number): { any }?
 	local span = if b then math.max(1e-6, b.t - a.t) else 1
 	local t = if b then math.clamp((at - a.t) / span, 0, 1) else 0
 
+	interpBase = a
 	local out = {}
 	for i, wa in a.fighters do
 		local wb = if b then b.fighters[i] else nil
@@ -237,6 +242,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 	Stage2D.sky(canvas, stageView or { data = {} })
 	canvas:world(cam2d.x, cam2d.y, cam2d.ppu, cam2d.shakeX, cam2d.shakeY)
 	if stageView then
+		-- The view-only Stage is never stepped; the server sends what it cannot derive. `moving` is
+		-- a function of stage time and `sinking` is a function of who is standing on it, and only
+		-- the server knows the second.
+		Stage.applyDynamicState(stageView, interpBase and interpBase.platforms)
 		Stage2D.draw(canvas, stageView)
 	end
 	for _, st in states do

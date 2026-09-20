@@ -133,6 +133,50 @@ function Stage.surfaceUnder(self: Stage, x: number, yMax: number): Platform?
 	return best
 end
 
+-- ---------------------------------------------------------------- the viewer's copy ----
+-- The platform state a client cannot work out for itself.
+--
+-- `moving` IS derivable - it is a pure function of stage time - but `sinking` is not: it depends
+-- on which fighters are standing on the platform this frame. Sending both rather than deriving one
+-- and receiving the other is deliberate: two code paths that can disagree about where the floor is
+-- would be a fighter standing on air on one machine, and the disagreement would be invisible until
+-- somebody fell through it.
+--
+-- Nil when the stage has nothing dynamic, which is four of the six, so the common case costs
+-- nothing on the wire.
+function Stage.dynamicState(self: Stage): { any }?
+	local out = nil
+	for i, p in self.platforms do
+		if p.moving or p.sinking then
+			out = out or {}
+			table.insert(out, { i = i, cx = p.cx, top = p.top })
+		end
+	end
+	return out
+end
+
+-- Applied to the client's view-only Stage, which is never stepped. dx/dy are set from the move so
+-- anything reading them - the ledge logic, the renderer's scrape - sees the same deltas the server
+-- computed rather than a platform that teleports with zero velocity.
+function Stage.applyDynamicState(self: Stage, list: { any }?)
+	if not list then
+		return
+	end
+	for _, e in list do
+		local p = self.platforms[e.i]
+		if p then
+			p.dx = e.cx - p.cx
+			p.cx = e.cx
+			p.x1 = e.cx - p.w / 2
+			p.x2 = e.cx + p.w / 2
+			p.dy = e.top - p.top
+			p.top = e.top
+			p.cy = e.top
+			p.bottom = e.top - (p.thickness or 1)
+		end
+	end
+end
+
 function Stage.step(self: Stage, match: any)
 	self.time += FRAME
 	for _, p in self.platforms do

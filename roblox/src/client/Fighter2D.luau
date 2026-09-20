@@ -117,7 +117,14 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 
 	-- Ground shadow, tied to how far above the platform the fighter is, so height off the stage is
 	-- readable without looking away from the fighter.
-	if platformTop then
+	--
+	-- Not while ragdolling through the air. A shadow says "there is ground under me and this is how
+	-- far above it I am", which is useful information while you are jumping and is a lie while you
+	-- are being launched off the stage - the thing the shadow is cast on is about to not be under
+	-- you. It also rotates with the rig, because it is drawn inside the body's transform, so a
+	-- tumbling fighter drags a spinning ellipse around with it.
+	local ragdolling = s.tumbling and not s.onGround
+	if platformTop and not ragdolling then
 		local d = math.clamp(1 - (s.y - platformTop) / 14, 0.25, 1)
 		Canvas2D.ellipse(c, 0, platformTop - s.y + 0.1, r * 1.25 * d, 0.45 * d, BLACK, 0.22)
 	end

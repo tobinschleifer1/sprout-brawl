@@ -102,6 +102,9 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 		stage = stageId,
 		seed = self.match.seed,
 		mode = self.match.mode,
+		-- The HUD needs to know whether there is a clock at all, and what it counts down from.
+		timed = self.match.timed,
+		timeLimit = self.match.timeLimit,
 		fighters = self:roster(),
 	})
 

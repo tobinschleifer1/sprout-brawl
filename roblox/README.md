@@ -34,7 +34,9 @@ Nothing here is required to play the web build.
 | `src/client/WeaponPose.luau` | ported - every swing arc, the aimed weapons, and all twelve ultimate poses |
 | `src/client/Weapons2D.luau` | the twelve weapon shapes, as hybrid rect-and-tip silhouettes (see below) |
 | `src/client/Predictor.luau` | client-side prediction: rollback and replay for the local fighter |
-| Avatar heads/faces/hats, ultimate VFX, HUD, audio, persistence, matchmaking | not started |
+| `src/client/Hud.luau` | percent, stocks, ultimate meter, timer, callouts and the scoreboard |
+| `src/client/HudColors.luau` | the damage ramp and player palette, held to the JavaScript |
+| Avatar heads/faces/hats, ultimate VFX, audio, persistence, matchmaking | not started |
 
 **The Roblox-side code has had one playtest.** It reached Studio, synced, and ran; the first bug it
 found is below. Everything above the line is verified against the
@@ -301,6 +303,29 @@ The web build was written so that the port is mostly translation:
 
   `hitstun` had to join the wire because of it: the state name says a fighter IS in hitstun and not
   how much of it is left, so a predicting client replayed a launch under ordinary air control.
+
+- **The HUD is a rewrite, not a port.** `web/src/ui/hud.js` is a DOM tree - divs, CSS classes and
+  innerHTML - so unlike `channels.js` and `weapons2d.js` there is nothing in it to translate. What
+  carries over is what it SAYS and where: a band of per-fighter tiles along the bottom, a timer
+  above them, a callout in the middle, and a percent floating over each fighter's head.
+
+  It is its own ScreenGui on purpose. Canvas2D owns a pool of Frames it hides and reuses every
+  frame, and a HUD sharing that pool would flicker or be recycled out from under itself.
+
+  One piece of it IS arithmetic and is held to the JavaScript: the damage colour ramp, in
+  `HudColors.luau`, checked against 693 sampled percents plus both sides of every stop. That ramp
+  is the only part of a HUD nobody would notice was wrong - one off by a stop still produces a
+  plausible colour for every percent - so it is the only part with a test. Seven mutations, seven
+  caught.
+
+  `ultMeter` and `ultReady` are computed from `ultCharge` rather than sent. They are a division and
+  a comparison against a shared constant, and putting them on the wire would be sending an opinion
+  the client can derive. The Match config gained `timed` and `timeLimit`, which a client cannot
+  derive and needs before it can show a clock.
+
+  `Canvas2D.project` was added for the floating labels: the HUD lives in a different ScreenGui and
+  needs the renderer's camera, and a second copy of the camera's arithmetic is the kind of
+  duplicate that stays right until somebody changes one of them.
 - **Input is sampled at 60Hz on the client**, not per render frame. The server consumes exactly one
   frame per tick; a 144Hz client sampling per render would send 144 frames a second into a queue
   that drains at 60 and spend the match falling behind its own inputs.

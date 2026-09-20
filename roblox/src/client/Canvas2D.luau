@@ -136,6 +136,15 @@ function Canvas2D.screen(self: any)
 	Canvas2D.setTransform(self, 1, 0, 0, 1, 0, 0)
 end
 
+-- A world point in screen pixels, through whatever matrix is currently installed. The HUD floats
+-- a percent over each fighter's head and lives in its own ScreenGui, so it needs the renderer's
+-- camera without a second copy of the camera's arithmetic - which is the kind of duplicate that
+-- stays right until somebody changes one of them.
+function Canvas2D.project(self: any, x: number, y: number): Vector2
+	local m = self.m
+	return Vector2.new(m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f)
+end
+
 function Canvas2D.viewport(self: any): Vector2
 	return self.gui.AbsoluteSize
 end

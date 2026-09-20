@@ -42,6 +42,23 @@ local function gameStub(): any
 	}
 end
 
+-- Roblox value types, as far as the testable modules use them. Only the constructors and the
+-- fields the tests read: this is a shim so that pure logic living in a client module can be held
+-- to the JavaScript, not an attempt at reimplementing Roblox.
+local Color3Shim = {
+	fromRGB = function(r: number, g: number, b: number): any
+		return { R = r / 255, G = g / 255, B = b / 255 }
+	end,
+	new = function(r: number, g: number, b: number): any
+		return { R = r, G = g, B = b }
+	end,
+}
+local Vector2Shim = {
+	new = function(x: number, y: number): any
+		return { X = x, Y = y }
+	end,
+}
+
 local Loader = {}
 
 -- Modules outside src/shared are loaded by their own root. Channels.luau is the case this exists
@@ -56,6 +73,8 @@ function Loader.loadFrom(root: string, name: string): any
 	local dir = string.match(name, "^(.*)/[^/]*$")
 	local env = {
 		game = gameStub(),
+		Color3 = Color3Shim,
+		Vector2 = Vector2Shim,
 		script = { Parent = proxy(dir or ""), Name = name },
 		require = function(target: any): any
 			local p = paths[target]
@@ -84,6 +103,8 @@ function Loader.load(name: string): any
 	local dir = string.match(name, "^(.*)/[^/]*$")     -- a module's Parent is its folder
 	local env = {
 		game = gameStub(),
+		Color3 = Color3Shim,
+		Vector2 = Vector2Shim,
 		script = { Parent = proxy(dir or ""), Name = name },
 		require = function(target: any): any
 			local p = paths[target]

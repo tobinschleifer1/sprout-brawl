@@ -29,6 +29,7 @@ local Canvas2D = require(script.Canvas2D)
 local Stage2D = require(script.Stage2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
+local Hud = require(script.Hud)
 
 local FRAME = Config.FRAME
 -- Two frames of buffer. Snapshots arrive at 60Hz but not evenly, and drawing the newest one the
@@ -63,6 +64,8 @@ local interpBase: any = nil
 -- the input was sampled on rather than a round trip later.
 local localIndex: number? = nil
 local predictor: any = nil
+local hud: any = nil
+local matchCfg: any = nil
 local sawFirst = false
 
 -- ---------------------------------------------------------------- match setup ----
@@ -87,6 +90,13 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 			stageView = Stage.new(data, cfg.seed)
 		end
 	end
+	matchCfg = cfg
+	if not hud then
+		hud = Hud.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
+	end
+	hud:clearResults()
+	hud:bind(roster, chars)
+
 	predictor = nil
 	if localIndex and stageView then
 		predictor = Predictor.new(chars[localIndex + 1], localIndex, stageView)
@@ -125,6 +135,9 @@ end)
 -- The final scoreboard, once and reliably. The snapshot stream stops with the match, so without
 -- this the client would sit on the last frame with no idea the match had ended.
 Net.remote("Results").OnClientEvent:Connect(function(res: any)
+	if hud then
+		hud:showResults(res)
+	end
 	print(`[Blockfall] --- results ({res.mode}, {res.frames} frames, {string.format("%.1f", res.time)}s) ---`)
 	for place, row in res.rows do
 		print(`[Blockfall]   {place}. {row.name} ({row.avatar}/{row.weapon}) `
@@ -286,6 +299,9 @@ RunService.RenderStepped:Connect(function(dt: number)
 		end
 	end
 	canvas:finish()
+	if hud then
+		hud:update(states, buffer[#buffer], canvas, chars, matchCfg)
+	end
 
 	if cam2d.shake > 0 then
 		cam2d.shake = math.max(0, cam2d.shake - dt * 4)

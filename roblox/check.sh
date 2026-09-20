@@ -21,6 +21,7 @@ node tools/gen-ai-traces.mjs
 node tools/gen-rng-fixture.mjs
 node tools/gen-channel-traces.mjs
 node tools/gen-weapon-traces.mjs
+node tools/gen-hud-fixture.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
@@ -36,6 +37,8 @@ echo "== parity: engine numbers vs web/src/engine/knockback.js =="
 lune run tests/parity
 echo "== parity: data layer vs web/src/data =="
 lune run tests/data-parity
+echo "== parity: the HUD's damage ramp vs web/src/ui/hud.js =="
+lune run tests/hud-parity
 echo "== prediction: rollback and replay against a straight simulation =="
 lune run tests/prediction
 echo "== the client's view-only stage, moved by the server =="

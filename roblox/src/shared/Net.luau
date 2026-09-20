@@ -49,6 +49,7 @@ if RunService:IsServer() then
 		make("RemoteEvent", "Events")               -- server -> client, hits/KOs/countdown
 		make("RemoteEvent", "Hello")                -- client -> server, "I have loaded, put me in"
 		make("RemoteEvent", "Match")                -- server -> client, the config to build a view from
+		make("RemoteEvent", "Results")              -- server -> client, the final scoreboard, once
 		folder.Parent = ReplicatedStorage
 	end
 else

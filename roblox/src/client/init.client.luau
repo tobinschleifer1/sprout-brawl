@@ -90,6 +90,16 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
 	end
 end)
 
+-- The final scoreboard, once and reliably. The snapshot stream stops with the match, so without
+-- this the client would sit on the last frame with no idea the match had ended.
+Net.remote("Results").OnClientEvent:Connect(function(res: any)
+	print(`[Blockfall] --- results ({res.mode}, {res.frames} frames, {string.format("%.1f", res.time)}s) ---`)
+	for place, row in res.rows do
+		print(`[Blockfall]   {place}. {row.name} ({row.avatar}/{row.weapon}) `
+			.. `stocks={row.stocks} kos={row.kos} falls={row.falls} dmg={row.damage} pct={math.floor(row.percent)}`)
+	end
+end)
+
 Net.remote("Events").OnClientEvent:Connect(function(events: { any })
 	for _, e in events do
 		if e.type == "count" then

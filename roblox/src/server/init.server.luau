@@ -21,6 +21,10 @@ Players.CharacterAutoLoads = false
 local service = MatchService.new()
 service:bindRemotes()
 
+-- How long the scoreboard stays up before the next match. A results screen with a button on it is
+-- section 5's job; until then the slice loops on a timer so a playtest does not end with one match.
+local RESULTS_HOLD = 6
+
 local function beginMatch(player: Player)
 	if service.match then
 		return
@@ -31,6 +35,20 @@ local function beginMatch(player: Player)
 	}
 	local match = service:start(roster, { stage = "FoundryFloor", mode = "StockFFA", stocks = 3 })
 	print(`[Blockfall] match started: stage={match.stage.data.id} seed={match.seed}`)
+end
+
+-- The match is over, the loop is down, and the scoreboard has gone out. Hold it, then go again with
+-- whoever is still here.
+service.onFinished = function(self: any, m: any)
+	print(`[Blockfall] match over after {m.frame} frames ({string.format("%.1f", m.time)}s)`)
+	task.wait(RESULTS_HOLD)
+	-- stop() clears service.match, which is what beginMatch guards on; without it the restart below
+	-- would return immediately and the server would sit on the scoreboard forever.
+	service:stop()
+	local players = Players:GetPlayers()
+	if #players > 0 then
+		beginMatch(players[1])
+	end
 end
 
 local Net = require(ReplicatedStorage.Shared.Net)

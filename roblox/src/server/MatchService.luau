@@ -38,6 +38,8 @@ function MatchService.new(): any
 	self.input = RemoteInput.new()
 	self.accum = 0
 	self.conn = nil :: RBXScriptConnection?
+	self.finished = false
+	self.onFinished = nil :: ((any, any) -> ())?
 	self.sources = {} :: { [number]: string }   -- userId -> input source key
 	self.userIds = {} :: { [string]: number }  -- and back, so the roster can name a rig's owner
 	return self
@@ -103,6 +105,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 	})
 
 	self.accum = 0
+	self.finished = false
 	self.conn = RunService.PostSimulation:Connect(function(dt: number)
 		self:tick(dt)
 	end)
@@ -129,9 +132,48 @@ function MatchService.stop(self: any)
 		self.conn = nil
 	end
 	self.match = nil
+	self.finished = false
 	self.sources = {}
 	self.userIds = {}
 	self.input = RemoteInput.new()
+end
+
+-- ---------------------------------------------------------------- finish ----
+-- Results go out reliably and exactly once. They are not in the snapshot because a snapshot is a
+-- stream whose next message supersedes the last, and the one message a player must not miss is the
+-- one saying who won.
+function MatchService.finish(self: any)
+	local m = self.match
+	if self.conn then
+		self.conn:Disconnect()
+		self.conn = nil
+	end
+	Net.remote("Results"):FireAllClients(self:results())
+	if self.onFinished then
+		-- Spawned, because whatever restarts the match must not run inside the tick that ended it.
+		task.spawn(self.onFinished, self, m)
+	end
+end
+
+-- The rows Match builds carry the whole composed character, which is kilobytes of frame data the
+-- client already has. Send the identifiers and let it look them up.
+function MatchService.results(self: any): any
+	local m = self.match
+	local r = m.results
+	local rows = {}
+	for _, row in r.rows do
+		table.insert(rows, {
+			index = row.index, name = row.name, team = row.team,
+			avatar = row.char.avatar.id, weapon = row.char.weapon.id,
+			kos = row.kos, falls = row.falls, sds = row.sds,
+			damage = row.damage, percent = row.percent,
+			stocks = row.stocks, score = row.score,
+		})
+	end
+	return {
+		rows = rows, winnerTeam = r.winnerTeam, mode = r.mode, timed = r.timed,
+		frames = m.frame, time = m.time,
+	}
 end
 
 -- ---------------------------------------------------------------- loop ----
@@ -153,6 +195,15 @@ function MatchService.tick(self: any, dt: number)
 	end
 	if steps > 0 then
 		self:broadcast()
+	end
+	-- Match.step is a no-op once the match reaches "results", so the accumulator goes on "stepping" a
+	-- finished match forever: steps stays > 0, the frame number never moves, and broadcast ships the
+	-- same frozen snapshot 60 times a second for as long as the server is up. The broadcast above is
+	-- the last one, and it carries both the final positions and Match's own `game` event; after it
+	-- the loop comes down and the scoreboard goes out on its own reliable remote.
+	if m.state == "results" and not self.finished then
+		self.finished = true
+		self:finish()
 	end
 end
 

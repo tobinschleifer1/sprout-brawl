@@ -36,7 +36,8 @@ Nothing here is required to play the web build.
 | `src/client/Predictor.luau` | client-side prediction: rollback and replay for the local fighter |
 | `src/client/Hud.luau` | percent, stocks, ultimate meter, timer, callouts and the scoreboard |
 | `src/client/HudColors.luau` | the damage ramp and player palette, held to the JavaScript |
-| Avatar heads/faces/hats, ultimate VFX, audio, persistence, matchmaking | not started |
+| `src/client/Avatar2D.luau` | head shapes, faces, headgear and chest marks |
+| Ultimate VFX, audio, character/stage select, persistence, matchmaking | not started |
 
 **The Roblox-side code has had one playtest.** It reached Studio, synced, and ran; the first bug it
 found is below. Everything above the line is verified against the
@@ -351,10 +352,17 @@ The web build was written so that the port is mostly translation:
   channel values across 27,496 poses, 30 states and all twelve weapons, exact. Fighters now lean,
   squash, swing their limbs, smear, flash and settle exactly as they do on the web.
 
-  What is still missing above the skeleton is the avatar's head shape, face and headgear
-  (`avatar2d.js`), and the weapon and its swing (`weapons2d.js`). The head is a plain box until
-  then. Both hang off `HIP`, `SHO` and `HEAD`, which is why those proportions are the
-  JavaScript's rather than convenient ones.
+  The avatar - four head shapes, six faces, six hats and four chest marks - is ported as
+  `Avatar2D.luau`. They hang off `HIP`, `SHO` and `HEAD`, which is why those proportions are the
+  JavaScript's rather than convenient ones, and they live in one module for the reason the web
+  build gives: the character creator's preview has to be the SAME drawing as the match, and the
+  only way to guarantee that is for there to be one drawing.
+
+  Three shapes trade a curve for steps, as the weapons do: the horns and crown are staircased
+  triangles, and the hood's quadratic becomes a back panel and a stepped shoulder. The sash goes
+  the other way and is now EXACT - it is one rotated rectangle, which is precisely what a Frame
+  is, where the JavaScript draws a parallelogram. Measured in Studio: four fighters with weapons
+  and full avatars cost 0.676ms a frame, 4.1% of a 16.7ms budget, against 216 pooled Frames.
 
   `channelsFor` turned out to be a pure function of the snapshot plus the weapon data, which is
   what made it testable at all: `tools/gen-channel-traces.mjs` writes every field it reads into the

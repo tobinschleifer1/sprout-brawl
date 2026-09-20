@@ -15,6 +15,7 @@ local Canvas2D = require(script.Parent.Canvas2D)
 local Channels = require(script.Parent.Channels)
 local WeaponPose = require(script.Parent.WeaponPose)
 local Weapons2D = require(script.Parent.Weapons2D)
+local Avatar2D = require(script.Parent.Avatar2D)
 
 local BLACK = Color3.new(0, 0, 0)
 local SHIELD = Color3.fromRGB(159, 209, 232)
@@ -63,6 +64,14 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local primary = Canvas2D.hex(pal.primary, Color3.fromRGB(210, 212, 220))
 	local secondary = Canvas2D.hex(pal.secondary, Color3.fromRGB(150, 155, 170))
 	local tertiary = Canvas2D.hex(pal.tertiary, Color3.fromRGB(96, 102, 120))
+	local accent = Canvas2D.hex(pal.accent, Color3.fromRGB(240, 220, 150))
+	-- The avatar shapes index a palette rather than take four arguments, because a head, a face, a
+	-- hat and a chest mark each reach for a different subset of it.
+	local avPal = {
+		primary = primary, secondary = secondary, tertiary = tertiary, accent = accent,
+		glow = Canvas2D.hex(pal.glow, accent),
+	}
+	local feat = Avatar2D.features(char.avatar)
 
 	-- Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole drawing
 	-- out of its own hurtbox - a tech roll spans a full body height below the floor, and an air
@@ -141,15 +150,17 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- to hide the far shoulder, and the front arm has to sit over the head.
 	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74)
 	Canvas2D.rect(c, -r * 0.80, 0, r * 1.60, SHO - HIP, primary)
+	Avatar2D.drawTorsoMark(c, avPal, r, SHO - HIP, feat)
 
-	-- The head is a plain box here; avatar2d.js owns its real shape, face and headgear. It takes
-	-- the head channel at 0.4 as a nod rather than a full turn, as the JavaScript does.
+	-- The head: shape, face and headgear, all from the avatar, so a preset and a player-made
+	-- character are drawn by the same code at the same moment. It takes the head channel at 0.4 as
+	-- a nod rather than a full turn, as the JavaScript does.
 	local HEAD = h * 0.78
 	local hs = r * 1.15
 	Canvas2D.save(c)
 	Canvas2D.translate(c, 0, HEAD - HIP)
 	Canvas2D.rotate(c, -ch.head * 0.4)
-	Canvas2D.rect(c, -hs / 2, -hs * 0.15, hs, hs, primary)
+	Avatar2D.drawHead(c, avPal, hs, feat)
 	Canvas2D.restore(c)
 
 	-- THE FRONT ARM IS DRIVEN BY THE WEAPON, not by armR.z, so the swing and the limb always

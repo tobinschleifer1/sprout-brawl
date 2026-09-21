@@ -30,6 +30,7 @@ local Stage2D = require(script.Stage2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
 local Hud = require(script.Hud)
+local Select = require(script.Select)
 
 local FRAME = Config.FRAME
 -- Two frames of buffer. Snapshots arrive at 60Hz but not evenly, and drawing the newest one the
@@ -65,11 +66,31 @@ local interpBase: any = nil
 local localIndex: number? = nil
 local predictor: any = nil
 local hud: any = nil
+local select_: any = nil
 local matchCfg: any = nil
 local sawFirst = false
 
 -- ---------------------------------------------------------------- match setup ----
+-- The server says "pick a match". It also says when it refused one, and why.
+Net.remote("Select").OnClientEvent:Connect(function(msg: any)
+	if not select_ then
+		select_ = Select.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
+		select_.onStart = function(cfg: any)
+			select_:hide()
+			Net.remote("Setup"):FireServer(cfg)
+		end
+	end
+	if msg and msg.last then
+		-- Their previous picks, so a rematch does not mean choosing everything again.
+		select_.cfg = msg.last
+	end
+	select_:show(if msg and msg.error then `That match could not be run: {msg.error}` else nil)
+end)
+
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
+	if select_ then
+		select_:hide()
+	end
 	canvas:clear()
 	posedWarned = {}
 	buffer = {}

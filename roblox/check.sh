@@ -65,6 +65,8 @@ echo "== parity: data layer vs web/src/data =="
 lune run tests/data-parity
 echo "== parity: the HUD's damage ramp vs web/src/ui/hud.js =="
 lune run tests/hud-parity
+echo "== what a client is allowed to ask the server for =="
+lune run tests/match-config
 echo "== prediction: rollback and replay against a straight simulation =="
 lune run tests/prediction
 echo "== the client's view-only stage, moved by the server =="

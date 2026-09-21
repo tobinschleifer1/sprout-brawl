@@ -1,4 +1,4 @@
-import { InputManager } from './engine/input.js';
+import { InputManager, isTextEntry, matchShortcut } from './engine/input.js';
 import { Match } from './engine/match.js';
 import { WEAPONS } from './data/weapons/index.js';
 import { buildLoadout } from './data/loadout.js';
@@ -147,10 +147,11 @@ class App {
   }
 
   onKey(e) {
-    if (this.state !== 'match' || !this.match) return;
-    if (e.code === 'Escape' || e.code === 'KeyP') { this.togglePause(); e.preventDefault(); return; }
+    if (this.state !== 'match' || !this.match || e.repeat || isTextEntry(e.target)) return;
+    const shortcut = matchShortcut(e, this.input.kb2Active);
+    if (shortcut === 'pause') { this.togglePause(); e.preventDefault(); return; }
     if (e.code === 'KeyH') { this.settings.hitboxes = !this.settings.hitboxes; this.applySettings(this.settings); this.menus.save(); }
-    if (e.code === 'KeyM') { this.settings.music = this.settings.music > 0 ? 0 : 0.6; this.applySettings(this.settings); this.menus.save(); }
+    if (shortcut === 'mute') { this.settings.music = this.settings.music > 0 ? 0 : 0.6; this.applySettings(this.settings); this.menus.save(); }
     if (this.match.training) {
       if (e.code === 'KeyR') { this.match.resetTraining(); this.view.clear(); }
       if (e.code === 'KeyB') { const d = this.match.fighters[1]; d.botLevel = d.botLevel === 'dummy' ? 'normal' : 'dummy'; this.hud.message(d.botLevel === 'dummy' ? 'Dummy: still' : 'Dummy: fighting back', '', 900); }

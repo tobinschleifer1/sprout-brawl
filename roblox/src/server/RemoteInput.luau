@@ -8,7 +8,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Net = require(ReplicatedStorage.Shared.Net)
+local Net = require(ReplicatedStorage.Shared.InputCodec)
 local Input = require(ReplicatedStorage.Shared.Input)
 
 -- Past this, a client is running ahead of the server or spamming, and the extra frames are
@@ -59,7 +59,9 @@ function RemoteInput.push(self: any, source: string, packed: { number })
 	if not s then
 		return
 	end
-	for _, n in packed do
+	-- Numeric dense prefix only, and bounded here too: #packed does not count dictionary keys.
+	for i = 1, math.min(#packed, 16) do
+		local n = packed[i]
 		if type(n) == "number" and n % 1 == 0 and n >= 0 and n < Net.MAX_PACKED then
 			table.insert(s.queue, n)
 		end

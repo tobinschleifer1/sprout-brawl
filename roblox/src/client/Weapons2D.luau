@@ -18,6 +18,7 @@
 -- moment it leaves the fighter's silhouette.
 
 local Canvas2D = require(script.Parent.Canvas2D)
+local BackdropArt = require(script.Parent.BackdropArt)
 
 local Weapons2D = {}
 
@@ -237,6 +238,7 @@ function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	Canvas2D.restore(c)
 
 	shape.draw(c, resolve(palette), shape.L)
+	BackdropArt.weapon(c, weaponId, palette)
 
 	if pose.charge > 0 then                          -- charging glows along the weapon
 		local glow = Canvas2D.hex(palette.glow, WHITE)

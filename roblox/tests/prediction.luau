@@ -51,6 +51,16 @@ local function stageFor(): any
 	return fail("no FoundryFloor")
 end
 
+-- Inputs can arrive before the first snapshot. They still need the same bounded history; pruning
+-- only snapshots leaked every input sampled while the server had not replied yet.
+do
+	local waiting = Predictor.new(Loadout.build("Classic", "Sword"), 0, stageFor())
+	for _ = 1, 1000 do waiting:push(Input.emptyFrame()) end
+	local count = 0
+	for _ in waiting.inputs do count += 1 end
+	if count > 121 then fail(`waiting for first snapshot retained {count} input frames`) end
+end
+
 -- A scripted run: walk, run, jump, attack, fastfall, shield. Enough to cross most of the state
 -- machine, because a test that only walks proves only that standing still is predictable.
 local function inputAt(n: number): any

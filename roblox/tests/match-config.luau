@@ -192,5 +192,18 @@ do
 	checked += 5
 end
 
+do
+	local requested = MatchConfig.default()
+	requested.slots[1].weaponId = "not-a-weapon"
+	requested.stocks = 999
+	local roster, opts = ok(requested)
+	local returned = MatchConfig.forClient(roster, opts)
+	if returned.slots[1].weaponId ~= "Sword" or returned.stocks ~= 5 then
+		fail("rematch config echoed invalid raw choices")
+	end
+	local replay = ok(returned)
+	if #replay ~= #roster then fail("validated choices changed the rematch roster") end
+	checked += 3
+end
 print(`checked {checked} config outcomes`)
 print("MatchConfig turns anything a client can send into a match the server is willing to run.")

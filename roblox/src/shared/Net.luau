@@ -27,9 +27,9 @@ Net.coalesce = InputCodec.coalesce
 Net.MAX_PACKED = InputCodec.MAX_PACKED
 
 -- ---------------------------------------------------------------- remotes ----
--- Snapshots and input are Unreliable: both are a stream where the next message supersedes the
--- last, and a retransmitted stale one would be worse than the gap it filled. Events and the
--- handshake are reliable, because a dropped KO or a dropped match config never comes back.
+-- Snapshots may be dropped; inputs may not. Prediction's acknowledgement is a COUNT of consumed
+-- input frames, so losing or reordering one shifts the replay history permanently. Reliable input
+-- preserves that count; RemoteInput still coalesces catch-up bursts to keep the queue shallow.
 local folder: Folder
 if RunService:IsServer() then
 	local existing = ReplicatedStorage:FindFirstChild("Net")
@@ -45,12 +45,13 @@ if RunService:IsServer() then
 			r.Name = name
 			r.Parent = folder
 		end
-		make("UnreliableRemoteEvent", "Input")      -- client -> server, one packed frame per sim tick
+		make("RemoteEvent", "Input")                -- ordered client input, one packed frame per sim tick
 		make("UnreliableRemoteEvent", "Snapshot")   -- server -> client, authoritative state
 		make("RemoteEvent", "Events")               -- server -> client, hits/KOs/countdown
 		make("RemoteEvent", "Hello")                -- client -> server, "I have loaded, put me in"
 		make("RemoteEvent", "Match")                -- server -> client, the config to build a view from
 		make("RemoteEvent", "Results")              -- server -> client, the final scoreboard, once
+		make("RemoteEvent", "Scene")                -- server -> client, live world threats (separate from fighter snapshots)
 		make("RemoteEvent", "Setup")                -- client -> server, "run this match please"
 		make("RemoteEvent", "Select")               -- server -> client, "pick a match" / why one was refused
 		folder.Parent = ReplicatedStorage

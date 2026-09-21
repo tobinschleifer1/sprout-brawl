@@ -10,18 +10,28 @@ const KB1 = {
 const KB1_ARROWS = { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], jump: ['ArrowUp'] };
 const KB2 = {
   left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
-  jump: ['ArrowUp', 'Enter'], light: ['Numpad4'], heavy: ['Numpad5'], dodge: ['Numpad6'],
-  guard: ['Numpad8'], grab: ['Numpad7'], taunt: ['Numpad3'], ult: ['Numpad9'], pickup: ['NumpadDecimal'],
+  jump: ['ArrowUp', 'Enter'], light: ['Comma', 'Numpad4'], heavy: ['Period', 'Numpad5'], dodge: ['Slash', 'Numpad6'],
+  guard: ['ShiftRight', 'Numpad8'], grab: ['KeyM', 'Numpad7'], taunt: ['KeyN', 'Numpad3'], ult: ['ControlRight', 'Numpad9'], pickup: ['BracketRight', 'NumpadDecimal'],
 };
 
 export const BINDINGS_TEXT = {
   kb1: 'Move WASD · Jump Space/W · Light J · Heavy K · Dodge L · Guard I · Grab U · Pick up P · Taunt T · Ultimate O',
-  kb2: 'Move Arrows · Jump Up/Enter · Light , · Heavy . · Dodge / · Guard RShift · Grab M · Pick up . · Taunt N · Ultimate RCtrl',
+  kb2: 'Move Arrows · Jump Up/Enter · Light , · Heavy . · Dodge / · Guard RShift · Grab M · Pick up ] · Taunt N · Ultimate RCtrl (numpad also supported)',
   pad: 'Move Stick · Jump A · Light X · Heavy Y · Dodge B · Guard RB · Grab LB · Pick up back · Ultimate stick-click',
 };
 
 const EMPTY = () => ({ x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false, grab: false, taunt: false, pickup: false, ult: false,
   jumpHeld: false, guardHeld: false, heavyHeld: false, lightHeld: false, downTap: false, anyPress: false });
+
+export const isTextEntry = (target) => !!target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
+// Global shortcuts must not consume either player's combat buttons.
+export function matchShortcut(event, kb2Active = false) {
+  if (event.repeat || isTextEntry(event.target)) return null;
+  if (event.code === 'Escape') return 'pause';
+  if (event.code === 'KeyM' && !kb2Active) return 'mute';
+  return null;
+}
 
 export class InputManager {
   constructor() {
@@ -31,7 +41,7 @@ export class InputManager {
     this.frames = new Map();
     this.padPrev = new Map();
     window.addEventListener('keydown', (e) => {
-      if (e.repeat) return;
+      if (e.repeat || isTextEntry(e.target)) return;
       this.keys.add(e.code);
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'Tab', 'ControlRight'].includes(e.code)) e.preventDefault();
     });
@@ -89,7 +99,7 @@ export class InputManager {
     this.frames.set('kb2', this._build('kb2', this._levelsFromKeys(KB2)));
     for (let i = 0; i < 4; i++) {
       const lv = this._levelsFromPad(i);
-      this.frames.set('pad' + i, lv ? this._build('pad' + i, lv) : EMPTY());
+      this.frames.set('pad' + i, this._build('pad' + i, lv || {}));
     }
   }
 

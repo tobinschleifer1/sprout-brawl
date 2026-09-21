@@ -20,6 +20,7 @@ local Loadout = require(Shared.Loadout)
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
+local SceneSnapshot = require(Shared.SceneSnapshot)
 local Stage = require(Shared.Stage)
 local RemoteInput = require(script.Parent.RemoteInput)
 
@@ -40,6 +41,7 @@ function MatchService.new(): any
 	self.accum = 0
 	self.conn = nil :: RBXScriptConnection?
 	self.finished = false
+	self.generation = 0
 	self.onFinished = nil :: ((any, any) -> ())?
 	self.sources = {} :: { [number]: string }   -- userId -> input source key
 	self.userIds = {} :: { [string]: number }  -- and back, so the roster can name a rig's owner
@@ -56,6 +58,7 @@ end
 function MatchService.start(self: any, roster: { any }, opts: any?)
 	local o = opts or {}
 	self:stop()
+	self.generation += 1
 
 	local stageId = o.stage or "FoundryFloor"
 	local stage = nil
@@ -99,6 +102,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 	})
 
 	Net.remote("Match"):FireAllClients({
+		id = self.generation,
 		stage = stageId,
 		seed = self.match.seed,
 		mode = self.match.mode,
@@ -110,6 +114,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 
 	self.accum = 0
 	self.finished = false
+	self.sceneFrame = -2
 	self.conn = RunService.PostSimulation:Connect(function(dt: number)
 		self:tick(dt)
 	end)
@@ -217,11 +222,20 @@ end
 -- or a missed hitspark is a missed KO or hitspark.
 function MatchService.broadcast(self: any)
 	local m = self.match
+	-- World objects are sent separately: four fighter snapshots are already a substantial
+	-- unreliable packet, and adding hazards/items to it can exceed that transport's size limit.
+	if m.frame - self.sceneFrame >= 2 or m.state == "results" then
+		local scene = SceneSnapshot.encode(m)
+		scene.id = self.generation
+		Net.remote("Scene"):FireAllClients(scene)
+		self.sceneFrame = m.frame
+	end
 	local fighters = table.create(#m.fighters)
 	for i, f in m.fighters do
 		fighters[i] = Snapshot.encode(f)
 	end
 	Net.remote("Snapshot"):FireAllClients({
+		id = self.generation,
 		frame = m.frame, state = m.state, time = m.time,
 		countdown = m.countdown, fighters = fighters,
 		-- Nil on the four stages with nothing that moves.
@@ -251,9 +265,9 @@ end
 
 -- ---------------------------------------------------------------- input ----
 function MatchService.bindRemotes(self: any)
-	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any)
+	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any)
 		local source = self.sources[player.UserId]
-		if not source or type(packed) ~= "table" then
+		if not source or matchId ~= self.generation or type(packed) ~= "table" then
 			return
 		end
 		-- Length is bounded here as well as in RemoteInput: an unbounded table from a client is a
@@ -264,6 +278,10 @@ function MatchService.bindRemotes(self: any)
 		self.input:push(source, packed)
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
+		local source = self.sources[player.UserId]
+		if source then
+			self.input.sources[source] = nil
+		end
 		self.sources[player.UserId] = nil
 	end)
 end

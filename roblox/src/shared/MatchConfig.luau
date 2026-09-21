@@ -165,4 +165,23 @@ function MatchConfig.sanitise(cfg: any, player: Player): ({ any }?, any?, string
 	return roster, opts, nil
 end
 
+-- Return validated choices to the menu. Echoing the raw request resurrected invalid values on
+-- rematch even though the server had already replaced them for the running match.
+function MatchConfig.forClient(roster: { any }, opts: any): any
+	local cfg = MatchConfig.default()
+	cfg.mode, cfg.stageId, cfg.stocks = opts.mode, opts.stage, opts.stocks
+	cfg.time, cfg.items = opts.timeLimit, opts.items
+	local ordered = {}
+	for _, e in roster do if e.player then table.insert(ordered, e) end end
+	for _, e in roster do if not e.player then table.insert(ordered, e) end end
+	for i, slot in cfg.slots do
+		local e = ordered[i]
+		if e then
+			slot.type = if e.player then "you" else "bot-" .. e.botLevel
+			slot.weaponId, slot.avatarId, slot.team = e.weapon, e.avatar, e.team
+		else slot.type = "off" end
+	end
+	return cfg
+end
+
 return MatchConfig

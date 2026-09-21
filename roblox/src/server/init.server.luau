@@ -46,7 +46,7 @@ local function beginMatch(player: Player, cfg: any)
 		Net.remote("Select"):FireClient(player, { error = why })
 		return
 	end
-	lastConfig[player.UserId] = cfg
+	lastConfig[player.UserId] = MatchConfig.forClient(roster, opts)
 	local match = service:start(roster :: { any }, opts)
 	print(`[Blockfall] match started: stage={match.stage.data.id} mode={match.mode} `
 		.. `fighters={#(roster :: { any })} seed={match.seed}`)
@@ -57,6 +57,7 @@ end
 service.onFinished = function(self: any, m: any)
 	print(`[Blockfall] match over after {m.frame} frames ({string.format("%.1f", m.time)}s)`)
 	task.wait(RESULTS_HOLD)
+	if service.match ~= m then return end
 	-- stop() clears service.match, which is what beginMatch guards on; without it the select
 	-- screen below would be answered by a server that thinks a match is still running.
 	service:stop()

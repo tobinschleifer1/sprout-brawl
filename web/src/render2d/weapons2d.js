@@ -12,6 +12,7 @@
 // startup / active / recovery, so a swing always lines up with the frames that actually hit.
 
 import { swing as swingPhase, easeOut, easeIn } from './channels.js';
+import { drawWeaponDetails } from './art2d.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -853,6 +854,7 @@ export function drawWeapon(ctx, weaponId, palette, pose) {
   shape(ctx, CONTOUR);
   ctx.restore();
   shape(ctx, palette);
+  drawWeaponDetails(ctx, weaponId, palette);
   if (pose.charge > 0) {              // charging glows along the weapon
     ctx.globalAlpha = 0.25 + pose.charge * 0.5;
     ctx.fillStyle = palette.glow || '#FFFFFF';

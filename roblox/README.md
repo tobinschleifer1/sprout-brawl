@@ -37,13 +37,17 @@ Nothing here is required to play the web build.
 | `src/client/Hud.luau` | percent, stocks, ultimate meter, timer, callouts and the scoreboard |
 | `src/client/HudColors.luau` | the damage ramp and player palette, held to the JavaScript |
 | `src/client/Avatar2D.luau` | head shapes, faces, headgear and chest marks |
-| Ultimate VFX, audio, character/stage select, persistence, matchmaking | not started |
+| `src/client/UltimateVfx.luau` | twelve ultimate effects, phase/draw-count tested |
+| `src/client/Select.luau` | responsive character, weapon, stage and match configuration; rematch choices validated |
+| `src/shared/SceneSnapshot.luau`, `src/client/World2D.luau` | live world objects and all ten hazard families, with simplified pooled art |
+| `src/client/BackdropArt.luau` | shared dark industrial pixel scenery and weapon details, generated from web art data |
+| Audio, durable persistence, matchmaking | not started |
 
-**The Roblox-side code has had one playtest.** It reached Studio, synced, and ran; the first bug it
-found is below. Everything above the line is verified against the
-JavaScript by replay; everything from `Net.luau` down type-checks, builds a place file, and has had
-its one testable pure part (the codec) mutation-tested, but no part of it has executed inside
-Studio. Treat the first playtest as the real test.
+The simulation is verified against JavaScript by replay. Client transport, prediction, rematches,
+world drawing and selection also have direct regression tests. Fresh Studio smoke tests have run
+through match start, live snapshots, drawing and results; this is not a substitute for multiplayer
+latency testing or device performance QA. See the [September 21 audit](../docs/reviews/game-audit-2026-09-21.md)
+for current evidence and remaining limitations. Historical playtest notes below describe earlier states.
 
 ```bash
 ./check.sh          # type-check the Luau tree, then verify parity with the JavaScript

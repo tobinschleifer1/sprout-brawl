@@ -52,26 +52,31 @@ end
 
 local function padAxis(): (number, number)
 	local x, y = 0, 0
+	local dx, dy = 0, 0
 	for _, gp in UserInputService:GetConnectedGamepads() do
 		for _, st in UserInputService:GetGamepadState(gp) do
 			if st.KeyCode == Enum.KeyCode.Thumbstick1 then
 				x, y = st.Position.X, st.Position.Y
 			elseif st.KeyCode == Enum.KeyCode.DPadLeft and st.Position.Z > 0.5 then
-				x = -1
+				dx -= 1
 			elseif st.KeyCode == Enum.KeyCode.DPadRight and st.Position.Z > 0.5 then
-				x = 1
+				dx += 1
 			elseif st.KeyCode == Enum.KeyCode.DPadUp and st.Position.Z > 0.5 then
-				y = 1
+				dy += 1
 			elseif st.KeyCode == Enum.KeyCode.DPadDown and st.Position.Z > 0.5 then
-				y = -1
+				dy -= 1
 			end
 		end
 		break
 	end
-	return (if math.abs(x) > DEAD then x else 0), (if math.abs(y) > DEAD then y else 0)
+	return (if math.abs(x) > DEAD then x else dx), (if math.abs(y) > DEAD then y else dy)
 end
 
 function InputClient.levels(_self: any): { [string]: any }
+	-- Chat and text fields own their keystrokes; typing must not jump or attack underneath them.
+	if UserInputService:GetFocusedTextBox() then
+		return { ax = 0, ay = 0 }
+	end
 	-- UserInputService is asked directly rather than tracked through InputBegan/InputEnded. A key
 	-- released while the window was unfocused never fires InputEnded, and a fighter that holds a
 	-- direction forever because the player alt-tabbed mid-dash is the bug that costs an hour.

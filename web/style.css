@@ -1,9 +1,9 @@
 :root{
-  --paper:#F1F5EA; --ink:#1E2A1B; --muted:#5C6A56; --line:#D3DCC7; --leaf:#3E8A2E; --leaf-ink:#2C6621; --leaf-soft:#DCEFD1; --soil:#4A3728; --sky:#9FD1E8; --hot:#DE621C; --hot-soft:#FBE4D4; --gold:#F4C531;
-  --display:"Fredoka","Baloo 2",system-ui,sans-serif; --body:"Nunito","Source Sans 3",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --paper:#151C25; --ink:#E9E5DB; --muted:#ADB6C2; --line:#3B4858; --leaf:#E5AB65; --leaf-ink:#8A542D; --leaf-soft:#3A3029; --soil:#090F18; --sky:#8295AD; --hot:#F08B60; --hot-soft:#452A25; --gold:#FFD58A;
+  --display:"Arial Black",Impact,system-ui,sans-serif; --body:system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:#E7F3F6;font-family:var(--body);color:var(--ink)}
+html,body{margin:0;height:100%;overflow:hidden;background:#101721;font-family:var(--body);color:var(--ink);color-scheme:dark}
 #game{position:fixed;inset:0;width:100%;height:100%;display:block}
 #ui{position:fixed;inset:0;pointer-events:none}
 #ui > *{pointer-events:auto}
@@ -216,3 +216,31 @@ button.ink{width:28px;height:28px;padding:0;border-radius:8px;border:2px solid v
 button.ink.sel{outline:3px solid var(--gold);outline-offset:1px}
 button.ink.erase{background:repeating-conic-gradient(#dde4d4 0 25%,#f3f6ec 0 50%) 0 0/12px 12px}
 .pixtools .hint{margin:0}
+
+/* Forged metal, worn edges, amber light. Damage colours sit against dark steel. */
+button{background:#25303D;border-color:#526173;border-radius:3px;box-shadow:0 3px 0 #080D14;font-size:.88rem;letter-spacing:.025em}
+button.primary{background:#DFA463;color:#171B22;border-color:#F3C58D;box-shadow:0 4px 0 #714829}
+button:hover{border-color:var(--gold);filter:brightness(1.1)}
+select,input[type=range],.charform input[type=text],.chario textarea{background:#101721;color:var(--ink);border-radius:3px}
+.eyebrow{color:var(--gold);letter-spacing:.18em;font-family:var(--mono);font-size:.65rem;line-height:1.7}
+.menus{background:linear-gradient(180deg,rgba(9,15,24,.58),rgba(9,15,24,.91))}
+.title-card{background:linear-gradient(145deg,rgba(33,43,55,.96),rgba(17,24,34,.97));border:1px solid #566475;border-top:4px solid #DCA164;border-radius:4px;padding:38px 42px;box-shadow:0 9px 0 #080D14,0 30px 80px #0008;max-width:700px}
+.title-card h1{font-size:clamp(2.8rem,8vw,5.1rem);color:#EEE8DA;text-transform:uppercase;letter-spacing:-.07em;text-shadow:3px 4px 0 #6F4D32;margin:.2em 0}
+.title-card .sub{font-size:.92rem;line-height:1.65;max-width:480px;margin:0 auto 1.6rem}
+.title-card .hint{font-family:var(--mono);font-size:.67rem;line-height:1.7;border-top:1px solid var(--line);padding-top:1rem}
+.opts,.slot,.card,table.ctl,.panel,.charcard,.charcard.preset,.chareditor,.chario{background:#1B2531;border-radius:4px}
+.setup-bottom{background:linear-gradient(180deg,rgba(16,23,33,0),#101721 38%)}
+.weptile,.chartile,.stagetile{border-radius:3px}
+.weptile.sel .wicon{background:#DFA46322;border-radius:2px}
+.weptile.sel .wdiff .d.on{background:var(--gold)}
+.weptile .wdiff .d{background:#667385}
+.weptile .wdiff .d.on{background:var(--gold)}
+.tile,.training{background:rgba(19,28,39,.96);border-radius:4px}
+.tile-top .portrait,.charcard canvas,.charstage canvas{background:linear-gradient(180deg,#354455,#1E2C3B);border-radius:3px}
+.pct{background:#0B121C;border:1px solid #485365;border-radius:2px;padding:1px 4px;text-shadow:0 1px 2px #000}
+.training{max-width:calc(100vw - 32px)}
+.res-bar,.ult-bar{border-radius:1px}
+.overlay{background:#070D17AA}
+.panel{border-color:#526173;box-shadow:0 8px 0 #080D14}
+.pixgrid{background:#293340}
+@media(max-width:600px){.title-card{padding:26px 18px}.screen{padding:20px 12px 48px}.title-card .row button{font-size:.76rem;padding:.5rem .65rem}.panel{min-width:0;width:94vw;padding:1rem}.opts{margin-left:0}}

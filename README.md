@@ -39,11 +39,14 @@ Then open http://localhost:5173
 | Light | J | , | X |
 | Heavy (signature) | K | . | Y |
 | Dodge / dash | L or Shift | / | B |
-| Guard (shield / ledge / pickup) | I or Ctrl | Right Shift | RB |
+| Guard (shield / ledge) | I or Ctrl | Right Shift | RB |
+| Pick up / drop item | P | ] | Back / Select |
+| Ultimate | O | Right Ctrl | Stick click |
 | Grab | U (or Guard + Light) | M | LB |
 | Taunt | T | N | Start |
 
-Up + Heavy in the air is the recovery. Down + Heavy in the air is the ground pound. Esc or P pauses. M mutes music.
+Up + Heavy in the air is the recovery. Down + Heavy in the air is the ground pound. Esc pauses.
+M mutes music unless Keyboard 2 is playing (where M is Grab). Keyboard 2 also supports the numpad aliases.
 
 ### Weapons
 

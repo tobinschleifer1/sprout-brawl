@@ -34,10 +34,32 @@ export class Menus {
     this.h = handlers;
     this.config = this._defaultConfig();
     this.settings = { hitboxes: false, music: 0.6, sfx: 0.8, shake: true };
-    try { const s = JSON.parse(localStorage.getItem(SAVE_KEY + '-settings') || 'null'); if (s) Object.assign(this.settings, s); } catch (e) { /* ignore */ }
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY + '-settings') || 'null');
+      if (s && typeof s === 'object') {
+        for (const key of ['sfx', 'music']) if (Number.isFinite(s[key])) this.settings[key] = Math.max(0, Math.min(1, s[key]));
+        for (const key of ['hitboxes', 'shake']) if (typeof s[key] === 'boolean') this.settings[key] = s[key];
+      }
+    } catch (e) { /* ignore */ }
     try {
       const c = JSON.parse(localStorage.getItem(SAVE_KEY + '-config') || 'null');
-      if (c && c.slots && c.slots.every((sl) => sl.weaponId)) this.config = { ...this.config, ...c };
+      if (c && typeof c === 'object') {
+        if (MODES.some(([id]) => id === c.mode)) this.config.mode = c.mode;
+        if (STAGES.some(s => s.id === c.stageId)) this.config.stageId = c.stageId;
+        if (Number.isInteger(c.stocks)) this.config.stocks = Math.max(1, Math.min(5, c.stocks));
+        if ([120, 180, 240, 300].includes(c.time)) this.config.time = c.time;
+        if (typeof c.items === 'boolean') this.config.items = c.items;
+        if (Array.isArray(c.slots)) this.config.slots = this.config.slots.map((fallback, i) => {
+          const slot = c.slots[i];
+          if (!slot || typeof slot !== 'object') return fallback;
+          return {
+            type: SLOT_TYPES.some(([id]) => id === slot.type) ? slot.type : fallback.type,
+            weaponId: WEAPONS.some(w => w.id === slot.weaponId) ? slot.weaponId : fallback.weaponId,
+            avatarId: allAvatars().some(a => a.id === slot.avatarId) ? slot.avatarId : fallback.avatarId,
+            team: slot.team === 0 || slot.team === 1 ? slot.team : fallback.team,
+          };
+        });
+      }
     } catch (e) { /* ignore */ }
     this.screen = 'title';
     this.root.addEventListener('click', (e) => this._click(e));
@@ -387,7 +409,7 @@ export class Menus {
       <tr><td>Ledge</td><td>Fall past a ledge facing it, or tap Guard. Then: toward stage to get up, Dodge to roll, Light to attack, Jump, Down to drop.</td></tr>
       <tr><td>Tech</td><td>Tap Guard just before hitting the ground while tumbling. Hold a direction to tech-roll.</td></tr>
       <tr><td>Items</td><td>Tap Guard over an item to pick up. Light uses it, Heavy throws it, Down + Guard drops it.</td></tr>
-      <tr><td>Match</td><td>Esc or P pauses. In training: R resets, H shows hitboxes, B toggles the dummy's brain.</td></tr>
+      <tr><td>Match</td><td>Esc pauses. P picks up items. M mutes music when Keyboard 2 is inactive. In training: R resets, H shows hitboxes, B toggles the dummy's brain.</td></tr>
       </table></div>`;
   }
 

@@ -10,6 +10,7 @@
 -- cap. It is texture, not information, and everything below reads correctly without it.
 
 local Canvas2D = require(script.Parent.Canvas2D)
+local BackdropArt = require(script.Parent.BackdropArt)
 
 local BLACK = Color3.new(0, 0, 0)
 local WHITE = Color3.new(1, 1, 1)
@@ -61,9 +62,9 @@ function Stage2D.draw(c: any, stage: any)
 	end
 end
 
--- The sky behind everything. `_sky` in the JavaScript is a vertical gradient through the stage's
--- skyStops; a single Frame with a UIGradient is the same picture with one instance.
-function Stage2D.sky(c: any, stage: any)
+-- Shared pixel scenery recipes, with pooled gradient strips and camera-relative parallax.
+function Stage2D.sky(c: any, stage: any, camX: number?)
+	if BackdropArt.sky(c, stage.data.id or "", camX or 0) then return end
 	local p = stage.data.palette or {}
 	local vp = Canvas2D.viewport(c)
 	Canvas2D.screen(c)

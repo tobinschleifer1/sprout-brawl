@@ -57,6 +57,10 @@ echo "== snapshot: the fighter state, encoded and decoded =="
 lune run tests/snapshot
 echo "== codec: the input frame, packed and unpacked =="
 lune run tests/codec
+echo "== runtime input: focus, packet ordering, rematches and disconnects =="
+lune run tests/runtime-input
+echo "== scene: visible projectiles, items, hazards and backdrops =="
+lune run tests/scene-view
 echo "== parity: the seeded generator vs web/src/engine/rng.js =="
 lune run tests/rng-parity
 echo "== parity: engine numbers vs web/src/engine/knockback.js =="

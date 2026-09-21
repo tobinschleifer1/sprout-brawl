@@ -26,7 +26,7 @@ export class HUD {
   constructor(root) {
     this.root = el('div', 'hud hidden');
     this.timer = el('div', 'timer'); this.tiles = el('div', 'tiles'); this.center = el('div', 'center'); this.labels = el('div', 'labels'); this.training = el('div', 'training hidden');
-    this.pause = el('div', 'overlay hidden', '<div class="panel"><h2>Paused</h2><p class="hint">Esc or P to resume</p><div class="row"><button data-act="resume">Resume</button><button data-act="quit">Quit to menu</button></div></div>');
+    this.pause = el('div', 'overlay hidden', '<div class="panel"><h2>Paused</h2><p class="hint">Esc to resume</p><div class="row"><button data-act="resume">Resume</button><button data-act="quit">Quit to menu</button></div></div>');
     this.results = el('div', 'overlay hidden');
     this.root.append(this.timer, this.labels, this.center, this.tiles, this.training, this.pause, this.results);
     root.appendChild(this.root);

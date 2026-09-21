@@ -67,6 +67,16 @@ function Select.new(parent: Instance): any
 	corner.CornerRadius = UDim.new(0, 10)
 	corner.Parent = panel
 	self.panel = panel
+	local scale = Instance.new("UIScale")
+	scale.Parent = panel
+	local function fit()
+		local vp = gui.AbsoluteSize
+		scale.Scale = math.max(0.1, math.min(1, (vp.X - 24) / 760, (vp.Y - 24) / 560))
+		panel.AnchorPoint = Vector2.new(0.5, 0.5)
+		panel.Position = UDim2.fromScale(0.5, 0.5)
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fit)
+	fit()
 
 	label(panel, "BLOCKFALL", 30, Color3.new(1, 1, 1), UDim2.fromOffset(26, 18), UDim2.fromOffset(400, 36))
 	self.note = label(panel, "", 13, DIM, UDim2.fromOffset(26, 52), UDim2.fromOffset(700, 18))
@@ -85,10 +95,13 @@ end
 function Select.row(self: any, y: number, title: string, items: { { id: string, text: string } },
 	get: () -> any, set: (string) -> (), colour: Color3?)
 	label(self.panel, title, 12, DIM, UDim2.fromOffset(26, y), UDim2.fromOffset(200, 16))
-	local holder = Instance.new("Frame")
+	local holder = Instance.new("ScrollingFrame")
 	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	holder.ScrollBarThickness = 4
+	holder.ScrollingDirection = Enum.ScrollingDirection.X
 	holder.Position = UDim2.fromOffset(26, y + 18)
-	holder.Size = UDim2.fromOffset(710, 30)
+	holder.Size = UDim2.fromOffset(710, 34)
 	holder.Parent = self.panel
 
 	local buttons = {}
@@ -116,6 +129,7 @@ function Select.row(self: any, y: number, title: string, items: { { id: string, 
 		table.insert(buttons, { button = b, id = item.id })
 		x += w + 6
 	end
+	holder.CanvasSize = UDim2.fromOffset(x, 30)
 	table.insert(self.rows, { buttons = buttons, get = get, colour = colour or Color3.new(1, 1, 1) })
 end
 
@@ -147,23 +161,21 @@ function Select.refresh(self: any)
 end
 
 function Select.build(self: any)
-	local me = self.cfg.slots[1]
-
 	local weapons = {}
 	for _, w in Weapons.LIST do
 		table.insert(weapons, { id = w.id, text = w.name })
 	end
 	self:row(86, "YOUR WEAPON — this is how you play", weapons,
-		function() return me.weaponId end,
-		function(id) me.weaponId = id end, Color3.fromRGB(242, 201, 76))
+		function() return self.cfg.slots[1].weaponId end,
+		function(id) self.cfg.slots[1].weaponId = id end, Color3.fromRGB(242, 201, 76))
 
 	local looks = {}
 	for _, a in Avatars.LIST do
 		table.insert(looks, { id = a.id, text = a.name })
 	end
 	self:row(150, "YOUR LOOK — cosmetic only, every avatar shares one stat line", looks,
-		function() return me.avatarId end,
-		function(id) me.avatarId = id end, Color3.fromRGB(63, 127, 214))
+		function() return self.cfg.slots[1].avatarId end,
+		function(id) self.cfg.slots[1].avatarId = id end, Color3.fromRGB(63, 127, 214))
 
 	local stages = {}
 	for _, s in Stages.LIST do
@@ -213,7 +225,7 @@ function Select.build(self: any)
 			end
 			sl.type = order[(at % #order) + 1]
 		end)
-	self.oppNote = label(self.panel, "", 12, DIM, UDim2.fromOffset(26, 440), UDim2.fromOffset(700, 18))
+	self.oppNote = label(self.panel, "", 12, DIM, UDim2.fromOffset(26, 462), UDim2.fromOffset(700, 14))
 
 	local start = Instance.new("TextButton")
 	start.Size = UDim2.fromOffset(708, 46)

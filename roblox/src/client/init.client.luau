@@ -1,7 +1,7 @@
 --!strict
 -- Client entry point.
 --
--- The client simulates nothing. It samples input, ships it, and draws the snapshots that come back.
+-- Predict the local fighter, interpolate remote fighters, and draw server-owned world effects.
 -- Drawing is a 2D canvas of pooled Frames, not 3D: see Canvas2D. Workspace is empty and the
 -- Roblox camera is never touched.
 -- That is a deliberate first step and not the end state: Fighter:snapshot()/restore() were built in
@@ -27,6 +27,7 @@ local InputClient = require(script.InputClient)
 local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
 local Stage2D = require(script.Stage2D)
+local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
 local Hud = require(script.Hud)
@@ -69,10 +70,14 @@ local hud: any = nil
 local select_: any = nil
 local matchCfg: any = nil
 local sawFirst = false
+local acceptingSnapshots = false
+local scenes: { any } = {}
 
 -- ---------------------------------------------------------------- match setup ----
 -- The server says "pick a match". It also says when it refused one, and why.
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
+	acceptingSnapshots = false
+	predictor = nil
 	if not select_ then
 		select_ = Select.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 		select_.onStart = function(cfg: any)
@@ -92,8 +97,16 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 		select_:hide()
 	end
 	canvas:clear()
+	acceptingSnapshots = true
+	pendingFrames = {}
+	input.prev = {}
+	input.accum = 0
+	startedAt = os.clock()
+	warnedSilent = false
+	sawFirst = false
 	posedWarned = {}
 	buffer = {}
+	scenes = {}
 	roster = cfg.fighters
 	chars = {}
 	localIndex = nil
@@ -127,6 +140,9 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 end)
 
 Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
+	if not acceptingSnapshots or not matchCfg or snap.id ~= matchCfg.id then
+		return
+	end
 	-- Unreliable delivery is unordered as well as lossy. A snapshot older than one already held is
 	-- not useful for anything and would rewind the interpolation if it were kept.
 	local newest = buffer[#buffer]
@@ -153,9 +169,17 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
 	end
 end)
 
+Net.remote("Scene").OnClientEvent:Connect(function(scene: any)
+	if not acceptingSnapshots or not matchCfg or scene.id ~= matchCfg.id then return end
+	table.insert(scenes, scene)
+	while #scenes > 8 do table.remove(scenes, 1) end
+end)
+
 -- The final scoreboard, once and reliably. The snapshot stream stops with the match, so without
 -- this the client would sit on the last frame with no idea the match had ended.
 Net.remote("Results").OnClientEvent:Connect(function(res: any)
+	acceptingSnapshots = false
+	predictor = nil
 	if hud then
 		hud:showResults(res)
 	end
@@ -231,6 +255,9 @@ end
 -- duplicated. Heartbeat runs at 60Hz whether or not the frame was drawn, which is the rate the
 -- simulation consumes, and it is measurably what the README always said this did.
 RunService.Heartbeat:Connect(function(dt: number)
+	if not acceptingSnapshots or not matchCfg then
+		return
+	end
 	for _, f in input:sample(dt, FRAME) do
 		table.insert(pendingFrames, Net.packFrame(f))
 		-- Simulated here, immediately. The server counts exactly the frames we send, so this has
@@ -240,7 +267,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		end
 	end
 	if #pendingFrames > 0 then
-		Net.remote("Input"):FireServer(pendingFrames)
+		Net.remote("Input"):FireServer(pendingFrames, matchCfg.id)
 		pendingFrames = {}
 	end
 end)
@@ -263,7 +290,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if not states then
 		-- A black screen has several causes that look identical, so say which one this is. Without
 		-- this the first question after every failed playtest is "is the server even running?".
-		if not warnedSilent and os.clock() - startedAt > 5 then
+		if acceptingSnapshots and not warnedSilent and os.clock() - startedAt > 5 then
 			warnedSilent = true
 			warn(`[Blockfall] no snapshots after 5s. roster={#roster}. `
 				.. `If roster is 0 the server never started a match; if it is not 0 the match `
@@ -297,7 +324,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- consumed a different number of times. Static geometry is correct on the two stages in play;
 	-- moving platforms need the server to send their offsets in the snapshot, which is the next
 	-- thing to add to Snapshot.FIELDS.
-	Stage2D.sky(canvas, stageView or { data = {} })
+	Stage2D.sky(canvas, stageView or { data = {} }, cam2d.x)
 	canvas:world(cam2d.x, cam2d.y, cam2d.ppu, cam2d.shakeX, cam2d.shakeY)
 	if stageView then
 		-- The view-only Stage is never stepped; the server sends what it cannot derive. `moving` is
@@ -318,6 +345,14 @@ RunService.RenderStepped:Connect(function(dt: number)
 				warn(`[Blockfall] fighter {st.index} failed to draw, and will not be reported again: {err}`)
 			end
 		end
+	end
+	local scene = scenes[1]
+	for _, candidate in scenes do
+		if interpBase and candidate.frame <= interpBase.frame then scene = candidate end
+	end
+	if scene and stageView then
+		World2D.hazards(canvas, scene.hazards or {}, stageView, scene.frame * FRAME)
+		World2D.entities(canvas, scene, chars, states, scene.frame * FRAME)
 	end
 	canvas:finish()
 	if hud then

@@ -66,7 +66,7 @@ function Snapshot.encode(f: any): { [string]: any }
 		local name, wire = pair[1], pair[2]
 		if name == "item" then
 			-- The item is a live object with a hitbox and a timer on it. Only its identity crosses.
-			out[wire] = if f.item then f.item.id else nil
+			out[wire] = if f.item then f.item.def.id else nil
 		elseif name == "chillStacks" then
 			out[wire] = f.effects.chill.stacks
 		elseif name == "ledgeAction" then

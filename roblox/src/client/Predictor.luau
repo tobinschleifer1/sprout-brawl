@@ -100,7 +100,7 @@ local function prune(self: any)
 	if cutoff < 1 then
 		return
 	end
-	for seq in pairs(self.snaps) do
+	for seq in pairs(self.inputs) do
 		if seq < cutoff then
 			self.snaps[seq] = nil
 			self.inputs[seq] = nil
@@ -162,7 +162,7 @@ function Predictor.state(self: any): any
 		out[name] = (f :: any)[Snapshot.FROM_FIGHTER[name] or name]
 	end
 	out.index = self.index
-	out.item = if f.item then f.item.id else nil
+	out.item = if f.item then f.item.def.id else nil
 	out.chillStacks = f.effects.chill.stacks
 	out.ledgeAction = if f.la then f.la.kind else nil
 	return out

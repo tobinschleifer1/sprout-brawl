@@ -133,8 +133,8 @@ end
 if decoded.item ~= nil then
 	fail(`a fighter holding nothing sent item = {tostring(decoded.item)}`)
 end
-f.item = { id = "Keg", hp = 3, def = {} }
-if Snapshot.decode(Snapshot.encode(f)).item ~= "Keg" then
+f.item = { hp = 3, def = Loader.load("Data/Items").BY_ID.BlastKeg }
+if Snapshot.decode(Snapshot.encode(f)).item ~= "BlastKeg" then
 	fail("a held item did not send its id")
 end
 checked += 2

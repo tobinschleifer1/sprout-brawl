@@ -70,6 +70,7 @@ compare(fixture.avatars, Avatars.LIST, "avatars")
 compare(fixture.base, Avatars.BASE, "avatars.BASE")
 compare(fixture.stages, Stages.LIST, "stages")
 compare(fixture.items, Items.LIST, "items")
+compare(fixture.art, Loader.load("Data/Art"), "art")
 
 -- The BY_ID lookups must hold the SAME tables as the lists, the way WEAPON_BY_ID does in the
 -- JavaScript. A copy would work everywhere until something mutated a move at runtime.

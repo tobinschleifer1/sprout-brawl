@@ -22,6 +22,8 @@
 // scenery is identical every match and does not crawl when the camera moves.
 
 import { backgroundCandidates, backgroundConfig } from '../data/backgrounds.js';
+import { SCENES } from '../data/art.js';
+import { drawArtSky } from './art2d.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -109,6 +111,7 @@ export function drawSky(b, stage, t, BW, BH, cam) {
   // photograph with a procedural sun produces two light sources and looks it.
   const img = stageBackground(stage.data.id);
   if (img) { drawBackgroundImage(b, img, backgroundConfig(stage.data.id), BW, BH, cam); return; }
+  if (drawArtSky(b, stage.data.id, cam, BW, BH)) return;
   const g = b.createLinearGradient(0, 0, 0, BH);
   const stops = p.skyStops || [[0, p.sky || '#BFE3E8'], [1, p.backdrop || '#EAF7F2']];
   for (const [o, col] of stops) g.addColorStop(Math.max(0, Math.min(1, o)), col);
@@ -343,6 +346,7 @@ export function drawScenery(b, stage, cam, t, BW) {
   // standing in front of somebody's photograph read as a bug, not as depth. `scenery: true` in
   // data/backgrounds.js puts them back, for an image that is just a sky.
   if (stageBackground(stage.data.id) && !backgroundConfig(stage.data.id).scenery) return;
+  if (SCENES[stage.data.id] && !stageBackground(stage.data.id)) return;
   const bands = THEMES[stage.data.theme];
   const skyCol = (p.skyStops && p.skyStops[p.skyStops.length - 1][1]) || p.sky || '#BFE3E8';
   if (!bands) return;

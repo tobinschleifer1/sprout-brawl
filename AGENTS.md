@@ -42,19 +42,30 @@ rokit add --global rojo-rbx/rojo JohnnyMorganz/luau-lsp lune-org/lune
 **Run `check.sh` before you claim anything works.** It is the only thing in this repo that can tell
 you the port still matches, and it takes under a minute.
 
-## What you CANNOT verify here
+## Verifying the parts `check.sh` cannot reach
 
-**There is no Roblox Studio in this environment.** You can type-check the Luau, replay it against
-the JavaScript, and run every test — but you cannot run the game, see it drawn, or measure
-performance. Anything whose correctness is *visual* or *runtime* has to be handed back for a human
-to check in Studio.
+`check.sh` proves the simulation and every ported piece of pure logic. It cannot tell you whether
+anything *looks* right, or what it costs at runtime.
 
-So: **prefer tasks that are parity-testable.** A port of pure logic (poses, weapon arcs, damage
-ramps, netcode bookkeeping) can be finished and proven here. A new ScreenGui layout cannot — you can
-write it, but you cannot know it looks right.
+**Check whether you have Roblox Studio tools available** (an MCP server exposing Studio — you will
+have tools for listing Studio instances, running Luau in them, and reading their output). Whether
+you do depends on how you were set up, so look rather than assume.
 
-If you write something you cannot verify, **say so explicitly in your summary.** Do not describe
-unverified rendering code as working.
+**If you do**, use them. The workflow that works:
+
+- `rojo serve` from `roblox/` syncs the source into an open Studio; the Studio plugin must be
+  connected, and it needs Script Injection permission or it silently applies nothing.
+- Start play, then read the console. `[Blockfall]` lines trace the match; a renderer error shows up
+  as one warning per fighter, not a crash, because each rig is posed inside its own `pcall`.
+- To see what was drawn, walk the GUI tree rather than screenshotting: the game renders entirely
+  into a `ScreenGui`, so a viewport screenshot is empty. Read `Position`, `Size`, `Rotation` and
+  `BackgroundColor3` off the Frames — **not `AbsolutePosition`**, which is a deferred layout result
+  and gives you the previous frame's values when read in the same tick.
+- `require` caches for the session: restart play after a sync or you are testing the old module.
+
+**If you do not**, you can still count Frames and time a draw by calling it against a `Canvas2D` in
+a Lune test — but you cannot know it looks right. Say so plainly in your summary and hand that part
+back. **Never describe unverified rendering as working.**
 
 ## Testing discipline
 

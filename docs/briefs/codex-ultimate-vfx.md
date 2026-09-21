@@ -64,15 +64,19 @@ Another agent is working on character/stage select in parallel. To avoid collisi
 - If the task seems to require touching anything on that list, stop and report rather than
   widening the change.
 
-## What you cannot verify, and must not pretend to
+## Verifying it
 
-**There is no Roblox Studio in your environment.** You cannot run the game, see anything drawn, or
-measure real frame cost. You can type-check, you can run `check.sh`, and you can count the Frames a
-draw produces by calling it against a `Canvas2D` in a Lune test — but you **cannot know it looks
-right**.
+`check.sh` cannot tell you whether an ultimate looks right. See the verification section of
+`AGENTS.md`: check whether you have Roblox Studio tools, and if you do, use them — sync with
+`rojo serve`, start play, and read the drawn Frames out of the `ScreenGui` rather than taking a
+screenshot, because the game draws no 3D at all.
 
-So in your final summary, state plainly which parts are proven and which are not. Do not describe
-unverified rendering as working. A human will play-test it in Studio.
+Twelve ultimates is more than you will want to trigger by playing. The practical approach is to
+call your draw directly against a `Canvas2D` for each weapon and phase and inspect what it
+produced — that is how `Weapons2D` and `Avatar2D` were checked.
+
+State plainly in your summary which parts you verified and how. **Never describe unverified
+rendering as working.**
 
 ## Definition of done
 

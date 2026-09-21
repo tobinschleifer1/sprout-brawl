@@ -67,6 +67,24 @@ local function stageIdOr(v: any, default: string): string
 	return default
 end
 
+-- The match a player gets before they have chosen anything.
+--
+-- It lives here rather than in the select screen because the screen and the validator disagreeing
+-- about what a default match is would be invisible: the screen would show one thing, the server
+-- would run another, and both would look correct on their own. Mirrors _defaultConfig in
+-- web/src/ui/menus.js.
+function MatchConfig.default(): any
+	return {
+		mode = "StockFFA", stocks = 3, time = 180, items = true, stageId = "FoundryFloor",
+		slots = {
+			{ type = "you", weaponId = "Sword", avatarId = "Classic", team = 0 },
+			{ type = "bot-normal", weaponId = "Scythe", avatarId = "Noir", team = 1 },
+			{ type = "off", weaponId = "Blasters", avatarId = "Ember", team = 0 },
+			{ type = "off", weaponId = "Grimoire", avatarId = "Moss", team = 1 },
+		},
+	}
+end
+
 -- Returns (roster, opts) on success, or (nil, nil, reason).
 function MatchConfig.sanitise(cfg: any, player: Player): ({ any }?, any?, string?)
 	if type(cfg) ~= "table" then

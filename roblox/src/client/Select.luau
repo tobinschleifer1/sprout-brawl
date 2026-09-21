@@ -71,16 +71,9 @@ function Select.new(parent: Instance): any
 	label(panel, "BLOCKFALL", 30, Color3.new(1, 1, 1), UDim2.fromOffset(26, 18), UDim2.fromOffset(400, 36))
 	self.note = label(panel, "", 13, DIM, UDim2.fromOffset(26, 52), UDim2.fromOffset(700, 18))
 
-	-- The default a fresh player gets, mirroring menus.js's _defaultConfig.
-	self.cfg = {
-		mode = "StockFFA", stocks = 3, time = 180, items = true, stageId = "FoundryFloor",
-		slots = {
-			{ type = "you", weaponId = "Sword", avatarId = "Classic", team = 0 },
-			{ type = "bot-normal", weaponId = "Scythe", avatarId = "Noir", team = 1 },
-			{ type = "off", weaponId = "Blasters", avatarId = "Ember", team = 0 },
-			{ type = "off", weaponId = "Grimoire", avatarId = "Moss", team = 1 },
-		},
-	}
+	-- From MatchConfig, not from here. The screen and the server agreeing about what a default
+	-- match is has to be structural: two copies would drift and both would look right alone.
+	self.cfg = MatchConfig.default()
 	self.onStart = nil :: ((any) -> ())?
 	self.rows = {}
 	self:build()

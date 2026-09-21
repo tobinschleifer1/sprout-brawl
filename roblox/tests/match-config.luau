@@ -169,5 +169,28 @@ do
 	checked += 2
 end
 
+-- 8. The default the select screen starts from must itself be a match the server will run. The
+-- screen and the validator live on opposite sides of a remote, and a default that fails validation
+-- would mean a player who touched nothing and pressed FIGHT got an error.
+do
+	local roster, opts = ok(MatchConfig.default())
+	if #roster ~= 2 then
+		fail(`the default config makes {#roster} fighters, expected 2`)
+	end
+	if roster[1].player ~= PLAYER then fail("the default does not put the sender in the match") end
+	if roster[2].botLevel ~= "normal" then fail("the default opponent is not a normal bot") end
+	if opts.mode ~= "StockFFA" or opts.stocks ~= 3 then
+		fail(`the default survived validation as {opts.mode}/{opts.stocks}`)
+	end
+	-- And it must come back fresh each time: a shared table would let one player's picks leak
+	-- into the next player's screen.
+	local a, b = MatchConfig.default(), MatchConfig.default()
+	a.slots[1].weaponId = "Hammer"
+	if b.slots[1].weaponId ~= "Sword" then
+		fail("MatchConfig.default() hands out the same table twice")
+	end
+	checked += 5
+end
+
 print(`checked {checked} config outcomes`)
 print("MatchConfig turns anything a client can send into a match the server is willing to run.")

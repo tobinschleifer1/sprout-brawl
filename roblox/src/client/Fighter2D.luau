@@ -15,6 +15,7 @@ local Canvas2D = require(script.Parent.Canvas2D)
 local Channels = require(script.Parent.Channels)
 local WeaponPose = require(script.Parent.WeaponPose)
 local Weapons2D = require(script.Parent.Weapons2D)
+local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
 
 local BLACK = Color3.new(0, 0, 0)
@@ -202,7 +203,9 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		-- arm angle first would apply it twice.
 		Canvas2D.save(c)
 		Canvas2D.translate(c, hx, hy)
+		UltimateVfx.drawUltimate(c, wid, wpal, wpose, t)
 		Weapons2D.draw(c, wid, wpal, wpose)
+		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
 		Canvas2D.restore(c)
 	end
 

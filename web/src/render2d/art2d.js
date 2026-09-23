@@ -1,4 +1,4 @@
-import { SCENES, WEAPON_DETAILS } from '../data/art.js';
+import { SCENES } from '../data/art.js';
 
 // Screen-space scenery: coarse authored pixels remain hard-edged at every viewport size.
 export function drawArtSky(ctx, stageId, cam, width, height) {
@@ -38,12 +38,3 @@ export function drawArtSky(ctx, stageId, cam, width, height) {
   return true;
 }
 
-export function drawWeaponDetails(ctx, weaponId, palette) {
-  ctx.save();
-  for (const [x, y, w, h, key, alpha] of WEAPON_DETAILS[weaponId] || []) {
-    ctx.fillStyle = palette[key] || palette.accent || '#FFFFFF';
-    ctx.globalAlpha = alpha;
-    ctx.fillRect(x, y, w, h);
-  }
-  ctx.restore();
-}

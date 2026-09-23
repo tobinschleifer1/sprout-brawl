@@ -52,6 +52,18 @@ local Color3Shim = {
 	new = function(r: number, g: number, b: number): any
 		return { R = r, G = g, B = b }
 	end,
+	-- Without this, Canvas2D.hex's pcall fails in every test and returns its fallback, so no Lune
+	-- test could ever tell one hex colour from another - a colour check would compare the fallback
+	-- with itself and pass. Errors on malformed input, as Roblox's does.
+	fromHex = function(hex: string): any
+		local h = string.gsub(hex, "^#", "")
+		assert(#h == 6 and string.match(h, "^%x+$"), `Color3.fromHex: bad hex {hex}`)
+		return {
+			R = tonumber(string.sub(h, 1, 2), 16) :: number / 255,
+			G = tonumber(string.sub(h, 3, 4), 16) :: number / 255,
+			B = tonumber(string.sub(h, 5, 6), 16) :: number / 255,
+		}
+	end,
 }
 local Vector2Shim = {
 	new = function(x: number, y: number): any

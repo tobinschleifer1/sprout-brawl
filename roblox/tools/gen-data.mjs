@@ -24,7 +24,8 @@ const { AVATARS, BASE, DEFAULT_AVATAR } = await import(`${WEB}/avatars.js`);
 const { STAGES } = await import(`${WEB}/stages/index.js`);
 const { ITEM_LIST } = await import(`${WEB}/items.js`);
 const { buildLoadout } = await import(`${WEB}/loadout.js`);
-const { SCENES, WEAPON_DETAILS } = await import(`${WEB}/art.js`);
+const { SCENES } = await import(`${WEB}/art.js`);
+const { WEAPON_SPRITES } = await import(`${WEB}/weaponArt.js`);
 
 // ---------------------------------------------------------------- emitter ----
 const RESERVED = new Set(['and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
@@ -128,7 +129,7 @@ function write(file, source, body) {
 
 // ---------------------------------------------------------------- modules ----
 const written = [];
-const ART = { scenes: SCENES, weapons: WEAPON_DETAILS };
+const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
 assertPlain(ART, 'ART');
 written.push(write('Art.luau', 'web/src/data/art.js', `return ${emit(ART, 0, 'ART')}`));
 

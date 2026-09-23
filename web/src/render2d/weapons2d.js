@@ -12,7 +12,7 @@
 // startup / active / recovery, so a swing always lines up with the frames that actually hit.
 
 import { swing as swingPhase, easeOut, easeIn } from './channels.js';
-import { drawWeaponDetails } from './art2d.js';
+import { WEAPON_SPRITES } from '../data/weaponArt.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -591,8 +591,11 @@ function ultimatePose(f, m, wid, out, t) {
 
 
 // ---------------------------------------------------------------------------- the weapons -----
-// Drawn in local space: grip at (0,0), weapon extending along +X, one unit = one stud.
-
+// Each weapon is pixel art from data/weaponArt.js, compiled to rectangles in its local frame: grip
+// at (0,0), pointing along +X, one unit = one stud. The rectangles already carry their colours and a
+// one-pixel outline, so there is no contour pass: the outline is part of the art. Roblox draws the
+// identical list through Canvas2D.rect, which is why the two builds' weapons now match exactly.
+// A filled polygon, for the ultimate effects below.
 function poly(ctx, pts, fill) {
   ctx.beginPath();
   ctx.moveTo(pts[0][0], pts[0][1]);
@@ -602,237 +605,26 @@ function poly(ctx, pts, fill) {
   ctx.fill();
 }
 
-function sword(ctx, p, L) {
-  // Two values on the blade, not one. A flat primary-coloured wedge is a grey stick at gameplay
-  // size; a lit upper bevel with a shaded lower one reads as an edge even at twenty pixels.
-  poly(ctx, [[-0.5, -0.16], [0.0, -0.16], [0.0, 0.16], [-0.5, 0.16]], p.tertiary);         // grip
-  poly(ctx, [[-0.46, -0.12], [-0.04, -0.12], [-0.04, -0.02], [-0.46, -0.02]], 'rgba(255,255,255,0.10)');
-  poly(ctx, [[-0.68, 0], [-0.5, -0.24], [-0.38, 0], [-0.5, 0.24]], p.secondary);           // pommel, a diamond
-  poly(ctx, [[-0.02, -0.60], [0.10, -0.44], [0.20, 0], [0.10, 0.44], [-0.02, 0.60],
-             [-0.10, 0.40], [-0.10, -0.40]], p.secondary);                                 // swept crossguard
-  poly(ctx, [[0.14, -0.19], [L - 0.45, -0.19], [L, 0], [L - 0.45, 0.19], [0.14, 0.19]], p.primary);
-  poly(ctx, [[0.14, -0.19], [L - 0.45, -0.19], [L - 0.2, -0.07], [0.14, -0.05]], 'rgba(255,255,255,0.20)'); // lit bevel
-  poly(ctx, [[0.14, 0.19], [L - 0.45, 0.19], [L - 0.2, 0.07], [0.14, 0.05]], 'rgba(0,0,0,0.22)');           // shaded bevel
-  poly(ctx, [[0.14, -0.06], [L - 0.5, -0.06], [L - 0.4, 0], [L - 0.5, 0.06], [0.14, 0.06]], p.accent);      // fuller
-}
-
-function scythe(ctx, p, L) {
-  poly(ctx, [[-0.7, -0.11], [L, -0.11], [L, 0.11], [-0.7, 0.11]], p.tertiary);            // shaft
-  poly(ctx, [[L - 0.22, -0.2], [L + 0.1, -0.2], [L + 0.1, 0.2], [L - 0.22, 0.2]], p.secondary); // tang
-  // crescent: an arc swept back from the head, tapering to a point
-  const cx = L - 0.1, cy = 1.55, r = 1.62;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, D(250), D(310));
-  ctx.lineTo(cx + Math.cos(D(310)) * (r - 0.42), cy + Math.sin(D(310)) * (r - 0.42));
-  ctx.arc(cx, cy, r - 0.42, D(310), D(250), true);
-  ctx.closePath();
-  ctx.fillStyle = p.primary; ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r - 0.08, D(256), D(304));
-  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.09; ctx.stroke();
-}
-
-function blaster(ctx, p) {
-  poly(ctx, [[-0.34, -0.30], [0.42, -0.30], [0.42, 0.06], [-0.34, 0.06]], p.primary);      // slide
-  poly(ctx, [[-0.30, -0.26], [0.36, -0.26], [0.36, -0.16], [-0.30, -0.16]], p.accent);     // top rail
-  poly(ctx, [[-0.34, -0.02], [0.42, -0.02], [0.42, 0.06], [-0.34, 0.06]], 'rgba(0,0,0,0.28)'); // shaded underside
-  poly(ctx, [[0.30, -0.20], [0.92, -0.20], [0.92, 0.02], [0.30, 0.02]], p.secondary);      // barrel
-  poly(ctx, [[0.30, -0.20], [0.92, -0.20], [0.92, -0.13], [0.30, -0.13]], 'rgba(255,255,255,0.18)');
-  poly(ctx, [[0.10, -0.42], [0.22, -0.42], [0.22, -0.28], [0.10, -0.28]], p.secondary);    // the sight
-  poly(ctx, [[-0.30, 0.02], [0.02, 0.02], [0.14, 0.62], [-0.18, 0.62]], p.primary);        // grip
-  poly(ctx, [[-0.22, 0.06], [-0.04, 0.06], [0.04, 0.50], [-0.12, 0.50]], 'rgba(0,0,0,0.22)');
-  poly(ctx, [[0.06, 0.04], [0.30, 0.04], [0.30, 0.12], [0.06, 0.12]], p.tertiary);         // trigger guard
-}
-
-function grimoire(ctx, p) {
-  poly(ctx, [[-0.55, -0.72], [0.62, -0.60], [0.62, 0.60], [-0.55, 0.72]], p.primary);      // cover
-  poly(ctx, [[-0.55, -0.72], [0.62, -0.60], [0.62, -0.46], [-0.55, -0.58]], p.accent);     // lit edge
-  poly(ctx, [[-0.55, 0.46], [0.62, 0.40], [0.62, 0.60], [-0.55, 0.72]], 'rgba(0,0,0,0.26)'); // shaded edge
-  poly(ctx, [[0.50, -0.58], [0.78, -0.54], [0.78, 0.54], [0.50, 0.58]], '#F0E7D2');         // pages
-  poly(ctx, [[0.50, -0.58], [0.78, -0.54], [0.78, -0.40], [0.50, -0.44]], 'rgba(0,0,0,0.16)');
-  poly(ctx, [[-0.66, -0.70], [-0.50, -0.70], [-0.50, 0.70], [-0.66, 0.70]], p.tertiary);   // spine
-  poly(ctx, [[0.44, -0.30], [0.70, -0.28], [0.70, -0.14], [0.44, -0.16]], p.secondary);    // clasps
-  poly(ctx, [[0.44, 0.14], [0.70, 0.12], [0.70, 0.26], [0.44, 0.24]], p.secondary);
-  ctx.beginPath(); ctx.arc(0.05, 0, 0.24, 0, PI * 2);
-  ctx.fillStyle = p.glow || p.accent; ctx.fill();
-  ctx.beginPath(); ctx.arc(0.05, 0, 0.12, 0, PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
-}
-
-function axe(ctx, p, L) {
-  // A haft you can see the weight on: thick, dark, and long, with a head that is most of the mass.
-  // The haft is drawn in `hilt`, a value light enough to read: at p.tertiary (#2E2A26) it was
-  // 1.02:1 against the animation sheet's background and 3.75 studs of the weapon simply vanished,
-  // leaving a grey head floating near the fighter's feet with nothing connecting it to the hand.
-  poly(ctx, [[-0.85, -0.14], [L - 0.2, -0.14], [L - 0.2, 0.14], [-0.85, 0.14]], p.hilt || p.secondary);
-  poly(ctx, [[-0.95, -0.22], [-0.7, -0.22], [-0.7, 0.22], [-0.95, 0.22]], p.secondary);        // butt cap
-  poly(ctx, [[0.1, -0.2], [0.34, -0.2], [0.34, 0.2], [0.1, 0.2]], p.secondary);                // grip wrap
-  // the head: a broad bearded blade biting forward, plus a spike on the reverse
-  const h = L - 0.5;
-  ctx.beginPath();
-  ctx.moveTo(h, -0.2);
-  ctx.lineTo(h + 0.5, -1.25);
-  ctx.lineTo(L + 0.34, -0.9);
-  ctx.lineTo(L + 0.5, 0.1);
-  ctx.lineTo(h + 0.62, 1.1);
-  ctx.lineTo(h, 0.24);
-  ctx.closePath();
-  ctx.fillStyle = p.primary; ctx.fill();
-  // The cheek of the head, a value darker: a solid slab of one colour reads as cardboard, and the
-  // axe head is the biggest single shape any weapon in the game puts on screen.
-  ctx.beginPath();
-  ctx.moveTo(h, -0.2); ctx.lineTo(h + 0.44, -0.95); ctx.lineTo(h + 0.62, 0.05); ctx.lineTo(h + 0.5, 0.85); ctx.lineTo(h, 0.24);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.fill();
-  // a bright edge along the bite, which is the part that has to read at gameplay size
-  ctx.beginPath();
-  ctx.moveTo(h + 0.5, -1.25); ctx.lineTo(L + 0.34, -0.9); ctx.lineTo(L + 0.5, 0.1); ctx.lineTo(h + 0.62, 1.1);
-  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.16; ctx.stroke();
-  poly(ctx, [[h - 0.28, -0.34], [h - 0.02, -0.78], [h + 0.1, -0.3], [h + 0.1, 0.3], [h - 0.02, 0.62], [h - 0.28, 0.34]], p.secondary);  // reverse spike
-  poly(ctx, [[-0.85, -0.14], [L - 0.2, -0.14], [L - 0.2, -0.05], [-0.85, -0.05]], 'rgba(255,255,255,0.12)');  // lit side of the haft
-}
-
-function pike(ctx, p, L) {
-  // Almost all haft. The point is small and the shape is a line, because the whole weapon is reach.
-  poly(ctx, [[-1.5, -0.09], [L - 0.6, -0.09], [L - 0.6, 0.09], [-1.5, 0.09]], p.primary);      // haft
-  poly(ctx, [[-1.62, -0.16], [-1.36, -0.16], [-1.36, 0.16], [-1.62, 0.16]], p.secondary);      // counterweight
-  for (let i = 0; i < 3; i++) {                                                                 // binding rings
-    const x = -0.9 + i * 1.15;
-    poly(ctx, [[x, -0.13], [x + 0.16, -0.13], [x + 0.16, 0.13], [x, 0.13]], p.tertiary);
+export function drawSprite(ctx, weaponId, alpha = 1) {
+  const rects = WEAPON_SPRITES[weaponId];
+  if (!rects) return false;
+  const base = ctx.globalAlpha;
+  for (const [x, y, w, h, colour, a] of rects) {
+    ctx.globalAlpha = base * a * alpha;
+    ctx.fillStyle = colour;
+    ctx.fillRect(x, y, w, h);
   }
-  // langets and the head
-  poly(ctx, [[L - 0.75, -0.2], [L - 0.3, -0.2], [L - 0.3, 0.2], [L - 0.75, 0.2]], p.secondary);
-  poly(ctx, [[-1.5, -0.09], [L - 0.6, -0.09], [L - 0.6, -0.03], [-1.5, -0.03]], 'rgba(255,255,255,0.16)');   // lit side of the haft
-  poly(ctx, [[-1.5, 0.04], [L - 0.6, 0.04], [L - 0.6, 0.09], [-1.5, 0.09]], 'rgba(0,0,0,0.20)');             // and the shaded one
-  poly(ctx, [[0.55, -0.15], [1.5, -0.15], [1.5, 0.15], [0.55, 0.15]], p.tertiary);                           // the leather grip
-  ctx.beginPath();
-  ctx.moveTo(L - 0.35, -0.26);
-  ctx.lineTo(L + 0.55, 0);
-  ctx.lineTo(L - 0.35, 0.26);
-  ctx.closePath();
-  ctx.fillStyle = p.accent; ctx.fill();
-  poly(ctx, [[L - 0.35, 0.04], [L + 0.42, 0.02], [L - 0.35, 0.26]], 'rgba(0,0,0,0.26)');                     // the point has a near face
-  ctx.beginPath(); ctx.moveTo(L - 0.3, -0.04); ctx.lineTo(L + 0.5, -0.01);
-  ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.07; ctx.stroke();
+  ctx.globalAlpha = base;
+  return true;
 }
-
-
-// ------------------------------------------------------- the six weapons added from the brief -----
-
-function gauntlets(ctx, p) {
-  // No weapon: a bracer and a fist. The shortest thing in the game, so what has to read is the
-  // SILHOUETTE of a wrapped hand rather than any detail on it.
-  poly(ctx, [[-0.5, -0.30], [0.18, -0.34], [0.18, 0.34], [-0.5, 0.30]], p.secondary);      // bracer
-  poly(ctx, [[-0.5, -0.30], [0.18, -0.34], [0.18, -0.20], [-0.5, -0.16]], p.accent);       // lit edge
-  poly(ctx, [[0.14, -0.38], [0.86, -0.34], [0.94, 0], [0.86, 0.34], [0.14, 0.38]], p.primary); // fist
-  poly(ctx, [[0.42, -0.30], [0.90, -0.24], [0.90, -0.08], [0.42, -0.12]], 'rgba(255,255,255,0.22)');
-  poly(ctx, [[0.42, 0.14], [0.90, 0.10], [0.90, 0.26], [0.42, 0.30]], 'rgba(0,0,0,0.26)');
-  for (let i = 0; i < 3; i++) poly(ctx, [[0.66, -0.26 + i * 0.22], [0.92, -0.24 + i * 0.22], [0.92, -0.14 + i * 0.22], [0.66, -0.16 + i * 0.22]], p.glow || p.accent); // knuckles
-}
-
-function hammer(ctx, p, L) {
-  // A long haft and a head that is most of the weight. Bigger and blockier than the axe's, with a
-  // spike on the reverse so the silhouette is not symmetrical - that is what tells them apart at
-  // twenty pixels.
-  poly(ctx, [[-1.1, -0.15], [L - 0.25, -0.15], [L - 0.25, 0.15], [-1.1, 0.15]], p.hilt || p.secondary);
-  poly(ctx, [[-1.1, -0.15], [L - 0.25, -0.15], [L - 0.25, -0.05], [-1.1, -0.05]], 'rgba(255,255,255,0.14)');
-  poly(ctx, [[-1.24, -0.24], [-0.96, -0.24], [-0.96, 0.24], [-1.24, 0.24]], p.secondary);   // butt cap
-  const h = L - 0.55;
-  poly(ctx, [[h, -1.05], [L + 0.62, -1.05], [L + 0.62, 1.05], [h, 1.05]], p.primary);       // the head
-  poly(ctx, [[h, -1.05], [L + 0.62, -1.05], [L + 0.62, -0.55], [h, -0.55]], 'rgba(255,255,255,0.20)');
-  poly(ctx, [[h, 0.55], [L + 0.62, 0.55], [L + 0.62, 1.05], [h, 1.05]], 'rgba(0,0,0,0.30)');
-  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.14;
-  ctx.beginPath(); ctx.moveTo(L + 0.62, -1.05); ctx.lineTo(L + 0.62, 1.05); ctx.stroke();   // the face
-  poly(ctx, [[h - 0.62, -0.30], [h, -0.42], [h, 0.42], [h - 0.62, 0.30]], p.secondary);     // reverse spike
-}
-
-function longbow(ctx, p, L) {
-  // Drawn as a bow held at the grip: two limbs curving away and a string between the tips. The
-  // string is the read - it is the only straight line on the weapon.
-  ctx.strokeStyle = p.primary; ctx.lineWidth = 0.22; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(0.1, -L);
-  ctx.quadraticCurveTo(0.95, -L * 0.45, 1.0, 0);
-  ctx.quadraticCurveTo(0.95, L * 0.45, 0.1, L);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 0.08;
-  ctx.beginPath();
-  ctx.moveTo(0.16, -L * 0.9); ctx.quadraticCurveTo(0.9, -L * 0.4, 0.94, 0); ctx.stroke();
-  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.06;                                          // the string
-  ctx.beginPath(); ctx.moveTo(0.1, -L); ctx.lineTo(0.1, L); ctx.stroke();
-  poly(ctx, [[0.62, -0.42], [1.02, -0.42], [1.02, 0.42], [0.62, 0.42]], p.secondary);        // the grip
-  ctx.lineCap = 'butt';
-}
-
-function flail(ctx, p, L) {
-  // Handle, chain, ball. The chain is drawn as discrete links because a smooth line at this scale
-  // reads as a stick, and a stick is the pike.
-  poly(ctx, [[-0.9, -0.14], [0.35, -0.14], [0.35, 0.14], [-0.9, 0.14]], p.hilt || p.secondary);
-  poly(ctx, [[-1.02, -0.2], [-0.8, -0.2], [-0.8, 0.2], [-1.02, 0.2]], p.secondary);
-  const links = 5, span = L - 1.0;
-  for (let i = 0; i < links; i++) {
-    const x = 0.4 + (i / links) * span;
-    poly(ctx, [[x, -0.11], [x + span / links * 0.7, -0.11], [x + span / links * 0.7, 0.11], [x, 0.11]], i % 2 ? p.tertiary : p.secondary);
-  }
-  const bx = L + 0.1;
-  ctx.beginPath(); ctx.arc(bx, 0, 0.52, 0, TAU);                                             // the ball
-  ctx.fillStyle = p.primary; ctx.fill();
-  ctx.beginPath(); ctx.arc(bx - 0.14, -0.14, 0.2, 0, TAU);
-  ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fill();
-  for (let i = 0; i < 6; i++) {                                                              // spikes
-    const a = (i / 6) * TAU + 0.3;
-    poly(ctx, [[bx + Math.cos(a) * 0.45, Math.sin(a) * 0.45],
-      [bx + Math.cos(a) * 0.86, Math.sin(a) * 0.86],
-      [bx + Math.cos(a + 0.4) * 0.45, Math.sin(a + 0.4) * 0.45]], p.accent);
-  }
-}
-
-function shieldWeapon(ctx, p, L) {
-  // A kite shield seen edge-on-ish: tall, a boss in the middle, a rim that catches the light. It
-  // is drawn ACROSS the arm rather than along it, because that is how a shield is carried.
-  poly(ctx, [[-0.2, -L], [0.5, -L * 0.82], [0.72, 0], [0.5, L * 0.82], [-0.2, L], [-0.36, 0]], p.primary);
-  poly(ctx, [[-0.2, -L], [0.5, -L * 0.82], [0.56, -L * 0.5], [-0.24, -L * 0.6]], 'rgba(255,255,255,0.24)');
-  poly(ctx, [[-0.2, L], [0.5, L * 0.82], [0.56, L * 0.5], [-0.24, L * 0.6]], 'rgba(0,0,0,0.26)');
-  ctx.strokeStyle = p.accent; ctx.lineWidth = 0.1;
-  ctx.beginPath();
-  ctx.moveTo(-0.2, -L); ctx.lineTo(0.5, -L * 0.82); ctx.lineTo(0.72, 0); ctx.lineTo(0.5, L * 0.82); ctx.lineTo(-0.2, L);
-  ctx.stroke();
-  ctx.beginPath(); ctx.arc(0.22, 0, 0.3, 0, TAU);                                            // the boss
-  ctx.fillStyle = p.secondary; ctx.fill();
-  ctx.beginPath(); ctx.arc(0.22, 0, 0.14, 0, TAU);
-  ctx.fillStyle = p.glow || p.accent; ctx.fill();
-}
-
-function daggers(ctx, p, L) {
-  // TWO blades, offset from each other, because one dagger is a short sword. The second is drawn
-  // behind and reversed - the silhouette has to say "a pair" in the frame it is on screen.
-  poly(ctx, [[-0.62, -0.10], [-0.16, -0.10], [-0.16, 0.10], [-0.62, 0.10]], p.tertiary);     // back grip
-  poly(ctx, [[-0.2, -0.20], [-0.05, -0.20], [-0.05, 0.20], [-0.2, 0.20]], p.secondary);
-  poly(ctx, [[-0.05, -0.11], [-L * 0.62, -0.05], [-L * 0.78, 0], [-L * 0.62, 0.05], [-0.05, 0.11]], 'rgba(160,172,190,0.9)'); // reversed blade
-  poly(ctx, [[-0.5, -0.13], [0.0, -0.13], [0.0, 0.13], [-0.5, 0.13]], p.secondary);          // front grip
-  poly(ctx, [[-0.08, -0.26], [0.1, -0.26], [0.1, 0.26], [-0.08, 0.26]], p.tertiary);         // guard
-  poly(ctx, [[0.1, -0.15], [L - 0.28, -0.13], [L, 0], [L - 0.28, 0.13], [0.1, 0.15]], p.primary);
-  poly(ctx, [[0.1, -0.15], [L - 0.28, -0.13], [L - 0.2, -0.04], [0.1, -0.05]], 'rgba(255,255,255,0.26)');
-  poly(ctx, [[0.1, 0.05], [L - 0.2, 0.04], [L - 0.28, 0.13], [0.1, 0.15]], 'rgba(0,0,0,0.24)');
-  ctx.strokeStyle = p.glow || p.accent; ctx.lineWidth = 0.05;
-  ctx.beginPath(); ctx.moveTo(0.2, 0); ctx.lineTo(L - 0.24, 0); ctx.stroke();
-}
-
-const SHAPES = { Sword: (c, p) => sword(c, p, 2.35), Scythe: (c, p) => scythe(c, p, 2.9), Blasters: blaster, Grimoire: grimoire,
-  Axe: (c, p) => axe(c, p, 2.9), Pike: (c, p) => pike(c, p, 5.4),
-  Gauntlets: gauntlets, Hammer: (c, p) => hammer(c, p, 3.1), Longbow: (c, p) => longbow(c, p, 1.5),
-  Flail: (c, p) => flail(c, p, 3.6), Shield: (c, p) => shieldWeapon(c, p, 1.5), Daggers: (c, p) => daggers(c, p, 1.5) };
 
 // Blade length per weapon, used to size the swing trail.
 export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9, Axe: 3.2, Pike: 5.9,
   Gauntlets: 1.0, Hammer: 3.7, Longbow: 1.2, Flail: 4.2, Shield: 1.3, Daggers: 1.7 };
 
-// A palette whose every entry is the same dark value, for the contour pass below.
-const CONTOUR = new Proxy({}, { get: () => 'rgba(22,18,26,0.62)' });
 
 export function drawWeapon(ctx, weaponId, palette, pose) {
-  const shape = SHAPES[weaponId];
-  if (!shape || pose.hide) return;
+  if (!WEAPON_SPRITES[weaponId] || pose.hide) return;
   ctx.save();
   // The world transform already flips Y (setTransform(ppu,0,0,-ppu,...)), so negating here flipped
   // it a second time and every weapon in the game was drawn vertically mirrored. Measured against
@@ -842,19 +634,7 @@ export function drawWeapon(ctx, weaponId, palette, pose) {
   ctx.rotate(pose.angle);
   ctx.translate(pose.ox, pose.oy);
   if (pose.scale && pose.scale !== 1) ctx.scale(pose.scale, pose.scale);   // Colossus doubles the blade
-
-  // CONTOUR PASS. Every weapon is drawn twice: once flat in a dark value, offset a tenth of a stud
-  // back and down, then properly on top. That is the whole trick — at gameplay zoom a weapon is
-  // twenty to thirty pixels of mid-grey against a sky of mid-grey, and without a contour the sword
-  // disappeared into the backdrop the moment it left the fighter's silhouette. An outline stroke
-  // will not do it, because these shapes are five or six separate polygons with no common path;
-  // re-running the shape in one colour gives a true silhouette for free.
-  ctx.save();
-  ctx.translate(-0.11, -0.11);
-  shape(ctx, CONTOUR);
-  ctx.restore();
-  shape(ctx, palette);
-  drawWeaponDetails(ctx, weaponId, palette);
+  drawSprite(ctx, weaponId);
   if (pose.charge > 0) {              // charging glows along the weapon
     ctx.globalAlpha = 0.25 + pose.charge * 0.5;
     ctx.fillStyle = palette.glow || '#FFFFFF';
@@ -889,7 +669,6 @@ export function drawTrail(ctx, weaponId, palette, trail, scale) {
 export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
   const U = pose.ult;
   if (!U) return;
-  const shape = SHAPES[weaponId];
   const glow = palette.glow || palette.accent || '#FFFFFF';
   const sc = pose.scale || 1;
 
@@ -1009,7 +788,7 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
     }
     ctx.restore();
   }
-  if (U.reave !== undefined && shape) {
+  if (U.reave !== undefined && WEAPON_SPRITES[weaponId]) {
     // Concentric rings tracking the head, brightening as the revolutions accelerate, plus two
     // afterimage heads so the eye can follow a shape that is turning faster than 60Hz can show.
     const r = (REACH.Axe || 3.2) * sc;
@@ -1028,16 +807,14 @@ export function drawUltimate(ctx, weaponId, palette, pose, t = 0) {
     }
     ctx.globalAlpha = 1;
   }
-  if (U.blur && shape) {
+  if (U.blur && WEAPON_SPRITES[weaponId]) {
     for (let i = 0; i < U.blur.length; i++) {
       ctx.save();
-      ctx.globalAlpha = 0.30 - i * 0.10;
       ctx.rotate(U.blur[i]);
       if (sc !== 1) ctx.scale(sc, sc);
-      shape(ctx, palette);
+      drawSprite(ctx, weaponId, 0.30 - i * 0.10);
       ctx.restore();
     }
-    ctx.globalAlpha = 1;
   }
 
   // ---- Pike: the lance, and the line it owns ----

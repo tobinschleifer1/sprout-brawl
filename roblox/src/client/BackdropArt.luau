@@ -49,10 +49,4 @@ function BackdropArt.sky(c: any, stageId: string, camX: number): boolean
 	return true
 end
 
-function BackdropArt.weapon(c: any, weaponId: string, palette: any)
-	for _, r in Art.weapons[weaponId] or {} do
-		Canvas2D.rect(c, r[1], r[2], r[3], r[4], Canvas2D.hex(palette[r[5]] or palette.accent, WHITE), r[6])
-	end
-end
-
 return BackdropArt

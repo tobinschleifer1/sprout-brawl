@@ -91,5 +91,7 @@ echo "== parity: Ai vs web/src/engine/ai.js =="
 lune run tests/ai-parity
 echo "== parity: Channels vs web/src/render2d/channels.js =="
 lune run tests/channel-parity
+echo "== weapon art: Roblox draws the shared pixel art exactly =="
+lune run tests/weapon-art
 echo "== parity: WeaponPose vs web/src/render2d/weapons2d.js =="
 lune run tests/weapon-parity

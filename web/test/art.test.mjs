@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
-import { SCENES, WEAPON_DETAILS } from '../src/data/art.js';
+import { SCENES } from '../src/data/art.js';
 import { STAGES } from '../src/data/stages/index.js';
-import { WEAPONS } from '../src/data/weapons/index.js';
-import { drawArtSky, drawWeaponDetails } from '../src/render2d/art2d.js';
+import { drawArtSky } from '../src/render2d/art2d.js';
 
 function canvas() {
   return {
@@ -18,7 +17,6 @@ function canvas() {
   };
 }
 assert.deepEqual(Object.keys(SCENES).sort(), STAGES.map(s => s.id).sort());
-assert.deepEqual(Object.keys(WEAPON_DETAILS).sort(), WEAPONS.map(w => w.id).sort());
 const identities = new Set();
 for (const stage of STAGES) {
   const art = SCENES[stage.id];
@@ -34,10 +32,4 @@ for (const stage of STAGES) {
   }
 }
 assert.equal(identities.size, 6, 'six stages keep six distinct identities');
-for (const weapon of WEAPONS) {
-  const ctx = canvas();
-  drawWeaponDetails(ctx, weapon.id, weapon.palette);
-  assert(ctx.count >= 4 && ctx.count <= 8, `${weapon.id} gets meaningful detail without duplicating its entire shape`);
-  assert.equal(ctx.stack, 0);
-}
-console.log('PASS art: six distinct backgrounds at three viewport widths and camera extremes; all twelve weapon details draw');
+console.log('PASS art: six distinct backgrounds at three viewport widths and camera extremes' + ' (weapon art: see weapon-art.test.mjs)');

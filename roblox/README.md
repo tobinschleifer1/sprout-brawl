@@ -24,6 +24,7 @@ Nothing here is required to play the web build.
 | `src/shared/Knockback.luau` | ported, verified numerically identical to the JS (both curves) |
 | `src/shared/Match.luau` | ported — countdown, KOs, respawns, stocks, timer, sudden death, results |
 | `src/shared/Ai.luau` | ported — the whole difficulty ladder, chains, item use and edgeguarding |
+| `src/shared/Disasters.luau` | the six natural disasters and their scheduler, replayed against `web/src/engine/disasters.js` (1.7M values, both sides of the perfect-shield edge) |
 | **The simulation** | **complete.** Everything left is Roblox-side |
 | `src/shared/InputCodec.luau` | the input frame packed into one integer, round-trip tested exhaustively |
 | `src/shared/Net.luau` | remotes and the wire format |
@@ -186,6 +187,7 @@ load-bearing today:
 | the bots' `setup` plan | read by a branch, assigned by nothing |
 | `weaponPose`'s `REST[wid] ?? 0` fallback | all twelve weapons have a REST entry |
 | `weaponScale`/`holdFrames`/`reload` falling back through `||` | no weapon datum is 0, so the JavaScript's falsy-zero path never fires |
+| the earthquake's outermost-solid tie-break | only matters when two solids share an `x1` or an `x2`, and no stage has that — the Luau keeps JavaScript `reduce`'s first-wins order anyway |
 
 `field` is now deleted from the web build. The rest are left in place: the five above are guards
 that would start working the moment the data changes, and the unused summon types and mechanics are

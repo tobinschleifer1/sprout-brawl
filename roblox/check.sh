@@ -41,6 +41,7 @@ node tests/genfixture.mjs
 node tools/gen-traces.mjs
 node tools/gen-fighter-traces.mjs
 node tools/gen-hazard-traces.mjs
+node tools/gen-disaster-traces.mjs
 node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-ai-traces.mjs
@@ -96,6 +97,8 @@ echo "== parity: Fighter vs web/src/engine/fighter.js =="
 lune run tests/fighter-parity
 echo "== parity: Hazards vs web/src/engine/hazards.js =="
 lune run tests/hazard-parity
+echo "== parity: Disasters vs web/src/engine/disasters.js =="
+lune run tests/disaster-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 echo "== parity: Match vs web/src/engine/match.js =="

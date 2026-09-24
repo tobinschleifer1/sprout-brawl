@@ -57,4 +57,26 @@ do
 		"latest sinking platform geometry must reach prediction before replay")
 	assert(platform.dx==0 and platform.dy==0,"network displacement is not per-tick motion")
 end
+-- An earthquake-dropped plate reaches the clients: dynamicState ships it and applyDynamicState moves
+-- the view-only stage's copy, at the plate's own thickness.
+do
+	local Disasters = Loader.load("Disasters")
+	local data = Loader.load("Data/Stages").BY_ID.Saltflat
+	local server, client = Stage.new(data, 3), Stage.new(data, 3)
+	local plate = nil
+	for _, p in server.solids do if p ~= server.main and p.ledges == false and p.top < 10 then plate = p end end
+	assert(plate, "Saltflat's bunker")
+	local thick = plate.top - plate.bottom
+	local d = { p = table.clone(Disasters.DISASTERS.earthquake.params), warn = 120, plates = { plate }, base = { plate.top }, done = true }
+	Disasters.DISASTERS.earthquake.step(d, { stage = server, fighters = {}, match = {} }, "strike", 0.5, 120 + 20)
+	assert((plate :: any).displaced and plate.top < d.base[1], "the quake moved and flagged the plate")
+	local state = Stage.dynamicState(server)
+	assert(state and #state >= 1, "a displaced solid is shipped to clients")
+	Stage.applyDynamicState(client, state)
+	local mirror = nil
+	for i, p in server.platforms do if p == plate then mirror = client.platforms[i] end end
+	assert(mirror and math.abs(mirror.top - plate.top) < 1e-9, "the client's plate is where the server's is")
+	assert(math.abs((mirror.top - mirror.bottom) - thick) < 1e-9, "and keeps its own thickness")
+	checked += 1
+end
 print(`PASS prediction supports {checked} weapon/surface combinations across every arena`)

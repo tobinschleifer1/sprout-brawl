@@ -62,6 +62,7 @@ function Match.new(cfg: any): any
 	-- explicit seed is a match nobody can reproduce, and the server always has one to give.
 	self.seed = bit32.band(cfg.seed or 1, 0xFFFFFFFF)
 	self.stage = Stage.new(cfg.stage, self.seed)
+	Stage.setDisasters(self.stage, cfg.disasters or "off", { force = cfg.forceDisaster, firstAt = cfg.disasterFirstAt })
 	self.input = cfg.input
 	self.frame = 0
 	self.time = 0

@@ -18,6 +18,7 @@ export class Match {
     // a thousand times a second from inside the simulation.
     this.seed = cfg.seed === undefined ? (Math.random() * 0xFFFFFFFF) >>> 0 : cfg.seed >>> 0;
     this.stage = new StageRuntime(cfg.stage, this.seed);
+    this.stage.setDisasters(cfg.disasters || 'off', { force: cfg.forceDisaster, firstAt: cfg.disasterFirstAt });
     this.input = cfg.input;
     this.frame = 0; this.time = 0;
     this.timeLimit = cfg.timeLimit || 180;

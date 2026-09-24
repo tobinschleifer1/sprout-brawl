@@ -9,6 +9,7 @@
 
 local Config = require(script.Parent.Config)
 local Hazards = require(script.Parent.Hazards)
+local Disasters = require(script.Parent.Disasters)
 local Rng = require(script.Parent.Rng)
 
 local FRAME = Config.FRAME
@@ -108,6 +109,10 @@ function Stage.new(data: any, seed: number?): Stage
 		end
 	end
 
+	-- Natural disasters (Disasters.luau). Off until the match turns them on; while off they draw
+	-- nothing from the seeded generator, so a match without them replays unchanged.
+	self.director = nil
+	self.ledgesLocked = false
 	self.hazards = {}
 	for _, h in data.hazards do
 		local copy = table.clone(h)
@@ -147,7 +152,9 @@ end
 function Stage.dynamicState(self: Stage): { any }?
 	local out = nil
 	for i, p in self.platforms do
-		if p.moving or p.sinking then
+		-- `displaced`: a solid an earthquake has moved (Disasters.luau). Without it the clients kept
+		-- predicting their fighter on a plate the server had already dropped.
+		if p.moving or p.sinking or (p :: any).displaced then
 			out = out or {}
 			table.insert(out, { i = i, cx = p.cx, top = p.top })
 		end
@@ -172,6 +179,8 @@ function Stage.applyDynamicState(self: Stage, list: { any }?)
 			p.dy = e.top - p.top
 			p.top = e.top
 			p.cy = e.top
+			-- Right for a quake-dropped solid too: every solid but the main floor is built with its own
+			-- `thickness`, and the quake never moves the main floor.
 			p.bottom = e.top - (p.thickness or 1)
 		end
 	end
@@ -248,6 +257,27 @@ function Stage.step(self: Stage, match: any)
 	for _, h in self.hazards do
 		Hazards.step(h, ctx)
 	end
+	local director = (self :: any).director
+	if director then
+		local view = director:step(ctx)
+		if view then
+			self.visual.disaster = view
+		end
+	end
+end
+
+-- 'off' | 'stage' | 'chaos'. `force` pins the disaster type and `firstAt` its first start, for
+-- tests and replay traces only. See web/src/engine/stage.js setDisasters.
+function Stage.setDisasters(self: Stage, mode: string?, opts: any?)
+	local o = opts or {}
+	local s = self :: any
+	if not mode or mode == "off" then
+		s.director = nil
+		return
+	end
+	local params = table.clone(s.data.disasterParams or {})
+	params.force, params.firstAt = o.force, o.firstAt
+	s.director = Disasters.Director.new(mode, s.data.disasters or {}, params)
 end
 
 -- Sudden death closes the blast box in. It must never close past the stage itself, or there is
@@ -340,6 +370,9 @@ end
 
 -- Returns a ledge the fighter can grab right now, or nil.
 function Stage.ledgeFor(self: Stage, f: any, guardPressed: boolean): Ledge?
+	if (self :: any).ledgesLocked then
+		return nil                      -- an earthquake's first 90 frames
+	end
 	if f.ledgeCooldown > 0 or f.ledgeGrabs >= LEDGE.maxGrabs then
 		return nil
 	end

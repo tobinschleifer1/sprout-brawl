@@ -1,4 +1,5 @@
 import { stepHazard } from './hazards.js';
+import { DisasterDirector } from './disasters.js';
 import { FRAME, LEDGE } from '../config.js';
 import { makeRng } from './rng.js';// Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
 // accurate than sqrt(x*x + y*y), and Luau's math library does not - so the two builds disagreed in
@@ -57,6 +58,10 @@ export class StageRuntime {
       if (mode !== 'outer' || outerIsRight) this.ledges.push({ x: sp.x2, y: sp.top, side: 1, platform: sp });
     }
     this.hazards = data.hazards.map((h) => ({ ...h, state: {} }));
+    // Natural disasters (engine/disasters.js). Off until the match turns them on, and while off
+    // they draw nothing from the seeded generator, so a match without them replays unchanged.
+    this.director = null;
+    this.ledgesLocked = false;
     this.waterLevel = null;
     this.events = [];
     this.visual = {}; // renderer hints: vent phase, sprinkler x, dust devil, tide
@@ -117,6 +122,17 @@ export class StageRuntime {
     this.visual = {};
     const ctx = { stage: this, match, fighters: match.fighters, visual: this.visual };
     for (const h of this.hazards) stepHazard(h, ctx);
+    if (this.director) {
+      const view = this.director.step(ctx);
+      if (view) this.visual.disaster = view;
+    }
+  }
+
+  // 'off' | 'stage' | 'chaos'. `force` pins the disaster type and `firstAt` its first start, for
+  // tests and replay traces only.
+  setDisasters(mode, opts = {}) {
+    this.director = !mode || mode === 'off' ? null
+      : new DisasterDirector(mode, this.data.disasters || [], { ...(this.data.disasterParams || {}), force: opts.force, firstAt: opts.firstAt });
   }
 
 
@@ -188,6 +204,7 @@ export class StageRuntime {
 
   // Returns a ledge the fighter can grab right now, or null.
   ledgeFor(f, guardPressed) {
+    if (this.ledgesLocked) return null;          // an earthquake's first 90 frames
     if (f.ledgeCooldown > 0 || f.ledgeGrabs >= LEDGE.maxGrabs) return null;
     if (f.vy > 6) return null;
     for (const L of this.ledges) {

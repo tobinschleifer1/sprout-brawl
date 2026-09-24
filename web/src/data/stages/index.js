@@ -88,6 +88,7 @@ export const STAGES = [
     // so every crossing is a commitment, and a light fighter knocked into it is in real trouble.
     // Vents punish camping on either island.
     id: 'Smeltworks', name: 'Smeltworks', theme: 'Smelting floor', ranked: false,
+    disasters: ['lavasurge'],   // natural disaster (engine/disasters.js), casual only
     archetype: 'Split floor',
     blurb: 'Two islands and a hole between them. Crossing is a decision, not a walk.',
     // `ledges: 'outer'` on both islands: only the OUTWARD edges are grabbable. With ledges on the
@@ -143,6 +144,7 @@ export const STAGES = [
     // the high ground is real ground you can be knocked off, and the blast ceiling is low enough
     // that an up-angled signature actually kills.
     id: 'Rooftops', name: 'Rooftops', theme: 'City rooftops', ranked: false,
+    disasters: ['lightning'], disasterParams: { lightning: { rods: [-21, 16] } },   // natural disaster (engine/disasters.js), casual only
     archetype: 'Vertical / tiered',
     blurb: 'Two towers at different heights and a low ceiling. Fights climb, and the top of the map kills.',
     main: { x1: -27.5, x2: 29, y: 0, thickness: 6 },
@@ -201,6 +203,7 @@ export const STAGES = [
     // you cannot hang from — so the two ledges play completely differently and picking a side is a
     // real decision. The block also gives the only wall in the game to tech off.
     id: 'Saltflat', name: 'Saltflat', theme: 'Dry lake', ranked: false,
+    disasters: ['tornado'],   // natural disaster (engine/disasters.js), casual only
     archetype: 'Asymmetric',
     blurb: 'Long on the left, blocked on the right. The two sides of this stage are not the same game.',
     main: { x1: -48, x2: 26, y: 0, thickness: 6 },
@@ -253,6 +256,7 @@ export const STAGES = [
     // tide that periodically swallows the outer floor — so the safe ground is different every
     // twenty seconds and positioning has to be re-solved constantly.
     id: 'Undertow', name: 'Undertow', theme: 'Flooded dock', ranked: false,
+    disasters: ['tsunami'],   // natural disaster (engine/disasters.js), casual only
     archetype: 'Moving / dynamic',
     blurb: 'Drifting platforms over a rising tide. The safe ground moves, and sometimes there is none.',
     main: { x1: -20, x2: 20, y: 0, thickness: 6 },

@@ -415,7 +415,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- The ultimate's cutscene, timed from the frame its event names. The camera punch is applied to
 	-- what is drawn, never to cam2d, so the follow-camera resumes from where it was.
 	local cine = UltCinematic.at(if ult then drawnFrame - ult.frame else -1)
-	if ult and not cine.active and not cine.glow then ult = nil end
+	if ult and UltCinematic.over(drawnFrame - ult.frame) then ult = nil end
 	local caster: any = nil
 	if ult then
 		for _, st in states do

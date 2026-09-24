@@ -25,6 +25,7 @@ for _, r in T.rows do
 	for i, v in { c.active, c.dim, c.zoom, c.slide, c.band, c.glow } do
 		same(`frame {e} timing {i}`, r.c[i], v)
 	end
+	same(`frame {e} over`, r.over, U.over(e))
 	local p = U.punch(3.5, 11, 5.2, -8.25, 6.5, c.zoom)
 	for i, v in { p.x, p.y, p.ppu } do
 		same(`frame {e} punch {i}`, r.p[i], v)
@@ -55,6 +56,12 @@ print(`replayed {checked} cutscene values across {#T.rows} frames`)
 local F, INV = U.FREEZE, U.INVINCIBLE
 assert(not U.at(F).active and U.at(F - 1).active, "the cutscene must end exactly when the freeze does")
 assert(not U.at(-1).active, "nothing before activation")
+-- A client drawing behind its snapshots sees the event before the frame it names. The record must
+-- survive those negative frames, or the cutscene is dropped before it starts.
+for e = -12, F - 1 do
+	assert(not U.over(e), `frame {e}: the cutscene was declared over before it had played`)
+end
+assert(U.over(F) and U.over(F + 30), "the cutscene is over once the freeze is")
 for e = 0, F + 4 do
 	assert(U.at(e).glow == (e < INV), `frame {e}: the gold must show exactly while the caster is invincible`)
 end

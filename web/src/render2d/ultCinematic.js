@@ -20,6 +20,14 @@ export const DIM = 0.65;                 // overlay alpha: the scene at 35% brig
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const easeOut = (k) => 1 - (1 - k) * (1 - k);
 
+// Whether an ultimate's cutscene is finished with, so its record can be dropped. NOT the same as
+// "not active": a Roblox client draws a few frames behind its newest snapshot, so the event always
+// arrives while the drawn frame is still short of it - elapsed is negative - and a renderer that
+// dropped the record then never showed the cutscene at all. Only the far side ends it.
+export function ultOver(elapsed) {
+  return elapsed >= Math.max(FREEZE, INVINCIBLE);
+}
+
 export function ultCinematic(elapsed) {
   const e = elapsed;
   if (!(e >= 0) || e >= FREEZE) return { active: false, dim: 0, zoom: 1, slide: 1, band: 0, glow: e >= 0 && e < INVINCIBLE };

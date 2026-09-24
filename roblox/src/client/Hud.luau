@@ -49,7 +49,7 @@ function Hud.new(parent: Instance): any
 	gui.ResetOnSpawn = false
 	gui.IgnoreGuiInset = true
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.DisplayOrder = 10          -- above the canvas, which is a plain ScreenGui
+	gui.DisplayOrder = 11          -- above the canvas (10): equal orders left it to creation order
 	gui.Parent = parent
 	self.gui = gui
 

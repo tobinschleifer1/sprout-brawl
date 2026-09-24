@@ -18,6 +18,14 @@ local function easeOut(k: number): number
 	return 1 - (1 - k) * (1 - k)
 end
 
+-- Whether an ultimate's cutscene is finished with, so its record can be dropped. NOT the same as
+-- "not active": this client draws a few frames behind its newest snapshot, so the event always
+-- arrives while the drawn frame is still short of it - elapsed is negative - and dropping the record
+-- then meant the cutscene never showed at all (found in Studio). Only the far side ends it.
+function UltCinematic.over(elapsed: number): boolean
+	return elapsed >= math.max(UltCinematic.FREEZE, UltCinematic.INVINCIBLE)
+end
+
 function UltCinematic.at(elapsed: number): any
 	local e = elapsed
 	local FREEZE, INV, B = UltCinematic.FREEZE, UltCinematic.INVINCIBLE, UltCinematic.BAND

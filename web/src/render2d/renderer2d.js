@@ -9,7 +9,7 @@
 // object, because in 2D there is no scene graph to keep in sync - each frame is painted from
 // scratch out of the simulation state.
 
-import { ultCinematic, punch, glowShapes, bannerLayout } from './ultCinematic.js';
+import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, drawSprite, REACH } from './weapons2d.js';
 import { WEAPON_SPRITES } from '../data/weaponArt.js';
@@ -131,7 +131,7 @@ export class Renderer2D {
     // caster without touching this.cam, so the follow-camera resumes from where it was.
     const U = this.ult, caster = U && fighters[U.fighter];
     const cine = ultCinematic(U ? match.frame - U.frame : -1);
-    if (U && !cine.active && !cine.glow) this.ult = null;
+    if (U && ultOver(match.frame - U.frame)) this.ult = null;
     this.view = cine.active && caster
       ? punch(this.cam.x, this.cam.y, this.cam.ppu, caster.x, caster.y + caster.h * 0.5, cine.zoom) : null;
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 9);

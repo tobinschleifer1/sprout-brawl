@@ -330,7 +330,7 @@ export class DisasterDirector {
     const phase = a.frame < a.warn ? 'warn' : a.frame < a.warn + def.strike ? 'strike' : 'after';
     const k = phase === 'warn' ? a.frame / a.warn : phase === 'strike' ? (a.frame - a.warn) / def.strike : (a.frame - a.warn - def.strike) / def.after;
     def.step(a, ctx, phase, k, a.frame);
-    const view = { type: a.type, phase, k, frame: a.frame, total, ...def.visual(a, ctx) };
+    const view = { type: a.type, phase, k, frame: a.frame, warn: a.warn, total, ...def.visual(a, ctx) };
     a.frame++;
     if (a.frame >= total) this.finish(ctx);
     return view;

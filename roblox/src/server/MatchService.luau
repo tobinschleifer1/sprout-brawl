@@ -107,6 +107,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 		stocks = o.stocks or 3,
 		timeLimit = o.timeLimit or 180,
 		items = o.items or false,
+		disasters = o.disasters or "off",   -- natural disasters; see shared/Disasters.luau
 		input = self.input,
 		-- The seed is what makes this match reproducible from its inputs. It is generated once,
 		-- here, and sent to every client so a replay can be rebuilt later.

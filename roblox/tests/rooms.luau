@@ -96,4 +96,20 @@ do
 	assert(not model:edit(a, { id = room.id, revision = seen, action = "stage", value = "Undertow" }), "a stale host change is still refused")
 	assert(not model:edit(a, { id = room.id + 1, revision = room.revision, action = "weapon", value = "Axe" }), "another room's loadout edit is refused")
 end
-print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready")
+-- Natural disasters: off by default, host-only, validated, carried into the match.
+do
+	local model = Rooms.new()
+	local a, b = player(41), player(42)
+	local room = model:join(a, "Duel"); model:join(b, "Duel")
+	assert(room.disasters == "off", "disasters are off by default")
+	local function edit(p: any, v: any): boolean
+		return (model:edit(p, { id = room.id, revision = room.revision, action = "disasters", value = v }))
+	end
+	assert(not edit(b, "chaos"), "a guest cannot turn disasters on")
+	assert(not edit(a, "apocalypse") and not edit(a, true), "unknown settings are refused")
+	assert(edit(a, "chaos") and room.disasters == "chaos")
+	local _, opts = model:roster(room)
+	assert(opts.disasters == "chaos", "the setting reaches the match")
+	assert(model:view(room).disasters == "chaos", "and every member sees it")
+end
+print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default)")

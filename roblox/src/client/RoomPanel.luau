@@ -185,6 +185,13 @@ function RoomPanel.render(self: any)
 		label(self.body, "Equal teams · stock battle · bots OFF unless explicitly added below", 52)
 		for n = 1, 5 do button(self.body, `{n} stocks`, function() if host then self:send("stocks", n) end end, room.stocks == n) end
 		button(self.body, "Items: " .. (if room.items then "ON" else "OFF"), function() if host then self:send("items", not room.items) end end)
+		-- Natural disasters. Off by default; "this map's own" runs the stage's signature disaster (if
+		-- it has one), chaos adds the ones that work anywhere. Host-only like every shared rule.
+		label(self.body, "Natural disasters", 28)
+		for _, opt in { { "off", "Disasters: OFF" }, { "stage", "Disasters: THIS MAP'S OWN" }, { "chaos", "Disasters: CHAOS" } } do
+			local b = button(self.body, opt[2], function() if host then self:send("disasters", opt[1]) end end, room.disasters == opt[1])
+			b.Name = "Disasters_" .. opt[1]
+		end
 		for i, slot in room.slots do
 			if not slot.userId then
 				local nextLevel = if not slot.bot then "easy" else if slot.bot == "easy" then "normal" else if slot.bot == "normal" then "hard" else false

@@ -16,6 +16,8 @@ import { TITLE, TAGLINE, SUBTITLE, SAVE_KEY } from '../data/branding.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const SLOT_TYPES = [['off', 'Off'], ['kb1', 'Keyboard 1'], ['kb2', 'Keyboard 2'], ['pad0', 'Gamepad 1'], ['pad1', 'Gamepad 2'], ['pad2', 'Gamepad 3'], ['pad3', 'Gamepad 4'], ['bot-easy', 'Bot · Easy'], ['bot-normal', 'Bot · Normal'], ['bot-hard', 'Bot · Hard'], ['bot-elite', 'Bot · Elite'], ['bot-impossible', 'Bot · Impossible'], ['bot-just_dont', 'Bot · Just Don\'t']];
+// Natural disasters (engine/disasters.js): off by default, as in the Roblox rooms.
+const DISASTER_MODES = [['off', 'Off'], ['stage', "This map's own"], ['chaos', 'Chaos']];
 const MODES = [['StockFFA', 'Stock · Free-for-all'], ['TimedFFA', 'Timed · Free-for-all'], ['StockTeams', 'Stock · 2v2'], ['TimedTeams', 'Timed · 2v2'], ['Training', 'Training']];
 
 function stageSVG(s) {
@@ -49,6 +51,7 @@ export class Menus {
         if (Number.isInteger(c.stocks)) this.config.stocks = Math.max(1, Math.min(5, c.stocks));
         if ([120, 180, 240, 300].includes(c.time)) this.config.time = c.time;
         if (typeof c.items === 'boolean') this.config.items = c.items;
+        if (DISASTER_MODES.some(([id]) => id === c.disasters)) this.config.disasters = c.disasters;
         if (Array.isArray(c.slots)) this.config.slots = this.config.slots.map((fallback, i) => {
           const slot = c.slots[i];
           if (!slot || typeof slot !== 'object') return fallback;
@@ -68,7 +71,7 @@ export class Menus {
   }
 
   _defaultConfig() {
-    return { mode: 'StockFFA', stocks: 3, time: 180, items: true, stageId: 'FoundryFloor',
+    return { mode: 'StockFFA', stocks: 3, time: 180, items: true, disasters: 'off', stageId: 'FoundryFloor',
       slots: [ { type: 'kb1', weaponId: 'Sword', avatarId: 'Classic', team: 0 },
                { type: 'off', weaponId: 'Scythe', avatarId: 'Noir', team: 1 },
                { type: 'off', weaponId: 'Blasters', avatarId: 'Ember', team: 0 },
@@ -383,6 +386,7 @@ export class Menus {
           <label>Stocks <select data-field="stocks">${[1, 2, 3, 4, 5].map((n) => `<option ${c.stocks === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Time <select data-field="time">${[[120, '2:00'], [180, '3:00'], [240, '4:00'], [300, '5:00']].map(([v, l]) => `<option value="${v}" ${c.time === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label><input type="checkbox" data-field="items" ${c.items ? 'checked' : ''}> Items</label>
+          <label>Disasters <select data-field="disasters">${DISASTER_MODES.map(([v, l]) => `<option value="${v}" ${c.disasters === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </div></div>
       <div class="slots">${slots}</div>
       <h3>Stage</h3><div class="stages">${stages}</div>
@@ -569,6 +573,7 @@ export class Menus {
       const f = t.dataset.field;
       if (f === 'items') this.config.items = t.checked;
       else if (f === 'mode') this.config.mode = t.value;
+      else if (f === 'disasters') this.config.disasters = t.value;
       else this.config[f] = parseInt(t.value, 10);
       this.save(); this.render();
     }

@@ -99,6 +99,8 @@ echo "== parity: Hazards vs web/src/engine/hazards.js =="
 lune run tests/hazard-parity
 echo "== parity: Disasters vs web/src/engine/disasters.js =="
 lune run tests/disaster-parity
+echo "== disaster shapes: Roblox draws each disaster as the web does =="
+lune run tests/disaster-shapes
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 echo "== parity: Match vs web/src/engine/match.js =="

@@ -20,6 +20,7 @@ local HudColors = require(script.Parent.HudColors)
 local Bindings = require(script.Parent.Bindings)
 local AbilityStatus = require(script.Parent.AbilityStatus)
 
+local DisasterShapes = require(script.Parent.DisasterShapes)
 local Hud = {}
 Hud.__index = Hud
 
@@ -62,6 +63,11 @@ function Hud.new(parent: Instance): any
 	self.abilities.Name = "YourAbilities"
 	self.abilities.TextWrapped = true
 	self.abilities.TextXAlignment = Enum.TextXAlignment.Center
+
+	-- What natural disaster is coming and when: cool while it warns, hot once it strikes.
+	self.disaster = label(gui, UDim2.fromOffset(420, 26), UDim2.new(0.5, -210, 0, 134), "", 18, Color3.new(1, 1, 1))
+	self.disaster.Name = "DisasterBanner"
+	self.disaster.TextXAlignment = Enum.TextXAlignment.Center
 
 	self.callout = label(gui, UDim2.fromOffset(600, 90), UDim2.new(0.5, -300, 0.32, 0), "", 72, Color3.new(1, 1, 1))
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
@@ -175,6 +181,14 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		self.timer.TextColor3 = if left < 30 then Color3.fromRGB(232, 98, 42) else DIM
 	else
 		self.timer.Text = ""
+	end
+
+	local banner = DisasterShapes.banner(self.disasterView)
+	if banner then
+		self.disaster.Text = if banner.seconds ~= nil then `⚠ {banner.text} · {banner.seconds}` else `⚠ {banner.text}`
+		self.disaster.TextColor3 = Color3.fromHex(banner.colour)
+	else
+		self.disaster.Text = ""
 	end
 
 	-- The callout: the countdown, then GO, then nothing.

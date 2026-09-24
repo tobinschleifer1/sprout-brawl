@@ -12,6 +12,7 @@
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, REACH } from './weapons2d.js';
 import { drawHazards } from './hazards2d.js';
+import { disasterShapes, disasterBanner } from './disasterShapes.js';
 import { drawSky, drawScenery, drawSurface } from './backdrop2d.js';
 import { drawHead, drawTorsoMark } from './avatar2d.js';
 import { drawPixelPart } from './pixels2d.js';
@@ -132,6 +133,8 @@ export class Renderer2D {
     // Distant weather and the hazards a fighter stands IN FRONT of (water, wind, embers).
     drawAmbient(this.b, match.stage, t, 'back');
     drawHazards(this.b, match.stage, t, 'back');
+    // Natural disasters, behind the fighters so nobody is ever hidden by the weather.
+    this._paintShapes(disasterShapes(match.stage.visual && match.stage.visual.disaster, match.stage));
     this._summons(match.combat);
     this._orbMarks(match);
     this._items(match.combat);
@@ -149,6 +152,7 @@ export class Renderer2D {
     let washed = false;
     for (const f of fighters) if (f.ultActive && f.alive) { this._ultAura(f, t, !washed); washed = true; }
     this._ultBanner(dt);
+    this._disasterBanner(disasterBanner(match.stage.visual && match.stage.visual.disaster));
     if (this.debug) this._debug(match);
     this._screen();
     this._present();
@@ -618,6 +622,36 @@ export class Renderer2D {
   // The activation moment: a white flash and the move's name across the screen. Without this the
   // only signal that someone had spent a whole meter was a 6%-alpha colour wash, which at
   // 480x270 with four fighters on screen is close to invisible.
+  // A shape list from render2d/disasterShapes.js, in world space. Roblox paints the same list.
+  _paintShapes(list) {
+    const b = this.b;
+    for (const sh of list) {
+      b.globalAlpha = sh[6];
+      b.fillStyle = sh[5];
+      if (sh[0] === 'r') b.fillRect(sh[1], sh[2], sh[3], sh[4]);
+      else { b.beginPath(); b.ellipse(sh[1], sh[2], sh[3], sh[4], 0, 0, Math.PI * 2); b.fill(); }
+    }
+    b.globalAlpha = 1;
+  }
+
+  // What is coming and when, across the top: cool while it warns, hot once it strikes.
+  _disasterBanner(B) {
+    if (!B) return;
+    const b = this.b;
+    this._screen();
+    b.globalAlpha = 0.72;
+    b.fillStyle = '#0B1017';
+    b.fillRect(this.BW / 2 - 90, 6, 180, 16);
+    b.globalAlpha = 1;
+    b.fillStyle = B.colour;
+    b.fillRect(this.BW / 2 - 90, 21, 180, 1);
+    b.font = 'bold 9px ui-monospace, monospace';
+    b.textAlign = 'center';
+    b.fillText(B.seconds != null ? `${B.text} · ${B.seconds}` : B.text, this.BW / 2, 17);
+    b.textAlign = 'left';
+    this._world();
+  }
+
   _ultBanner(dt) {
     const B = this.ultBanner;
     if (!B) return;

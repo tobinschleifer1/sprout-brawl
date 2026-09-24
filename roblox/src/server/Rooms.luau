@@ -64,7 +64,8 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	if not room then
 		self.nextId += 1
 		room = { id = self.nextId, host = player.UserId, format = format, name = spec.name,
-			state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true, slots = {} }
+			state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true,
+			disasters = "off", slots = {} }   -- natural disasters: OFF unless the host turns them on
 		for i = 1, spec.teamSize * 2 do room.slots[i] = { team = (i - 1) % 2 } end
 		self.rooms[room.id], place = room, 1
 	end
@@ -92,7 +93,7 @@ function Rooms.view(self: any, room: any): any
 	end
 	return { id = room.id, host = room.host, format = room.format, name = room.name,
 		state = room.state, revision = room.revision, stage = room.stage, stocks = room.stocks,
-		items = room.items, slots = slots, canStart = self:canStart(room) }
+		items = room.items, disasters = room.disasters, slots = slots, canStart = self:canStart(room) }
 end
 function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local room = self:get(player.UserId)
@@ -131,6 +132,9 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	elseif action == "items" then
 		if type(value) ~= "boolean" then return false, "Invalid item setting." end
 		room.items = value
+	elseif action == "disasters" then
+		if value ~= "off" and value ~= "stage" and value ~= "chaos" then return false, "Unknown disaster setting." end
+		room.disasters = value
 	elseif action == "bot" then
 		local i = msg.slot
 		if type(i) ~= "number" or i % 1 ~= 0 or i < 1 or i > #room.slots then return false, "Invalid slot." end
@@ -149,6 +153,7 @@ function Rooms.roster(_self: any, room: any): ({ any }, any)
 		table.insert(roster, { player = slot.player, avatar = slot.avatar, weapon = slot.weapon,
 			team = slot.team, botLevel = slot.bot })
 	end
-	return roster, { mode = "StockTeams", stage = room.stage, stocks = room.stocks, items = room.items }
+	return roster, { mode = "StockTeams", stage = room.stage, stocks = room.stocks, items = room.items,
+		disasters = room.disasters }
 end
 return Rooms

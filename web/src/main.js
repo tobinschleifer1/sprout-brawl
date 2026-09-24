@@ -87,7 +87,7 @@ class App {
     if (fighters.length < 2) { alert('Turn on at least two players.'); return; }
     if (c.mode.includes('Teams') && new Set(fighters.map((f) => f.team)).size < 2) { alert('Team modes need both teams.'); return; }
     this.lastConfig = c;
-    this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.FoundryFloor, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', fighters });
+    this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.FoundryFloor, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', disasters: c.mode === 'Training' ? 'off' : c.disasters, fighters });
   }
 
   quickPlay() {

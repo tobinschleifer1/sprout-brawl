@@ -411,7 +411,7 @@ function Director.step(self: any, ctx: any): any
 		elseif phase == "strike" then (a.frame - a.warn) / def.strike
 		else (a.frame - a.warn - def.strike) / def.after
 	def.step(a, ctx, phase, k, a.frame)
-	local view = merge({ type = a.type, phase = phase, k = k, frame = a.frame, total = total }, def.visual(a, ctx))
+	local view = merge({ type = a.type, phase = phase, k = k, frame = a.frame, warn = a.warn, total = total }, def.visual(a, ctx))
 	a.frame += 1
 	if a.frame >= total then self:finish(ctx) end
 	return view

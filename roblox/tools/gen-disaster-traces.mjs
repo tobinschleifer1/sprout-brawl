@@ -143,3 +143,31 @@ if (new Set(picks).size < 3) throw new Error(`the long chaos run drew too few ki
 const frames = scenarios.reduce((s, x) => s + x.rows.length, 0);
 const events = scenarios.reduce((s, x) => s + x.rows.reduce((t, r) => t + r[r.length - 1].length, 0), 0);
 console.log(`disaster traces: ${scenarios.length} scenarios, ${frames} frames, ${events} disaster events; chaos drew ${picks.join(', ')}`);
+
+// ---- the picture: view -> shapes, for tests/disaster-shapes.luau ----
+// Every 5th frame's disaster view from the scenarios above, with the shape list and banner the
+// JavaScript draws for it. Numbers travel as strings: Lune's JSON decoder keeps ~16 digits.
+{
+  const { disasterShapes, disasterBanner } = await import('../../web/src/render2d/disasterShapes.js');
+  const { StageRuntime } = await import('../../web/src/engine/stage.js');
+  const str = (v) => (typeof v === 'number' ? String(v) : Array.isArray(v) ? v.map(str)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, str(x)])) : v);
+  const samples = [];
+  for (const spec of S) {
+    if (spec.name.startsWith('chaos')) continue;
+    const data = STAGES.find((s) => s.id === spec.stage);
+    const script = {};
+    const m = new Match({ mode: 'StockFFA', stage: data, input: { kb2Active: false, poll() {}, get: (s) => script[s] || emptyFrame() },
+      seed: spec.seed, stocks: 3, timeLimit: 600, items: false, disasters: spec.mode, forceDisaster: spec.force, disasterFirstAt: spec.firstAt,
+      fighters: WHO.map(([a, w], i) => ({ char: buildLoadout(a, w), skin: 0, team: i, source: `p${i}`, isBot: false, name: `P${i}` })) });
+    const flat = new StageRuntime(data, spec.seed);      // shapes read only static geometry
+    for (let f = 0; f < spec.frames; f++) {
+      for (let k = 0; k < 3; k++) script[`p${k}`] = Object.assign(emptyFrame(), f < 4 ? { anyPress: true } : {});
+      m.step(); m.events.length = 0;
+      const v = m.stage.visual.disaster;
+      if (v && f % 5 === 0) samples.push({ stage: spec.stage, seed: spec.seed, view: str(v), shapes: str(disasterShapes(v, flat)), banner: str(disasterBanner(v)) });
+    }
+  }
+  fs.writeFileSync(path.join(HERE, '../tests/trace-disaster-shapes.json'), JSON.stringify({ samples }));
+  console.log(`disaster shapes: ${samples.length} sampled views, ${samples.reduce((t, s) => t + s.shapes.length, 0)} shapes`);
+}

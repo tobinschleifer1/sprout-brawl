@@ -111,6 +111,9 @@ end
 panel.body:FindFirstChild("Stage_Undertow").Activated:Fire()
 assert(room.stage=="Undertow")
 panel:openStation("Rules")
+assert(panel.body:FindFirstChild("Disasters_off") and panel.body:FindFirstChild("Disasters_chaos"), "the rules console offers the disaster setting")
+panel.body:FindFirstChild("Disasters_stage").Activated:Fire()
+assert(room.disasters=="stage","the host's disaster choice reaches the room")
 panel.body:FindFirstChild("Bots OFF — add optional CPU").Activated:Fire()
 assert(room.slots[2].bot=="easy","explicit optional CPU control")
 panel:openStation("Players")
@@ -160,3 +163,25 @@ hud:abilityEvent({type="ultready",fighter=1})
 assert(not hud.abilityMessage,"another player's full meter must not be announced as yours")
 hud:abilityEvent({type="ultdenied",fighter=0,reason="charge"})
 assert(hud.abilityMessage:find("not charged",1,true),"index-zero local fighter receives rejection feedback")
+-- The disaster banner: cool with a countdown while it warns, hot once it strikes, gone after.
+do
+	local COOL, HOT = Rbx.Color3.fromHex("#7FD4FF"), Rbx.Color3.fromHex("#F08B60")
+	local function show(view: any): any
+		hud.disasterView = view
+		hud:update({}, nil, nil, chars, nil)
+		return hud.disaster
+	end
+	local b = show({ type = "tsunami", phase = "warn", k = 0.2, frame = 30, warn = 150 })
+	assert(b.Text:find("TSUNAMI INCOMING", 1, true) and b.Text:find("· 2", 1, true), `warning banner reads {b.Text}`)
+	assert(b.TextColor3 == COOL, "a warning is cool")
+	b = show({ type = "tsunami", phase = "strike", k = 0.1, frame = 200, warn = 150 })
+	assert(b.Text:find("TSUNAMI", 1, true) and not b.Text:find("INCOMING", 1, true) and b.TextColor3 == HOT, "a strike is hot, with no countdown")
+	b = show({ type = "earthquake", phase = "warn", k = 0.5, frame = 60, warn = 120, plates = {} })
+	assert(b.Text:find("TREMOR", 1, true), "a plateless quake is announced as a tremor")
+	b = show({ type = "tsunami", phase = "after", k = 0.5, frame = 700, warn = 150 })
+	assert(b.Text == "", "nothing once it is over")
+	b = show(nil)
+	assert(b.Text == "", "nothing without a disaster")
+	print("PASS disaster banner: cool countdown while warning, hot on strike, tremor named, gone after")
+end
+

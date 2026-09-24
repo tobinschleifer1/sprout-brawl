@@ -27,6 +27,7 @@ local InputClient = require(script.InputClient)
 local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
 local Stage2D = require(script.Stage2D)
+local DisasterShapes = require(script.DisasterShapes)
 local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
@@ -403,6 +404,24 @@ RunService.RenderStepped:Connect(function(dt: number)
 		Stage.applyDynamicState(stageView, interpBase and interpBase.platforms)
 		Stage2D.draw(canvas, stageView)
 	end
+	local scene = scenes[1]
+	for _, candidate in scenes do
+		if interpBase and candidate.frame <= interpBase.frame then scene = candidate end
+	end
+	-- Natural disasters, behind the fighters as on the web, from the shape list both builds share
+	-- (DisasterShapes). The server's view rides in the scene stream with the hazard visuals.
+	local disaster = if scene and scene.hazards then scene.hazards.disaster else nil
+	if disaster and stageView then
+		for _, sh in DisasterShapes.shapes(disaster, stageView) do
+			local colour = Canvas2D.hex(sh[6], Color3.new(1, 1, 1))
+			if sh[1] == "r" then
+				Canvas2D.rect(canvas, sh[2], sh[3], sh[4], sh[5], colour, sh[7])
+			else
+				Canvas2D.ellipse(canvas, sh[2], sh[3], sh[4], sh[5], colour, sh[7])
+			end
+		end
+	end
+	if hud then hud.disasterView = disaster end
 	for _, st in states do
 		local char = chars[st.index + 1]
 		if char then
@@ -415,10 +434,6 @@ RunService.RenderStepped:Connect(function(dt: number)
 				warn(`[Blockfall] fighter {st.index} failed to draw, and will not be reported again: {err}`)
 			end
 		end
-	end
-	local scene = scenes[1]
-	for _, candidate in scenes do
-		if interpBase and candidate.frame <= interpBase.frame then scene = candidate end
 	end
 	if scene and stageView then
 		World2D.hazards(canvas, scene.hazards or {}, stageView, scene.frame * FRAME)

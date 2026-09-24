@@ -53,5 +53,36 @@ Weapons2D.draw(canvas(), "Axe", {}, { angle = 0, ox = 0, oy = 0, scale = 1, char
 Weapons2D.draw(canvas(), "NoSuchWeapon", {}, POSE)
 assert(#drawn == 0, "a hidden or unknown weapon must draw nothing")
 
+-- Framing a weapon in a UI tile (the room panel's catalogue): the whole weapon fits, it is centred,
+-- and the scale is a whole multiple of 8 px/stud so every art pixel is a whole number of screen pixels.
+local framed = 0
+for _, w in Weapons.LIST do
+	local b = assert(Weapons2D.bounds(w.id))
+	-- The bounds contain every rectangle, and are tight: each edge is touched by some rectangle.
+	local touch = { false, false, false, false }
+	for _, r in Art.sprites[w.id] do
+		assert(r[1] >= b[1] - 1e-9 and r[2] >= b[2] - 1e-9 and r[1] + r[3] <= b[3] + 1e-9 and r[2] + r[4] <= b[4] + 1e-9,
+			`{w.id}: a rectangle lies outside its bounds`)
+		touch[1] = touch[1] or math.abs(r[1] - b[1]) < 1e-9
+		touch[2] = touch[2] or math.abs(r[2] - b[2]) < 1e-9
+		touch[3] = touch[3] or math.abs(r[1] + r[3] - b[3]) < 1e-9
+		touch[4] = touch[4] or math.abs(r[2] + r[4] - b[4]) < 1e-9
+	end
+	assert(touch[1] and touch[2] and touch[3] and touch[4], `{w.id}: bounds are not tight`)
+	for _, size in { { 150, 76 }, { 200, 76 }, { 217, 76 }, { 120, 60 }, { 300, 100 } } do
+		local tw, th = size[1], size[2]
+		local cx, cy, ppu = Weapons2D.fit(w.id, tw, th)
+		assert(ppu % 8 == 0 and ppu >= 8, `{w.id}: scale {ppu} is not a multiple of 8 px/stud`)
+		assert(math.abs(cx - (b[1] + b[3]) / 2) < 1e-9 and math.abs(cy - (b[2] + b[4]) / 2) < 1e-9, `{w.id}: not centred`)
+		local raw = math.min((tw - 8) / (b[3] - b[1]), (th - 8) / (b[4] - b[2]))
+		if raw >= 8 then
+			assert((b[3] - b[1]) * ppu <= tw - 8 + 1e-6 and (b[4] - b[2]) * ppu <= th - 8 + 1e-6,
+				`{w.id} overflows a {tw}x{th} tile at {ppu} px/stud`)
+		end
+		framed += 1
+	end
+end
+assert(Weapons2D.bounds("NoSuchWeapon") == nil)
+print(`framed {framed} weapon tiles pixel-exact and uncut`)
 print(`checked {checked} weapon rectangles across {#Weapons.LIST} weapons ({total // #Weapons.LIST} a weapon, budget {FRAME_BUDGET})`)
 print("Weapons2D draws exactly the art web/src/data/weaponArt.js compiled.")

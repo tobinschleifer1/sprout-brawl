@@ -89,7 +89,26 @@ end
 panel.body:FindFirstChild("Weapon_Hammer").Activated:Fire()
 assert(panel.cfg.slots[1].weaponId=="Hammer" and room.slots[1].weapon=="Hammer","image click changes server-owned loadout")
 panel.page="Maps";panel:render()
-panel.body:FindFirstChild("Undertow").Activated:Fire()
+-- The map board shows every stage's layout, drawn from its own geometry.
+local Stages = Loader.load("Data/Stages")
+assert(#panel.previews == #Stages.LIST, "every map has a layout thumbnail")
+for _, preview in panel.previews do preview.frame.AbsoluteSize=Rbx.Vector2.new(170,64) end
+-- Every thumbnail rectangle carries a real colour. A colour constant referenced before it is
+-- declared is a nil global in Luau, and the recorder above would otherwise count it happily.
+local counted = Canvas.rect
+Canvas.rect = function(c, x, y, w, h, colour, ...)
+  assert(colour ~= nil, "a map thumbnail drew with no colour")
+  return counted(c, x, y, w, h, colour, ...)
+end
+panel:drawPreviews()
+Canvas.rect = counted
+for _, preview in panel.previews do
+  assert(preview.stage, "map previews are stages")
+  -- the backdrop, the main floor with its cap, and one shape per platform at least
+  assert(preview.canvas.drawn >= 3 + #preview.stage.platforms, `{preview.stage.id}: thumbnail draws too little`)
+  assert(#preview.canvas.stack==0, "thumbnail leaves no transforms")
+end
+panel.body:FindFirstChild("Stage_Undertow").Activated:Fire()
 assert(room.stage=="Undertow")
 panel:openStation("Rules")
 panel.body:FindFirstChild("Bots OFF — add optional CPU").Activated:Fire()
@@ -102,7 +121,7 @@ panel.start.Activated:Fire()
 assert(room.state=="setup","incomplete teams cannot launch")
 panel:update(model:view(room),2)
 panel.page="Maps";panel:render()
-panel.body:FindFirstChild("Foundry Floor").Activated:Fire()
+panel.body:FindFirstChild("Stage_FoundryFloor").Activated:Fire()
 assert(room.stage=="Undertow","guest controls cannot edit host settings")
 panel:hide()
 panel:update(model:view(room),2)
@@ -110,7 +129,7 @@ assert(not panel.gui.Enabled, "background room update must not reopen a closed s
 local n=0
 for _ in shapes do n+=1 end
 assert(n==12)
-print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, maps, explicit bots, ready and host guards")
+print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map layout thumbnails, explicit bots, ready and host guards")
 
 local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},

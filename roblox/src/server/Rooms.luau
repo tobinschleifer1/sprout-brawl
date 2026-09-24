@@ -41,14 +41,25 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	local spec = nil
 	for _, entry in Hub.stations do if entry.id == format then spec = entry end end
 	if not spec then return nil, "Choose 1v1, 2v2 or 3v3." end
-	local room, place = nil, nil
+	-- Fill the fullest waiting room first, lowest id on a tie. Taking the first open slot in
+	-- `pairs` order - which Luau leaves unspecified - could strand people: after a few leaves
+	-- there can be two 1v1 rooms each holding one waiting player, and newcomers landed in either
+	-- at random, so those two never met. Fullest-first always completes a room before feeding
+	-- another, and the choice no longer depends on hash order.
+	local room: any, place: number?, bestOpen = nil, nil, math.huge
 	for _, candidate in self.rooms do
 		if candidate.format == format and candidate.state == "setup" then
+			local open, first = 0, nil
 			for i, slot in candidate.slots do
-				if not slot.player and not slot.bot then room, place = candidate, i; break end
+				if not slot.player and not slot.bot then
+					open += 1
+					first = first or i
+				end
+			end
+			if first and (open < bestOpen or (open == bestOpen and candidate.id < room.id)) then
+				room, place, bestOpen = candidate, first, open
 			end
 		end
-		if room then break end
 	end
 	if not room then
 		self.nextId += 1
@@ -85,7 +96,15 @@ function Rooms.view(self: any, room: any): any
 end
 function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local room = self:get(player.UserId)
-	if not room or type(msg) ~= "table" or msg.id ~= room.id or msg.revision ~= room.revision then
+	if not room or type(msg) ~= "table" or msg.id ~= room.id then
+		return false, "Room changed. Please use the refreshed choices."
+	end
+	-- The revision guards CONSENT and shared settings: a ready press or a host change made while
+	-- looking at an out-of-date room is refused, and a duplicated ready cannot flip twice. Your own
+	-- weapon or avatar is an absolute choice about your own slot, so it is exempt - otherwise every
+	-- teammate's ready toggle made your loadout change fail with "Room changed".
+	local own_loadout = msg.action == "weapon" or msg.action == "avatar"
+	if msg.revision ~= room.revision and not own_loadout then
 		return false, "Room changed. Please use the refreshed choices."
 	end
 	if room.state ~= "setup" then return false, "This fight has already started." end

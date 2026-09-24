@@ -55,4 +55,45 @@ assert(model:edit(p, { id=room.id, revision=room.revision, action="ready" }))
 assert(model:canStart(room), "explicit CPU can fill an opponent slot")
 assert(model:edit(p, { id=room.id, revision=room.revision, action="bot", slot=2, value=false }))
 assert(not model:canStart(room), "removing CPU reopens the slot")
-print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer and cleanup")
+-- Fullest-first: two half-empty 1v1 rooms must not split newcomers at random.
+do
+	local model = Rooms.new()
+	local a, b, c, d = player(11), player(12), player(13), player(14)   -- kept: leave matches by object
+	local r1 = model:join(a, "Duel"); model:join(b, "Duel")
+	local r2 = model:join(c, "Duel"); model:join(d, "Duel")
+	assert(r1 ~= r2, "two full rooms")
+	model:leave(b); model:leave(d)
+	-- r1 and r2 now each hold one waiting player. Fill r2 back to full to make it the fuller one
+	-- only after a third room exists, then check a newcomer joins a half room, never a new one.
+	local joined = model:join(player(15), "Duel")
+	assert(joined == r1 or joined == r2, "a newcomer completes a waiting room rather than opening a third")
+	local other = if joined == r1 then r2 else r1
+	local next = model:join(player(16), "Duel")
+	assert(next == other, "the next newcomer completes the other waiting room")
+	-- With one room at 1/2 and one at 3/4 (2v2), the 3/4 room fills first.
+	local m2 = Rooms.new()
+	local ps = {}
+	for i = 21, 28 do ps[i] = player(i) end
+	local ra = m2:join(ps[21], "Doubles")
+	for i = 22, 24 do m2:join(ps[i], "Doubles") end
+	local rb = m2:join(ps[25], "Doubles")
+	for i = 26, 28 do m2:join(ps[i], "Doubles") end
+	assert(ra ~= rb)
+	-- Rooms.leave matches the slot by the player OBJECT, so leave with the same tables.
+	m2:leave(ps[22]); m2:leave(ps[23]); m2:leave(ps[26])   -- ra: 2 open, rb: 1 open
+	assert(m2:join(player(29), "Doubles") == rb, "the fuller room fills first")
+end
+-- Your own loadout survives a teammate's ready toggle; a stale READY does not.
+do
+	local model = Rooms.new()
+	local a, b = player(31), player(32)
+	local room = model:join(a, "Duel"); model:join(b, "Duel")
+	local seen = room.revision
+	assert(model:edit(b, { id = room.id, revision = room.revision, action = "ready" }))
+	assert(model:edit(a, { id = room.id, revision = seen, action = "weapon", value = "Axe" }), "own loadout ignores a teammate's revision bump")
+	assert(room.slots[1].weapon == "Axe")
+	assert(not model:edit(a, { id = room.id, revision = seen, action = "ready" }), "a stale ready is still refused")
+	assert(not model:edit(a, { id = room.id, revision = seen, action = "stage", value = "Undertow" }), "a stale host change is still refused")
+	assert(not model:edit(a, { id = room.id + 1, revision = room.revision, action = "weapon", value = "Axe" }), "another room's loadout edit is refused")
+end
+print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready")

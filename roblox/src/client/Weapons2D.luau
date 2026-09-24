@@ -43,6 +43,40 @@ Weapons2D.drawSprite = function(c: any, weaponId: string, alpha: number?): boole
 	return true
 end
 
+-- The weapon's drawn extent in its own frame (outline included), in studs.
+local boundsCache: { [string]: { number } } = {}
+function Weapons2D.bounds(weaponId: string): { number }?
+	local cached = boundsCache[weaponId]
+	if cached then
+		return cached
+	end
+	local rects = Art.sprites[weaponId]
+	if not rects then
+		return nil
+	end
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	for _, r in rects do
+		x0, y0 = math.min(x0, r[1]), math.min(y0, r[2])
+		x1, y1 = math.max(x1, r[1] + r[3]), math.max(y1, r[2] + r[4])
+	end
+	boundsCache[weaponId] = { x0, y0, x1, y1 }
+	return boundsCache[weaponId]
+end
+
+-- How to frame a weapon, lying flat, in a w x h pixel tile: the camera centre and a scale.
+-- The scale is a whole multiple of 8 px per stud - the art's own pixel density - so every art
+-- pixel lands on a whole number of screen pixels. Any other scale renders a mix of 1- and 2-pixel
+-- cells and the pixel art shimmers. The old fixed window (1.5 +/- 3.5 studs) also cut the pike
+-- off at the tile edge; this fits whatever the weapon's real extent is.
+function Weapons2D.fit(weaponId: string, w: number, h: number, pad: number?): (number, number, number)
+	local b = Weapons2D.bounds(weaponId) or { -1, -1, 1, 1 }
+	local p = pad or 4
+	local bw, bh = b[3] - b[1], b[4] - b[2]
+	local raw = math.min((w - p * 2) / bw, (h - p * 2) / bh)
+	local ppu = math.max(8, math.floor(raw / 8) * 8)
+	return (b[1] + b[3]) / 2, (b[2] + b[4]) / 2, ppu
+end
+
 -- ---------------------------------------------------------------- draw ----
 function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	if not weaponId then

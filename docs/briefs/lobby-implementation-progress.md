@@ -109,3 +109,35 @@ web lobby presentation integration, mobile movement controls, audio, reduced mot
 No commit or push was made. Account usage was nearly exhausted at handoff; no reset credit
 was redeemed. Unfinished shield/ultimate follow-up work from earlier turns was not expanded or
 claimed fixed by this lobby pass.
+
+## Integrated with the revamp branch — 2026-09-25
+
+The L0 slice above now lives on branch `revamp/sprites-disasters` (worktree
+`.claude/worktrees/revamp`), applied unchanged as commit "Bring over the lobby L0 slice…"
+together with the revamp's pixel-art weapons and animation manifest. The main checkout was only
+read; its uncommitted copy is now redundant with the branch. Continue lobby work on the branch.
+
+Review findings, fixed and covered by tests (each checked by breaking the code on purpose):
+
+- **Matchmaking could strand players.** `Rooms.join` took the first open slot in `pairs` order,
+  which Luau leaves unspecified. After some leaves, two 1v1 rooms could each hold one waiting
+  player while newcomers landed in either at random. Joins now fill the fullest waiting room
+  first, lowest id on a tie (`tests/rooms.luau`).
+- **Own-loadout edits failed whenever a teammate readied.** Every edit had to match the room
+  revision, and ready toggles bump it. The revision still guards consent and shared settings
+  (a stale ready or host change is refused; a duplicate ready cannot flip twice); a player's own
+  weapon/avatar is exempt (`tests/rooms.luau`).
+- **Weapon tiles cut long weapons off and blurred the pixels.** The catalogue used one fixed
+  window (1.5 ± 3.5 studs), which clipped the Pike. `Weapons2D.fit` now frames each weapon's real
+  extent at a whole multiple of 8 px/stud, so the pixel art lands on whole screen pixels. Tiles
+  also show the weapon's archetype (`tests/weapon-art.luau`, 60 tile sizes).
+- **The map board now shows each stage's layout** — solids, lit caps, ledges, shelves, and a
+  moving shelf's travel — drawn from the stage data itself (`RoomPanel.drawStage`,
+  `tests/room-ui.luau`). luau-lsp caught this pass referencing colour constants before their
+  declaration; the test now also asserts every thumbnail rectangle has a colour.
+
+Checked and NOT a problem: `onFinished`'s `task.wait(6)` runs inside `task.spawn`, so it blocks
+nothing. Rate-limited room actions are dropped silently; the panel keeps no pending state, so
+nothing sticks, but a dropped click gives no feedback — a candidate for later polish.
+
+Still unverified live: no Studio instance was connected on 2026-09-25.

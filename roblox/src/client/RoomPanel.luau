@@ -8,7 +8,57 @@ local Canvas = require(script.Parent.Canvas2D)
 local Art = require(script.Parent.Weapons2D)
 local RoomPanel = {}
 RoomPanel.__index = RoomPanel
+
 local INK, STEEL, GOLD, WHITE = Color3.fromRGB(16,21,28), Color3.fromRGB(44,57,66), Color3.fromRGB(235,173,80), Color3.fromRGB(233,230,218)
+-- A stage's layout as a small diagram, drawn from the same stage data the engine collides against:
+-- solid ground with its lit cap and grabbable ledges, drop-through shelves, and a moving shelf's
+-- travel. The map board shows this beside each name, because a map is chosen by its shape.
+local function stageExtent(stage: any): (number, number, number, number)
+	local x0, x1, y0, y1 = stage.main.x1, stage.main.x2, stage.main.y - stage.main.thickness, stage.main.y
+	for _, p in stage.platforms do
+		local mx = if p.moving and p.moving.x then p.moving.x else nil
+		local lo = if mx then math.min(mx.from, mx.to) else p.x
+		local hi = if mx then math.max(mx.from, mx.to) else p.x
+		x0, x1 = math.min(x0, lo - p.w / 2), math.max(x1, hi + p.w / 2)
+		local my = if p.moving and p.moving.y then p.moving.y else nil
+		y1 = math.max(y1, if my then math.max(my.from, my.to) else p.y)
+		y0 = math.min(y0, p.y - (p.thickness or (if p.solid then 5 else 1)))
+	end
+	return x0 - 4, x1 + 4, y0 - 2, y1 + 6
+end
+function RoomPanel.drawStage(c: any, stage: any, w: number, h: number)
+	local x0, x1, y0, y1 = stageExtent(stage)
+	local ppu = math.min(w / (x1 - x0), h / (y1 - y0))
+	c:world((x0 + x1) / 2, (y0 + y1) / 2, ppu, 0, 0)
+	local pal = stage.palette or {}
+	local ground = Canvas.hex(pal.ground, Color3.fromRGB(62, 68, 80))
+	local top = Canvas.hex(pal.groundTop, Color3.fromRGB(138, 148, 166))
+	local shelf = Canvas.hex(pal.platform, Color3.fromRGB(110, 119, 136))
+	local accent = Canvas.hex(pal.accent, GOLD)
+	Canvas.rect(c, x0, y0, x1 - x0, y1 - y0, INK)
+	local function solid(a: number, b: number, topY: number, thick: number, ledges: any)
+		Canvas.rect(c, a, topY - thick, b - a, thick, ground)
+		Canvas.rect(c, a, topY - 1, b - a, 1, top)
+		if ledges ~= false then
+			Canvas.rect(c, a, topY - 2, 0.9, 2, accent)
+			Canvas.rect(c, b - 0.9, topY - 2, 0.9, 2, accent)
+		end
+	end
+	local m = stage.main
+	solid(m.x1, m.x2, m.y, m.thickness, m.ledges)
+	for _, p in stage.platforms do
+		if p.solid then
+			solid(p.x - p.w / 2, p.x + p.w / 2, p.y, p.thickness or 5, p.ledges)
+		else
+			local mx = if p.moving and p.moving.x then p.moving.x else nil
+			if mx then   -- the shelf's whole travel, faint, so the board says "this one moves"
+				local lo, hi = math.min(mx.from, mx.to), math.max(mx.from, mx.to)
+				Canvas.rect(c, lo - p.w / 2, p.y - 0.4, hi - lo + p.w, 0.4, shelf, 0.35)
+			end
+			Canvas.rect(c, p.x - p.w / 2, p.y - (p.thickness or 1), p.w, p.thickness or 1, shelf)
+		end
+	end
+end
 local function label(parent: Instance, value: string, height: number): TextLabel
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency, t.TextColor3, t.Font = 1, WHITE, Enum.Font.GothamBold
@@ -103,15 +153,23 @@ function RoomPanel.render(self: any)
 	self.start.BackgroundColor3 = if host and room.canStart then GOLD else STEEL
 	if self.page == "Maps" then
 		for _, stage in Stages.LIST do
-			button(self.body, (if room.stage == stage.id then "✓ " else "") .. stage.name,
-				function() if host then self:send("stage", stage.id) end end, room.stage == stage.id)
+			local selected = room.stage == stage.id
+			local b = button(self.body, "", function() if host then self:send("stage", stage.id) end end, selected)
+			b.Name, b.Size = "Stage_" .. stage.id, UDim2.new(1, 0, 0, 72)
+			local name = label(b, (if selected then "✓ " else "") .. stage.name .. "\n" .. (stage.archetype or ""), 68)
+			name.Position, name.Size = UDim2.new(0.42, 0, 0, 0), UDim2.new(0.58, -8, 1, 0)
+			if selected then name.TextColor3 = INK end
+			local frame = Instance.new("Frame")
+			frame.Name, frame.BackgroundTransparency, frame.ClipsDescendants = "StageImage", 1, true
+			frame.Position, frame.Size, frame.Parent = UDim2.fromOffset(4, 4), UDim2.new(0.42, -8, 1, -8), b
+			table.insert(self.previews, { canvas = Canvas.inFrame(frame), stage = stage, frame = frame })
 		end
 	elseif self.page == "Weapons" then
 		for _, weapon in Weapons.LIST do
 			local selected = self.cfg.slots[1].weaponId == weapon.id
 			local b = button(self.body, "", function() self:send("weapon", weapon.id) end, selected)
 			b.Name, b.Size = "Weapon_" .. weapon.id, UDim2.new(1,0,0,80)
-			local name = label(b, (if selected then "✓ EQUIPPED  ·  " else "") .. weapon.name, 76)
+			local name = label(b, (if selected then "✓ EQUIPPED  ·  " else "") .. weapon.name .. "\n" .. (weapon.archetype or ""), 76)
 			name.Position, name.Size = UDim2.new(0.32,0,0,0), UDim2.new(0.68,-8,1,0)
 			if selected then name.TextColor3 = INK end
 			local frame = Instance.new("Frame")
@@ -150,8 +208,14 @@ function RoomPanel.drawPreviews(self: any)
 			preview.width, preview.height = size.X, size.Y
 			local c = preview.canvas
 			c:clear()
-			c:world(1.5, 0, math.min(size.X / 7, size.Y / 5), 0, 0)
-			Art.draw(c, preview.weapon.id, preview.weapon.palette, { angle = 0.25, ox = 0, oy = 0, scale = 1, charge = 0 })
+			if preview.stage then
+				RoomPanel.drawStage(c, preview.stage, size.X, size.Y)
+			else
+				-- Flat, fitted to the weapon's own extent at a pixel-exact scale. See Weapons2D.fit.
+				local cx, cy, ppu = Art.fit(preview.weapon.id, size.X, size.Y)
+				c:world(cx, cy, ppu, 0, 0)
+				Art.draw(c, preview.weapon.id, preview.weapon.palette, { angle = 0, ox = 0, oy = 0, scale = 1, charge = 0 })
+			end
 			c:finish()
 		end
 	end

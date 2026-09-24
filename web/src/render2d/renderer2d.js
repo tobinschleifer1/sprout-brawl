@@ -9,8 +9,10 @@
 // object, because in 2D there is no scene graph to keep in sync - each frame is painted from
 // scratch out of the simulation state.
 
+import { ultCinematic, punch, glowShapes, bannerLayout } from './ultCinematic.js';
 import { channelsFor } from './channels.js';
-import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, REACH } from './weapons2d.js';
+import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, drawSprite, REACH } from './weapons2d.js';
+import { WEAPON_SPRITES } from '../data/weaponArt.js';
 import { drawHazards } from './hazards2d.js';
 import { disasterShapes, disasterBanner } from './disasterShapes.js';
 import { drawSky, drawScenery, drawSurface } from './backdrop2d.js';
@@ -70,7 +72,7 @@ export class Renderer2D {
 
   // World point -> CSS pixels on the display canvas, for HUD markers that track a fighter.
   project(x, y) {
-    const c = this.cam;
+    const c = this.view || this.cam;
     const r = this.canvas.getBoundingClientRect();
     const k = Math.max(r.width / this.BW, r.height / BH);
     const ox = (r.width - this.BW * k) / 2, oy = (r.height - BH * k) / 2;
@@ -112,7 +114,7 @@ export class Renderer2D {
   }
 
   _world() {
-    const b = this.b, c = this.cam;
+    const b = this.b, c = this.view || this.cam;
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
     b.setTransform(c.ppu, 0, 0, -c.ppu, this.BW / 2 - c.x * c.ppu + sx, BH / 2 + c.y * c.ppu + sy);
@@ -124,6 +126,14 @@ export class Renderer2D {
     this.time = t;
     const fighters = match.fighters;
     this._camera(fighters, dt, instant);
+    // The ultimate's cutscene (render2d/ultCinematic.js), timed off the match clock so it lasts
+    // exactly the engine's freeze however fast the display runs. It punches the camera in on the
+    // caster without touching this.cam, so the follow-camera resumes from where it was.
+    const U = this.ult, caster = U && fighters[U.fighter];
+    const cine = ultCinematic(U ? match.frame - U.frame : -1);
+    if (U && !cine.active && !cine.glow) this.ult = null;
+    this.view = cine.active && caster
+      ? punch(this.cam.x, this.cam.y, this.cam.ppu, caster.x, caster.y + caster.h * 0.5, cine.zoom) : null;
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 9);
 
     this._sky(match.stage);
@@ -138,7 +148,7 @@ export class Renderer2D {
     this._summons(match.combat);
     this._orbMarks(match);
     this._items(match.combat);
-    for (const f of fighters) this._fighter(f, t);
+    for (const f of fighters) if (f !== caster || !cine.active) this._fighter(f, t);
     // Hazards a fighter is INSIDE — steam, dust, water jets — draw over them, so the fighter is
     // swallowed by the column rather than pasted on top of it.
     drawHazards(this.b, match.stage, t, 'front');
@@ -146,12 +156,19 @@ export class Renderer2D {
     this._bursts(match.combat);
     this._particles(dt);
     drawAmbient(this.b, match.stage, t, 'front');
+    if (caster && (cine.active || cine.glow)) {
+      // Everyone but the caster falls into shadow, and the caster stands in gold for exactly the
+      // frames they cannot be hit.
+      if (cine.dim > 0) { this._screen(); this.b.globalAlpha = cine.dim; this.b.fillStyle = '#05060A'; this.b.fillRect(0, 0, this.BW, BH); this.b.globalAlpha = 1; this._world(); }
+      this._paintShapes(glowShapes(cine, caster.x, caster.y, caster.h));
+      if (cine.active) this._fighter(caster, t);
+    }
     for (const f of fighters) if (f.ultActive && f.alive) this._ultWorld(f, t);
     // Every caster gets a ring - `break` here meant that when two players activated on the same
     // frame only one of them was marked. The screen wash is still drawn once, from the first.
     let washed = false;
     for (const f of fighters) if (f.ultActive && f.alive) { this._ultAura(f, t, !washed); washed = true; }
-    this._ultBanner(dt);
+    this._ultBanner(cine, caster, t);
     this._disasterBanner(disasterBanner(match.stage.visual && match.stage.visual.disaster));
     if (this.debug) this._debug(match);
     this._screen();
@@ -186,13 +203,13 @@ export class Renderer2D {
   // ---------------------------------------------------------------------- stage ----
   _sky(stage) {
     this._screen();
-    drawSky(this.b, stage, this.time, this.BW, BH, this.cam);
+    drawSky(this.b, stage, this.time, this.BW, BH, this.view || this.cam);
   }
 
   // Parallax scenery: per-theme silhouette bands, hazed toward the sky by distance. See
   // backdrop2d.js — this used to be three sine waves that overlapped into one pale wedge.
   _backdrop(stage) {
-    drawScenery(this.b, stage, this.cam, this.time, this.BW);
+    drawScenery(this.b, stage, this.view || this.cam, this.time, this.BW);
   }
 
   _stage(stage) {
@@ -654,31 +671,41 @@ export class Renderer2D {
     this._world();
   }
 
-  _ultBanner(dt) {
-    const B = this.ultBanner;
+  _ultBanner(cine, f, t) {
+    const U = this.ult;
+    const B = U && f && bannerLayout(cine, this.BW, BH);
     if (!B) return;
-    B.life -= dt;
-    if (B.life <= 0) { this.ultBanner = null; return; }
-    const k = B.life / B.max;
     const b = this.b;
     this._screen();
-    if (k > 0.82) { b.globalAlpha = (k - 0.82) / 0.18 * 0.8; b.fillStyle = '#FFFFFF'; b.fillRect(0, 0, this.BW, BH); }
-    const slide = (1 - Math.min(1, (1 - k) * 6)) * 40;
-    b.globalAlpha = Math.min(1, k * 2.2);
-    b.fillStyle = B.color;
-    b.fillRect(0, BH * 0.34, this.BW, 22);
-    b.globalAlpha = Math.min(1, k * 2.6);
-    b.fillStyle = '#0B0E14';
-    b.fillRect(0, BH * 0.34 + 19, this.BW, 3);
-    b.fillStyle = '#FFFFFF';
-    b.font = 'bold 15px ui-monospace, monospace';
-    b.textAlign = 'center';
-    b.fillText(B.label.toUpperCase(), this.BW / 2 + slide, BH * 0.34 + 16);
-    b.font = '8px ui-monospace, monospace';
-    b.globalAlpha = Math.min(1, k * 2.6) * 0.8;
-    b.fillText(B.name.toUpperCase(), this.BW / 2 - slide, BH * 0.34 - 4);
-    b.textAlign = 'left';
-    b.globalAlpha = 1;
+    b.save();
+    b.translate(B.cx, B.cy); b.rotate(B.rot);
+    b.globalAlpha = B.alpha;
+    b.fillStyle = '#0B0E14'; b.fillRect(-B.w / 2, -B.h / 2 - B.stripe, B.w, B.h + B.stripe * 2);
+    b.fillStyle = U.color; b.fillRect(-B.w / 2, -B.h / 2, B.w, B.h);
+    b.fillStyle = '#FFFFFF'; b.globalAlpha = B.alpha * 0.35; b.fillRect(-B.w / 2, -B.h / 2, B.w, B.stripe * 0.6);
+    b.restore();
+    // The caster, feet on the band, drawn by the same paint path as the match.
+    const ppu = B.portrait.size / f.h;
+    b.save(); b.globalAlpha = B.alpha;
+    b.setTransform(ppu, 0, 0, -ppu, B.portrait.x - f.x * ppu, B.portrait.y + f.y * ppu);
+    this._fighter(f, t, b);
+    b.restore();
+    if (U.weapon && WEAPON_SPRITES[U.weapon]) {
+      const s = B.weapon.size / 4;
+      b.save(); b.globalAlpha = B.alpha;
+      b.setTransform(s, 0, 0, -s, B.weapon.x, B.weapon.y); b.rotate(-B.rot + 0.6);
+      drawSprite(b, U.weapon, 1);
+      b.restore();
+    }
+    b.save();
+    b.translate(B.text.x, B.text.y); b.rotate(B.rot);
+    b.globalAlpha = B.alpha; b.textAlign = 'center'; b.fillStyle = '#FFFFFF';
+    b.font = `bold ${Math.round(B.text.size)}px ui-monospace, monospace`;
+    b.fillText(U.label.toUpperCase(), 0, B.text.size * 0.35);
+    b.font = `${Math.round(B.text.size * 0.5)}px ui-monospace, monospace`;
+    b.globalAlpha = B.alpha * 0.85;
+    b.fillText(U.name.toUpperCase(), 0, -B.text.size * 0.75);
+    b.restore();
     this._world();
   }
 
@@ -891,8 +918,8 @@ export class Renderer2D {
     } else if (e.type === 'ultimate') {
       const f = match.fighters[e.fighter];
       const pal = f && (f.char.weaponPalette || f.char.palette);
-      this.ultBanner = { label: e.label || 'ULTIMATE', name: (f && f.name) || '', life: 1.1, max: 1.1,
-        color: (pal && (pal.glow || pal.accent)) || '#FFFFFF' };
+      this.ult = { frame: match.frame, fighter: e.fighter, label: e.label || 'ULTIMATE', name: (f && f.name) || '',
+        weapon: e.weapon, color: (pal && (pal.glow || pal.accent)) || '#FFFFFF' };
       push(e.x, e.y, 30, (pal && pal.glow) || '#FFFFFF', 30, 0.6, 0.4);
       this.shake = Math.max(this.shake, 1.4);
     } else if (e.type === 'ultready') {

@@ -69,6 +69,18 @@ function Hud.new(parent: Instance): any
 	self.disaster.Name = "DisasterBanner"
 	self.disaster.TextXAlignment = Enum.TextXAlignment.Center
 
+	-- The ultimate's name and caster, laid along the cutscene banner the canvas paints.
+	self.ultName = label(gui, UDim2.fromOffset(10, 10), UDim2.fromOffset(0, 0), "", 20, Color3.new(1, 1, 1))
+	self.ultName.Name = "UltimateName"
+	self.ultName.AnchorPoint = Vector2.new(0.5, 0.5)
+	self.ultName.TextXAlignment = Enum.TextXAlignment.Center
+	self.ultName.Font = Enum.Font.Arcade
+	self.ultCaster = label(gui, UDim2.fromOffset(10, 10), UDim2.fromOffset(0, 0), "", 10, Color3.new(1, 1, 1))
+	self.ultCaster.Name = "UltimateCaster"
+	self.ultCaster.AnchorPoint = Vector2.new(0.5, 0.5)
+	self.ultCaster.TextXAlignment = Enum.TextXAlignment.Center
+	self.ultCaster.Font = Enum.Font.Arcade
+
 	self.callout = label(gui, UDim2.fromOffset(600, 90), UDim2.new(0.5, -300, 0.32, 0), "", 72, Color3.new(1, 1, 1))
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
 	self.callout.TextTransparency = 1
@@ -169,6 +181,32 @@ end
 -- `states` are the decoded fighters being drawn this frame, `snap` the newest snapshot for the
 -- match-level clock, and `canvas` is asked to project so the floating labels use the renderer's
 -- own camera rather than a second copy of it.
+-- B is a UltCinematic.bannerLayout in screen pixels, or nil to hide. Both screens share one pixel
+-- space because both ScreenGuis ignore the inset.
+function Hud.ultBanner(self: any, B: any, ult: any)
+	if not B or not ult then
+		self.ultName.Visible, self.ultCaster.Visible = false, false
+		return
+	end
+	local deg = math.deg(B.rot)
+	local size = B.text.size
+	-- The caster's name sits above the ultimate's, perpendicular to the band's axis.
+	local nx, ny = math.sin(B.rot) * size * 1.1, -math.cos(B.rot) * size * 1.1
+	self.ultName.Visible, self.ultCaster.Visible = true, true
+	self.ultName.Text = string.upper(ult.label)
+	self.ultName.TextSize = math.floor(size + 0.5)
+	self.ultName.Size = UDim2.fromOffset(B.h * 4, size * 1.3)
+	self.ultName.Position = UDim2.fromOffset(B.text.x, B.text.y)
+	self.ultName.Rotation = deg
+	self.ultName.TextTransparency = 1 - B.alpha
+	self.ultCaster.Text = string.upper(ult.name)
+	self.ultCaster.TextSize = math.floor(size * 0.5 + 0.5)
+	self.ultCaster.Size = UDim2.fromOffset(B.h * 4, size * 0.7)
+	self.ultCaster.Position = UDim2.fromOffset(B.text.x + nx, B.text.y + ny)
+	self.ultCaster.Rotation = deg
+	self.ultCaster.TextTransparency = 1 - B.alpha * 0.85
+end
+
 function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: { any }, cfg: any)
 	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex) end
 	-- Timer. A stock match has no clock, and says so by showing nothing rather than 0:00.

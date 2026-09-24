@@ -50,12 +50,12 @@ function MatchService.new(audience: any?, generation: number?): any
 	return self
 end
 
-function MatchService.send(self: any, name: string, payload: any)
+function MatchService.send(self: any, name: string, payload: any, ...: any)
 	if self.audience then
-		for _, player in self.audience do Net.remote(name):FireClient(player, payload) end
+		for _, player in self.audience do Net.remote(name):FireClient(player, payload, ...) end
 	else
 		-- Legacy harness only; production always provides room membership.
-		Net.remote(name):FireAllClients(payload)
+		Net.remote(name):FireAllClients(payload, ...)
 	end
 end
 
@@ -278,7 +278,10 @@ function MatchService.broadcast(self: any)
 		})
 	end
 	if #m.events > 0 then
-		self:send("Events", m.events)
+		-- With the frame they happened on: snapshots go out at 30Hz, so a client stamping an event
+		-- with its newest snapshot's frame would be up to a frame late, and the ultimate's cutscene
+		-- (UltCinematic) is timed in frames from its event.
+		self:send("Events", m.events, m.frame)
 		m.events = {}
 	end
 end

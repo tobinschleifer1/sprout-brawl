@@ -42,6 +42,7 @@ node tools/gen-traces.mjs
 node tools/gen-fighter-traces.mjs
 node tools/gen-hazard-traces.mjs
 node tools/gen-disaster-traces.mjs
+node tools/gen-cinematic-fixture.mjs
 node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-ai-traces.mjs
@@ -101,6 +102,9 @@ echo "== parity: Disasters vs web/src/engine/disasters.js =="
 lune run tests/disaster-parity
 echo "== disaster shapes: Roblox draws each disaster as the web does =="
 lune run tests/disaster-shapes
+echo "== ultimate cutscene: Roblox times and lays it out as the web does =="
+lune run tests/cinematic-parity
+lune run tests/ult-banner
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 echo "== parity: Match vs web/src/engine/match.js =="

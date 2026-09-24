@@ -28,6 +28,8 @@ local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
 local Stage2D = require(script.Stage2D)
 local DisasterShapes = require(script.DisasterShapes)
+local UltCinematic = require(script.UltCinematic)
+local UltBanner = require(script.UltBanner)
 local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
@@ -64,6 +66,12 @@ local warnedSilent = false
 -- one, so a fighter and the raft they are standing on are drawn at the same instant - taking the
 -- newest platform state while drawing bodies two frames back slides them across the deck.
 local interpBase: any = nil
+-- The sim frame the drawn states stand for, fractional between two snapshots. Snapshots arrive at
+-- 30Hz; timing the ultimate cutscene off whole snapshot frames would step it at half rate.
+local drawnFrame = 0
+-- The last ultimate activated: who, what, and on which frame. The cutscene is a pure function of
+-- drawnFrame minus that frame (UltCinematic), so it lines up with the freeze the server runs.
+local ult: any = nil
 -- Which fighter is ours, and the simulation that runs it ahead of the server. Everyone else is
 -- drawn two frames in the past to smooth out jitter; ours is predicted, so it answers the frame
 -- the input was sampled on rather than a round trip later.
@@ -148,6 +156,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	posedWarned = {}
 	buffer = {}
 	scenes = {}
+	ult = nil
 	roster = cfg.fighters
 	chars = {}
 	localIndex = nil
@@ -240,9 +249,16 @@ Net.remote("Results").OnClientEvent:Connect(function(res: any)
 	end
 end)
 
-Net.remote("Events").OnClientEvent:Connect(function(events: { any })
+Net.remote("Events").OnClientEvent:Connect(function(events: { any }, frame: number?)
 	for _, e in events do
 		if hud then hud:abilityEvent(e) end
+		if e.type == "ultimate" and frame then
+			local char = chars[(e.fighter or 0) + 1]
+			local pal = char and (char.weaponPalette or char.palette)
+			ult = { frame = frame, fighter = e.fighter, label = e.label or "ULTIMATE", weapon = e.weapon,
+				name = (roster[(e.fighter or 0) + 1] or {}).name or "",
+				colour = pal and (pal.glow or pal.accent) or "#FFFFFF" }
+		end
 		if e.type == "count" then
 			print(`[Blockfall] {e.n}`)
 		elseif e.type == "go" then
@@ -280,6 +296,7 @@ local function interpolate(at: number): { any }?
 	local t = if b then math.clamp((at - a.t) / span, 0, 1) else 0
 
 	interpBase = a
+	drawnFrame = a.frame + (if b then (b.frame - a.frame) * t else 0)
 	local out = {}
 	for i, wa in a.fighters do
 		local wb = if b then b.fighters[i] else nil
@@ -395,8 +412,23 @@ RunService.RenderStepped:Connect(function(dt: number)
 	-- consumed a different number of times. Static geometry is correct on the two stages in play;
 	-- moving platforms need the server to send their offsets in the snapshot, which is the next
 	-- thing to add to Snapshot.FIELDS.
-	Stage2D.sky(canvas, stageView or { data = {} }, cam2d.x)
-	canvas:world(cam2d.x, cam2d.y, cam2d.ppu, cam2d.shakeX, cam2d.shakeY)
+	-- The ultimate's cutscene, timed from the frame its event names. The camera punch is applied to
+	-- what is drawn, never to cam2d, so the follow-camera resumes from where it was.
+	local cine = UltCinematic.at(if ult then drawnFrame - ult.frame else -1)
+	if ult and not cine.active and not cine.glow then ult = nil end
+	local caster: any = nil
+	if ult then
+		for _, st in states do
+			if st.index == ult.fighter then caster = st end
+		end
+	end
+	local casterChar = if caster then chars[caster.index + 1] else nil
+	local view = { x = cam2d.x, y = cam2d.y, ppu = cam2d.ppu }
+	if cine.active and caster and casterChar then
+		view = UltCinematic.punch(cam2d.x, cam2d.y, cam2d.ppu, caster.x, caster.y + casterChar.height * 0.5, cine.zoom)
+	end
+	Stage2D.sky(canvas, stageView or { data = {} }, view.x)
+	canvas:world(view.x, view.y, view.ppu, cam2d.shakeX, cam2d.shakeY)
 	if stageView then
 		-- The view-only Stage is never stepped; the server sends what it cannot derive. `moving` is
 		-- a function of stage time and `sinking` is a function of who is standing on it, and only
@@ -424,7 +456,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if hud then hud.disasterView = disaster end
 	for _, st in states do
 		local char = chars[st.index + 1]
-		if char then
+		if char and not (cine.active and st == caster) then
 			local ok, err = pcall(function()
 				local surface = if stageView then Stage.surfaceUnder(stageView, st.x, st.y + 0.1) else nil
 				Fighter2D.draw(canvas, st, char, drawAt, if surface then surface.top else nil)
@@ -439,6 +471,35 @@ RunService.RenderStepped:Connect(function(dt: number)
 		World2D.hazards(canvas, scene.hazards or {}, stageView, scene.frame * FRAME)
 		World2D.entities(canvas, scene, chars, states, scene.frame * FRAME)
 	end
+	-- Everything but the caster falls into shadow; the caster stands in gold for exactly the frames
+	-- they cannot be hit, then is drawn on top of it all, then the banner crosses the screen.
+	local banner = nil
+	if caster and casterChar and (cine.active or cine.glow) then
+		local ok, err = pcall(function()
+			if cine.dim > 0 then
+				local vp = canvas:viewport()
+				Canvas2D.screen(canvas)
+				Canvas2D.rect(canvas, 0, 0, vp.X, vp.Y, Color3.fromRGB(5, 6, 10), cine.dim)
+				canvas:world(view.x, view.y, view.ppu, cam2d.shakeX, cam2d.shakeY)
+			end
+			for _, sh in UltCinematic.glowShapes(cine, caster.x, caster.y, casterChar.height) do
+				Canvas2D.ellipse(canvas, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], Color3.new(1, 1, 1)), sh[7])
+			end
+			if cine.active then
+				local surface = if stageView then Stage.surfaceUnder(stageView, caster.x, caster.y + 0.1) else nil
+				Fighter2D.draw(canvas, caster, casterChar, drawAt, if surface then surface.top else nil)
+				local vp = canvas:viewport()
+				banner = UltCinematic.bannerLayout(cine, vp.X, vp.Y)
+				if banner then UltBanner.paint(canvas, banner, ult.colour, ult.weapon, caster, casterChar, drawAt) end
+			end
+		end)
+		if not ok and not posedWarned[-1] then
+			posedWarned[-1] = true
+			warn(`[Blockfall] the ultimate cutscene failed to draw, and will not be reported again: {err}`)
+		end
+		canvas:world(view.x, view.y, view.ppu, cam2d.shakeX, cam2d.shakeY)
+	end
+	if hud then hud:ultBanner(banner, ult) end
 	canvas:finish()
 	if hud then
 		hud:update(states, buffer[#buffer], canvas, chars, matchCfg)

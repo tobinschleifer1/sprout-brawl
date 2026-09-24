@@ -34,18 +34,29 @@ local MAX_CATCHUP = 8
 local MatchService = {}
 MatchService.__index = MatchService
 
-function MatchService.new(): any
+function MatchService.new(audience: any?, generation: number?): any
 	local self = setmetatable({}, MatchService)
 	self.match = nil :: any
 	self.input = RemoteInput.new()
 	self.accum = 0
 	self.conn = nil :: RBXScriptConnection?
 	self.finished = false
-	self.generation = 0
+	self.generation = generation or 0
+	self.audience = audience
+	self.inputEpochs = {} :: { [number]: number }
 	self.onFinished = nil :: ((any, any) -> ())?
 	self.sources = {} :: { [number]: string }   -- userId -> input source key
 	self.userIds = {} :: { [string]: number }  -- and back, so the roster can name a rig's owner
 	return self
+end
+
+function MatchService.send(self: any, name: string, payload: any)
+	if self.audience then
+		for _, player in self.audience do Net.remote(name):FireClient(player, payload) end
+	else
+		-- Legacy harness only; production always provides room membership.
+		Net.remote(name):FireAllClients(payload)
+	end
 end
 
 function MatchService.sourceFor(_self: any, player: Player): string
@@ -74,6 +85,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 		local source = if entry.player then self:sourceFor(entry.player) else `bot{i}`
 		if entry.player then
 			self.sources[entry.player.UserId] = source
+			self.inputEpochs[entry.player.UserId] = 0
 			self.userIds[source] = entry.player.UserId
 		end
 		self.input:register(source)
@@ -101,24 +113,43 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 		seed = o.seed or math.random(1, 2 ^ 31 - 1),
 	})
 
-	Net.remote("Match"):FireAllClients({
+	self:send("Match", self:description())
+
+	self.accum = 0
+	self.finished = false
+	self.sceneFrame = -2
+	self.snapshotFrame = -2
+	self.conn = RunService.PostSimulation:Connect(function(dt: number)
+		self:tick(dt)
+	end)
+	return self.match
+end
+
+-- Reused for startup and recovery when a client reloads or retries during its own match.
+function MatchService.description(self: any): any
+	return {
 		id = self.generation,
-		stage = stageId,
+		stage = self.match.stage.data.id,
 		seed = self.match.seed,
 		mode = self.match.mode,
 		-- The HUD needs to know whether there is a clock at all, and what it counts down from.
 		timed = self.match.timed,
 		timeLimit = self.match.timeLimit,
 		fighters = self:roster(),
-	})
+	}
+end
 
-	self.accum = 0
-	self.finished = false
-	self.sceneFrame = -2
-	self.conn = RunService.PostSimulation:Connect(function(dt: number)
-		self:tick(dt)
-	end)
-	return self.match
+function MatchService.rejoin(self: any, player: Player): boolean
+	if not self.match or not self.sources[player.UserId] then return false end
+	-- The client creates a fresh predictor on rejoin. Reset its input sequence too, and reject
+	-- in-flight input from before that reset rather than counting it in the new history.
+	self.inputEpochs[player.UserId] = (self.inputEpochs[player.UserId] or 0) + 1
+	self.input:register(self.sources[player.UserId])
+	local cfg = self:description()
+	cfg.inputEpoch = self.inputEpochs[player.UserId]
+	Net.remote("Match"):FireClient(player, cfg)
+	if self.finished then Net.remote("Results"):FireClient(player, self:results()) end
+	return true
 end
 
 function MatchService.roster(self: any): { any }
@@ -144,6 +175,7 @@ function MatchService.stop(self: any)
 	self.finished = false
 	self.sources = {}
 	self.userIds = {}
+	self.inputEpochs = {}
 	self.input = RemoteInput.new()
 end
 
@@ -157,7 +189,7 @@ function MatchService.finish(self: any)
 		self.conn:Disconnect()
 		self.conn = nil
 	end
-	Net.remote("Results"):FireAllClients(self:results())
+	self:send("Results", self:results())
 	if self.onFinished then
 		-- Spawned, because whatever restarts the match must not run inside the tick that ended it.
 		task.spawn(self.onFinished, self, m)
@@ -217,37 +249,35 @@ function MatchService.tick(self: any, dt: number)
 end
 
 -- ---------------------------------------------------------------- broadcast ----
--- Snapshots are unreliable on purpose: a snapshot that arrives late is worse than one that never
--- arrives, because the next one supersedes it entirely. Events are reliable, because a missed KO
--- or a missed hitspark is a missed KO or hitspark.
+-- Complete snapshots are reliable and capped at 30Hz (simulation/input stay at 60Hz). Four
+-- fighters exceeded the unreliable packet limit. Never throttle the discrete event stream.
 function MatchService.broadcast(self: any)
 	local m = self.match
-	-- World objects are sent separately: four fighter snapshots are already a substantial
-	-- unreliable packet, and adding hazards/items to it can exceed that transport's size limit.
+	-- Separate world state keeps the fighter/prediction format independent of effect complexity.
 	if m.frame - self.sceneFrame >= 2 or m.state == "results" then
 		local scene = SceneSnapshot.encode(m)
 		scene.id = self.generation
-		Net.remote("Scene"):FireAllClients(scene)
+		self:send("Scene", scene)
 		self.sceneFrame = m.frame
 	end
-	local fighters = table.create(#m.fighters)
-	for i, f in m.fighters do
-		fighters[i] = Snapshot.encode(f)
+	if m.frame - self.snapshotFrame >= 2 or m.state == "results" then
+		self.snapshotFrame = m.frame
+		local fighters = table.create(#m.fighters)
+		for i, f in m.fighters do
+			fighters[i] = Snapshot.encode(f)
+		end
+		self:send("Snapshot", {
+			id = self.generation,
+			frame = m.frame, state = m.state, time = m.time,
+			countdown = m.countdown, fighters = fighters,
+			platforms = Stage.dynamicState(m.stage),
+			-- Count consumed frames per human. A sparse table keyed by index would not survive
+			-- transport intact, so acknowledgements remain a list.
+			acks = self:acks(),
+		})
 	end
-	Net.remote("Snapshot"):FireAllClients({
-		id = self.generation,
-		frame = m.frame, state = m.state, time = m.time,
-		countdown = m.countdown, fighters = fighters,
-		-- Nil on the four stages with nothing that moves.
-		platforms = Stage.dynamicState(m.stage),
-		-- Per human fighter: how many of the frames it has sent are already consumed. A predicting
-		-- client replays everything after this and nothing before it. Sent as a list rather than a
-		-- table keyed by index, because a sparse integer-keyed table does not survive the wire
-		-- intact.
-		acks = self:acks(),
-	})
 	if #m.events > 0 then
-		Net.remote("Events"):FireAllClients(m.events)
+		self:send("Events", m.events)
 		m.events = {}
 	end
 end
@@ -257,25 +287,29 @@ function MatchService.acks(self: any): { any }?
 	for _, f in self.match.fighters do
 		if not f.isBot then
 			out = out or {}
-			table.insert(out, { i = f.index, n = self.input:consumedBy(f.source) })
+			table.insert(out, { i = f.index, n = self.input:consumedBy(f.source), e = self.inputEpochs[self.userIds[f.source]] or 0 })
 		end
 	end
 	return out
 end
 
 -- ---------------------------------------------------------------- input ----
-function MatchService.bindRemotes(self: any)
-	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any)
+function MatchService.receiveInput(self: any, player: Player, packed: any, matchId: any, epoch: any)
 		local source = self.sources[player.UserId]
 		if not source or matchId ~= self.generation or type(packed) ~= "table" then
 			return
 		end
+		if (epoch or 0) ~= (self.inputEpochs[player.UserId] or 0) then return end
 		-- Length is bounded here as well as in RemoteInput: an unbounded table from a client is a
 		-- way to make the server walk a million entries before the queue cap ever runs.
 		if #packed > 16 then
 			return
 		end
 		self.input:push(source, packed)
+end
+function MatchService.bindRemotes(self: any)
+	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any)
+		self:receiveInput(player, packed, matchId, epoch)
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		local source = self.sources[player.UserId]

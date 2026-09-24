@@ -17,6 +17,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local HudColors = require(script.Parent.HudColors)
+local Bindings = require(script.Parent.Bindings)
+local AbilityStatus = require(script.Parent.AbilityStatus)
 
 local Hud = {}
 Hud.__index = Hud
@@ -52,6 +54,14 @@ function Hud.new(parent: Instance): any
 
 	self.timer = label(gui, UDim2.fromOffset(280, 34), UDim2.new(0.5, -140, 0, 12), "", 26, DIM)
 	self.timer.TextXAlignment = Enum.TextXAlignment.Center
+	local hints = label(gui, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 48), Bindings.hint(), 13, DIM)
+	hints.Name = "CombatBindings"
+	hints.TextWrapped = true
+	hints.TextXAlignment = Enum.TextXAlignment.Center
+	self.abilities = label(gui, UDim2.new(1, -24, 0, 42), UDim2.fromOffset(12, 88), "", 13, Color3.fromRGB(239,176,90))
+	self.abilities.Name = "YourAbilities"
+	self.abilities.TextWrapped = true
+	self.abilities.TextXAlignment = Enum.TextXAlignment.Center
 
 	self.callout = label(gui, UDim2.fromOffset(600, 90), UDim2.new(0.5, -300, 0.32, 0), "", 72, Color3.new(1, 1, 1))
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
@@ -64,7 +74,8 @@ end
 
 -- One tile per fighter, built once a match. The mark is a shape as well as a colour, because at
 -- tile size four coloured boxes are four boxes.
-function Hud.bind(self: any, roster: { any }, chars: { any })
+function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?)
+	self.localIndex = localIndex
 	for _, t in self.tiles do
 		t.root:Destroy()
 	end
@@ -74,13 +85,16 @@ function Hud.bind(self: any, roster: { any }, chars: { any })
 	self.tiles, self.floats = {}, {}
 
 	local n = #roster
-	local W, H, GAP = 190, 62, 10
-	local total = n * W + (n - 1) * GAP
+	local W, H, GAP = math.clamp(math.floor((self.gui.AbsoluteSize.X - 36) / 2), 140, 190), 62, 10
+	local columns = math.max(1, math.min(n, math.floor((self.gui.AbsoluteSize.X - 16) / (W + GAP))))
+	local total = columns * W + (columns - 1) * GAP
+	self.layoutWidth = self.gui.AbsoluteSize.X
 	for i, entry in roster do
 		local colour = HudColors.PLAYER[(entry.index % 8) + 1]
 		local root = Instance.new("Frame")
 		root.Size = UDim2.fromOffset(W, H)
-		root.Position = UDim2.new(0.5, -total / 2 + (i - 1) * (W + GAP), 1, -(H + 14))
+		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
+			-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
 		root.BackgroundColor3 = PANEL
 		root.BackgroundTransparency = 0.25
 		root.BorderSizePixel = 0
@@ -97,12 +111,12 @@ function Hud.bind(self: any, roster: { any }, chars: { any })
 		stripe.Parent = root
 
 		local name = label(root, UDim2.fromOffset(W - 16, 16), UDim2.fromOffset(12, 5),
-			`{HudColors.MARKS[(entry.index % 8) + 1]} {entry.name}`, 13, colour)
+			`{HudColors.MARKS[(entry.index % 8) + 1]} T{entry.team + 1} {entry.name}`, 12, colour)
 		local weapon = label(root, UDim2.fromOffset(W - 16, 14), UDim2.fromOffset(12, 20),
 			chars[i] and chars[i].name or entry.weapon, 11, DIM)
 		weapon.TextTransparency = 0.35
-		local pct = label(root, UDim2.fromOffset(110, 30), UDim2.fromOffset(10, 30), "0%", 28, Color3.new(1, 1, 1))
-		local stocks = label(root, UDim2.fromOffset(80, 18), UDim2.fromOffset(W - 88, 36), "", 15, colour)
+		local pct = label(root, UDim2.fromOffset(85, 30), UDim2.fromOffset(10, 30), "0%", 24, Color3.new(1, 1, 1))
+		local stocks = label(root, UDim2.fromOffset(50, 18), UDim2.fromOffset(W - 58, 36), "", 13, colour)
 		stocks.TextXAlignment = Enum.TextXAlignment.Right
 
 		-- The ultimate meter. Hidden outright for a loadout with no ultimate, so it never shows a
@@ -140,10 +154,17 @@ local function mmss(t: number): string
 	return string.format("%d:%02d", math.floor(left / 60), math.floor(left % 60))
 end
 
+function Hud.abilityEvent(self: any, event: any)
+	if event.fighter ~= self.localIndex then return end
+	local message = AbilityStatus.event(event)
+	if message then self.abilityMessage, self.abilityUntil = message, os.clock() + 2 end
+end
+
 -- `states` are the decoded fighters being drawn this frame, `snap` the newest snapshot for the
 -- match-level clock, and `canvas` is asked to project so the floating labels use the renderer's
 -- own camera rather than a second copy of it.
 function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: { any }, cfg: any)
+	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex) end
 	-- Timer. A stock match has no clock, and says so by showing nothing rather than 0:00.
 	if snap and snap.state == "suddendeath" then
 		self.timer.Text = "SUDDEN DEATH"
@@ -171,6 +192,11 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	local byIndex: { [number]: any } = {}
 	for _, st in states do
 		byIndex[st.index] = st
+	end
+	local mine = byIndex[self.localIndex]
+	if mine and chars[self.localIndex + 1] then
+		self.abilities.Text = if self.abilityUntil and os.clock() < self.abilityUntil then self.abilityMessage
+			else AbilityStatus.describe(mine, chars[self.localIndex + 1])
 	end
 
 	for i, tile in self.tiles do

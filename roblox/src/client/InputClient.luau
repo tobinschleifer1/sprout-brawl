@@ -13,28 +13,8 @@
 local UserInputService = game:GetService("UserInputService")
 
 local Input = require(game:GetService("ReplicatedStorage").Shared.Input)
-
-local KB = {
-	left = { Enum.KeyCode.A, Enum.KeyCode.Left },
-	right = { Enum.KeyCode.D, Enum.KeyCode.Right },
-	up = { Enum.KeyCode.W, Enum.KeyCode.Up },
-	down = { Enum.KeyCode.S, Enum.KeyCode.Down },
-	jump = { Enum.KeyCode.Space, Enum.KeyCode.W, Enum.KeyCode.Up },
-	light = { Enum.KeyCode.J },
-	heavy = { Enum.KeyCode.K },
-	dodge = { Enum.KeyCode.L, Enum.KeyCode.LeftShift },
-	guard = { Enum.KeyCode.I, Enum.KeyCode.LeftControl },
-	grab = { Enum.KeyCode.U },
-	taunt = { Enum.KeyCode.T },
-	pickup = { Enum.KeyCode.P },
-	ult = { Enum.KeyCode.O },
-}
-
-local PAD = {
-	jump = Enum.KeyCode.ButtonA, light = Enum.KeyCode.ButtonX, heavy = Enum.KeyCode.ButtonY,
-	dodge = Enum.KeyCode.ButtonB, guard = Enum.KeyCode.ButtonR1, grab = Enum.KeyCode.ButtonL1,
-	taunt = Enum.KeyCode.ButtonSelect, pickup = Enum.KeyCode.ButtonR3, ult = Enum.KeyCode.ButtonL3,
-}
+local Bindings = require(script.Parent.Bindings)
+local KB, PAD = Bindings.keyboard, Bindings.gamepad
 local DEAD = 0.25
 
 local LEVEL_KEYS = { "left", "right", "up", "down", "jump", "light", "heavy", "dodge",
@@ -44,10 +24,29 @@ local InputClient = {}
 InputClient.__index = InputClient
 
 function InputClient.new(): any
-	local self = setmetatable({}, InputClient)
+	local self: any = setmetatable({}, InputClient)
 	self.prev = {} :: { [string]: boolean }
+	self.pending = {} :: { [string]: boolean }
 	self.accum = 0
+	-- Polling holds avoids stuck keys, but polling alone loses a whole tap between ticks.
+	-- Roblox marks I/O as processed camera keys, so processed is NOT a combat filter.
+	-- Text entry still owns its keys. Keep one bounded pending edge per action.
+	UserInputService.InputBegan:Connect(function(input: InputObject)
+		if UserInputService:GetFocusedTextBox() then return end
+		for action, keys in (KB :: { [string]: { string } }) do
+			for _, key in keys do
+				if input.KeyCode == (Enum.KeyCode :: any)[key] then self.pending[action] = true end
+			end
+		end
+		for action, key in PAD do
+			if input.KeyCode == (Enum.KeyCode :: any)[key] then self.pending[action] = true end
+		end
+	end)
 	return self
+end
+
+function InputClient.reset(self: any)
+	self.prev, self.pending, self.accum = {}, {}, 0
 end
 
 local function padAxis(): (number, number)
@@ -72,24 +71,25 @@ local function padAxis(): (number, number)
 	return (if math.abs(x) > DEAD then x else dx), (if math.abs(y) > DEAD then y else dy)
 end
 
-function InputClient.levels(_self: any): { [string]: any }
+function InputClient.levels(self: any): { [string]: any }
 	-- Chat and text fields own their keystrokes; typing must not jump or attack underneath them.
 	if UserInputService:GetFocusedTextBox() then
+		self.pending = {}
 		return { ax = 0, ay = 0 }
 	end
 	-- UserInputService is asked directly rather than tracked through InputBegan/InputEnded. A key
 	-- released while the window was unfocused never fires InputEnded, and a fighter that holds a
 	-- direction forever because the player alt-tabbed mid-dash is the bug that costs an hour.
-	local down = function(codes: { Enum.KeyCode }): boolean
+	local down = function(codes: { string }): boolean
 		for _, c in codes do
-			if UserInputService:IsKeyDown(c) then
+			if UserInputService:IsKeyDown((Enum.KeyCode :: any)[c]) then
 				return true
 			end
 		end
 		return false
 	end
-	local pad = function(code: Enum.KeyCode): boolean
-		return UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, code)
+	local pad = function(code: string): boolean
+		return UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, (Enum.KeyCode :: any)[code])
 	end
 	local ax, ay = padAxis()
 	local l: { [string]: any } = {}
@@ -106,8 +106,10 @@ end
 
 function InputClient.build(self: any, l: { [string]: any }): Input.Frame
 	local prev = self.prev
+	local pending = self.pending
+	self.pending = {}
 	local edge = function(k: string): boolean
-		return not not l[k] and not prev[k]
+		return pending[k] == true or (not not l[k] and not prev[k])
 	end
 	local f = Input.emptyFrame()
 	-- Analogue wins over digital when the stick is out of the deadzone, exactly as in the JS: the
@@ -117,8 +119,8 @@ function InputClient.build(self: any, l: { [string]: any }): Input.Frame
 	f.jump, f.light, f.heavy, f.dodge = edge("jump"), edge("light"), edge("heavy"), edge("dodge")
 	f.guard, f.grab, f.taunt = edge("guard"), edge("grab"), edge("taunt")
 	f.ult, f.pickup, f.downTap = edge("ult"), edge("pickup"), edge("down")
-	f.jumpHeld, f.guardHeld = not not l.jump, not not l.guard
-	f.heavyHeld, f.lightHeld = not not l.heavy, not not l.light
+	f.jumpHeld, f.guardHeld = not not l.jump or pending.jump == true, not not l.guard or pending.guard == true
+	f.heavyHeld, f.lightHeld = not not l.heavy or pending.heavy == true, not not l.light or pending.light == true
 	f.anyPress = f.jump or f.light or f.heavy or f.dodge or f.guard or f.grab or f.ult or f.pickup
 	local snapshot: { [string]: boolean } = {}
 	for _, k in LEVEL_KEYS do

@@ -10,7 +10,7 @@ for (const bad of [null, [], { slots: [] }, { slots: [null] }, { mode: {}, slots
   assert.equal(menu.config.slots.length, 4, 'saved state always has four usable slots');
   assert.equal(menu.config.mode, 'StockFFA');
   assert.equal(menu.config.slots[0].type, 'kb1');
-  assert.equal(menu.config.slots[1].type, 'bot-normal');
+  assert.equal(menu.config.slots[1].type, 'off', 'bots must be explicitly enabled');
   assert.equal(menu.settings.music, 0.6, 'corrupt audio setting falls back');
   assert.equal(menu.settings.sfx, 1, 'volume stays in range');
   assert.equal(menu.settings.shake, true, 'boolean settings remain boolean');

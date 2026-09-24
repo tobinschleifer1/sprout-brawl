@@ -31,13 +31,15 @@ local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
 local Hud = require(script.Hud)
-local Select = require(script.Select)
+local Select = require(script.RoomPanel)
+local LaunchState = require(script.LaunchState)
+local Hub2D = require(script.Hub2D)
 
 local FRAME = Config.FRAME
--- Two frames of buffer. Snapshots arrive at 60Hz but not evenly, and drawing the newest one the
--- instant it lands means every jittered packet is a visible stutter. Rendering 2 frames in the
--- past costs 33ms of latency on other people's fighters and removes it.
-local INTERP_DELAY = FRAME * 2
+-- Two snapshots of buffer. Snapshots arrive at 30Hz but not evenly, and drawing the newest one the
+-- instant it lands means every jittered packet is a visible stutter. Rendering two snapshots in
+-- the past costs about 67ms on remote fighters; the local fighter still uses prediction.
+local INTERP_DELAY = FRAME * 4
 
 local input = InputClient.new()
 local cam2d = Camera2D.new()
@@ -72,35 +74,73 @@ local matchCfg: any = nil
 local sawFirst = false
 local acceptingSnapshots = false
 local scenes: { any } = {}
+local launch = LaunchState.new()
+local hub = Hub2D.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 
 -- ---------------------------------------------------------------- match setup ----
 -- The server says "pick a match". It also says when it refused one, and why.
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 	acceptingSnapshots = false
 	predictor = nil
+	launch:reset()
+	buffer, scenes = {}, {}
+	canvas:clear()
+	if hud then hud.gui.Enabled = false end
 	if not select_ then
 		select_ = Select.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
-		select_.onStart = function(cfg: any)
-			select_:hide()
-			Net.remote("Setup"):FireServer(cfg)
+		select_.onAction = function(action: any)
+			if action.action == "start" then
+				if not launch:begin(os.clock()) then return end
+				select_:waiting("Requesting your match…")
+			end
+			Net.remote("RoomAction"):FireServer(action)
+		end
+		hub.onInteract = function(station: any)
+			if not select_.gui.Enabled then
+				if station.kind == "Format" then
+					select_:waiting("Joining " .. station.name .. "…")
+					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
+				elseif station.kind == "Exit" then
+					select_:send("leave")
+				else
+					select_:openStation(station.id)
+				end
+			end
 		end
 	end
 	if msg and msg.last then
 		-- Their previous picks, so a rematch does not mean choosing everything again.
 		select_.cfg = msg.last
 	end
-	select_:show(if msg and msg.error then `That match could not be run: {msg.error}` else nil)
+	hub:show(select_.cfg)
+	if msg and msg.error then
+		select_:show(`That match could not be run: {msg.error}`)
+	else
+		select_:hide()
+	end
+end)
+
+Net.remote("RoomView").OnClientEvent:Connect(function(view: any)
+	if not select_ then return end
+	if view.error then launch:reset() end
+	select_:update(view, Players.LocalPlayer.UserId)
+	if view.left then launch:reset() end
+	hub:configure(select_.cfg)
+	hub:setRoom(view)
+end)
+Net.remote("HubPresence").OnClientEvent:Connect(function(peers: any)
+	hub:setPeers(peers, Players.LocalPlayer.UserId)
 end)
 
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
+	launch:accept(os.clock())
 	if select_ then
-		select_:hide()
+		select_:waiting("Loading arena and fighters…")
 	end
 	canvas:clear()
 	acceptingSnapshots = true
 	pendingFrames = {}
-	input.prev = {}
-	input.accum = 0
+	input:reset()
 	startedAt = os.clock()
 	warnedSilent = false
 	sawFirst = false
@@ -128,12 +168,15 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	if not hud then
 		hud = Hud.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 	end
+	hud.gui.Enabled = true
 	hud:clearResults()
-	hud:bind(roster, chars)
+	hud:bind(roster, chars, localIndex)
 
 	predictor = nil
 	if localIndex and stageView then
-		predictor = Predictor.new(chars[localIndex + 1], localIndex, stageView)
+		-- Rendering interpolates an older world. Prediction needs its own latest-snapshot
+		-- geometry, otherwise drawing a sinking/moving platform rewinds our collision floor.
+		predictor = Predictor.new(chars[localIndex + 1], localIndex, Stage.new(stageView.data, cfg.seed))
 	end
 	print(`[Blockfall] match: {cfg.stage} seed={cfg.seed} fighters={#roster}`
 		.. (if predictor then " (predicting)" else ""))
@@ -143,11 +186,15 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
 	if not acceptingSnapshots or not matchCfg or snap.id ~= matchCfg.id then
 		return
 	end
-	-- Unreliable delivery is unordered as well as lossy. A snapshot older than one already held is
-	-- not useful for anything and would rewind the interpolation if it were kept.
+	-- Retain the stale-frame guard across rejoin/retry as well as ordinary delivery.
 	local newest = buffer[#buffer]
 	if newest and snap.frame <= newest.frame then
 		return
+	end
+	if launch.phase ~= "playing" then
+		launch:ready()
+		if select_ then select_:hide() end
+		hub:hide()
 	end
 	snap.t = os.clock()
 	table.insert(buffer, snap)
@@ -155,10 +202,10 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
 	-- doing it inside RenderStepped would run it at the render rate rather than once per snapshot.
 	if predictor and localIndex and snap.acks then
 		for _, a in snap.acks do
-			if a.i == localIndex then
+			if a.i == localIndex and (a.e or 0) == (matchCfg.inputEpoch or 0) then
 				for i, entry in roster do
 					if entry.index == localIndex then
-						predictor:reconcile(Snapshot.decode(snap.fighters[i]), a.n)
+						predictor:reconcile(Snapshot.decode(snap.fighters[i]), a.n, snap.platforms)
 					end
 				end
 			end
@@ -180,6 +227,8 @@ end)
 Net.remote("Results").OnClientEvent:Connect(function(res: any)
 	acceptingSnapshots = false
 	predictor = nil
+	launch:reset()
+	if select_ then select_:hide() end
 	if hud then
 		hud:showResults(res)
 	end
@@ -192,6 +241,7 @@ end)
 
 Net.remote("Events").OnClientEvent:Connect(function(events: { any })
 	for _, e in events do
+		if hud then hud:abilityEvent(e) end
 		if e.type == "count" then
 			print(`[Blockfall] {e.n}`)
 		elseif e.type == "go" then
@@ -254,7 +304,22 @@ end
 -- that all sampled the same instant of keyboard state - so the input was both stale and
 -- duplicated. Heartbeat runs at 60Hz whether or not the frame was drawn, which is the rate the
 -- simulation consumes, and it is measurably what the README always said this did.
+local poseElapsed = 0
 RunService.Heartbeat:Connect(function(dt: number)
+	if launch:expired(os.clock()) and select_ then
+		select_:show("Arena delayed. Rejoining your match…")
+		Net.remote("Hello"):FireServer()
+	end
+	if hub.active then
+		hub:step(dt, select_ ~= nil and select_.gui.Enabled)
+		poseElapsed += dt
+		if poseElapsed >= 0.1 then
+			poseElapsed = 0
+			local f = hub.model.fighter
+			Net.remote("HubPose"):FireServer({ area = if hub.room then hub.room.id else 0,
+				x = f.x, y = f.y, facing = f.facing, moving = math.abs(f.vx) > 0.1 })
+		end
+	end
 	if not acceptingSnapshots or not matchCfg then
 		return
 	end
@@ -267,12 +332,17 @@ RunService.Heartbeat:Connect(function(dt: number)
 		end
 	end
 	if #pendingFrames > 0 then
-		Net.remote("Input"):FireServer(pendingFrames, matchCfg.id)
+		Net.remote("Input"):FireServer(pendingFrames, matchCfg.id, matchCfg.inputEpoch or 0)
 		pendingFrames = {}
 	end
 end)
 
 RunService.RenderStepped:Connect(function(dt: number)
+	if select_ then select_:drawPreviews() end
+	if hub.active then
+		hub:draw(canvas, dt)
+		return
+	end
 	local drawAt = os.clock()
 	local states = interpolate(drawAt - INTERP_DELAY)
 	-- Our own fighter, predicted. Interpolation exists to hide other people's packet jitter, and

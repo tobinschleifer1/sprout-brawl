@@ -23,25 +23,36 @@ remote:push("p1", frames)
 check(remote:consumedBy("p1") == 10, "only the first sixteen frames are accepted, with ten dropped")
 remote:get("p1")
 check(remote:consumedBy("p1") == 14, "catch-up accounts for every coalesced frame")
+remote:register("tap")
+local burst = table.create(16, Codec.packFrame(Input.emptyFrame()))
+local ultimate = Input.emptyFrame(); ultimate.ult = true; ultimate.anyPress = true
+burst[1] = Codec.packFrame(ultimate)
+remote:push("tap", burst)
+check(remote:get("tap").ult, "queue overflow must preserve an ultimate press from the oldest frame")
 
 local codes = setmetatable({}, { __index = function(_, k) return k end })
 local focused = false
+local pressedKey = "J"
+local pressedPad = ""
+local began = {}
 local gamepad: any = {
 	{ KeyCode = "DPadRight", Position = { X = 0, Y = 0, Z = 1 } },
 	{ KeyCode = "Thumbstick1", Position = { X = 0, Y = 0, Z = 0 } },
 }
 local uis = {
+	InputBegan = { Connect = function(_, fn) table.insert(began, fn) end },
 	GetFocusedTextBox = function() return if focused then {} else nil end,
 	GetConnectedGamepads = function() return { 1 } end,
 	GetGamepadState = function() return gamepad end,
-	IsKeyDown = function(_, k) return k == "J" end,
-	IsGamepadButtonDown = function() return false end,
+	IsKeyDown = function(_, k) return k == pressedKey end,
+	IsGamepadButtonDown = function(_, _pad, k) return k == pressedPad end,
 }
 local InputClient = luau.load(fs.readFile("src/client/InputClient.luau"), {
 	environment = {
 		Enum = { KeyCode = codes, UserInputType = codes },
 		game = { GetService = function(_, name) return if name == "UserInputService" then uis else { Shared = { Input = "Input" } } end },
-		require = function() return Input end,
+		script = { Parent = { Bindings = "Bindings" } },
+		require = function(name) return if name == "Bindings" then Loader.loadFrom("src/client/", "Bindings") else Input end,
 	}, injectGlobals = true,
 })()
 local sampler = InputClient.new()
@@ -51,6 +62,33 @@ check(sampler:build(sampler:levels()).x == 1, "D-pad is independent of Roblox in
 focused = true
 local quiet = sampler:build(sampler:levels())
 check(quiet.x == 0 and not quiet.light and not quiet.lightHeld, "typing in chat cannot drive a fighter")
+focused = false
+gamepad = {}
+for _, binding in { { "O", "ult", "ButtonL3" }, { "I", "guard", "ButtonR1" }, { "P", "pickup", "ButtonR3" } } do
+	pressedKey, pressedPad = binding[1], ""
+	sampler.prev = {}
+	local first = sampler:build(sampler:levels())
+	check(first[binding[2]], binding[1] .. " must trigger " .. binding[2])
+	local held = sampler:build(sampler:levels())
+	check(not held[binding[2]], "a held key must not repeat its press edge")
+	if binding[2] == "guard" then check(held.guardHeld, "shield stays held while I is down") end
+	pressedKey, pressedPad, sampler.prev = "", binding[3], {}
+	check(sampler:build(sampler:levels())[binding[2]], "gamepad binding must trigger " .. binding[2])
+end
+pressedPad, pressedKey, sampler.prev = "", "LeftControl", {}
+check(sampler:build(sampler:levels()).guardHeld, "Left Ctrl also holds shield")
+
+-- A complete press/release can occur between two simulation samples (especially on a hitch).
+-- It must survive even though IsKeyDown is already false when the next frame is sampled.
+pressedKey, pressedPad = "", ""
+for _, binding in { {"O", "ult"}, {"I", "guard"} } do
+	sampler.prev = {}
+	for _, fn in began do fn({KeyCode=binding[1], UserInputType="Keyboard"}, true) end
+	local tapped = sampler:build(sampler:levels())
+	check(tapped[binding[2]], "between-frame " .. binding[1] .. " tap must not disappear")
+	if binding[2] == "guard" then check(tapped.guardHeld, "a shield tap must hold for its activation frame") end
+	check(not sampler:build(sampler:levels())[binding[2]], "a latched press is consumed exactly once")
+end
 
 -- Instantiate the real Net module to check its transport, not a copy of the intended setting.
 local made: any = {}
@@ -68,6 +106,9 @@ for _, instance in made do
 	if instance.Name == "Input" then
 		foundInput = true
 		check(instance.ClassName == "RemoteEvent", "count-based prediction requires ordered, reliable input")
+	end
+	if instance.Name == "Snapshot" then
+		check(instance.ClassName == "RemoteEvent", "four-fighter snapshots exceed unreliable payload limits")
 	end
 end
 check(foundInput, "input remote must exist")
@@ -100,34 +141,13 @@ callbacks.input({ UserId = 7 }, { Codec.packFrame(right) }, 41)
 check(#service.input.sources.p7.queue == 0, "old-match input is rejected")
 callbacks.input({ UserId = 7 }, { Codec.packFrame(right) }, 42)
 check(service.input:get("p7").x == 1, "current-match input is accepted")
+service.inputEpochs[7] = 1
+service.input:register("p7")
+callbacks.input({ UserId = 7 }, { Codec.packFrame(right) }, 42, 0)
+check(service.input:get("p7").x == 0, "old input cannot enter a rejoined predictor history")
+callbacks.input({ UserId = 7 }, { Codec.packFrame(right) }, 42, 1)
+check(service.input:get("p7").x == 1, "current rejoin epoch accepts input")
 callbacks.leave({ UserId = 7 })
 check(service.input:get("p7").x == 0, "disconnected fighters stop repeating their last movement")
-local Rbx = require("@lune/roblox")
-local MatchConfig = Loader.load("MatchConfig")
-local Select = luau.load(fs.readFile("src/client/Select.luau"), {
-	environment = {
-		game = { GetService = function() return { Shared = shared } end },
-		require = function(name)
-			if name == "MatchConfig" then return MatchConfig end
-			return Loader.load("Data/" .. name)
-		end,
-		Enum = { Font = codes, TextXAlignment = codes },
-		Color3 = Rbx.Color3, UDim2 = Rbx.UDim2, UDim = Rbx.UDim,
-		Instance = { new = function() return { Activated = { Connect = function() end } } end },
-	}, injectGlobals = true,
-})()
-local choices: any = {}
-local select = setmetatable({ cfg = MatchConfig.default(), rows = {}, panel = {} }, { __index = Select })
-select.row = function(_, _y, _title, _items, get, set)
-	table.insert(choices, { get = get, set = set })
-end
-select:build()
-check(select.oppNote.Position.Y.Offset >= 458 and select.oppNote.Position.Y.Offset + select.oppNote.Size.Y.Offset <= 480,
-	"opponent summary must fit between the scroll row and Fight button")
-local previous = select.cfg
-select.cfg = MatchConfig.default()
-choices[1].set("Hammer")
-choices[2].set("Noir")
-check(select.cfg.slots[1].weaponId == "Hammer" and select.cfg.slots[1].avatarId == "Noir", "rematch edits the current configuration")
-check(previous.slots[1].weaponId == "Sword", "rematch must not edit the detached old configuration")
-print("PASS runtime input: packet bounds, D-pad order, chat focus, reliable transport, rematch controls and disconnects")
+-- Real rematch button callbacks and layout are now exercised by lobby-ui.luau.
+print("PASS runtime input: packet bounds, D-pad order, chat focus, combat bindings, reliable transport and disconnects")

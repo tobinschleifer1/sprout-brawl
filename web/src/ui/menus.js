@@ -70,7 +70,7 @@ export class Menus {
   _defaultConfig() {
     return { mode: 'StockFFA', stocks: 3, time: 180, items: true, stageId: 'FoundryFloor',
       slots: [ { type: 'kb1', weaponId: 'Sword', avatarId: 'Classic', team: 0 },
-               { type: 'bot-normal', weaponId: 'Scythe', avatarId: 'Noir', team: 1 },
+               { type: 'off', weaponId: 'Scythe', avatarId: 'Noir', team: 1 },
                { type: 'off', weaponId: 'Blasters', avatarId: 'Ember', team: 0 },
                { type: 'off', weaponId: 'Grimoire', avatarId: 'Moss', team: 1 } ] };
   }

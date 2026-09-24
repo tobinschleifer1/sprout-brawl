@@ -1,0 +1,936 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Blockfall Revamp — Lobby Edition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --ground:#0B1017; --panel:#131A24; --panel2:#18212D; --line:#263142; --line2:#33404F;
+  --ink:#E9E5DB; --muted:#9AA5B3; --dim:#6B7684;
+  --amber:#E5AB65; --amber-ink:#2A1D0F; --hot:#F08B60; --gold:#FFD58A; --cool:#7FD4FF; --safe:#8EE86A; --violet:#B77DFF;
+  --display:"Pixelify Sans","Arial Black",Impact,system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{background:var(--ground);color:var(--ink);font:16px/1.6 var(--body);}
+a{color:var(--cool)} a:hover{color:var(--gold)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{max-width:1200px;margin:0 auto;padding-inline:20px;padding-block:28px 80px;display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
+@media (min-width:1040px){.wrap{grid-template-columns:190px minmax(0,1fr)}}
+nav.toc{display:none}
+@media (min-width:1040px){nav.toc{display:block;position:sticky;top:calc(env(safe-area-inset-top,0px) + 24px);align-self:start;font:13px/1.5 var(--mono)}}
+nav.toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 0 5px 12px;border-left:2px solid var(--line)}
+nav.toc a:hover{color:var(--ink);border-left-color:var(--amber)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+@media (min-width:1040px){.chips{display:none}}
+.chips a{font:12px var(--mono);color:var(--muted);text-decoration:none;border:1px solid var(--line2);padding:4px 10px;border-radius:999px}
+main{min-width:0}
+pre.mermaid{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 var(--mono);color:var(--muted)}
+#lobby .lobby-schematic{overflow-x:auto;margin:20px 0 10px;border:1px solid var(--line);background:var(--panel)}
+#lobby .lobby-schematic svg{display:block;min-width:580px;width:100%;height:auto}
+#lobby h3{scroll-margin-top:20px}
+#lobby .lobby-sequence{padding-left:24px;max-width:74ch}
+#lobby .lobby-sequence li{margin-bottom:10px}
+header.hero{padding-block:8px 28px;border-bottom:1px solid var(--line)}
+.eyebrow{font:600 12px/1.4 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--amber);margin:0 0 10px}
+h1{font:700 clamp(40px,7vw,72px)/1 var(--display);margin:0 0 16px;letter-spacing:.01em;text-wrap:balance}
+h1 span{color:var(--amber)}
+.lede{font-size:19px;max-width:66ch;color:var(--ink);margin:0 0 20px}
+.stats{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0;padding:0;list-style:none;font:14px var(--mono);color:var(--muted)}
+.stats b{display:block;font:700 26px/1.1 var(--display);color:var(--gold)}
+section{padding-block:44px 8px;border-bottom:1px solid var(--line);scroll-margin-top:16px}
+section:last-of-type{border-bottom:0}
+h2{font:700 clamp(28px,4vw,38px)/1.1 var(--display);margin:0 0 14px;text-wrap:balance}
+h3{font:700 20px/1.25 var(--body);margin:28px 0 10px;text-wrap:balance}
+h4{font:600 12px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+p{max-width:70ch;margin:0 0 14px}
+.note{color:var(--muted);font-size:15px}
+code,.mono{font-family:var(--mono);font-size:.88em}
+code{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+ul.clean{margin:0 0 14px;padding-left:20px;max-width:72ch} ul.clean li{margin:4px 0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px}
+.rule{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px;padding:14px 16px}
+.rule b{display:block;margin-bottom:4px}
+.rule p{margin:0;font-size:15px;color:var(--muted)}
+.keep,.change{border-radius:8px;padding:16px 18px;border:1px solid var(--line)}
+.keep{background:#101A15} .change{background:#1C1611}
+.keep h4{color:var(--safe)} .change h4{color:var(--amber)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin:0 0 16px}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+canvas.px{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;border-radius:4px;background:#070B10}
+.swatches{display:flex;gap:4px;margin:8px 0}
+.swatches i{width:22px;height:22px;border-radius:3px;border:1px solid rgba(255,255,255,.12)}
+.wcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.wcard header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.wcard h3{margin:0;font:700 22px/1.1 var(--display)}
+.wcard .code{font:12px var(--mono);color:var(--amber)}
+.wcard .icon{background:#070B10;border-radius:6px;padding:10px}
+.tag{display:inline-block;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--muted)}
+.tag.new{color:var(--amber-ink);background:var(--amber);border-color:var(--amber)}
+.tag.eng{color:var(--hot);border-color:#5A3326}
+dl.moves{margin:0;display:grid;gap:8px}
+dl.moves div{display:grid;grid-template-columns:minmax(0,1fr);gap:1px}
+dl.moves dt{font:700 14px var(--body)}
+dl.moves dt small{font:12px var(--mono);color:var(--dim);margin-left:6px}
+dl.moves dd{margin:0;font-size:14px;color:var(--muted)}
+.tweak{font-size:13.5px;color:var(--muted);border-top:1px dashed var(--line2);padding-top:10px;margin-top:auto}
+.tweak b{color:var(--ink)}
+.ult{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.ult header{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin-bottom:10px}
+.ult h3{margin:0;font:700 22px/1.1 var(--display)}
+.ult .meta{font:12px var(--mono);color:var(--muted)}
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px}
+.panels figure{margin:0}
+.panels figcaption{font-size:13px;color:var(--muted);margin-top:6px}
+.panels figcaption b{color:var(--ink);font-family:var(--mono);font-size:12px;margin-right:4px}
+.mapcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+.mapcard header{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;margin-bottom:10px}
+.mapcard h3{margin:0;font:700 24px/1.1 var(--display)}
+.mapcard canvas{display:block;width:100%;height:auto;border-radius:6px}
+.mapmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:12px 20px;margin-top:12px;font-size:14px}
+.mapmeta div b{display:block;font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font:12px var(--mono);color:var(--muted);margin:8px 0 18px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-2px}
+.disaster{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.disaster{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}}
+.disaster h3{margin:0 0 4px;font:700 22px/1.1 var(--display)}
+.phasebar{display:flex;height:26px;border-radius:4px;overflow:hidden;font:11px/26px var(--mono);margin:10px 0 4px}
+.phasebar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 6px;color:#0B1017;font-weight:600}
+.pb-warn{background:var(--amber)} .pb-strike{background:var(--hot)} .pb-after{background:#5E6E86;color:var(--ink)!important}
+.facts{font-size:14px;margin:0;padding-left:18px;color:var(--muted)} .facts li{margin:3px 0} .facts b{color:var(--ink)}
+.demo{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.demo-top{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.demo-top{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}}
+.strip{display:grid;grid-template-columns:repeat(55,1fr);gap:1px;margin:14px 0 6px}
+.strip i{height:22px;border-radius:1px;opacity:.55}
+.strip i.on{opacity:1;outline:2px solid var(--gold);outline-offset:-1px}
+.strip i.key{box-shadow:inset 2px 0 0 #fff}
+.s-start{background:#8A6A3E}.s-act{background:var(--hot)}.s-rec{background:#46566C}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:600 13px var(--mono);background:var(--panel2);color:var(--ink);border:1px solid var(--line2);border-radius:6px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--amber)}
+button.primary{background:var(--amber);color:var(--amber-ink);border-color:var(--amber)}
+label.toggle{font:13px var(--mono);color:var(--muted);display:flex;gap:6px;align-items:center}
+.readout{font:13px var(--mono);color:var(--muted)} .readout b{color:var(--gold)}
+.phase{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 16px;padding:16px 0;border-top:1px solid var(--line)}
+.phase:first-of-type{border-top:0}
+.phase .id{font:700 22px/1 var(--display);color:var(--amber);min-width:48px}
+.phase h3{margin:0 0 4px;font-size:18px}
+.phase p{margin:0 0 6px;font-size:15px;color:var(--muted)}
+.gate{font-size:14px;margin:4px 0 0}
+.gate b{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--safe);margin-right:6px}
+.q{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.q b{display:block;margin-bottom:4px}
+.q p{margin:0;font-size:15px;color:var(--muted)}
+.q .rec{color:var(--gold)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;overflow-x:auto;margin:0 0 16px}
+.sources{font-size:14px;color:var(--muted)} .sources li{margin:4px 0}
+.wpair{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;justify-items:center;padding:14px 10px}
+.wpair canvas.px{background:transparent;max-width:100%;height:auto}
+.sil{background:#D9D4C7;border-radius:4px;padding:6px 10px;display:flex;justify-content:center;max-width:100%}
+.wmeta{font:12px var(--mono);color:var(--muted)} .wmeta b{color:var(--ink)}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <a href="#overview">Overview</a>
+  <a href="#rules">Ground rules</a>
+  <a href="#art">Art direction</a>
+  <a href="#pipeline">Pipeline &amp; tools</a>
+  <a href="#animation">Animation</a>
+  <a href="#weapons">Weapons &amp; abilities</a>
+  <a href="#ultimates">Ultimates</a>
+  <a href="#lobby">Lobby</a>
+  <a href="#maps">Maps</a>
+  <a href="#disasters">Natural disasters</a>
+  <a href="#roadmap">Roadmap</a>
+  <a href="#decisions">Your decisions</a>
+</nav>
+
+<main>
+<div class="chips">
+  <a href="#rules">Rules</a><a href="#art">Art</a><a href="#pipeline">Pipeline</a><a href="#animation">Animation</a><a href="#weapons">Weapons</a><a href="#ultimates">Ultimates</a><a href="#lobby">Lobby</a><a href="#maps">Maps</a><a href="#disasters">Disasters</a><a href="#roadmap">Roadmap</a><a href="#decisions">Decisions</a>
+</div>
+
+<header class="hero" id="overview">
+  <p class="eyebrow">Blockfall · Roblox revamp · design plan · lobby revision · 24 Sep 2026</p>
+  <h1>From rectangles <span>to real pixel art</span></h1>
+  <p class="lede">Today every body, weapon and effect in the Roblox build is drawn out of pooled coloured rectangles, with no image assets at all. That kept the port honest, but it is the ceiling on how good the game can look. This plan swaps those rectangles for hand-drawn sprite sheets. On top of that it redesigns the look of all 12 weapons, adds 2 new ones, gives every ultimate a proper cutscene moment, rebuilds the 6 maps, adds 3 new maps, adds a natural-disaster system, and completely rebuilds the shared walkable lobby. The engine, the netcode and the balance work you've already done all stay.</p>
+  <ul class="stats">
+    <li><b>14</b>weapons (12 redesigned, 2 new)</li>
+    <li><b>9</b>maps (6 rebuilt, 3 new)</li>
+    <li><b>6</b>natural disasters</li>
+    <li><b>14</b>ultimate cinematics</li>
+    <li><b>≈1,500</b>existing animation drawing brief</li>
+    <li><b>1</b>shared lobby · 3 mode entrances</li>
+  </ul>
+</header>
+
+<section id="rules">
+  <p class="eyebrow">Read this first</p>
+  <h2>Ground rules</h2>
+  <p>This plan covers art, content and new systems. The foundations underneath stay put, because they're what makes the game fair and stable. Every idea below had to follow these five rules.</p>
+  <div class="grid2">
+    <div class="rule"><b>1. The web version stays the source of truth.</b><p>Any change to gameplay (weapon moves, map layouts, disasters) goes into <code>web/src</code> first. From there it's generated into Luau and checked by <code>check.sh</code>. The browser game stays playable at every step, and a change that only lands in Roblox counts as a bug.</p></div>
+    <div class="rule"><b>2. Sprites come from the game state, never from a clock.</b><p>Which sprite frame is shown depends only on the fighter's state, move and move-frame. Nothing is time-based. That's what keeps rollback prediction from making sprites stutter, and it lets the web and Roblox builds be tested to show the exact same frame.</p></div>
+    <div class="rule"><b>3. What you see is where you can be hit.</b><p>A fighter's body sprite may only stick out past its hurtbox by a small, measured amount. The sprite tool checks every frame and fails the build if one breaks this. Weapons live on their own layer, and hitboxes have their own debug overlay.</p></div>
+    <div class="rule"><b>4. Disasters are hazards, never coin flips.</b><p>Every disaster gives at least 1.5 seconds of warning. Each has a safe place to stand and a timing-based way to dodge it. Its damage runs through the normal knockback formula, so it can never KO a low-percent fighter outright. Disasters are always off in ranked.</p></div>
+    <div class="rule"><b>5. Sprites can be added a bit at a time.</b><p>Any move that doesn't have sprites yet falls back to today's rectangle renderer. That means art can arrive one weapon at a time and the game never sits half-broken while it's being drawn.</p></div>
+  </div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="keep"><h4>What stays exactly as it is</h4><ul class="clean">
+      <li>The 60 Hz game engine, knockback, the two-curve hitstun system and the balance pass (ultimates now KO at 132–213%)</li>
+      <li>Server authority, input prediction and rollback, and the snapshot and scene streams</li>
+      <li>All 12 weapons' frame data. Changes below are flagged per weapon and go through a balance test first</li>
+      <li>The map layouts of Foundry Floor and The Span (the fairest competitive maps don't get redesigned)</li>
+      <li>The dark, gritty pixel-art direction from the September 21 art pass</li>
+    </ul></div>
+    <div class="change"><h4>What gets replaced or added</h4><ul class="clean">
+      <li><b>How things are drawn:</b> sprite sheets on reused image slots instead of stacks of rectangles. That's about 9 image slots per fighter, down from about 54 rectangles today</li>
+      <li><b>Animation:</b> hand-drawn key poses timed exactly to each move's frame data</li>
+      <li><b>Weapons:</b> new designs, visual effects for every ability, and 2 new weapons</li>
+      <li><b>Ultimates:</b> a shared cutscene moment (pause, zoom, character banner), then a unique effect for each weapon</li>
+      <li><b>Lobby:</b> a rebuilt Iron Concourse, three physical mode gates, and walkable preparation rooms with map boards, illustrated weapon racks and explicit ready stations</li>
+      <li><b>Maps:</b> layered moving backgrounds on all 9, plus 3 new layouts</li>
+      <li><b>Natural disasters:</b> a new engine system with 6 disasters and 3 modes (Off, Stage, Chaos)</li>
+    </ul></div>
+  </div>
+</section>
+
+<section id="art">
+  <p class="eyebrow">Art direction</p>
+  <h2>Dark, gritty pixel art at 8 pixels per stud</h2>
+  <p>The overall look stays the dark industrial style from the September 21 pass: dark silhouettes, warm furnace light, cool rim light. What changes is the drawing scale. Every sprite is drawn at <b>8 pixels per stud</b>, and that number comes straight from the camera.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Measurement</th><th class="num">Value</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td>Fighter height (<code>BASE.height</code>)</td><td class="num">5.2 studs → 42 px</td><td>A drawing cell of 48 × 48 fits the body with room for arms and legs</td></tr>
+      <tr><td>Hurtbox width (<code>radius</code> 1.1)</td><td class="num">2.2 studs → 18 px</td><td>Used by the build check that keeps sprites inside the hurtbox</td></tr>
+      <tr><td>Camera zoom range (<code>Camera2D</code>)</td><td class="num">2.0 – 7.2 px/stud</td><td>On a 270 px-tall view, that's 8–29 screen pixels per stud at 1080p</td></tr>
+      <tr><td>One sprite pixel on screen at 1080p</td><td class="num">1.0 – 3.6 screen px</td><td>Sprites are never shrunk below 1:1 on desktop, so they stay crisp</td></tr>
+      <tr><td>Roblox image size limit</td><td class="num">1024 × 1024</td><td>21 × 21 = 441 drawing cells per sprite sheet</td></tr>
+      <tr><td>Single-jump height (v²/2g = 63²/300)</td><td class="num">13.2 studs</td><td>Every disaster safe spot is placed using this number</td></tr>
+    </tbody>
+  </table></div>
+  <h3>How characters get recoloured</h3>
+  <p>Players can recolour their avatars, so body sprites can't have fixed colours. Instead, each body part is drawn as a <b>greyscale layer</b> (outline, primary, secondary, tertiary). In Roblox each layer is tinted with <code>ImageColor3</code>; on the web it goes through the existing tint cache in <code>pixels2d.js</code>. The greyscale shading carries through the tint, so one sprite sheet works for every avatar and colour. Heads, faces and hats are separate small sprites that snap onto a <b>head anchor point</b> exported from each frame.</p>
+  <h3>Readability rules for every sprite</h3>
+  <ul class="clean">
+    <li><b>Silhouette first.</b> Each weapon's outline must be recognisable as a solid black shape at 50% zoom.</li>
+    <li><b>Three brightness levels.</b> Dark background, mid-tone fighters, bright hit frames. The frames where an attack can actually hit are always the brightest thing on screen.</li>
+    <li><b>Dodge frames get an outline.</b> While a fighter can't be hit (spot dodge frames 3–14, air dodge 3–13), a 1-pixel pale outline shows it.</li>
+    <li><b>Warnings are cool, damage is hot.</b> Every warning uses cyan (<span style="color:var(--cool)">#7FD4FF</span>) and every damage zone uses orange (<span style="color:var(--hot)">#F08B60</span>), across all 6 disasters and all 14 ultimates.</li>
+    <li><b>No blood.</b> Roblox content rules count realistic blood toward the game's maturity rating. The Daggers "bleed" and anything similar use crimson crystal shards and sparks instead.</li>
+  </ul>
+</section>
+
+<section id="pipeline">
+  <p class="eyebrow">Pipeline &amp; tools</p>
+  <h2>From drawing to game</h2>
+  <p>Sprites are drawn once and used by both builds. A new generator does for sprites what <code>gen-data.mjs</code> already does for weapons: it reads the source files, checks them against the frame data, and outputs Luau. The asset IDs Roblox returns are saved in a committed lockfile, so building never has to upload anything.</p>
+<pre class="mermaid">
+%%{init: {'theme':'dark','themeVariables':{'primaryColor':'#18212D','primaryTextColor':'#E9E5DB','primaryBorderColor':'#E5AB65','lineColor':'#9AA5B3','fontFamily':'JetBrains Mono, monospace'}}}%%
+flowchart LR
+  A["Aseprite .ase<br/>tags = moves<br/>layers = tint masks<br/>slices = sockets"] -->|"aseprite -b --sheet --data"| B["atlas.png + atlas.json"]
+  B --> C["tools/gen-sprites.mjs<br/>validate vs frame data<br/>hurtbox guard"]
+  C --> D["web/assets/sprites"]
+  C --> E["Asphalt sync<br/>upload + lockfile"]
+  E --> F["Data/Sprites.luau<br/>generated"]
+  D --> G["web renderer<br/>drawImage"]
+  F --> H["SpriteCanvas.luau<br/>pooled ImageLabels"]
+  C --> I["check.sh<br/>sprite-parity"]
+</pre>
+  <h3>Libraries and tools</h3>
+  <p class="note">I checked each one was current as of September 2026. The first group is required. The second group only gets adopted if testing shows it's needed. Adding a dependency just because it exists is how a codebase gets two ways to do the same job.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Tool</th><th>Used for</th><th>Why this one</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://www.aseprite.org/docs/cli/">Aseprite</a> (about $20, one-time)</td><td>Drawing sprites and exporting sheets from the command line</td><td>Can export in batch mode, and its tags, layers and slices map straight onto moves, tint layers and anchor points. That's what lets <code>gen-sprites.mjs</code> check frame counts automatically.</td></tr>
+      <tr><td><a href="https://github.com/jackTabsCode/asphalt">Asphalt</a></td><td>Uploading images and sounds to Roblox and generating asset-ID references</td><td>The modern replacement for Tarmac. As of 2026 it uploads many files at once and handles <code>.png/.ogg/.wav</code>. Installs through Rokit like the existing tools.</td></tr>
+      <tr><td>Rojo · Rokit · Lune · luau-lsp</td><td>Already in use</td><td>No change. <code>check.sh</code> stays the single check that says everything still works.</td></tr>
+      <tr><td><a href="https://madstudioroblox.github.io/ProfileStore/">ProfileStore</a></td><td>Saving unlocks, custom avatars, settings and stats</td><td>Prevents two servers from writing the same player's data at once, and saves automatically. It replaces ProfileService from the same author and is widely used in large games.</td></tr>
+      <tr><td><a href="https://github.com/dphfox/Fusion">Fusion 0.3</a></td><td>Menus, character creator, settings, results screen</td><td>Menu screens built from reactive state. The in-match renderer (<code>Canvas2D</code>/<code>SpriteCanvas</code>) does <em>not</em> use it, because it redraws every frame directly.</td></tr>
+      <tr><td><a href="http://ui-labs.luau.page/docs/stories/advanced/fusion">UI Labs</a></td><td>Previewing single parts inside Studio</td><td>Lets you check a sprite, a banner or a disaster warning without starting a match. Screenshots of the game window can't do this, because everything is drawn in a ScreenGui.</td></tr>
+      <tr><td><a href="https://devforum.roblox.com/t/blink-an-idl-compiler-written-in-luau-for-roblox-buffer-networking-0185/2959671">Blink</a> <span class="tag">if needed</span></td><td>Compact network encoding for snapshots and scene updates</td><td>Disasters add network traffic, and the audit says real bandwidth testing is still to do. Switch to Blink only if that test shows the current <code>Snapshot</code>/<code>SceneSnapshot</code> encoding is too big. Those are hand-written and tested, and replacing them has a cost.</td></tr>
+      <tr><td>jsfxr / ChipTone <span class="tag">tool</span></td><td>8-bit style sound effects for hits, disaster warnings and ultimates</td><td>Free generators. Exports go through Asphalt as <code>.ogg</code>.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>How sprites get drawn on screen</h3>
+  <p><code>SpriteCanvas.luau</code> sits next to <code>Canvas2D</code> and keeps the same reuse-and-hide pooling. The difference is it reuses <code>ImageLabel</code>s with <code>ImageRectOffset</code>/<code>ImageRectSize</code> and <code>ResampleMode = Pixelated</code>. It uses the same camera math as <code>Canvas2D.world</code>, so sprites and any remaining rectangle-drawn parts line up exactly. Only the sprite sheets needed for the current match (its fighters' weapons plus its map) get preloaded, which is about 8 images.</p>
+</section>
+
+<section id="animation">
+  <p class="eyebrow">Animation</p>
+  <h2>Hand-drawn poses, timed to the frame data</h2>
+  <p><code>channels.js</code> already builds in five animation principles: anticipation, slow-in/slow-out, follow-through, overlapping action and moving holds. The revamp keeps that timing and replaces the maths-generated poses with <b>hand-drawn key poses that hold</b>. Pixel-art fighting games don't smoothly blend between poses; they hold a drawing and then snap to the next one. Every move in Aseprite is a tag. Each frame's duration is a whole number of game frames, and the total has to exactly match <code>startup + active + endlag</code>. If it doesn't, <code>gen-sprites.mjs</code> fails the build.</p>
+
+  <div class="demo">
+    <div class="demo-top">
+      <div>
+        <h4 style="margin-top:0">Live example · Sword · Crescent Rush (signature side attack)</h4>
+        <canvas id="demoCanvas" class="px" width="160" height="72" aria-label="Pixel fighter performing Crescent Rush, one frame per game frame"></canvas>
+      </div>
+      <div>
+        <h4 style="margin-top:0">What you're looking at</h4>
+        <p class="note" style="margin-bottom:10px">Real frame data: <b style="color:var(--ink)">21 startup · 4 active · 30 recovery = 55 frames</b>. Six hand-drawn poses cover all 55 frames. The white tick in the strip below marks each new drawing. The cyan outline is the hurtbox. The red box is the hitbox, visible only during the 4 active frames.</p>
+        <div class="controls">
+          <button id="playBtn" class="primary" type="button">Play</button>
+          <button id="stepBtn" type="button">Step +1</button>
+          <label class="toggle"><input type="checkbox" id="boxesChk" checked> hurtbox &amp; hitbox</label>
+        </div>
+        <p class="readout" style="margin-top:10px">frame <b id="frameNo">0</b> / 54 · <span id="phaseName">startup</span> · pose <b id="keyName">K1</b></p>
+      </div>
+    </div>
+    <div class="strip" id="strip" aria-hidden="true"></div>
+    <div class="legend" style="margin:4px 0 0"><span><i class="s-start"></i>startup</span><span><i class="s-act"></i>active</span><span><i class="s-rec"></i>recovery</span><span><i style="background:#fff"></i>new drawing</span></div>
+  </div>
+
+  <p class="note">Production reference: <a href="http://localhost:8124/.tmp/bible.html">the expanded Animation Bible</a>. Its generated counts and working-cell dimensions take precedence over the original summary table below. The lobby reuses its movement poses; new lobby-only drawings are budgeted separately below.</p>
+  <h3>Shared body animations</h3>
+  <p>These are drawn once and shared by every weapon, then tinted for each avatar. State-driven animations like rising, falling and tumbling pick their frame from the fighter's velocity or spin angle, not from a timer. That keeps them correct after a rollback.</p>
+  <div class="tablewrap"><table id="bodyTable">
+    <thead><tr><th>Animation</th><th class="num">Game frames</th><th class="num">Key poses</th><th>Chosen by</th><th>Notes</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <h3>How each move's poses are laid out</h3>
+  <ul class="clean">
+    <li><b>Anticipation (first ~40% of startup):</b> the body pulls back and goes past the pose slightly. This is the frame the defender reacts to, so it can't be shortened for style.</li>
+    <li><b>Last startup frame:</b> either the fully wound-up pose, or a <i>smear</i> drawing (a stretched streak) for moves faster than 8 frames.</li>
+    <li><b>Active frames:</b> the contact pose with the brightest colours. Swing trails are drawn on the weapon layer, and the weapon swing path comes from <code>WeaponPose</code> so it matches the hitbox.</li>
+    <li><b>Recovery:</b> follow-through that overshoots, then a settle with a wobble. Heavy weapons (Axe, Hammer) get more recovery poses so they read as heavier.</li>
+  </ul>
+</section>
+
+<section id="weapons">
+  <p class="eyebrow">Weapons &amp; abilities</p>
+  <h2>Fourteen weapons, forged from the foundry</h2>
+  <p><b>Revised in v2.</b> The first version was a set of loose fantasy props. These share one design language that fits the world the maps are set in: <b>salvage-forged</b>, made from rivet guns, blast doors, wrecking balls and forge sledges. Each one also puts its special mechanic <i>on the weapon</i>, so you don't have to look at the HUD for it.</p>
+  <p><b>These pictures are the game's own art, not mockups.</b> Every weapon is a pixel grid in <code>web/src/data/weaponArt.js</code> at 8 px per stud. Both the web build and Roblox now draw it, and it's live on branch <code>revamp/sprites-disasters</code>. Each weapon reaches within one pixel of its hitboxes (a test checks this). The pale panel is the <b>silhouette test</b>: every weapon has to be recognisable as a flat dark shape. IDs, frame data and balance don't change.</p>
+  <div class="grid2" id="weaponGrid"></div>
+</section>
+
+<section id="ultimates">
+  <p class="eyebrow">Ultimates</p>
+  <h2>One shared cutscene, fourteen payoffs</h2>
+  <p>Every ultimate follows the same opening, using timings that already exist: <code>ULTIMATE.freezeFrames = 26</code>, <code>invincibleFrames = 22</code>. For the first 26 frames the action pauses while the scene dims to 35%. The camera zooms in 1.35× on the user over 8 frames, and a diagonal banner with their portrait, weapon and ultimate name sweeps across (6 frames in, 12 held, 6 out). During the 22 invincible frames the user has a gold outline, so opponents can see it. After that each weapon plays its own effect, and the impact adds hit-pause, a 2-frame white flash and a big screen shake. Each storyboard below is a to-scale pixel mock of the three key moments.</p>
+  <div id="ultList"></div>
+</section>
+
+<section id="lobby">
+  <p class="eyebrow">New scope · complete lobby rebuild · planned, not implemented</p>
+  <h2>The Iron Concourse: a place to play in</h2>
+  <p class="lede">An inhabited, salvage-built fight terminal above a working foundry. Players arrive as their own pixel fighters, run across worn steel decking, meet other players, and enter one of three enormous industrial gates. Beyond each gate is a walkable preparation room. The world is the lobby; menus are small tools attached to objects inside it.</p>
+  <div class="rule"><b>Client requirements stay intact.</b><p>Exactly three play entrances: <strong>1v1, 2v2 and 3v3</strong>. No map doors, no free-for-all entrance, no full-screen mode-select HUD on spawn. Map, weapon, avatar, rules and bot choices appear only after a mode has been entered. Bots are OFF by default; empty slots wait for people.</p></div>
+  <p class="note" style="margin-top:12px">This revision extends the supplied <i>Blockfall Revamp</i> and its Animation Bible. It supersedes the old lobby visual/layout brief, not the existing room-authority rules. The current main project already has a shared concourse and room service; the revamp worktree does not yet contain that whole implementation. Integrate it deliberately before building these views. The source attachment and generated animation bible remain unchanged.</p>
+
+  <h3 id="lobby-look">1. Art direction: the same foundry, not a different game</h3>
+  <div class="grid2">
+    <div class="box"><h4>Materials and silhouette</h4><p>Blackened iron, riveted salvage plates, chipped enamel signage, patched cables, brick furnace housings and worn brass. Large readable silhouettes first; clustered pixel wear at corners and contact points, not random noise everywhere. Gates borrow the weapons' blast-door, rivet-gun and forge-sledge construction language.</p></div>
+    <div class="box"><h4>Light and colour</h4><p>Use the plan's soot <code>#0B1017</code>, steel <code>#18212D</code>, muted metal <code>#33404F</code>, amber <code>#E5AB65</code> and bone lettering <code>#E9E5DB</code>. Warm furnace light below and behind grates; subdued cool rim light from roof windows. Mid-tone fighters and readable signs remain above background detail.</p></div>
+    <div class="box"><h4>Richness through depth</h4><p>Four scene layers: distant smoke stacks and freight silhouettes; middle-distance furnace and crane machinery; the crisp playable deck and stations; sparse foreground chains and rail ends. Proposed parallax ratios are 0.08 / 0.25 / 1.0 / 1.05. Nothing crosses a fighter's face, a gate label or an interaction target.</p></div>
+    <div class="box"><h4>Pixel and signal discipline</h4><p>Draw world assets at <b>8 px/stud</b>, with nearest-neighbour sampling and shared camera alignment. No smooth gradients, vector-looking glossy panels or upscaled blurry paintings. Cyan warning pulses and hot damage shapes remain combat signals; lobby interaction uses steady amber brackets, words and icons. Decorative heat stays behind barriers, never on the walkable floor.</p></div>
+  </div>
+  <p>One low industrial music bed, quiet furnace rumble, soft metal footsteps and a distinct gate latch/ready chime. No sirens or combat hit sounds for normal navigation. Limit overlapping machine sounds; distant ambience ducks while reading a board. Reduced-motion mode freezes ambient flipbooks and parallax without hiding room status.</p>
+
+  <h3 id="lobby-layout">2. Spatial layout: three landmarks on one clear route</h3>
+  <p>Keep the current fast, flat travel spine as the blockout: floor <code>x = −64…94</code>, spawn <code>x = 0</code>, gates at <code>−28 / 14 / 56</code>. Rebuild the architecture, props, backgrounds, camera framing and rooms around it. Every required destination is reachable without jumping. Optional catwalks, seating ledges and crate steps are social/play space, never the only route to a match.</p>
+  <div class="lobby-schematic">
+    <svg viewBox="0 0 900 350" role="img" aria-labelledby="lobby-map-title lobby-map-desc">
+      <title id="lobby-map-title">Iron Concourse spatial blockout</title>
+      <desc id="lobby-map-desc">A single continuous floor connects the 1v1 Duel Foundry gate, central arrival point, 2v2 Twin Gantry gate and 3v3 Freight Hall gate. Optional overlooks sit above the floor. Each gate leads to a separate preparation room with a map board, weapon rack, lockers, rules console and ready rail. Concept schematic, not final art or collision geometry.</desc>
+      <rect width="900" height="350" fill="#0B1017"/>
+      <g fill="#18212D"><rect x="36" y="24" width="54" height="154"/><rect x="105" y="45" width="78" height="122"/><rect x="520" y="28" width="40" height="131"/><rect x="818" y="12" width="48" height="162"/></g>
+      <path d="M0 95H900M40 95V200M870 95V200" fill="none" stroke="#263142" stroke-width="8"/>
+      <g fill="#33404F"><rect x="28" y="112" width="94" height="8"/><rect x="780" y="112" width="94" height="8"/></g>
+      <g fill="#131A24" stroke="#4A5668" stroke-width="5">
+        <path d="M130 220V114H140V104H252V114H262V220Z"/>
+        <path d="M430 220V104H442V94H558V104H570V220Z"/>
+        <path d="M638 220V102H650V86H792V102H804V220Z"/>
+      </g>
+      <g fill="#E5AB65"><rect x="158" y="120" width="76" height="5"/><rect x="459" y="110" width="82" height="5"/><rect x="669" y="102" width="103" height="5"/></g>
+      <g fill="#33404F"><rect x="184" y="184" width="24" height="36"/><rect x="468" y="184" width="24" height="36"/><rect x="506" y="184" width="24" height="36"/><rect x="674" y="184" width="24" height="36"/><rect x="710" y="184" width="24" height="36"/><rect x="746" y="184" width="24" height="36"/></g>
+      <rect x="20" y="220" width="860" height="12" fill="#89959C"/><rect x="20" y="232" width="860" height="20" fill="#263142"/>
+      <path d="M314 213h44l-22-12z" fill="#E5AB65"/>
+      <g fill="#E9E5DB" font-family="monospace" font-size="21" text-anchor="middle">
+        <text x="196" y="157">1v1</text><text x="500" y="150">2v2</text><text x="720" y="145">3v3</text>
+      </g>
+      <g fill="#9AA5B3" font-family="sans-serif" font-size="18" text-anchor="middle">
+        <text x="196" y="277">Duel Foundry</text><text x="336" y="191">ARRIVAL</text><text x="500" y="277">Twin Gantry</text><text x="720" y="277">Freight Hall</text>
+        <text x="74" y="98">Overlook</text><text x="826" y="98">Overlook</text>
+      </g>
+      <text x="450" y="320" fill="#E5AB65" font-family="sans-serif" font-size="18" text-anchor="middle">Beyond each gate: map board · weapon racks · lockers · rules console · ready rail</text>
+    </svg>
+  </div>
+  <p class="note">Concept blockout, not finished art. Horizontal order follows the current hub; the drawing is not a collision-scale blueprint. Preparation rooms are separate room-scoped 2D scenes, not additional match modes.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Area</th><th>Visual identity</th><th>Player purpose</th></tr></thead>
+    <tbody>
+      <tr><td>Arrival apron</td><td>Warm overhead lamp, repaired floor medallion, three-direction stencil and a distant furnace vista</td><td>Safe spawn away from triggers. Brief move/jump/interact hints; no mandatory modal or cinematic. No player collision or spawn pile-up.</td></tr>
+      <tr><td>1v1 · Duel Foundry</td><td>A narrow press-frame doorway, single opposing fighter silhouettes, heavy counterweight</td><td>Clearly marked <b>1v1 · 2 players</b>. Enters a small face-to-face preparation bay.</td></tr>
+      <tr><td>2v2 · Twin Gantry</td><td>Two linked overhead hoists, paired lamps, two-versus-two relief</td><td>Clearly marked <b>2v2 · 4 players</b>. Enters a wider bay with two marked places per side.</td></tr>
+      <tr><td>3v3 · Freight Hall</td><td>Broad freight shutter, triple bracing, three-versus-three relief</td><td>Clearly marked <b>3v3 · 6 players</b>. Enters the largest bay with three places per side.</td></tr>
+      <tr><td>Optional overlooks</td><td>Short catwalks, window seating, hanging banners and stacked salvage</td><td>Meet friends and move around. No shops, map selection or required setup hidden upstairs. Falls return safely; no damage, disasters or KOs in the lobby.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Start with the existing coordinates so networking and interaction tests survive the visual rebuild. If playtesting requires more space, change the web hub data first and regenerate the Luau copy. Target every mode reachable from spawn within five seconds of ordinary running. Camera follows the local player in a stable horizontal dead zone; crowds never zoom them to a dot. On narrow screens use small labelled direction markers for off-camera gates, not a menu substitute.</p>
+
+  <h3 id="lobby-flow">3. Choose a mode first, then prepare inside its room</h3>
+  <ol class="lobby-sequence">
+    <li><b>Approach and enter.</b> A nearby gate gains an amber edge and a readable interaction prompt. Merely walking past cannot queue the player. Use the configured interact binding (currently E / controller X) or a touch action. Display bindings from the input source, not hard-coded tutorial art.</li>
+    <li><b>Find a room in that mode.</b> The threshold's small room board lists same-server rooms and free human places, with Join / Create. Auto-select only when the choice is unambiguous and the player confirms it. A full room stays visibly full; never put someone in another mode or replace them with a CPU.</li>
+    <li><b>Walk into the preparation bay.</b> The player and that room's members move around a real side-view space. A clear exit returns to the concourse. One shared room template changes width and team markers for 2, 4 or 6 fighters; it is not three independent systems.</li>
+    <li><b>Map board.</b> The host interacts with a wall-mounted stage display. It shows large stage images, name, geometry thumbnail and rules/hazard labels. Show released, playable stages only: six now, expanding toward the plan's nine as R6 lands. Members can inspect the selected map but cannot overwrite host settings. Ranked/disaster options appear only when their systems exist.</li>
+    <li><b>Weapon racks and lockers.</b> The racks visibly display the real weapons before interaction. A focused catalogue then shows actual art, name, archetype and selected state. Next to it, the player's full fighter preview uses their actual avatar colours and equipped weapon. Reuse <code>weaponArt.js</code>/the sprite manifest as it lands; use the current renderer as fallback. Ship the existing 12; Rapier and Chakram become selectable only when R7 is playable. Lockers edit only the local player's appearance.</li>
+    <li><b>Rules console.</b> Host-only stocks, items and explicit per-empty-slot bot controls. The default sign reads <b>BOTS OFF — WAITING FOR PLAYERS</b>. Adding a CPU requires a deliberate action and shows CPU plus difficulty beside that slot; no timer-based autofill. Other members see the rules read-only. Reset bots off on a new room and after a match.</li>
+    <li><b>Ready rail.</b> Each player confirms readiness at their team's physical station. A stamped check, player name and lit marker show the accepted state. Standing on the platform is not consent; movement does not toggle readiness. Empty, CPU, ready and not-ready places use words/shapes, not colour alone. Host starts only with complete equal teams and every human ready. Roster, map, rules or loadout changes invalidate readiness.</li>
+    <li><b>Launch and return.</b> Preload the chosen map and fighter art while the room remains visible. The server validates the room revision and acknowledges the launch before any shutter covers the scene. Keep a loading label and Cancel/Back path; on asset or server failure restore the intact bay with a useful error. After the result, return to that room's preparation bay for a rematch, with ready flags cleared and bots off; its exit returns to the concourse.</li>
+  </ol>
+  <p>Panels open only at the object being used and close back to the same walkable space. They must not become one full-screen setup dashboard. On phones a focused sheet may temporarily occupy the screen for legibility; it closes back to the same station and is never the default lobby. Keyboard, controller and touch can complete the whole route. No combat controls leak through while chatting, editing an avatar or using a board.</p>
+
+  <h3 id="lobby-animation">4. Animation brief: reuse the bible, add life to the building</h3>
+  <p>Use the Animation Bible's actual production cells: <b>112 × 96 px</b> underlays, feet anchored at <b>(44, 80)</b>, approximately 42 px body height, and separate outline/primary/secondary/tertiary tint masks plus weapon/feature layers. Use this working-cell layout for the lobby, superseding the original plan's 48 × 48 cell suggestion: a 1024-square sheet fits at most 9 × 10 of these cells before padding, not 441. Reuse shared idle, walk, run, jumpsquat, air and landing poses without redrawing a separate lobby character.</p>
+  <p>Keep the bible's <b>hold, don't tween</b> rule: idle is a 60-frame loop, walk a 32-frame distance-driven cycle, run a 24-frame distance-driven cycle; rise/apex/fall comes from velocity and landing from state frames. Do not add combat, invincibility, new movement speeds or animation locks to make the lobby feel lively. Walk art is available where analog movement uses it; do not silently add an unsupported movement mechanic.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>New tag / drawings</th><th>60 Hz timing proposal</th><th>Pose / effect brief and trigger</th></tr></thead>
+    <tbody>
+      <tr><td><code>Lobby/interact</code> · 4 body poses</td><td>3 / 3 / 6 / 6 frames = 18</td><td>Look to station, reach, press/touch, withdraw. Keep feet anchored; show only after accepted interaction. Cancels immediately on movement or close; never changes match frame data.</td></tr>
+      <tr><td><code>Lobby/ready</code> · 4 body poses</td><td>4 / 4 / 8 / 8 = 24</td><td>Set feet, lift weapon slightly, confident hold, settle into existing idle. Play once on server-confirmed readiness. Unready cancels it. No repeated taunting or combat-scale flash.</td></tr>
+      <tr><td><code>Lobby/furnace</code> · 6 prop drawings</td><td>10 frames each = 60 loop</td><td>Coal bed brightens from deep amber and subsides behind fixed grating. No full-screen flicker or white highlights. Never represents a hazard.</td></tr>
+      <tr><td><code>Lobby/steam</code> · 6 prop drawings</td><td>8 each = 48, then 132 quiet</td><td>Valve release, compact puff, two expanding clusters, two dissolving clusters. Vent above the roof line; never over a sign or interaction area.</td></tr>
+      <tr><td><code>Lobby/chain</code> · 8 prop drawings</td><td>12 each = 96 loop</td><td>A restrained crane-chain sway: centre, two outward poses, far hold, then return and mirror. Background only. Foreground chains remain still in the navigation lane.</td></tr>
+      <tr><td><code>Lobby/gate-1v1/2v2/3v3</code> · 6 each, 18 drawings</td><td>4 / 4 / 4 / 4 / 4 / 10 = 30</td><td>Latch releases, counterweight takes load, crack, half-open, full-open, settle. Three silhouette-specific skins share one timing contract. Door art must not close over a visible fighter; transition follows confirmed room admission.</td></tr>
+      <tr><td><code>Lobby/console</code> · 4 prop drawings</td><td>3 / 3 / 6 / 12 = 24</td><td>Button depresses, contact light, confirmation, stable readout. The accepted value comes from room state; the animation cannot imply a rejected setting was applied.</td></tr>
+      <tr><td><code>Lobby/ready-marker</code> · 4 prop drawings</td><td>4 / 4 / 8 / 8 = 24</td><td>Mechanical plate turns into a readable check, lamp warms, settles. Final frame is held while ready. Text remains visible; no perpetual pulse.</td></tr>
+      <tr><td><code>Lobby/transfer-shutter</code> · 4 prop drawings</td><td>3 each = 12 close; reverse to reveal</td><td>A short mechanical wipe after a confirmed, loaded transition. It is presentation only, not a timer that starts the match. Reduced motion uses a direct cut with status text.</td></tr>
+      <tr><td><code>Lobby/arrival</code> · 4 effect drawings</td><td>3 each = 12</td><td>Small steel-grey landing dust at the feet, then disappear. One per accepted spawn/return event, de-duplicated by event ID. No respawn invincibility aura in the hub.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Body and room-state animations choose drawings from state/event frames, never render FPS. Ambient props may use a cosmetic fixed 60 Hz hub tick with stable per-prop phase offsets; they must not consume the match RNG or send per-frame network messages. Room transitions and ready effects use the server's accepted revision/event ID, so retries do not replay them. Lower animation quality freezes ambient props first, not player movement or status feedback.</p>
+  <p class="note"><b>Production delta:</b> 8 new shared body poses + 54 environment/effect drawings = <b>62 new drawings</b>, separate from the bible's current 1,516 entries. These are proposals, not completed art. Add a Lobby group to the animation manifest and document generator during L1; do not hand-edit generated <code>bible.html</code> or count reused movement poses twice.</p>
+
+  <h3 id="lobby-assets">5. Asset and implementation handoff</h3>
+  <ul class="clean">
+    <li><b>Art package:</b> four parallax layers; one modular deck/wall/trim/pipe tileset; three gate skins; one preparation-room kit with 2/4/6-slot variants; map-board, rack, locker, console and ready-rail props; gate numerals and status icon set; the 62 drawings above. Stage thumbnails and weapon images reuse their source art. No new NPC cast, store, currency or bespoke weapon-preview animation is required.</li>
+    <li><b>Estimate:</b> allow an additional <b>60–90 artist-hours</b> for the lobby environment kit, layers, new drawings, export and one revision pass. This is a planning allowance, not a quote or a measured throughput claim; re-estimate after one finished gate and room sample. Engineering and live QA are separate. Do not quietly absorb this work into the original 350–400-hour estimate.</li>
+    <li><b>Shared source:</b> extend <code>web/src/data/hub.js</code> with scene, collision and station definitions. Keep room-scene data separate from match stages. Generate the Luau data; never hand-edit <code>roblox/src/shared/Data</code>. Port shared movement/interaction behavior together and retain replay parity.</li>
+    <li><b>World renderer:</b> evolve <code>Hub2D.luau</code> and the web lobby presentation onto the R0 sprite path. Reuse body/weapon atlases, palette masks and camera math. Draw distant rooms only when visible; pool and hide sprites, not create/destroy them each frame.</li>
+    <li><b>Room views:</b> split the current <code>RoomPanel</code> responsibilities across station-focused views in the walkable bay, preserving its validated commands. Fusion may supply those views at R8, but adopting a UI library is not a prerequisite for a playable lobby. Existing compact setup remains a temporary fallback until every world station works.</li>
+    <li><b>Authority and presence:</b> retain <code>Rooms</code>, fixed teams, one-room-per-player and room-scoped match traffic. Extend cosmetic presence with validated area/room identity and bounded coordinates. The server derives allowed scene and membership; a claimed position cannot join a room, ready a player or change a setting. Only room members see that room's preparation scene.</li>
+    <li><b>Safe integration:</b> bring the main project's lobby/room modules into the revamp worktree before replacing their visuals. Resolve overlapping client entry-point, data-generator and networking changes explicitly; do not copy an older entry point over multiplayer. This is same-server multiplayer. Cross-server matchmaking, teleports and persistence redesign are separate work.</li>
+    <li><b>Streaming and fallback:</b> preload shared movement, lobby kit and released weapon thumbnails; stream selected map/weapon match sheets before launch. The R0 fallback renders missing artwork visibly without blocking movement. Asset failure must not strand users in a black screen or delete a room.</li>
+  </ul>
+
+  <h3 id="lobby-delivery">6. Delivery order and acceptance gates</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Phase / dependency</th><th>Deliverable</th><th>Done only when</th></tr></thead>
+    <tbody>
+      <tr><td><b>L0 · after R0</b><br>Layout and integration</td><td>Merge the existing room system safely; greybox the concourse and one resizable preparation bay. Three physical modes, all setup stations and a working exit.</td><td>Web and Roblox traverse the same reachable geometry. Spawn-to-gate ≤ 5 seconds at normal run. No mandatory jumps, accidental joins, trapped camera or fall softlocks. Verify one full return-to-room loop.</td></tr>
+      <tr><td><b>L1 · after R1</b><br>World art and animation</td><td>Replace the concourse/backgrounds, gates and room kit. Add Lobby manifest entries, shared movement reuse, station poses and environment flipbooks.</td><td>Correct 8 px/stud scale, atlas regions, anchors and layer order in both builds. Missing art visibly falls back. Readable dark silhouettes at play scale. Reduced motion retains every interaction cue.</td></tr>
+      <tr><td><b>L2 · after L1 + R2</b><br>Social and setup flow</td><td>Room discovery, map board, actual weapon images, lockers, explicit CPUs, ready rail, acknowledged loading and return. Consume each R3 weapon as its art lands.</td><td>Real 2/4/6-client sessions launch and return correctly; another player stays in the hub. Host-only settings, own-loadout edits, leave/cancel, host migration and full-team readiness work. Empty human slots never auto-fill.</td></tr>
+      <tr><td><b>L3 · part of R8</b><br>Release gate</td><td>Audio, input/accessibility, final sprite replacement, measured load/performance and full multiplayer regression evidence.</td><td>Phone, controller and keyboard routes pass; six-player rooms plus hub spectators remain usable. Timings/pool counts measured in Studio and a browser. Every failed-asset/network path has recovery; no unresolved blocking lobby bugs.</td></tr>
+    </tbody>
+  </table></div>
+  <ul class="clean">
+    <li><b>Direct properties, not just screenshots:</b> exactly three mode triggers; map/rack/rules stations inaccessible before mode entry; bots off on create/reconnect/rematch; only the host changes shared settings; readiness invalidates on changes; no launch with incomplete teams or an unready human.</li>
+    <li><b>Multiplayer cases:</b> two clients in 1v1, four in 2v2, six in 3v3; one six-player room and a separate two-player room plus a hub spectator. Test full-room join, simultaneous joins, stale revisions, disconnect during setup/loading/fight, host migration, cancellation and return. No room receives another room's game or preparation data.</li>
+    <li><b>Visual/input QA:</b> inspect GUI Position/Size/Rotation and sprite regions in fresh Studio Play, then visually review rendered scenes. Check all weapon images and avatar tint layers, both facings, room capacity variants, crowded labels, chat focus and 360×640 / 800×600 / 1280×720 layouts. Restart Play after sync; cached modules do not prove the new version was tested.</li>
+    <li><b>Performance targets to measure, not claims:</b> budget ≤ 1 ms p95 for lobby scenery/station draw on the reference desktop, excluding fighters; record fighter and whole-frame costs separately. No steadily growing live instance count after 100 room-entry/exit cycles. Sustain at least 30 fps on the agreed low-end device. Cap ambient effects and disable them before reducing essential legibility.</li>
+    <li><b>Automation:</b> extend <code>hub-parity</code>, <code>hub-view</code>, <code>room-ui</code>, <code>rooms</code>, <code>multiplayer</code> and sprite parity. Run <code>roblox/check.sh</code> and <code>npm test</code>. Prove new tests fail by deliberately adding a fourth entrance, auto-enabling a bot, admitting a cross-room pose, dropping a weapon image, skipping ready validation or breaking an animation anchor in an isolated copy.</li>
+  </ul>
+  <p class="note">Design decisions fixed for this revision: one shared industrial hub; only three mode gates; walkable preparation bays; station-focused panels; actual weapon art; bots off. Later extras such as shops, training modes, NPC quests, parties across servers or seasonal events are not required for this revamp and must not delay this route to a fight.</p>
+</section>
+
+<section id="maps">
+  <p class="eyebrow">Maps</p>
+  <h2>Nine maps: three competitive, six with disasters</h2>
+  <p>Each layout below is drawn <b>to scale from the stage data</b>. The six existing maps use their live geometry, and the three new ones use the numbers proposed here, ready to go into <code>web/src/data/stages</code>. The dashed box is the blast zone (where you get KO'd). The ruler is 23 studs, which is one second of running.</p>
+  <div class="legend">
+    <span><i style="background:#4A5668"></i>solid ground</span>
+    <span><i style="background:#8E9BB0"></i>drop-through platform</span>
+    <span><i style="background:var(--amber)"></i>grabbable ledge</span>
+    <span><i style="background:rgba(240,139,96,.55)"></i>disaster zone</span>
+    <span><i style="background:rgba(142,232,106,.55)"></i>safe zone</span>
+    <span><i style="background:transparent;border:1px dashed var(--muted)"></i>blast zone</span>
+  </div>
+  <div id="mapList"></div>
+</section>
+
+<section id="disasters">
+  <p class="eyebrow">Natural disasters</p>
+  <h2>A new engine system, not a visual effect</h2>
+  <p>Disasters live in a new file, <code>web/src/engine/disasters.js</code>, ported to <code>roblox/src/shared/Disasters.luau</code> and checked by a <code>disaster-parity</code> replay test. They use the stage's seeded random generator, so a match can still be replayed exactly from its seed and inputs. They're separate from the 10 existing <b>hazards</b>. Hazards are small, always-on features of a map. Disasters are big, scheduled events with warnings.</p>
+  <div class="grid3" style="margin-bottom:22px">
+    <div class="rule"><b>When they happen</b><p>The first one comes at 45 s at the earliest, then every 40–55 s (the seed decides exactly when). None during the countdown or sudden death.</p></div>
+    <div class="rule"><b>Warning</b><p>At least 90 frames of warning, with a cyan warning shape in the world plus an edge-of-screen arrow on the HUD if it's off camera.</p></div>
+    <div class="rule"><b>Damage</b><p>Goes through <code>launchSpeed</code>/<code>stunSpeed</code> with low knockback growth. The rule is no KO below 140%, and a test enforces it.</p></div>
+    <div class="rule"><b>Two ways to survive</b><p>A place to stand that's safe, and a timing-based dodge. A disaster that can only be escaped by running away is a chore, not a skill.</p></div>
+    <div class="rule"><b>Never unfair</b><p>Doesn't affect respawn platforms or invincible fighters. Never targets just one player.</p></div>
+    <div class="rule"><b>Modes</b><p><b>Off</b> (ranked, always) · <b>Stage</b> (each map's own disaster, default for casual) · <b>Chaos</b> (the 4 disasters that work on any map rotate on every casual map).</p></div>
+  </div>
+  <p class="note"><b style="color:var(--ink)">Testing:</b> in the bot soak test (144 matches), disasters must cause ≤ 15% of all KOs. For each disaster, a scripted fighter standing in the listed safe zone takes 0 damage across 100 seeded occurrences. As with every other test in this repo, each of these gets checked by deliberately breaking the code and confirming the test catches it.</p>
+  <div id="disasterList"></div>
+</section>
+
+<section id="roadmap">
+  <p class="eyebrow">Roadmap</p>
+  <h2>Order of work, and how each step is proven done</h2>
+  <p class="note"><b>Lobby addition:</b> L0–L3 below are new milestones interleaved with the original roadmap. They are planned, not implemented. Add the separately scoped lobby asset workload; the original art estimate does not include it.</p>
+  <p>The code phases are fairly small. <b>Drawing the art is the slow part.</b> A rough estimate: about 1,500 finished, layered key poses at around 6 an hour, plus 30-odd background layers. That comes to roughly <b>350–400 hours of art</b>, which is why rule 5 exists: the game can ship with some moves still drawn the old way.</p>
+  <div id="phases"></div>
+</section>
+
+<section id="decisions">
+  <p class="eyebrow">Needs your call</p>
+  <h2>Five decisions before phase R0</h2>
+  <div class="grid2" id="questions"></div>
+  <h3>Sources</h3>
+  <ul class="sources">
+    <li><a href="https://www.aseprite.org/docs/cli/">Aseprite — command-line export (--sheet, --data, --split-layers)</a></li>
+    <li><a href="https://github.com/jackTabsCode/asphalt">Asphalt — Roblox asset upload and code generation</a> · <a href="https://github.com/jackTabsCode/asphalt/releases">releases</a></li>
+    <li><a href="https://ilovesprites.com/blog/roblox-gui-sprite-sheet-animations">Sprite sheets in Roblox via ImageRectOffset / ImageRectSize, 1024 px limit</a></li>
+    <li><a href="https://madstudioroblox.github.io/ProfileStore/">ProfileStore documentation</a></li>
+    <li><a href="https://github.com/dphfox/Fusion">Fusion</a> · <a href="http://ui-labs.luau.page/docs/stories/advanced/fusion">UI Labs</a></li>
+    <li><a href="https://devforum.roblox.com/t/blink-an-idl-compiler-written-in-luau-for-roblox-buffer-networking-0185/2959671">Blink — buffer networking IDL</a></li>
+  </ul>
+</section>
+</main>
+</div>
+<script>
+(function(){
+"use strict";
+const WPIX={"Sword":{"w":27,"h":12,"ox":7,"oy":6,"reach":2.375,"rects":36,"colours":["#7A8698","#FFFFFF","#5A2E2E","#D9DEE6","#3B4453","#FFE7B0","#FFB347","#5F6B7C"],"rows":[".......#...................","......#0#..................",".....#00#.#.#..............","..##.#001#1#1##########....",".#22##00333333333333333##..","#244220056666666666666333#.","#2442200333333333333333333#",".#22##0077777777777733333#.","..##.#00##########7777###..",".....#00#.........####.....","......#0#..................",".......#..................."]},"Scythe":{"w":41,"h":17,"ox":7,"oy":3,"reach":3.75,"rects":59,"colours":["#8E7BA8","#241C30","#E8E0CC","#E4DCF0","#4A3B5C","#B77DFF"],"rows":["............................####.........",".###########################0000###......","#1112222222211222222222222220000333##....","#111222222221122222222222222000033333#...",".###########################00044####....","..........................#0444444#......","..........................#44444444#.....",".........................#544444444#.....",".......................##544444444#......",".....................##3544444444#.......","..................###3354444444##........","..............####3335444444###..........","..........####3333554444####.............",".......###3333555444####.................",".....##333344444####.....................","....#333########.........................",".....###................................."]},"Blasters":{"w":13,"h":11,"ox":4,"oy":5,"reach":1,"rects":29,"colours":["#C9CFD8","#2F3A4A","#FFE9A8","#FFF3D0","#FFC44D","#1A2230"],"rows":["...##........",".##00####....","#11111111###.","#12222221000#","#11111111003#","#14545451###.",".#55115##....","..#000#......","..#000#......","...#00#......","....##......."]},"Grimoire":{"w":15,"h":14,"ox":7,"oy":7,"reach":0.875,"rects":27,"colours":["#171233","#2B2350","#EFE6FF","#F0E7D2","#6E5FC0","#7DE8FF","#FFFFFF"],"rows":[".############..","#001111111111#.","#0222222222233#","#0111111111133#","#0141111114133#","#0111155511133#","#0111556551133#","#0111566651433#","#0111556551133#","#0111155511133#","#0141111114133#","#0111111111133#","#001111111111#.",".############.."]},"Axe":{"w":38,"h":21,"ox":9,"oy":11,"reach":3.375,"rects":75,"colours":["#2E2A26","#8A8F98","#B4462E","#5A4632","#8A6E4A"],"rows":["......................................","......................................",".........................###..........","........................#012#.........","........................#0112#........","........................#01112#.......",".......................#0011112#......","..................#....#00111112#.....",".##..............#3#...#001111112#....","#33###############33###0011111112#....","#34444444333444444444444111111112#....","#344444443334444444444441111111112#...","#33###############33###00111111112##..",".##..............#3#...#001111111112#.","..................#...#001111111112#..","......................#0011111111112#.","......................#0111111111112#.",".....................#0111111111222#..","....................#0111111222####...","...................#012222#####.......","....................######............"]},"Pike":{"w":63,"h":12,"ox":14,"oy":4,"reach":6,"rects":39,"colours":["#7FE0C8","#6E7C8A","#F0E6CC","#C9B489","#2B3038","#A8322E"],"rows":["..........................................................#....","..............................................##.......###0#...",".#############################################11#######22222##.","#1133333333333444444443333334333333333343333331111222222222222#","#113333333333344444444333333433333333334333333111122222222222#.",".#############################################11#5555##2222##..","..............................................###5555555###....","................................................#555555#.......","................................................#5555555#......","................................................#55##555#......","................................................#5#..#55#......",".................................................#....##......."]},"Gauntlets":{"w":14,"h":10,"ox":5,"oy":5,"reach":1,"rects":30,"colours":["#C8CED8","#B4462E","#5A2018","#E8C07A","#FF9A4A"],"rows":[".....##.##....","....#00#00#...",".###1111111#..","#22213333334#.","#242133333334#","#242122222334#","#22213333334#.",".###1111111#..","....#00#00#...",".....##.##...."]},"Hammer":{"w":42,"h":18,"ox":11,"oy":10,"reach":3.75,"rects":38,"colours":["#5A5048","#8A94A6","#2A2420","#FFB05A","#4A4038","#7A5A3A"],"rows":["..............................###########.",".............................#01111111110#",".............................#01111111110#",".............................#22222222222#","........................######01113111110#",".......................#44444401111311110#",".##....................#44444401111131110#","#44###########################1111311110#.","#455555555555555555555555555551111331110#.","#455555555555555555555555555551111131110#.","#44###########################1111131110#.",".##....................#44444401111311110#",".......................#44444401111311110#","........................######01111311110#",".............................#22222222222#",".............................#01111111110#",".............................#01111111110#","..............................###########."]},"Longbow":{"w":11,"h":26,"ox":1,"oy":13,"reach":1.125,"rects":31,"colours":["#F0E2C0","#C9A96A","#5A4028"],"rows":[".##........","#01##......","#0#11#.....","#0##11#....","#0#.#11#...","#0#..#11#..","#0#..#11#..","#0#...#11#.","#0#...#11#.","#0#....#11#","#0#....#11#","#0#...#222#","#0#...#222#","#0#...#222#","#0#...#222#","#0#....#11#","#0#....#11#","#0#...#11#.","#0#...#11#.","#0#..#11#..","#0#..#11#..","#0#.#11#...","#0##11#....","#0#11#.....","#01##......",".##........"]},"Flail":{"w":48,"h":16,"ox":10,"oy":8,"reach":4.5,"rects":61,"colours":["#6E7684","#C8CED8","#3A3038","#7A6248","#C86AE8","#FFFFFF","#4A505C"],"rows":[".......................................#........","......................................#0#.......",".....................................##1##......","...................................##00000##....","..................................#000000000#...",".##...............................#010000000#...","#22###########.##.##.##.##.##.####00000000000#..","#2333333333322#00#00#00#00#00#0000000000000011#.","#2333333333322#00#00#00#00#00#0000454545454011#.","#22###########.##.##.##.##.##.####00000000000#..",".##...............................#000000000#...","..................................#066666660#...","...................................##00000##....",".....................................##1##......","......................................#0#.......",".......................................#........"]},"Shield":{"w":11,"h":26,"ox":4,"oy":13,"reach":0.75,"rects":40,"colours":["#B08A4A","#B0B8C6","#8A6E4A","#4A5464","#1A2230","#7FD4FF","#E8B04A","#2A303C"],"rows":[".#########.","#000000000#","#011111110#","#012111210#","#011111110#","#013333310#","#011111110#","#011111110#","#011111110#","#012111210#","#011111110#","#014444410#","#014555410#","#014444410#","#011111110#","#012111210#","#011111110#","#011111110#","#013333310#","#011111110#","#012111210#","#067676760#","#076767670#","#000000000#",".#7777777#.","..#######.."]},"Daggers":{"w":24,"h":8,"ox":11,"oy":4,"reach":1.5,"rects":23,"colours":["#FF4A6A","#C8CED8","#A0ACBE","#2E3A4A","#1A2230"],"rows":[".....................##.","...................##00#",".##..........######0011#","#22##########331111111#.","#22111111144331111111#..",".#000000444433#######...","..##########33#.........","............##.........."]},"Rapier":{"w":30,"h":9,"ox":6,"oy":5,"reach":2.875,"rects":null,"colours":["#6EA8FF","#C9A043","#2A3550","#DDE3EC","#F2F5FA"],"rows":["...##.........................","..#00#........................",".#0001#.......................","#221111######################.","#2211133333333333333333333334#","#221111######################.",".####1#.......................","....#1#.......................",".....#........................"]},"Chakram":{"w":23,"h":11,"ox":2,"oy":6,"reach":2.5,"rects":null,"colours":["#C0C8D4","#3CE8C8"],"rows":["...#####.......#####...","..#00000#.....#00000#..",".#0011100#...#0011100#.","#001###100#.#001###100#","#01#...#10#.#01#...#10#","#01#...#10#.#01#...#10#","#01#...#10#.#01#...#10#","#001###100#.#001###100#",".#0011100#...#0011100#.","..#00000#.....#00000#..","...#####.......#####..."]}};
+/* ============================================================ pixel toolkit ==== */
+function pxCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;c.className='px';const g=c.getContext('2d');g.imageSmoothingEnabled=false;return {c,g,w,h};}
+function R(g,x,y,w,h,col){g.fillStyle=col;g.fillRect(Math.round(x),Math.round(y),Math.max(1,Math.round(w)),Math.max(1,Math.round(h)));}
+function P(g,x,y,col){g.fillStyle=col;g.fillRect(Math.round(x),Math.round(y),1,1);}
+function D(g,cx,cy,r,col){g.fillStyle=col;for(let y=-r;y<=r;y++){const dx=Math.floor(Math.sqrt(r*r-y*y));g.fillRect(Math.round(cx-dx),Math.round(cy+y),dx*2+1,1);}}
+function E(g,cx,cy,rx,ry,col){g.fillStyle=col;for(let y=-ry;y<=ry;y++){const dx=Math.floor(rx*Math.sqrt(Math.max(0,1-(y*y)/(ry*ry))));g.fillRect(Math.round(cx-dx),Math.round(cy+y),dx*2+1,1);}}
+function L(g,x0,y0,x1,y1,col,t){t=t||1;g.fillStyle=col;x0=Math.round(x0);y0=Math.round(y0);x1=Math.round(x1);y1=Math.round(y1);
+  const dx=Math.abs(x1-x0),dy=-Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1;let e=dx+dy;const o=Math.floor((t-1)/2);
+  for(let i=0;i<400;i++){g.fillRect(x0-o,y0-o,t,t);if(x0===x1&&y0===y1)break;const e2=2*e;if(e2>=dy){e+=dy;x0+=sx;}if(e2<=dx){e+=dx;y0+=sy;}}}
+function ARC(g,cx,cy,r,a0,a1,col,t){const n=Math.max(8,Math.ceil(Math.abs(a1-a0)*r*1.6));for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;const x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;R(g,x-(t-1)/2,y-(t-1)/2,t,t,col);}}
+function RING(g,cx,cy,r,col){ARC(g,cx,cy,r,0,Math.PI*2,col,1);}
+function A(col,a){const n=parseInt(col.slice(1),16);return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')';}
+function star(g,x,y,r,col){L(g,x-r,y,x+r,y,col);L(g,x,y-r,x,y+r,col);if(r>2){L(g,x-r+1,y-r+1,x+r-1,y+r-1,col);L(g,x-r+1,y+r-1,x+r-1,y-r+1,col);}}
+
+/* A pixel fighter with the game's own proportions: hip 0.34h, shoulder 0.70h, head 0.24h.
+   Angles: 0 = limb straight down, +PI/2 = straight forward (towards facing), PI = straight up. */
+const DEF_PAL={p:'#F2C94C',s:'#4A90D9',t:'#2E5F8A'};
+function fighter(g,x,y,o){
+  o=o||{};const f=o.f||1,H=o.h||16,pal=o.pal||DEF_PAL,lean=(o.lean||0)*f,cr=o.crouch||0;
+  const hip=y-Math.round(H*0.34)+cr,sho=y-Math.round(H*0.70)+cr,hs=Math.max(3,Math.round(H*0.24));
+  const leg=Math.round(H*0.34),arm=Math.round(H*0.30);
+  const limb=(x0,y0,a,len,col,t)=>{const x1=x0+f*Math.sin(a)*len,y1=y0+Math.cos(a)*len;L(g,x0,y0,x1,y1,col,t);return [x1,y1];};
+  const col=(k)=>o.mono||pal[k];
+  limb(x-1,hip,o.lB!=null?o.lB:-0.15,leg-(cr>0?1:0),o.mono||shade(pal.t),2);
+  limb(x+1,hip,o.lF!=null?o.lF:0.15,leg-(cr>0?1:0),col('t'),2);
+  limb(x+lean,sho+1,o.aB!=null?o.aB:0.25,arm,o.mono||shade(pal.s),2);
+  R(g,x-2+lean,sho,4,hip-sho+1,col('p'));
+  R(g,x-Math.floor(hs/2)+lean+(f>0?0:0),sho-hs,hs,hs,col('p'));
+  if(!o.mono)P(g,x+lean+(f>0?1:-2),sho-hs+Math.floor(hs/2),'#1B1526');
+  const hand=limb(x+lean+f,sho+1,o.aF!=null?o.aF:0.3,arm,col('s'),2);
+  if(o.weapon&&!o.noWeapon)o.weapon(g,hand[0],hand[1],o.wa!=null?o.wa:(o.aF!=null?o.aF:0.3),f);
+  return {hand,head:[x+lean,sho-hs],hip:[x,hip]};
+}
+function shade(hex){const n=parseInt(hex.slice(1),16);const k=.74;return 'rgb('+Math.round((n>>16&255)*k)+','+Math.round((n>>8&255)*k)+','+Math.round((n&255)*k)+')';}
+function outlined(g,x,y,o,col){for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]])fighter(g,x+dx,y+dy,Object.assign({},o,{mono:col,noWeapon:true}));return fighter(g,x,y,o);}
+/* a weapon as a line from the hand along the arm angle */
+function blade(len,col,t,tip){return (g,x,y,a,f)=>{const x1=x+f*Math.sin(a)*len,y1=y+Math.cos(a)*len;L(g,x,y,x1,y1,col,t||1);if(tip)P(g,x1,y1,tip);};}
+
+/* ============================================================ weapons ==== */
+const W=[
+ {id:'Sword',code:'Oathblade',arch:'All-rounder',mech:'Momentum',pal:['#D9DEE6','#7A8698','#3B4453','#FFB347','#5A2E2E'],
+  look:'A foundry falchion with a clipped chopping tip, a sawtoothed spine near the guard, and a groove down the blade that runs molten amber. The groove is the Momentum meter: it burns brighter as momentum builds. Oxblood grip, cracked iron guard.',
+  sig:[['Crescent Rush','SigSide','A 3-ghost afterimage trails the dash, then a 120° amber crescent snaps open on contact. Dust kicks up at the start and at the stop.'],
+       ['Earthsplitter','SigDown','An overhead chop that leaves the blade stuck in the floor for 2 recovery poses, with a crack sprite running 6 studs forward.'],
+       ['Skyward','SigNeutral','A rising vertical slash that leaves a column of light fading over 12 frames.']],
+  ult:'Colossus',tweak:null,
+  draw(g){R(g,2,11,6,3,'#5A2E2E');R(g,1,10,2,5,'#7A8698');R(g,8,6,2,13,'#7A8698');P(g,8,6,'#3B4453');P(g,9,18,'#3B4453');
+   R(g,10,10,34,5,'#D9DEE6');R(g,10,14,32,1,'#7A8698');L(g,44,10,47,12,'#D9DEE6');L(g,44,14,47,12,'#D9DEE6');R(g,13,12,26,1,'#FFB347');P(g,21,12,'#FFF3D0');P(g,30,12,'#FFF3D0');}},
+ {id:'Scythe',code:'Grave Bloom',arch:'Reach / combo',mech:'Bloom',pal:['#E8E0CC','#4A3B5C','#241C30','#B77DFF','#E4DCF0'],
+  look:'A bone-white shaft with an iron socket, a short forward spur, and a crescent of violet soul-glass sweeping back toward the hands. The glass\'s inner edge carries the Bloom glow.',
+  sig:[['Reaper\'s Arc','SigSide','A 200° sweep that leaves a ghost-blade trail. Hits drag the target back along the arc.'],
+       ['Harvest','SigDown','A hook-and-pull: a chain of violet wisps traces the pull path back to you.'],
+       ['Soul Tether','SigNeutral','A tether line made of wisps. It pulls taut and brightens while stretched.']],
+  ult:'Soul Harvest',tweak:null,
+  draw(g){L(g,4,22,30,3,'#E8E0CC',2);P(g,5,21,'#8E7BA8');ARC(g,38,15,13,-2.6,-0.35,'#4A3B5C',3);ARC(g,38,15,12,-2.5,-0.4,'#B77DFF',1);R(g,28,2,4,3,'#8E7BA8');}},
+ {id:'Blasters',code:'Twin Rivets',arch:'Zoner',mech:'Spines',pal:['#2F3A4A','#C9CFD8','#B08A4A','#FFC44D','#1A2230'],
+  look:'Foundry rivet guns: a boxy housing, a fat nozzle and a brass grip. The six-round magazine shows as six pips on the side, so you can read the ammo off the gun itself.',
+  sig:[['Full Auto','SigSide','A 3-frame muzzle-flash cycle, tracers, and brass shell casings flying out as separate particles.'],
+       ['Scattergun','SigDown','A cone of 5 tracers and a smoke puff that fades over 18 frames.'],
+       ['Overcharge','SigNeutral','A charge coil that glows in 3 stages, then a cyan beam with a white core.']],
+  ult:'Deadeye',tweak:null,
+  draw(g){for(const [ox,oy] of [[2,3],[22,9]]){R(g,ox,oy+3,18,6,'#2F3A4A');R(g,ox+18,oy+4,5,3,'#C9CFD8');R(g,ox+3,oy+9,5,7,'#B08A4A');R(g,ox+4,oy+1,8,2,'#1A2230');for(let i=0;i<6;i++)P(g,ox+3+i*2,oy+6,'#FFC44D');}}},
+ {id:'Grimoire',code:'Starbound Codex',arch:'Heavy zoner',mech:'Light',pal:['#2B2350','#6E5FC0','#171233','#7DE8FF','#EFE6FF'],
+  look:'An iron-bound ledger with corner plates, the page block showing along the open edge, and a gear-shaped clasp that glows. Light segments show up as extra glow on the pages.',
+  sig:[['Runebrand','SigSide','A spinning rune glyph that leaves 3 fading copies behind it.'],
+       ['Glyph Trap','SigDown','A ground sigil that pulses cyan while it\'s armed. The pulse is its warning.'],
+       ['Starfall','SigNeutral','A star beam that charges up visibly, with its width growing across the charge levels.']],
+  ult:'Astral Rain',tweak:null,
+  draw(g){R(g,12,4,22,16,'#2B2350');R(g,12,4,3,16,'#171233');R(g,34,6,2,12,'#EFE6FF');R(g,31,11,6,2,'#6E5FC0');star(g,24,12,3,'#7DE8FF');P(g,8,6,'#7DE8FF');P(g,40,3,'#EFE6FF');P(g,42,19,'#7DE8FF');}},
+ {id:'Axe',code:'Headsman',arch:'Heavy bruiser',mech:'Momentum',pal:['#8A8F98','#5A4632','#2E2A26','#FFB05A','#8A2E1F'],
+  look:'A bearded executioner\'s axe: a short top horn, a long beard sweeping back toward the handle, and a rust-red edge that heats with Momentum. The handle is the weight you see dragging on the floor.',
+  sig:[['Wide Arc','SigSide','A sweep along the floor that leaves a line of sparks where the blade dragged.'],
+       ['Executioner','SigDown','A straight-down drop with a vertical smear drawing and a 1-frame white flash on impact.'],
+       ['Uproot','SigNeutral','An upward heave that tears chunks of floor up with it.']],
+  ult:'Reave',tweak:null,
+  draw(g){L(g,3,21,36,4,'#5A4632',2);R(g,30,1,12,4,'#2E2A26');E(g,40,9,6,8,'#8A8F98');R(g,32,2,4,12,'#8A8F98');ARC(g,40,9,7,-1.2,1.2,'#8A2E1F',1);P(g,46,4,'#FFB05A');P(g,47,10,'#FFB05A');}},
+ {id:'Pike',code:'Tollgate',arch:'Spacer',mech:'Brace',pal:['#C9B489','#6E7C8A','#2B3038','#7FE0C8','#A8322E'],
+  look:'Almost all shaft: iron bands, a leaf-shaped point, and a crimson swallowtail pennant under the head that shows which way you face and roughly how far you reach, even zoomed out.',
+  sig:[['Full Extension','SigSide','A needle-thin thrust with one long straight speed line along the pike.'],
+       ['Pin','SigDown','A low thrust that ends with a ground spike sprite and a dust ring.'],
+       ['Pike Wall','SigNeutral','Three ghost pikes rise in a row at 88°, one after another.']],
+  ult:'Lance Charge',tweak:null,
+  draw(g){L(g,1,12,40,12,'#6E7C8A',1);L(g,1,13,40,13,'#2B3038',1);L(g,40,12,47,12,'#C9B489',1);R(g,41,11,4,3,'#C9B489');R(g,34,14,5,5,'#A8322E');P(g,38,19,'#A8322E');}},
+ {id:'Gauntlets',code:'Overdrive Knuckles',arch:'Rushdown',mech:'Surge',pal:['#E8C07A','#B4462E','#5A2018','#FF9A4A','#FFE9C4'],
+  look:'A hydraulic fist: a riveted bracer with a glowing vent, twin piston rods over the knuckles, a clenched thumb line, and three knuckle plates that flare in Overdrive.',
+  sig:[['Rush Elbow','SigSide','A jet of steam behind the elbow, with vents flaring on the startup frames.'],
+       ['Meteor Fist','SigDown','A 308° spike downward with a trail of fire and a crater puff.'],
+       ['Overdrive Blow','SigNeutral','A haymaker with a visible piston windup and a shockwave ring on contact.']],
+  ult:'Rundown',tweak:null,
+  draw(g){for(const [ox,oy] of [[6,5],[26,7]]){R(g,ox,oy,14,11,'#B4462E');R(g,ox,oy+3,14,1,'#5A2018');R(g,ox,oy+7,14,1,'#5A2018');R(g,ox+14,oy+1,3,9,'#E8C07A');R(g,ox-3,oy+3,3,5,'#5A2018');P(g,ox+4,oy-1,'#FF9A4A');P(g,ox+9,oy-1,'#FF9A4A');}}},
+ {id:'Hammer',code:'Groundbreaker',arch:'Superheavy',mech:'Momentum',pal:['#8A94A6','#4A4038','#2A2420','#FFB05A','#7A5A3A'],
+  look:'A forge sledge: a stone head bound by two iron bands, with a crack through its core that glows and widens with Momentum, and squared lugs on the back.',
+  sig:[['Breach','SigSide','A shield-breaking swing: a crack sprite spreads across the target\'s shield bubble.'],
+       ['Earthshatter','SigDown','A slam that sends rock chunks rolling out 8 studs each way along the floor.'],
+       ['Crushing Blow','SigNeutral','An overhead strike with a 1-frame white impact flash and a big screen shake.']],
+  ult:'Upheaval',tweak:null,
+  draw(g){L(g,2,20,30,6,'#7A5A3A',2);R(g,28,1,16,14,'#8A94A6');R(g,28,4,16,2,'#4A4038');R(g,28,10,16,2,'#4A4038');L(g,34,2,38,14,'#2A2420');L(g,35,6,37,10,'#FFB05A');}},
+ {id:'Longbow',code:'Heartstring',arch:'Precision zoner',mech:'Draw',pal:['#C9A96A','#5A4028','#2E2418','#8EE86A','#F0E2C0'],
+  look:'A green-bronze recurve bow with a wrapped grip and a straight pale string. The string is the only straight line on the weapon, and it\'s what you read at a glance.',
+  sig:[['Rainfall','SigSide','Arrows arc upward, and landing shadows appear on the ground 20 frames before they hit.'],
+       ['Tripwire','SigDown','A thin glinting wire that shines once every 30 frames while it\'s set.'],
+       ['Power Shot','SigNeutral','A charged arrow with a spiral trail. The spiral gets tighter the more it\'s charged.']],
+  ult:'Heartseeker',tweak:null,
+  draw(g){ARC(g,14,12,11,-1.35,1.35,'#C9A96A',2);L(g,16,1,16,23,'#F0E2C0');L(g,16,12,44,12,'#5A4028');L(g,44,10,47,12,'#FF4A4A');L(g,44,14,47,12,'#FF4A4A');R(g,17,10,3,5,'#8EE86A');}},
+ {id:'Flail',code:'Wrecking Chain',arch:'Space control',mech:'Snare',pal:['#6E7684','#3A3038','#231C22','#C86AE8','#7A6248'],
+  look:'A riveted wrecking ball with four heavy spikes, on a chain drawn link by link (the number of links is the real reach), with a rivet band that catches the Snare glow.',
+  sig:[['Reaper','SigSide','A wide arc with a trail on the way out and on the way back, matching both hit windows.'],
+       ['Snare','SigDown','The chain wraps around the target and a magenta pull-line snaps tight.'],
+       ['Chain Reaper','SigNeutral','An overhead whirl that draws a circle trail over 3 poses.']],
+  ult:'Anchor',tweak:null,
+  draw(g){R(g,2,14,8,3,'#7A6248');for(let i=0;i<7;i++)R(g,11+i*3,13-i,2,2,'#6E7684');D(g,38,6,5,'#3A3038');for(const [dx,dy] of [[0,-7],[7,0],[0,7],[-7,0],[5,-5],[5,5]])P(g,38+dx,6+dy,'#C8CED8');P(g,36,4,'#C86AE8');}},
+ {id:'Shield',code:'Bastion',arch:'Counter attacker',mech:'Brace',pal:['#B0B8C6','#4A5464','#2A303C','#FFD58A','#7FD4FF'],
+  look:'A salvaged blast door carried as a tower shield: bronze rim, rivets, a viewing slit that shimmers during Counterguard\'s window, and hazard stripes along the bottom edge.',
+  sig:[['Bulwark Charge','SigSide','A shield bash that pushes a wedge of dust ahead of it.'],
+       ['Aegis Slam','SigDown','A slam with a dome-shaped shockwave.'],
+       ['Counterguard','SigNeutral','On a successful counter: a white-gold flash frame, a 4-point star, and 6 frames of hit-pause.']],
+  ult:'Aegis',tweak:null,
+  draw(g){R(g,16,1,18,21,'#B08A4A');R(g,17,2,16,19,'#4A5464');R(g,18,3,14,17,'#B0B8C6');R(g,23,7,4,6,'#8A6E4A');P(g,22,8,'#8A6E4A');P(g,27,8,'#8A6E4A');R(g,24,13,2,3,'#8A6E4A');R(g,17,21,16,1,'#2A303C');}},
+ {id:'Daggers',code:'Twinfang',arch:'Combo monster',mech:'Surge',pal:['#C8CED8','#2E3A4A','#1A2230','#FF4A6A','#7A1A2A'],
+  look:'Two curved daggers with crimson crystal edges. The front blade curls up at the tip and the reversed one trails behind the hand, so every frame reads as a pair. No blood, per Roblox\'s content rules.',
+  sig:[['Execution','SigSide','A blink-dash that leaves an X-shaped smear where the two blades cross.'],
+       ['Bloodrush','SigDown','A low sweep that trails crimson shards along the ground.'],
+       ['Blade Storm','SigNeutral','A spinning ring of 8 small slash streaks around you.']],
+  ult:'Exsanguinate',tweak:null,
+  draw(g){ARC(g,14,20,16,-1.5,-0.55,'#C8CED8',2);ARC(g,34,20,16,-2.6,-1.65,'#C8CED8',2);R(g,4,18,5,3,'#2E3A4A');R(g,39,18,5,3,'#2E3A4A');P(g,24,5,'#FF4A6A');P(g,23,6,'#FF4A6A');P(g,25,6,'#FF4A6A');}},
+ {id:'Rapier',code:'Duelist',arch:'Poke / riposte',mech:'Riposte',isNew:true,pal:['#DDE3EC','#C9A043','#2A3550','#6EA8FF','#F2F5FA'],
+  look:'A slim silver blade with a gold basket hilt and a blue plume. A precise fencer with the thinnest hitboxes of anything except the Pike, and different from Shield: it rewards a perfect shield instead of a counter stance.',
+  sig:[['Lunge','SigSide','A 12-frame startup lunge with a long, thin hitbox and a single glint on the tip at contact.'],
+       ['Flèche','SigDown','A diving aerial thrust at 300° with a blue speed-streak.'],
+       ['Riposte','SigNeutral','Only available within 30 frames of a perfect shield (the existing 4-frame window). Does 1.5× damage, and the plume flares as the cue.']],
+  ult:'Thousand Cuts',tweak:'<b>New engine hook:</b> a <code>riposte</code> window set by the existing <code>SHIELD.perfectFrames</code>. Uses only existing hitbox types. Needs the full kill-% sweep and the bot ladder before shipping.',
+  draw(g){L(g,14,12,46,12,'#DDE3EC');P(g,46,12,'#F2F5FA');ARC(g,11,12,5,-1.9,1.9,'#C9A043',1);R(g,4,11,7,3,'#2A3550');R(g,2,10,2,5,'#C9A043');R(g,8,5,3,4,'#6EA8FF');P(g,7,4,'#6EA8FF');}},
+ {id:'Chakram',code:'Orbit',arch:'Returning zoner',mech:'Return',isNew:true,pal:['#C0C8D4','#1E4A4A','#0F2626','#3CE8C8','#F4E8C0'],
+  look:'Twin throwing rings with teal inner light. A thrown ring hits on the way out and again on the way back. While a ring is out, the moves that need it are greyed out on the HUD and on the sprite.',
+  sig:[['Orbit Throw','SigSide','A ring flies out 22 studs and returns. It leaves a teal arc trail and a fixed return point marker.'],
+       ['Ground Saw','SigDown','A ring rolls along the floor, throwing sparks, and turns around at ledges.'],
+       ['Halo','SigNeutral','Both rings orbit you for 40 frames as a defensive ring.']],
+  ult:'Eclipse Ring',tweak:'<b>New engine kind:</b> a <code>returning</code> projectile in <code>combat.js</code> and <code>Combat.luau</code>, with its own parity trace. That\'s the largest engine change in this plan.',
+  draw(g){for(const cx of [14,34]){D(g,cx,12,9,'#C0C8D4');D(g,cx,12,6,'#0F2626');RING(g,cx,12,5,'#3CE8C8');P(g,cx-7,6,'#F4E8C0');}}}
+];
+
+const grid=document.getElementById('weaponGrid');
+for(const w of W){
+  const card=document.createElement('article');card.className='wcard';
+  const px=WPIX[w.id];const icon=pxCanvas(px.w,px.h);const sil=pxCanvas(px.w,px.h);
+  px.rows.forEach((row,r)=>[...row].forEach((ch,c)=>{if(ch==='.')return;if(ch==='#'){R(icon.g,c,r,1,1,'rgba(18,14,22,.9)');R(sil.g,c,r,1,1,'#0B1017');return;}R(icon.g,c,r,1,1,px.colours[parseInt(ch,36)]);R(sil.g,c,r,1,1,'#0B1017');}));
+  R(icon.g,px.ox,px.oy,1,1,'#7FD4FF');
+  // One scale for every weapon, so relative size survives: the pike really is that long.
+  icon.c.style.width=(px.w*5)+'px';sil.c.style.width=(px.w*2.5)+'px';
+  card.innerHTML='<header><div><h3>'+w.id+'</h3><div class="code">codename '+w.code+'</div></div><div>'+(w.isNew?'<span class="tag new">new</span> ':'')+'<span class="tag">'+w.arch+'</span></div></header>';
+  const iw=document.createElement('div');iw.className='icon wpair';iw.appendChild(icon.c);icon.c.setAttribute('aria-label',w.id+': the pixel art the game draws, 8 px per stud');
+  const sw2=document.createElement('div');sw2.className='sil';sil.c.setAttribute('aria-label',w.id+' silhouette test');sw2.appendChild(sil.c);iw.appendChild(sw2);card.appendChild(iw);
+  const meta=document.createElement('div');meta.className='wmeta';meta.innerHTML='reach <b>'+px.reach.toFixed(2)+' studs</b> · '+(px.rects?'<b>'+px.rects+'</b> Frames in Roblox':'not in the engine yet')+' · cyan dot = grip';card.appendChild(meta);
+  const sw=document.createElement('div');sw.className='swatches';sw.innerHTML=WPIX[w.id].colours.slice(0,7).map(c=>'<i title="'+c+'" style="background:'+c+'"></i>').join('')+'<span class="mono" style="font-size:12px;color:var(--muted);align-self:center;margin-left:6px">'+w.mech+' mechanic</span>';card.appendChild(sw);
+  const p=document.createElement('p');p.style.cssText='margin:0;font-size:15px';p.textContent=w.look;card.appendChild(p);
+  const dl=document.createElement('dl');dl.className='moves';
+  dl.innerHTML=w.sig.map(s=>'<div><dt>'+s[0]+'<small>'+s[1]+'</small></dt><dd>'+s[2]+'</dd></div>').join('')+'<div><dt>'+w.ult+'<small>Ultimate</small></dt><dd><a href="#ult-'+w.id+'">Storyboard ↓</a></dd></div>';
+  card.appendChild(dl);
+  const t=document.createElement('div');t.className='tweak';t.innerHTML=w.tweak?('<span class="tag eng">engine work</span> '+w.tweak):'<b>Gameplay:</b> no change. Same frame data and balance; only the art changes.';card.appendChild(t);
+  grid.appendChild(card);
+}
+
+/* ============================================================ ultimates ==== */
+const FLOOR=46;
+function stageBg(g,dark){R(g,0,0,96,54,dark?'#05080C':'#0B1017');for(let i=0;i<5;i++)R(g,6+i*19,20-(i%3)*4,9,FLOOR-20+(i%3)*4,dark?'#0A0F15':'#111925');R(g,0,FLOOR,96,8,dark?'#161C24':'#2A3340');R(g,0,FLOOR,96,1,dark?'#2A3340':'#4A5668');}
+function foe(g,x,o){return fighter(g,x,FLOOR,Object.assign({f:-1,pal:{p:'#9AA6B4',s:'#5E6E86',t:'#3B4858'}},o||{}));}
+function activation(g,w,pal){stageBg(g,true);
+  foe(g,70,{mono:'#2C3542'});
+  const u=outlined(g,24,FLOOR,{f:1,pal:pal,aF:1.9,aB:-0.4,lean:0,weapon:blade(8,w.pal[0],1,w.pal[3])},'#FFD58A');
+  for(let y=5;y<21;y++){const x0=Math.round(-10+(y-5)*1.2);R(g,x0,y,120,1,A(w.pal[3].length===7?w.pal[3]:'#FFD58A',0.82));}
+  R(g,8,7,11,11,'#0B1017');R(g,9,8,9,9,pal.p);P(g,15,11,'#1B1526');P(g,12,11,'#1B1526');
+  for(let i=0;i<30;i++)R(g,24+i*2,11,1,3,i%2?'#0B1017':A('#0B1017',.6));
+  RING(g,24,FLOOR-9,12,A('#FFD58A',.5));}
+const UP={p:'#F2C94C',s:'#4A90D9',t:'#2E5F8A'};
+const ULT={
+ Sword:{st:24,act:16,dmg:16,beats:[
+  ['A 14-frame leap. A translucent amber ghost blade 3× the sword\'s size (from <code>weaponScale</code>) rises overhead.',g=>{stageBg(g);foe(g,72);const u=fighter(g,34,30,{f:1,pal:UP,aF:3.0,aB:2.6,lF:0.5,lB:-0.6});L(g,u.hand[0],u.hand[1],u.hand[0]+2,2,A('#FFB347',.55),5);L(g,u.hand[0],u.hand[1],u.hand[0]+1,4,'#D9DEE6',1);}],
+  ['The slam, then a crater sprite with a glowing rim spreading 7 studs. The opponent launches at the move\'s real angle.',g=>{stageBg(g);E(g,50,FLOOR+2,16,4,'#1A0E08');ARC(g,50,FLOOR+2,16,Math.PI,Math.PI*2,'#FFB347',1);for(const [x,y] of [[36,38],[64,36],[42,33],[58,31]])R(g,x,y,2,2,'#4A5668');fighter(g,40,FLOOR,{f:1,pal:UP,aF:1.0,crouch:3,lean:2});L(g,46,FLOOR-10,50,FLOOR+2,'#D9DEE6',3);foe(g,76,{lean:-4,aF:2.6,aB:2.2});star(g,50,FLOOR-2,4,'#FFF3D0');}]]},
+ Scythe:{st:20,act:30,dmg:4,beats:[
+  ['A black-violet moon disc rises behind the target. Wisps spiral inward over the 30 active frames (many small hits, 4 damage each).',g=>{stageBg(g,true);D(g,62,26,15,'#1B1328');RING(g,62,26,15,'#8E7BA8');for(let i=0;i<22;i++){const a=i*.55,r=16-i*.6;P(g,62+Math.cos(a)*r,26+Math.sin(a)*r,'#B77DFF');}foe(g,62,{lean:0,aF:0.6});fighter(g,28,FLOOR,{f:1,pal:UP,aF:2.2,aB:1.2,weapon:blade(10,'#E8E0CC',1)});}],
+  ['The finishing hit: the crescent blade crosses the moon and flings the target out along the pull line in a burst of violet petals.',g=>{stageBg(g,true);RING(g,60,24,15,A('#8E7BA8',.6));ARC(g,52,24,18,-1.2,1.4,'#B77DFF',2);ARC(g,52,24,19,-1.1,1.3,'#E4DCF0',1);foe(g,82,{lean:-5,aF:2.8,aB:2.4});for(let i=0;i<9;i++)P(g,66+i*2,20-(i%3)*2,'#B77DFF');fighter(g,34,FLOOR,{f:1,pal:UP,aF:1.4,aB:0.2,lean:3});}]]},
+ Blasters:{st:18,act:96,dmg:13,beats:[
+  ['The two guns snap together into a long rifle. A red laser sight lights up the target first, as the warning.',g=>{stageBg(g,true);foe(g,78);const u=fighter(g,20,FLOOR,{f:1,pal:UP,aF:1.57,aB:1.5,crouch:2});R(g,u.hand[0]-2,u.hand[1]-1,16,3,'#2F3A4A');R(g,u.hand[0]+14,u.hand[1],4,1,'#C9CFD8');L(g,u.hand[0]+18,u.hand[1],78,FLOOR-9,A('#FF4A4A',.8));RING(g,78,FLOOR-9,5,'#FF4A4A');L(g,72,FLOOR-9,84,FLOOR-9,'#FF4A4A');L(g,78,FLOOR-15,78,FLOOR-3,'#FF4A4A');}],
+  ['The shot: a single white tracer, a star-shaped muzzle flash, brass casings, and the target launched.',g=>{stageBg(g);const u=fighter(g,20,FLOOR,{f:1,pal:UP,aF:1.57,aB:1.5,crouch:2,lean:-1});R(g,u.hand[0]-2,u.hand[1]-1,16,3,'#2F3A4A');star(g,u.hand[0]+18,u.hand[1],4,'#FFE9A8');L(g,u.hand[0]+22,u.hand[1],82,FLOOR-12,'#FFFFFF');foe(g,84,{lean:-4,aF:2.8,aB:2.5});for(const [x,y] of [[14,30],[12,27],[17,26]])R(g,x,y,2,1,'#B08A4A');}]]},
+ Grimoire:{st:22,act:56,dmg:13,beats:[
+  ['The sky darkens and a constellation links up above the stage. Each star is a warning marker for where one will land.',g=>{stageBg(g,true);const pts=[[14,8],[28,5],[40,11],[55,6],[70,10],[84,5]];for(let i=0;i<pts.length-1;i++)L(g,pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1],A('#7DE8FF',.45));for(const [x,y] of pts){star(g,x,y,2,'#EFE6FF');R(g,x,FLOOR-1,2,1,A('#7DE8FF',.8));}fighter(g,22,FLOOR,{f:1,pal:UP,aF:2.8,aB:2.4});R(g,26,20,6,5,'#2B2350');}],
+  ['The stars fall as diagonal streaks with pixel trails, then burst into sparkles on the ground (56 active frames of rain).',g=>{stageBg(g,true);for(const [x,y] of [[20,10],[42,16],[60,6],[76,14]]){L(g,x,y,x+10,y+18,A('#7DE8FF',.55),2);star(g,x+11,y+19,2,'#EFE6FF');}for(const x of [31,53,71,87])star(g,x,FLOOR-2,3,'#7DE8FF');foe(g,72,{lean:-3,aF:2.4});fighter(g,14,FLOOR,{f:1,pal:UP,aF:2.6,aB:2.3});}]]},
+ Axe:{st:22,act:54,dmg:4,beats:[
+  ['Three red ghost copies lunge one after another from different angles, each dragging a line of sparks.',g=>{stageBg(g,true);for(let i=0;i<3;i++)fighter(g,20+i*14,FLOOR,{f:1,mono:A('#FF4A4A',.3+i*.2),aF:1.4,lean:2});fighter(g,62,FLOOR,{f:1,pal:UP,aF:1.3,lean:3,weapon:blade(9,'#8A8F98',2)});foe(g,80);for(let x=18;x<60;x+=4)P(g,x,FLOOR-1,'#FFB05A');}],
+  ['The final cleave: a thick arc of pixels and a diagonal white split line across the screen. The target goes flying.',g=>{stageBg(g);ARC(g,48,30,22,-2.4,0.6,'#FFB05A',3);L(g,4,52,92,6,A('#FFFFFF',.85),1);fighter(g,40,FLOOR,{f:1,pal:UP,aF:0.6,aB:-0.4,lean:4});foe(g,82,{lean:-5,aF:2.7,aB:2.4});}]]},
+ Pike:{st:20,act:58,dmg:6,beats:[
+  ['A red lane is painted along the floor as the warning. The user braces with the pike levelled and the pennant snapping.',g=>{stageBg(g,true);R(g,20,FLOOR-9,76,8,A('#FF4A4A',.18));R(g,20,FLOOR-9,76,1,A('#FF4A4A',.7));R(g,20,FLOOR-2,76,1,A('#FF4A4A',.7));const u=fighter(g,14,FLOOR,{f:1,pal:UP,aF:1.57,aB:1.4,crouch:2,lean:2});L(g,u.hand[0]-6,u.hand[1],u.hand[0]+20,u.hand[1],'#6E7C8A');R(g,u.hand[0]+10,u.hand[1]+1,4,3,'#A8322E');foe(g,76);}],
+  ['The charge: a dust wake, horizontal speed lines, and the target carried down the lane (58 active frames).',g=>{stageBg(g);for(let y=28;y<FLOOR-2;y+=4)L(g,4,y,30,y,A('#9AA5B3',.4));for(let x=10;x<44;x+=3)E(g,x,FLOOR-1,2,1,A('#8E9BB0',.5));const u=fighter(g,50,FLOOR,{f:1,pal:UP,aF:1.57,aB:1.3,lean:5});L(g,u.hand[0]-6,u.hand[1],u.hand[0]+22,u.hand[1],'#6E7C8A');foe(g,80,{lean:-3,aF:2.2});}]]},
+ Gauntlets:{st:18,act:74,dmg:7,beats:[
+  ['A flurry: impact stars all around the target, speed lines, and steam pouring from the Overdrive vents.',g=>{stageBg(g,true);foe(g,56,{aF:0.9});for(const [x,y] of [[48,26],[62,30],[52,36],[60,22],[46,33]])star(g,x,y,2,'#FFE9C4');for(let i=0;i<6;i++)L(g,20,18+i*4,32,18+i*4,A('#FF9A4A',.4));fighter(g,40,FLOOR,{f:1,pal:UP,aF:1.6,aB:1.2,lean:3});for(const [x,y] of [[36,24],[38,21],[35,19]])R(g,x,y,2,2,A('#E9E5DB',.5));}],
+  ['The final uppercut: a vertical steam column and the target launched straight up.',g=>{stageBg(g);R(g,46,4,6,FLOOR-4,A('#E9E5DB',.18));fighter(g,44,FLOOR,{f:1,pal:UP,aF:3.0,aB:0.8,lean:1,lF:0.4,lB:-0.3});foe(g,50,{f:-1,lean:0,aF:2.9,aB:2.7,h:16});star(g,49,20,4,'#FF9A4A');}]]},
+ Hammer:{st:30,act:64,dmg:14,beats:[
+  ['The hammer goes up and glowing cracks run under the floor, marking where the pillars will come up.',g=>{stageBg(g,true);fighter(g,16,FLOOR,{f:1,pal:UP,aF:3.1,aB:2.8,weapon:(gg,x,y)=>{L(gg,x,y,x,y-6,'#7A5A3A');R(gg,x-3,y-11,7,5,'#8A94A6');}});for(let x=28;x<92;x+=3)P(g,x,FLOOR+1+(x%2),'#FFB05A');foe(g,70);}],
+  ['Rows of stone pillars shoot up one after another across the stage, and the target is thrown upward.',g=>{stageBg(g);fighter(g,16,FLOOR,{f:1,pal:UP,aF:0.2,crouch:3,lean:4});for(let i=0;i<5;i++){const h=8+i*5;R(g,30+i*12,FLOOR-h,8,h,'#5A5048');R(g,30+i*12,FLOOR-h,8,1,'#8A94A6');}foe(g,78,{lean:-4,aF:2.8,aB:2.5,h:16});}]]},
+ Longbow:{st:44,act:8,dmg:21,beats:[
+  ['A full draw: the arrowhead goes red, focus lines close in on it, and the rest of the scene tints cooler (44 startup frames: a big, readable warning).',g=>{stageBg(g,true);R(g,0,0,96,54,A('#7FD4FF',.06));const u=fighter(g,20,FLOOR,{f:1,pal:UP,aF:1.57,aB:1.4});ARC(g,u.hand[0]+2,u.hand[1],8,-1.3,1.3,'#C9A96A',1);L(g,u.hand[0]-6,u.hand[1],u.hand[0]+10,u.hand[1],'#5A4028');R(g,u.hand[0]+9,u.hand[1]-1,2,3,'#FF4A4A');for(const [x,y] of [[50,10],[90,30],[60,50],[40,4]])L(g,x,y,u.hand[0]+12+(x-u.hand[0])*.6,u.hand[1]+(y-u.hand[1])*.6,A('#FF4A4A',.35));foe(g,80);}],
+  ['Release: the arrow pierces straight through everyone in line, leaving a ribbon trail. 21 damage in 8 active frames.',g=>{stageBg(g);fighter(g,16,FLOOR,{f:1,pal:UP,aF:1.57,aB:1.1,lean:-1});for(let x=24;x<94;x++)P(g,x,FLOOR-10+Math.round(Math.sin(x*.4)),A('#FF4A4A',.7));L(g,24,FLOOR-10,94,FLOOR-10,'#FFFFFF');foe(g,56,{lean:-3,aF:2.4});foe(g,80,{lean:-4,aF:2.6});}]]},
+ Flail:{st:20,act:70,dmg:4,beats:[
+  ['The ball grows into a huge anchor and whirls overhead. Its circular trail shows how far it reaches.',g=>{stageBg(g,true);fighter(g,36,FLOOR,{f:1,pal:UP,aF:3.0,aB:2.5});RING(g,38,18,14,A('#C86AE8',.45));for(let i=0;i<5;i++)R(g,38+i*2,30-i*3,2,2,'#6E7684');D(g,48,12,5,'#3A3038');L(g,44,17,52,17,'#6E7684',2);foe(g,76);}],
+  ['The anchor lands on the target and pins them (70 active frames). A shockwave ring spreads out and the chain goes taut.',g=>{stageBg(g);fighter(g,20,FLOOR,{f:1,pal:UP,aF:1.3,lean:2});for(let i=0;i<12;i++)R(g,26+i*3,34+i*.4,2,2,'#6E7684');foe(g,66,{crouch:4,aF:0.8});D(g,66,FLOOR-10,6,'#3A3038');R(g,60,FLOOR-4,12,2,'#6E7684');RING(g,66,FLOOR-6,13,A('#C86AE8',.6));}]]},
+ Shield:{st:4,act:120,dmg:0,beats:[
+  ['A hexagonal barrier forms in 4 frames and stays up for 120. Incoming projectiles are shown flying at it.',g=>{stageBg(g,true);fighter(g,30,FLOOR,{f:1,pal:UP,aF:1.4});const cx=31,cy=FLOOR-9,r=14;for(let i=0;i<6;i++){const a0=i*Math.PI/3-Math.PI/2,a1=a0+Math.PI/3;L(g,cx+Math.cos(a0)*r,cy+Math.sin(a0)*r,cx+Math.cos(a1)*r,cy+Math.sin(a1)*r,'#FFD58A');}R(g,cx-12,cy-10,24,20,A('#FFD58A',.08));for(let x=62;x<80;x+=4)P(g,x,cy-2,'#7DE8FF');D(g,58,cy-2,2,'#7DE8FF');foe(g,86,{aF:1.57});}],
+  ['Reflection: the projectile turns gold and flies back to whoever threw it, with a trail behind it.',g=>{stageBg(g);fighter(g,30,FLOOR,{f:1,pal:UP,aF:1.4});star(g,45,FLOOR-11,4,'#FFFFFF');for(let x=48;x<80;x++)P(g,x,FLOOR-11+Math.round((x-48)*.05),A('#FFD58A',.7));D(g,80,FLOOR-10,2,'#FFD58A');foe(g,86,{lean:-4,aF:2.4});}]]},
+ Daggers:{st:12,act:76,dmg:2,beats:[
+  ['The target is marked with a crimson diamond sigil. The X-shaped smears start stacking up.',g=>{stageBg(g,true);foe(g,60);const cx=60,cy=FLOOR-20;L(g,cx,cy-5,cx+5,cy,'#FF4A6A');L(g,cx+5,cy,cx,cy+5,'#FF4A6A');L(g,cx,cy+5,cx-5,cy,'#FF4A6A');L(g,cx-5,cy,cx,cy-5,'#FF4A6A');L(g,46,24,74,44,A('#C8CED8',.7));L(g,46,44,74,24,A('#C8CED8',.7));fighter(g,30,FLOOR,{f:1,pal:UP,aF:1.9,lean:3});}],
+  ['Nine slash streaks fan out around the target, crimson crystal shards burst out (no blood), and the target launches.',g=>{stageBg(g);const cx=60,cy=FLOOR-9;for(let i=0;i<9;i++){const a=i*Math.PI/9*2;L(g,cx+Math.cos(a)*4,cy+Math.sin(a)*4,cx+Math.cos(a)*14,cy+Math.sin(a)*14,i%2?'#C8CED8':'#FF4A6A');}for(const [x,y] of [[76,22],[44,26],[80,40],[42,40]])R(g,x,y,2,2,'#FF4A6A');foe(g,cx,{lean:-3,aF:2.4});fighter(g,24,FLOOR,{f:1,pal:UP,aF:1.2,lean:2});}]]},
+ Rapier:{st:'≈16',act:'≈40',dmg:'tune',isNew:true,beats:[
+  ['The user settles into a fencing stance. A blue plume trail marks 9 lunge points on the target. Each point is a one-pixel glint that serves as the warning.',g=>{stageBg(g,true);foe(g,70);for(const [x,y] of [[66,30],[72,34],[68,38],[74,28],[64,36],[70,26],[76,36],[67,32],[73,31]])P(g,x,y,'#F2F5FA');fighter(g,26,FLOOR,{f:1,pal:UP,aF:1.57,aB:2.6,lean:2,weapon:blade(12,'#DDE3EC',1,'#F2F5FA')});}],
+  ['Nine lunges land in a flurry of thin streaks, then a final extension with a blue burst.',g=>{stageBg(g);for(let i=0;i<9;i++)L(g,34,FLOOR-10,62+(i%3)*4,FLOOR-16+i*1.5,A('#DDE3EC',.6));star(g,70,FLOOR-10,4,'#6EA8FF');foe(g,78,{lean:-4,aF:2.6});fighter(g,28,FLOOR,{f:1,pal:UP,aF:1.57,lean:4,weapon:blade(14,'#DDE3EC',1)});}]]},
+ Chakram:{st:'≈20',act:'≈60',dmg:'tune',isNew:true,beats:[
+  ['A ring grows to 4× its size and circles you, casting a teal glow on the ground.',g=>{stageBg(g,true);fighter(g,40,FLOOR,{f:1,pal:UP,aF:2.2,aB:2.2});RING(g,41,FLOOR-9,16,A('#3CE8C8',.5));D(g,56,26,6,'#C0C8D4');D(g,56,26,4,'#0F2626');RING(g,56,26,4,'#3CE8C8');foe(g,82);}],
+  ['The ring flies out and back, hitting the target on both passes, with an eclipse-shaped burst on the return hit.',g=>{stageBg(g);ARC(g,58,26,26,-2.8,0.4,A('#3CE8C8',.7),1);ARC(g,58,34,22,0.4,2.9,A('#3CE8C8',.5),1);D(g,82,30,5,'#C0C8D4');D(g,82,30,3,'#0F2626');foe(g,78,{lean:-3,aF:2.3});fighter(g,30,FLOOR,{f:1,pal:UP,aF:1.5});D(g,70,14,4,'#0F2626');RING(g,70,14,5,'#F4E8C0');}]]}
+};
+const ul=document.getElementById('ultList');
+for(const w of W){const u=ULT[w.id];const box=document.createElement('article');box.className='ult';box.id='ult-'+w.id;
+  box.innerHTML='<header><h3>'+w.ult+'</h3><span class="meta">'+w.id+(u.isNew?' · new weapon, frame data to tune':'')+' · startup '+u.st+' · active '+u.act+' · damage '+u.dmg+'</span></header>';
+  const pn=document.createElement('div');pn.className='panels';
+  const beats=[['1 · Activation','Frames 0–26 paused: the dimmed scene, the banner in '+w.id+'\'s colours, the gold invincibility outline for 22 frames, and the camera zooming to 1.35×.',g=>activation(g,w,UP)]].concat(u.beats.map((b,i)=>[(i+2)+(i===0?' · Execution':' · Impact'),b[0],b[1]]));
+  for(const [t,c,fn] of beats){const cv=pxCanvas(96,54);fn(cv.g);cv.c.setAttribute('aria-label',w.ult+' storyboard: '+t);const fig=document.createElement('figure');fig.appendChild(cv.c);const cap=document.createElement('figcaption');cap.innerHTML='<b>'+t+'</b>'+c;fig.appendChild(cap);pn.appendChild(fig);}
+  box.appendChild(pn);ul.appendChild(box);}
+
+/* ============================================================ maps (to scale) ==== */
+const MAPS=[
+ {id:'Crucible',was:'Foundry Floor',kind:'ranked',arch:'Neutral triangle',geo:'live data, unchanged',
+  pal:{g:'#3E4450',t:'#8A94A6',p:'#6E7788',a:'#E8862E'},blast:{l:-115,r:115,t:102,b:-60},
+  solids:[{x1:-36,x2:36,top:0,th:6,ledge:'both'}],soft:[{x:-21,y:14,w:16},{x:21,y:14,w:16},{x:0,y:27,w:14}],
+  zones:[{x1:-45.5,x2:-36.5,y1:-34,y2:10,k:'haz',label:'emberdrift'},{x1:36.5,x2:45.5,y1:-34,y2:10,k:'haz',label:'emberdrift'}],
+  art:'Far layer: furnace stacks with glowing mouths. Middle: pour channels with a slow orange line of molten metal. Near: chains and hooks that sway slightly. The ember columns stay as a readable part of the layout.',
+  change:'None to the layout. The fairest map is left alone; only the art changes.'},
+ {id:'Gantry',was:'The Span',kind:'ranked',arch:'Flat runway',geo:'live data, unchanged',
+  pal:{g:'#4A4E58',t:'#9AA6B4',p:'#7C8695',a:'#D9534F'},blast:{l:-118,r:118,t:113,b:-58},
+  solids:[{x1:-46,x2:46,top:0,th:8,ledge:'both'}],soft:[],zones:[],
+  art:'Suspension cables fading into dark haze, with red aircraft lights blinking on a 2-second cycle (just background life, no meaning). Heat shimmer rising off the deck.',
+  change:'Crosswind turns <b>off in ranked</b>. A random gust has no place on a competitive map. It stays in casual.'},
+ {id:'Freight Lift',was:null,kind:'ranked',arch:'Single moving platform',geo:'new, proposed',
+  pal:{g:'#34383F',t:'#9C8A6A',p:'#6E6250',a:'#F2B03C'},blast:{l:-115,r:115,t:104,b:-60},
+  solids:[{x1:-34,x2:34,top:0,th:6,ledge:'both'}],soft:[{x:0,y:15,w:16,moveX:[-20,20]}],zones:[],
+  art:'A mine shaft with a cage lift riding a visible rail. Its counterweight moves the opposite way in the background, so you can tell where the lift is heading before it gets there.',
+  change:'New ranked map: one platform that moves across the full stage every 9 s. Gives ranked a third kind of layout besides the triangle and the flat runway.'},
+ {id:'Smeltworks',was:null,kind:'disaster',arch:'Split floor',geo:'live data',disaster:'Lava Surge',
+  pal:{g:'#3A2E2A',t:'#8C5A3C',p:'#6E4A38',a:'#FF7A3C'},blast:{l:-108,r:108,t:106,b:-55},apex:true,
+  solids:[{x1:-34,x2:-11,top:0,th:7,ledge:'left'},{x1:4,x2:31,top:0,th:7,ledge:'right'}],
+  soft:[{x:-1,y:15,w:9,sinking:true},{x:-27,y:13,w:12},{x:26,y:17,w:12}],
+  zones:[{x1:-108,x2:108,y1:-55,y2:3,k:'dis',label:'lava line y = 3'},{x1:-33,x2:-21,y1:13,y2:19,k:'safe',label:''},{x1:20,x2:32,y1:17,y2:23,k:'safe',label:''}],
+  art:'Crucibles tipping in the background and slag glowing through grates. The lava surge lights the whole scene from below, so the background shows the danger level too.',
+  change:'Disaster added. The middle gantry still sinks and dumps you after 2 s, so it\'s a tempting safe spot that isn\'t really safe.'},
+ {id:'Rooftops',was:null,kind:'disaster',arch:'Vertical tiers',geo:'live data',disaster:'Lightning Storm',
+  pal:{g:'#2E3440',t:'#5A6478',p:'#4A5464',a:'#7DE8FF'},blast:{l:-110,r:110,t:94,b:-55},
+  solids:[{x1:-27.5,x2:29,top:0,th:6,ledge:'both'}],
+  soft:[{x:-17,y:11,w:15,th:2.5},{x:15,y:19,w:14,th:2.5},{x:-5,y:27,w:12},{x:-22,y:33,w:11}],
+  rods:[-21,16],rodY:44,
+  zones:[{x1:-23.5,x2:-18.5,y1:0,y2:44,k:'dis',label:'rod pull'},{x1:5.5,x2:10.5,y1:0,y2:44,k:'dis',label:'strike'},{x1:13.5,x2:18.5,y1:0,y2:44,k:'dis',label:'rod pull'}],
+  art:'A rain-soaked city with neon signs that flicker out during a storm wave. Puddles on the rooftops reflect the cyan strike markers.',
+  change:'Disaster added. The existing antennas double as lightning rods.'},
+ {id:'Saltflat',was:null,kind:'disaster',arch:'Asymmetric',geo:'live data',disaster:'Tornado',
+  pal:{g:'#7A6448',t:'#C9A87A',p:'#A88A62',a:'#E8B04A'},blast:{l:-132,r:120,t:96,b:-62},
+  solids:[{x1:-48,x2:26,top:0,th:6,ledge:'both'},{x1:29,x2:48,top:17,th:5,ledge:'none'},{x1:-20,x2:-12,top:4,th:4,ledge:'none'}],
+  soft:[{x:-34,y:14,w:13},{x:-8,y:20,w:11}],
+  zones:[{x1:-60,x2:28,y1:0,y2:16,k:'dis',label:'funnel path (16 tall)'},{x1:29,x2:48,y1:17,y2:23,k:'safe',label:''},{x1:-13.5,x2:-2.5,y1:20,y2:26,k:'safe',label:''}],
+  art:'A dry lake at dusk with salt crusts, a rusted water tower and heat haze. Before the tornado arrives, the horizon turns brown.',
+  change:'Disaster added. Small dust devils still spin around when there\'s no tornado.'},
+ {id:'Undertow',was:null,kind:'disaster',arch:'Everything moves',geo:'live data',disaster:'Tsunami',
+  pal:{g:'#33454E',t:'#4FA0A8',p:'#4A6470',a:'#59D9F2'},blast:{l:-110,r:110,t:101,b:-53},
+  solids:[{x1:-20,x2:20,top:0,th:6,ledge:'both'}],
+  soft:[{x:0,y:12,w:14,th:2,moveX:[-30,30]},{x:-30,y:8,w:11,moveY:[5,13]},{x:30,y:10,w:11,moveY:[7,15]},{x:0,y:27,w:10}],
+  zones:[{x1:-110,x2:110,y1:-9,y2:12,k:'dis',label:'crest height 12'},{x1:-5,x2:5,y1:27,y2:33,k:'safe',label:'gull'}],
+  art:'A flooded dock with gulls, hanging nets and lamp posts leaning against the swell. The horizon line rises visibly during the tsunami warning.',
+  change:'Disaster added. It\'s a much bigger version of the existing rogue wave, which still exists as the small everyday hazard.'},
+ {id:'Faultline',was:null,kind:'disaster',arch:'Breaking floor',geo:'new, proposed',disaster:'Earthquake',
+  pal:{g:'#3B2F2A',t:'#A0643C',p:'#6E4E3A',a:'#FF6A3C'},blast:{l:-118,r:118,t:104,b:-60},
+  solids:[{x1:-42,x2:-21,top:0,th:7,ledge:'left'},{x1:-21,x2:0,top:0,th:7,ledge:'none'},{x1:0,x2:21,top:0,th:7,ledge:'none'},{x1:21,x2:42,top:0,th:7,ledge:'right'}],
+  soft:[{x:-20,y:15,w:12},{x:20,y:15,w:12},{x:0,y:28,w:10}],
+  zones:[{x1:-21,x2:0,y1:-4,y2:6,k:'dis',label:'plate B drops 4'},{x1:-42,x2:-21,y1:0,y2:6,k:'safe',label:''},{x1:21,x2:42,y1:0,y2:6,k:'safe',label:''}],
+  art:'A canyon quarry with layers of rock in the background and crane buckets hanging above. When a plate is about to drop, the seams around it glow orange.',
+  change:'New map with 4 floor plates. The two middle plates must use <code>ledges:false</code>. Otherwise the <code>"outer"</code> rule would put a grabbable ledge in the middle of the floor.'},
+ {id:'Ashfall Summit',was:null,kind:'disaster',arch:'Island summit',geo:'new, proposed',disaster:'Meteor Shower',
+  pal:{g:'#2A2426',t:'#6A4A48',p:'#5A3E3C',a:'#FF8A3C'},blast:{l:-120,r:120,t:112,b:-64},
+  solids:[{x1:-30,x2:30,top:0,th:6,ledge:'both'},{x1:-51,x2:-39,top:-7,th:5,ledge:'left'},{x1:39,x2:51,top:-7,th:5,ledge:'right'}],
+  soft:[{x:0,y:18,w:16}],
+  zones:[{x1:-23,x2:-13,y1:0,y2:30,k:'dis',label:'shadow'},{x1:1,x2:11,y1:0,y2:30,k:'dis',label:'shadow'},{x1:-50,x2:-40,y1:-7,y2:23,k:'dis',label:'shadow'}],
+  art:'A volcano summit under an ash sky, with meteors streaking across the far background as a hint. Craters keep smoking after an impact.',
+  change:'New map. The two low side islands are the reward for going off-stage, and the most dangerous place to be when meteors fall.'}
+];
+function mapCanvas(m){
+  const W0=960,padX=8;const xl=m.blast.l-padX,xr=m.blast.r+padX,yt=m.blast.t+8,yb=m.blast.b-8;
+  const s=W0/(xr-xl),H0=Math.round((yt-yb)*s);const dpr=Math.min(2,window.devicePixelRatio||1);
+  const c=document.createElement('canvas');c.width=W0*dpr;c.height=H0*dpr;const g=c.getContext('2d');g.scale(dpr,dpr);
+  const X=x=>(x-xl)*s,Y=y=>(yt-y)*s;
+  const gr=g.createLinearGradient(0,0,0,H0);gr.addColorStop(0,'#070B10');gr.addColorStop(.7,'#0E1520');gr.addColorStop(1,A(m.pal.a,.16));g.fillStyle=gr;g.fillRect(0,0,W0,H0);
+  let seed=m.id.length*97;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647;};
+  g.fillStyle='#101824';for(let x=0;x<W0;x+=18+rnd()*30){const h=40+rnd()*Math.min(220,H0*.45);g.fillRect(x,Y(0)-h,14+rnd()*26,h);}
+  g.fillStyle=A(m.pal.a,.5);for(let i=0;i<18;i++)g.fillRect(rnd()*W0,Y(0)-30-rnd()*180,2,2);
+  for(const z of m.zones){const x=X(z.x1),y=Y(z.y2),w=(z.x2-z.x1)*s,h=(z.y2-z.y1)*s;
+    g.fillStyle=z.k==='dis'?'rgba(240,139,96,.26)':z.k==='safe'?'rgba(142,232,106,.24)':'rgba(229,171,101,.14)';g.fillRect(x,y,w,h);
+    g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.strokeStyle=z.k==='dis'?'rgba(240,139,96,.42)':z.k==='safe'?'rgba(142,232,106,.5)':'rgba(229,171,101,.3)';g.lineWidth=1;for(let d=-h;d<w;d+=9){g.beginPath();g.moveTo(x+d,y+h);g.lineTo(x+d+h,y);g.stroke();}g.restore();
+    if(z.label){g.font='600 11px "JetBrains Mono", monospace';g.fillStyle=z.k==='dis'?'#F08B60':z.k==='safe'?'#8EE86A':'#E5AB65';g.fillText(z.label,x+4,Math.max(12,y+13));}}
+  if(m.rods){g.strokeStyle='#9AA5B3';g.lineWidth=2;for(const rx of m.rods){g.beginPath();g.moveTo(X(rx),Y(0));g.lineTo(X(rx),Y(m.rodY));g.stroke();g.fillStyle='#7DE8FF';g.fillRect(X(rx)-3,Y(m.rodY)-3,6,6);}}
+  if(m.apex){g.setLineDash([4,5]);g.strokeStyle='rgba(127,212,255,.55)';g.lineWidth=1;for(const [yy,lab] of [[13.2,'one jump from the floor · 13.2'],[26.5,'two jumps · 26.5']]){g.beginPath();g.moveTo(X(m.blast.l),Y(yy));g.lineTo(X(m.blast.r),Y(yy));g.stroke();g.font='11px "JetBrains Mono", monospace';g.fillStyle='rgba(127,212,255,.8)';g.fillText(lab,X(m.blast.r)-230,Y(yy)-4);}g.setLineDash([]);}
+  for(const sp of m.solids){const top=Y(sp.top),bot=Y(sp.top-(sp===m.solids[0]&&sp.top===0?40:sp.th));
+    g.fillStyle=m.pal.g;g.fillRect(X(sp.x1),top,(sp.x2-sp.x1)*s,bot-top);
+    g.fillStyle=m.pal.t;g.fillRect(X(sp.x1),top,(sp.x2-sp.x1)*s,1.2*s);
+    g.fillStyle='rgba(255,255,255,.18)';g.fillRect(X(sp.x1),top,(sp.x2-sp.x1)*s,Math.max(1,.35*s));
+    g.fillStyle=m.pal.a;const lw=.7*s,lh=2*s;
+    if(sp.ledge==='both'||sp.ledge==='left')g.fillRect(X(sp.x1),top,lw,lh);
+    if(sp.ledge==='both'||sp.ledge==='right')g.fillRect(X(sp.x2)-lw,top,lw,lh);}
+  for(const p of m.soft){const th=p.th||1,x1=p.x-p.w/2;
+    if(p.moveX||p.moveY){g.setLineDash([3,4]);g.strokeStyle='rgba(233,229,219,.35)';const ext=p.moveX?[[p.moveX[0]-p.w/2,p.y],[p.moveX[1]-p.w/2,p.y]]:[[x1,p.moveY[0]],[x1,p.moveY[1]]];for(const [ex,ey] of ext)g.strokeRect(X(ex),Y(ey),p.w*s,th*s);g.setLineDash([]);
+      g.strokeStyle='rgba(233,229,219,.6)';g.beginPath();if(p.moveX){g.moveTo(X(p.moveX[0]),Y(p.y)-6);g.lineTo(X(p.moveX[1]),Y(p.y)-6);}else{g.moveTo(X(p.x),Y(p.moveY[0])-4);g.lineTo(X(p.x),Y(p.moveY[1])-4);}g.stroke();}
+    g.fillStyle=m.pal.p;g.fillRect(X(x1),Y(p.y),p.w*s,th*s);g.fillStyle=m.pal.t;g.fillRect(X(x1),Y(p.y),p.w*s,.4*s);
+    if(p.sinking){g.fillStyle='rgba(0,0,0,.45)';for(let x=x1+1;x<x1+p.w-1;x+=3)g.fillRect(X(x),Y(p.y-th-.5),1.2*s,.4*s);}}
+  g.setLineDash([6,5]);g.strokeStyle='rgba(233,229,219,.38)';g.lineWidth=1.5;g.strokeRect(X(m.blast.l),Y(m.blast.t),(m.blast.r-m.blast.l)*s,(m.blast.t-m.blast.b)*s);g.setLineDash([]);
+  g.font='11px "JetBrains Mono", monospace';g.fillStyle='rgba(233,229,219,.55)';g.fillText('blast '+m.blast.l+' … '+m.blast.r+' · top '+m.blast.t+' · bottom '+m.blast.b,X(m.blast.l)+6,Y(m.blast.t)+14);
+  const rx=X(m.blast.l)+12,ry=Y(m.blast.b)-12;g.fillStyle='#E9E5DB';g.fillRect(rx,ry,23*s,3);g.fillRect(rx,ry-4,2,11);g.fillRect(rx+23*s-2,ry-4,2,11);g.fillText('23 studs = 1 s run',rx,ry-8);
+  c.setAttribute('role','img');c.setAttribute('aria-label',m.id+' layout drawn to scale');return c;}
+const ml=document.getElementById('mapList');
+for(const m of MAPS){const a=document.createElement('article');a.className='mapcard';
+  a.innerHTML='<header><h3>'+m.id+'</h3>'+(m.was?'<span class="tag">was '+m.was+'</span>':'')+'<span class="tag'+(m.geo.startsWith('new')?' new':'')+'">'+m.geo+'</span><span class="tag">'+(m.kind==='ranked'?'ranked · disasters off':'casual · '+m.disaster)+'</span></header>';
+  a.appendChild(mapCanvas(m));
+  const meta=document.createElement('div');meta.className='mapmeta';
+  const w=m.solids.reduce((t,s)=>t+(s.x2-s.x1),0);
+  meta.innerHTML='<div><b>Layout type</b>'+m.arch+' · '+Math.round(w*10)/10+' studs of solid ground · '+m.soft.length+' platforms</div><div><b>What changes</b>'+m.change+'</div><div><b>Background art</b>'+m.art+'</div>'+(m.disaster?'<div><b>Disaster</b><a href="#dis-'+m.disaster.replace(/\s/g,'')+'">'+m.disaster+' ↓</a></div>':'');
+  a.appendChild(meta);ml.appendChild(a);}
+
+/* ============================================================ disasters ==== */
+function sceneBase(g,sky){R(g,0,0,128,64,sky||'#070B10');R(g,0,52,128,12,'#2A3340');R(g,0,52,128,1,'#4A5668');}
+const DIS=[
+ {id:'Lava Surge',stage:'Smeltworks',chaos:false,ph:[['warning + rising glow',120],['rise, then hold at y = 3',360],['recedes',120]],
+  facts:['<b>Warning:</b> a siren, a glow creeping up from the bottom edge, and a dashed cyan line showing exactly where the lava will stop (y = 3).','<b>On contact:</b> 14% damage, launched straight up (90°), base knockback 55 with low growth. It can\'t KO before 140%.','<b>Safe spots:</b> the west shelf (13, reachable with one jump since a jump peaks at 13.2) and the east shelf (17). The sinking gantry looks safe but dumps you after 2 s.','<b>Timing dodge:</b> getting launched up out of the lava can be steered with DI onto a shelf, so a hit doesn\'t have to lead to a second one.'],
+  draw(g){sceneBase(g,'#0B0706');R(g,6,30,30,3,'#6E4A38');R(g,90,24,30,3,'#6E4A38');for(let y=40;y<64;y++)R(g,0,y,128,1,y===40?'#FFE0A0':y<44?'#FF9A3C':'#C0461E');for(let x=4;x<128;x+=13)D(g,x,43,1,'#FFE0A0');for(let x=0;x<128;x+=6)P(g,x,36,'#7FD4FF');fighter(g,20,30,{f:1,h:12,pal:UP});fighter(g,106,24,{f:-1,h:12,pal:{p:'#9AA6B4',s:'#5E6E86',t:'#3B4858'}});}},
+ {id:'Lightning Storm',stage:'Rooftops',chaos:true,ph:[['strike marker',90],['bolt',6],['afterglow',30]],
+  facts:['<b>Pattern:</b> 4 waves of 3 strikes, 40 frames apart, placed by the seed. Each strike is marked by a cyan ring on the ground 90 frames before it lands.','<b>On hit:</b> 11% damage, a 20-frame electric freeze, launched at 80°, base 40 with growth 0.3.','<b>Lightning rods:</b> any strike landing within 8 studs of an antenna jumps to the antenna instead. So the area near a rod is <i>dangerous</i>, not safe. On other maps (Chaos mode) there are no rods.','<b>Timing dodge:</b> the bolt only has 6 active frames. Shielding blocks it, and a perfect shield takes no shield damage.'],
+  draw(g){sceneBase(g,'#06080E');R(g,0,0,128,10,'#141A26');for(let x=0;x<128;x+=11)E(g,x,8,7,4,'#1C2432');L(g,30,52,30,18,'#9AA5B3');R(g,29,17,3,3,'#7DE8FF');let x=78,y=10;for(let i=0;i<7;i++){const nx=x+(i%2?4:-4),ny=y+6;L(g,x,y,nx,ny,'#EFF6FF',2);x=nx;y=ny;}E(g,78,52,8,2,A('#7DE8FF',.5));RING(g,100,51,5,'#7DE8FF');fighter(g,52,52,{f:1,h:12,pal:UP,aF:1.2});}},
+ {id:'Tornado',stage:'Saltflat',chaos:true,ph:[['dust column forms',120],['crosses at 9 studs/s',720],['dies down',60]],
+  facts:['<b>Warning:</b> a dust column grows at one edge of the blast zone (the seed picks which) and the HUD shows an arrow for the side it\'s coming from.','<b>If caught:</b> lifted and spun for 60 frames, then thrown out at 75° with 8% damage, base 45, growth 0.6. You can DI the throw.','<b>Running away works:</b> walking (12 studs/s) is faster than the tornado (9), so anyone paying attention can get clear.','<b>Safe spots:</b> the funnel is 16 studs tall, so the mesa top (17) and the perch (20) are above it. <b>Timing dodge:</b> the funnel is only 3 studs wide at the bottom, so a full hop clears it.'],
+  draw(g){sceneBase(g,'#140F0A');R(g,90,30,30,4,'#A88A62');for(let i=0;i<9;i++){const w=3+i*2;E(g,56+Math.sin(i)*2,50-i*4,w,2,A('#C9A87A',.55+i*.03));}for(let i=0;i<14;i++)P(g,40+((i*13)%34),20+((i*7)%30),'#C9A87A');fighter(g,62,34,{f:-1,h:12,pal:UP,lean:-3,aF:2.6});L(g,100,20,84,20,'#E5AB65');L(g,84,20,88,17,'#E5AB65');L(g,84,20,88,23,'#E5AB65');fighter(g,104,30,{f:-1,h:12,pal:{p:'#9AA6B4',s:'#5E6E86',t:'#3B4858'}});}},
+ {id:'Tsunami',stage:'Undertow',chaos:false,ph:[['horizon rises',150],['wave sweeps across',440],['current pulls',180]],
+  facts:['<b>Warning:</b> for 2.5 s the horizon rises and a side arrow shows which way it\'s coming. Then the wave crosses at 30 studs/s.','<b>The crest:</b> 12 studs tall and 6 wide. 16% damage, launched away at 30°, base 50, growth 0.35. Behind the crest, a current pushes at 20 studs/s² for 3 s.','<b>Safe spots:</b> the gull platform (27), and the buoys when they\'re at their highest (13–15).','<b>Timing dodge:</b> the crest passes any one point in 12 frames, and one jump peaks at 13.2 against a crest of 12. <b>Jumping over the wave</b> is the skilled answer.'],
+  draw(g){sceneBase(g,'#060C10');R(g,0,48,128,16,'#1E4A58');for(let x=0;x<128;x+=4)P(g,x,48,'#4FA0A8');for(let x=0;x<44;x++){const h=Math.round(28*Math.sin(Math.min(1,x/40)*Math.PI*.5));R(g,x,52-h,1,h,x>36?'#59D9F2':'#2F7A8A');}for(let x=30;x<44;x++)P(g,x,52-Math.round(28*Math.sin(Math.min(1,x/40)*Math.PI*.5))-1,'#E9F8FA');fighter(g,54,26,{f:-1,h:12,pal:UP,lF:0.6,lB:-0.7,aF:2.8,aB:2.4});L(g,54,40,54,48,A('#7FD4FF',.6));R(g,100,20,20,2,'#4A6470');fighter(g,110,20,{f:-1,h:12,pal:{p:'#9AA6B4',s:'#5E6E86',t:'#3B4858'}});}},
+ {id:'Earthquake',stage:'Faultline',chaos:'Tremor (a smaller version)',ph:[['rumble + glowing seams',120],['plate drops, stays down',250],['plate rises back',30]],
+  facts:['<b>Warning:</b> 2 s of rumbling while the seams around 1–2 plates glow orange. The seed picks which, and it never picks both outer plates, so there are always ledges to grab.','<b>Standing on a plate when it drops:</b> launched straight up, 6% damage, base 40, growth 0.2. No ledges anywhere can be grabbed for 90 frames.','<b>Safe spots:</b> any plate that isn\'t glowing, and all three platforms.','<b>Timing dodge:</b> if you\'re in the air on the drop frame, it doesn\'t launch you. Jump during the last 10 warning frames. <b>Tremor</b> (the Chaos version) just locks ledges and ripples the floor for 3% damage, so it works on any map.'],
+  draw(g){sceneBase(g,'#0C0806');R(g,0,52,128,12,'#0C0806');R(g,0,52,30,12,'#3B2F2A');R(g,0,52,30,1,'#A0643C');R(g,33,58,30,6,'#3B2F2A');R(g,33,58,30,1,'#A0643C');R(g,66,52,30,12,'#3B2F2A');R(g,66,52,30,1,'#A0643C');R(g,99,52,29,12,'#3B2F2A');R(g,99,52,29,1,'#A0643C');for(const x of [31,64,97])L(g,x,52,x,63,'#FF6A3C');fighter(g,48,40,{f:1,h:12,pal:UP,aF:2.8,aB:2.6});for(const [x,y] of [[40,54],[56,55],[44,50]])R(g,x,y,2,2,'#6E4E3A');fighter(g,82,52,{f:-1,h:12,pal:{p:'#9AA6B4',s:'#5E6E86',t:'#3B4858'},lF:0.5,lB:-0.4});}},
+ {id:'Meteor Shower',stage:'Ashfall Summit',chaos:true,ph:[['shadow grows',100],['impact',4],['burning crater',180]],
+  facts:['<b>Pattern:</b> 6 meteors per wave, at least 10 studs apart, and never on the respawn platform. Each one\'s shadow grows on the ground for 100 frames first.','<b>Impact:</b> a 5-stud radius, 13% damage, launched at 65° away from the centre, base 50, growth 0.3.','<b>Crater:</b> 2% damage every 30 frames for 3 s, with no knockback. It stops people standing still without being unfair.','<b>Timing dodge:</b> the impact only has 4 active frames, so a well-timed shield blocks it completely.'],
+  draw(g){sceneBase(g,'#0A0606');for(let i=0;i<30;i++)P(g,(i*37)%128,(i*11)%40,A('#9AA5B3',.4));L(g,70,4,88,40,A('#FF8A3C',.6),3);D(g,90,42,3,'#FFE0A0');E(g,94,52,9,2,A('#000000',.55));RING(g,94,52,9,A('#7FD4FF',.8));E(g,36,53,8,2,'#1A0E08');for(const x of [30,36,42])P(g,x,51,'#FF8A3C');fighter(g,60,52,{f:1,h:12,pal:UP,aF:1.3});}}
+];
+const dl=document.getElementById('disasterList');
+for(const d of DIS){const a=document.createElement('article');a.className='disaster';a.id='dis-'+d.id.replace(/\s/g,'');
+  const tot=d.ph.reduce((t,p)=>t+p[1],0);const cls=['pb-warn','pb-strike','pb-after'];
+  const left=document.createElement('div');
+  left.innerHTML='<h3>'+d.id+'</h3><span class="tag">'+d.stage+'</span> <span class="tag">'+(d.chaos===true?'works on any map (Chaos)':d.chaos?'Chaos version: '+d.chaos:'this map only')+'</span><div class="phasebar">'+d.ph.map((p,i)=>'<span class="'+cls[i]+'" style="flex:'+Math.max(p[1],tot*.09)+'" title="'+p[0]+' · '+p[1]+' frames">'+p[0]+' · '+p[1]+'f</span>').join('')+'</div><p class="note" style="margin:0">Phase widths are to scale except the very short bursts, which are widened so they can be read. 60 frames = 1 s.</p>';
+  const cv=pxCanvas(128,64);d.draw(cv.g);cv.c.setAttribute('aria-label',d.id+' pixel scene');left.appendChild(document.createElement('div')).appendChild(cv.c);left.lastChild.style.marginTop='12px';
+  const right=document.createElement('ul');right.className='facts';right.innerHTML=d.facts.map(f=>'<li>'+f+'</li>').join('');
+  a.appendChild(left);a.appendChild(right);dl.appendChild(a);}
+
+/* ============================================================ animation demo ==== */
+const BODY=[['Idle','60 (loop)',6,'fighter frame count','breathing, weapon at rest'],['Walk','32 (loop)',8,'distance travelled','drawn to 12 studs/s so feet don\'t slide'],['Run','24 (loop)',8,'distance travelled','drawn to 23 studs/s'],['Dash','18',5,'state frame','DASH.frames = 18'],['Jumpsquat','3',2,'state frame','MOVE.jumpsquat = 3'],['Rise / apex / fall / fast-fall','n/a',6,'vertical speed','four speed bands, not a timer'],['Landing','4–12',3,'state frame','matches landing lag'],['Shield','hold',3,'shield HP','bubble shrinks with SHIELD.max = 50'],['Spot dodge','24',5,'state frame','frames 3–14 outlined (invincible)'],['Air dodge','28',5,'state frame','frames 3–13 outlined'],['Tech in place / roll','30',6,'state frame','TECH window = 8'],['Knockdown + getup','26 + 10',6,'state frame','KNOCKDOWN.frames = 26'],['Ledge hang / climb / roll / jump','loop + 3 × ~20',14,'state frame','one set shared by every weapon'],['Hitstun light / heavy','varies',4,'hitstun left',''],['Tumble','loop',8,'spin angle','frame = angle ÷ 45°, never a timer'],['Grabbed / thrown','varies',4,'state frame',''],['Taunt','90',10,'state frame','TAUNT_FRAMES = 90'],['KO / respawn / victory / defeat','n/a',16,'match event','results screen uses these']];
+const tb=document.querySelector('#bodyTable tbody');let keys=0;
+for(const r of BODY){keys+=r[2];const tr=document.createElement('tr');tr.innerHTML='<td>'+r[0]+'</td><td class="num">'+r[1]+'</td><td class="num">'+r[2]+'</td><td>'+r[3]+'</td><td class="note">'+r[4]+'</td>';tb.appendChild(tr);}
+const tr=document.createElement('tr');tr.innerHTML='<td><b>Total shared key poses</b></td><td></td><td class="num"><b>'+keys+'</b></td><td colspan="2" class="note">plus ~79 per weapon (7 lights × 4, 4 airs × 5, 3 signatures × 7, ultimate × 10), so ≈ 1,106 for 14 weapons</td>';tb.appendChild(tr);
+
+const KEYS=[{n:'K1',a:0,lab:'anticipation',o:{lean:-2,crouch:1,aF:-0.5,aB:0.4,wa:-0.9}},{n:'K2',a:6,lab:'coil',o:{lean:-3,crouch:3,aF:-1.1,aB:0.6,wa:-1.5}},{n:'K3',a:18,lab:'smear',o:{lean:3,crouch:1,aF:0.9,aB:-0.3,wa:1.2}},{n:'K4',a:21,lab:'contact',o:{lean:4,crouch:0,aF:1.57,aB:-0.5,wa:1.57}},{n:'K5',a:25,lab:'follow-through',o:{lean:3,crouch:1,aF:2.5,aB:-0.2,wa:2.6}},{n:'K6',a:37,lab:'settle',o:{lean:1,crouch:0,aF:0.7,aB:0.3,wa:0.6}}];
+const strip=document.getElementById('strip');const cells=[];
+for(let f=0;f<55;f++){const i=document.createElement('i');i.className=(f<21?'s-start':f<25?'s-act':'s-rec')+(KEYS.some(k=>k.a===f)?' key':'');strip.appendChild(i);cells.push(i);}
+const dc=document.getElementById('demoCanvas'),dg=dc.getContext('2d');dg.imageSmoothingEnabled=false;
+function lunge(f){if(f<18)return -Math.min(3,f/5);const k=Math.min(1,(f-17)/16);return -3+44*(1-Math.pow(1-k,3));}
+let frame=21,showBoxes=true;
+function drawDemo(){
+  const g=dg;R(g,0,0,160,72,'#070B10');for(let i=0;i<7;i++)R(g,8+i*24,24-(i%3)*5,14,36+(i%3)*5,'#0E1520');R(g,0,60,160,12,'#2A3340');R(g,0,60,160,1,'#4A5668');
+  const key=[...KEYS].reverse().find(k=>frame>=k.a);const x=34+lunge(frame);const H=26;
+  if(frame>=18&&frame<=24)for(let gh=3;gh>=1;gh--)fighter(g,x-gh*5,60,Object.assign({f:1,h:H,mono:A('#FFB347',.12+.08*(3-gh))},key.o));
+  if(frame>=18&&frame<=20)for(let yy=38;yy<56;yy+=3)L(g,x-16,yy,x-2,yy,A('#E9E5DB',.35));
+  const sword=(gg,hx,hy,a,f)=>{const len=15;const x1=hx+f*Math.sin(a)*len,y1=hy+Math.cos(a)*len;L(gg,hx,hy,x1,y1,'#D9DEE6',2);L(gg,hx,hy,hx+f*Math.sin(a)*4,hy+Math.cos(a)*4,'#5A2E2E',2);if(frame>=21&&frame<=36)L(gg,hx+f*Math.sin(a)*5,hy+Math.cos(a)*5,x1,y1,A('#FFB347',.9),1);};
+  const u=fighter(g,x,60,Object.assign({f:1,h:H,pal:UP,weapon:sword},key.o));
+  if(frame>=21&&frame<=24){ARC(g,u.hand[0]-2,u.hand[1],16,-1.25,1.0,'#FFB347',2);ARC(g,u.hand[0]-2,u.hand[1],18,-1.1,0.85,A('#FFF3D0',.8),1);}
+  if(frame===21)star(g,u.hand[0]+14,u.hand[1],3,'#FFF3D0');
+  if(showBoxes){g.strokeStyle='#7FD4FF';g.lineWidth=1;g.strokeRect(Math.round(x-5)+.5,60-H+.5,11,H-1);
+    if(frame>=21&&frame<=24){g.fillStyle='rgba(255,74,74,.35)';g.fillRect(Math.round(x+5),60-20,20,13);g.strokeStyle='#FF4A4A';g.strokeRect(Math.round(x+5)+.5,40.5,19,12);}}
+  cells.forEach((c,i)=>c.classList.toggle('on',i===frame));
+  document.getElementById('frameNo').textContent=frame;document.getElementById('phaseName').textContent=frame<21?'startup':frame<25?'ACTIVE':'recovery';document.getElementById('keyName').textContent=key.n+' · '+key.lab;}
+drawDemo();
+let playing=false,tick=0,hold=0;const playBtn=document.getElementById('playBtn');
+function loop(){if(!playing)return;tick++;if(tick%4===0){if(hold>0){hold--;}else{frame++;if(frame>54){frame=0;hold=5;}drawDemo();}}requestAnimationFrame(loop);}
+playBtn.addEventListener('click',()=>{playing=!playing;playBtn.textContent=playing?'Pause':'Play';if(playing){playBtn.setAttribute('aria-pressed','true');requestAnimationFrame(loop);}else playBtn.setAttribute('aria-pressed','false');});
+document.getElementById('stepBtn').addEventListener('click',()=>{playing=false;playBtn.textContent='Play';frame=(frame+1)%55;drawDemo();});
+document.getElementById('boxesChk').addEventListener('change',e=>{showBoxes=e.target.checked;drawDemo();});
+const pNote=document.createElement('span');pNote.className='readout';pNote.textContent='plays at ¼ speed (15 fps)';document.querySelector('.controls').appendChild(pNote);
+
+/* ============================================================ roadmap & questions ==== */
+const PH=[
+ ['R0','Sprite pipeline test run','An Aseprite template (tint layers, one tag per move, anchor-point slices), <code>gen-sprites.mjs</code>, Asphalt and its lockfile, <code>SpriteCanvas.luau</code> plus the web sprite drawer, and a switch that falls back to rectangles for any move without sprites. Content: one body, idle and run only.','A new <code>sprite-parity</code> test shows both builds pick the same frame for 10,000 recorded states. The frame-count check and hurtbox check each catch a deliberately broken sprite. A Studio check confirms the ImageLabels have the right sprite regions.'],
+ ['L0','Walkable lobby blockout + room integration','Integrate the main project\'s existing shared lobby and room service into the revamp branch. Build the three mode entrances and a walkable 2/4/6-person preparation-room template. See <a href="#lobby">the lobby brief</a>.','Exactly three physical modes; every essential station reachable without jumping; bots off; a full enter, configure, fight and return path before final art.'],
+ ['R1','Shared body animations','All '+keys+' shared key poses, plus head, face, hat and torso-mark overlays (the existing feature picker).','No state falls back to rectangles. 4 fighters cost ≤ 0.5 ms per frame when measured in Studio. The rectangle renderer measures 0.48–0.68 ms today, so sprites have to beat it.'],
+ ['L1','Iron Concourse world-art rebuild','After L0 and R1: four background layers, modular scenery, three gate skins, preparation-room stations and 62 new lobby drawings. Reuse the animation bible\'s shared movement poses and actual weapon art.','World scale, sprite regions, tint masks and anchors match in both builds. Missing art falls back; reduced motion and crowd legibility pass. The new Lobby manifest group generates its production brief.'],
+ ['R2','Visual effects kit','Hit sparks scaled by damage, smears, dust, landing puffs, KO blast lines, shield break, parry flash.','Effects only spawn from confirmed events, with predicted ones de-duplicated by (frame, fighter, move), so a rollback never shows an effect twice. A coverage test fails if any event type has no effect.'],
+ ['L2','Preparation rooms + multiplayer journey','After L1 and R2: room boards, illustrated map and weapon selection, lockers, explicit bots, ready rails, acknowledged loading and return. Keep the space walkable, with station-focused panels.','Real 2/4/6-client tests plus a separate room and a hub spectator. Host-only settings, readiness, cancellation, failed loading and room isolation pass. No hidden CPU autofill or blank-world launch.'],
+ ['R3','Weapon redesigns (×12)','One weapon per PR: Sword first as the reference, then Gauntlets, Daggers, Axe, Hammer, Pike, Scythe, Flail, Shield, Longbow, Blasters, Grimoire. The projectile- and summon-heavy weapons come last.','For each weapon: all 15 move tags pass the frame-count check, the <code>WeaponPose</code> parity test is unchanged, <code>check.sh</code> and <code>npm test</code> pass, and it gets a visual review in UI Labs.'],
+ ['R4','Ultimate cutscene + 12 ultimates','The shared pause, banner and zoom in both builds, then each weapon\'s own effect.','Drawing only: every simulation parity suite is byte-identical to before. The banner timing (6 + 12 + 6 = 24 frames) is tested to fit inside the existing 26-frame pause.'],
+ ['R5','Disaster engine','<code>disasters.js</code> built first on the web side, then the six disasters and their modes, HUD warnings, the Luau port, and <code>disaster-parity</code>.','Disasters cause ≤ 15% of KOs across the bot soak. Standing in each safe zone takes 0 damage across 100 seeded runs. Nobody is KO\'d below 140%. Every one of these tests is checked by deliberately breaking the code.'],
+ ['R6','Maps','Freight Lift, Faultline and Ashfall Summit layouts on the web first, parallax background layers for all 9 maps, crosswind turned off in ranked.','Stage and hazard parity tests pass. The soak test grows from 144 to 216 matches with no invalid values.'],
+ ['R7','Rapier and Chakram','The riposte window, the returning projectile type, then sprites and ultimates.','A full kill-% sweep puts each ultimate in the existing 132–213% range, and 90 bot matches show no timeouts.'],
+ ['R8','Launch polish','Audio through Asphalt, ProfileStore for unlocks and custom avatars, Fusion menus and the character creator, a real bandwidth test (switch to Blink only if it fails), and QA on mobile, gamepad and low-end devices (the items the audit left open).','Everything the audit left open under "Remaining verification" is closed, with evidence.'],
+ ['L3','Lobby release gate · part of R8','Finish lobby audio and all input routes, integrate newly released R6 maps and R7 weapons without exposing unfinished choices, and run the <a href="#lobby-delivery">lobby acceptance matrix</a>.','Real device and multi-client evidence; readable images and status at all tested sizes; recoverable asset/network failures; stable sprite-pool count after 100 room cycles; measured performance within the agreed targets.']
+];
+const pe=document.getElementById('phases');
+for(const p of PH){const d=document.createElement('div');d.className='phase';d.innerHTML='<div class="id">'+p[0]+'</div><div><h3>'+p[1]+'</h3><p>'+p[2]+'</p><p class="gate"><b>Done when</b>'+p[3]+'</p></div>';pe.appendChild(d);}
+const QS=[
+ ['Who draws the sprites?','About 1,500 key poses (roughly 350–400 hours). Studio\'s AI texture generator can\'t keep one character looking consistent across that many frames.','Recommended: you, or a paid pixel animator, working in Aseprite. Rule 5 means work can start before all of it is done.'],
+ ['Aseprite or a free editor?','The pipeline reads Aseprite\'s command-line export (tags, layers, slices).','Recommended: Aseprite (about $20). Free alternatives export differently and would need their own converter.'],
+ ['Should the 12 existing weapons get gameplay changes?','The plan changes their art only. Every gameplay change would need a new round of balance testing.','Recommended: art only now. Revisit balance once there\'s real player data.'],
+ ['Disasters in ranked?','Random events undermine competitive fairness.','Recommended: never. Also turn off crosswind on Gantry in ranked (R6).'],
+ ['When should the new weapons come?','Rapier and Chakram need new engine features and a full balance pass.','Recommended: after R4, as a second release, so the revamp ships sooner.']
+];
+const qe=document.getElementById('questions');
+for(const q of QS){const d=document.createElement('div');d.className='q';d.innerHTML='<b>'+q[0]+'</b><p>'+q[1]+'</p><p class="rec" style="margin-top:6px">'+q[2]+'</p>';qe.appendChild(d);}
+})();
+</script>
+
+<!-- Export-only Mermaid runtime omitted; the pipeline source remains readable offline. -->
+
+</body></html>

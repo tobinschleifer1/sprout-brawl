@@ -23,6 +23,7 @@
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 local Input = require(game:GetService("ReplicatedStorage").Shared.Input)
 local Snapshot = require(game:GetService("ReplicatedStorage").Shared.Snapshot)
+local Stage = require(game:GetService("ReplicatedStorage").Shared.Stage)
 
 local Predictor = {}
 Predictor.__index = Predictor
@@ -86,12 +87,18 @@ function Predictor.applyWire(self: any, w: any)
 	-- with the new move's frame counter - which reads as the right attack at the wrong speed.
 	f.move = if w.moveId then self.char.moves[w.moveId] else nil
 	f.effects.chill.stacks = w.chillStacks or 0
-	-- `platform` is a reference the wire cannot carry. Grounded fighters get the stage's main
-	-- platform, which is what Fighter itself does when it needs a floor and has none.
-	if w.onGround and not f.platform then
-		f.platform = self.stage.main
-	elseif not w.onGround then
-		f.platform = nil
+	-- A rollback's old platform reference can point to a different island or shelf. Resolve
+	-- every grounded correction against its actual contact, using Stage.supported's footprint.
+	-- Assuming the main floor teleported shelf fighters down and erased shields as "air".
+	f.platform = nil
+	if w.onGround then
+		local distance = 0.5
+		for _, platform in self.stage.platforms do
+			local dy = math.abs(w.y - platform.top)
+			if dy < distance and w.x + f.r * 0.6 > platform.x1 and w.x - f.r * 0.6 < platform.x2 then
+				f.platform, distance = platform, dy
+			end
+		end
 	end
 end
 
@@ -135,7 +142,7 @@ end
 -- A snapshot arrived describing the state after the server consumed `consumed` of our frames.
 -- Roll back to our own state at that frame, overwrite it with what the server actually says, and
 -- replay everything since. This is the whole of rollback netcode; the rest is bookkeeping.
-function Predictor.reconcile(self: any, w: any, consumed: number)
+function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any?)
 	if self.ready then
 		-- Our own full snapshot from that frame, if we still hold it. Without this the non-wire
 		-- state is whatever prediction left it as, and the replay below applies inputs the fighter
@@ -145,6 +152,10 @@ function Predictor.reconcile(self: any, w: any, consumed: number)
 			self.fighter:restore(snap)
 		end
 	end
+	Stage.applyDynamicState(self.stage, platforms)
+	-- Packet displacement is already included in w.x/w.y. Reusing it as a per-tick velocity
+	-- would carry the fighter a whole snapshot interval again on every replayed input.
+	for _, platform in self.stage.platforms do platform.dx, platform.dy = 0, 0 end
 	self:applyWire(w)
 	self.ready = true
 

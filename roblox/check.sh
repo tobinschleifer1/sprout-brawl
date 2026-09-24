@@ -48,6 +48,7 @@ node tools/gen-rng-fixture.mjs
 node tools/gen-channel-traces.mjs
 node tools/gen-weapon-traces.mjs
 node tools/gen-hud-fixture.mjs
+node tools/gen-hub-trace.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
@@ -59,6 +60,17 @@ echo "== codec: the input frame, packed and unpacked =="
 lune run tests/codec
 echo "== runtime input: focus, packet ordering, rematches and disconnects =="
 lune run tests/runtime-input
+lune run tests/abilities
+echo "== lobby: opponent controls, bindings and launch recovery =="
+lune run tests/lobby-ui
+echo "== walkable hub: movement, stations and web replay =="
+lune run tests/hub-parity
+lune run tests/hub-view
+echo "== match launch: all roster sizes and snapshot cadence =="
+lune run tests/match-launch
+lune run tests/rooms
+lune run tests/room-ui
+lune run tests/multiplayer
 echo "== scene: visible projectiles, items, hazards and backdrops =="
 lune run tests/scene-view
 echo "== parity: the seeded generator vs web/src/engine/rng.js =="
@@ -75,6 +87,7 @@ echo "== what a client is allowed to ask the server for =="
 lune run tests/match-config
 echo "== prediction: rollback and replay against a straight simulation =="
 lune run tests/prediction
+lune run tests/prediction-platforms
 echo "== the client's view-only stage, moved by the server =="
 lune run tests/stage-view
 echo "== parity: Stage vs web/src/engine/stage.js =="

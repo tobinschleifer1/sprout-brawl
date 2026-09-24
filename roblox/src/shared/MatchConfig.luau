@@ -22,7 +22,8 @@ local MatchConfig = {}
 
 MatchConfig.MODES = { "StockFFA", "TimedFFA", "StockTeams", "TimedTeams" }
 MatchConfig.BOT_LEVELS = { "easy", "normal", "hard" }
--- "you" is the player who sent the config. Multiplayer adds more of these; the slice has one.
+-- Legacy single-client menu validation. Production multiplayer uses server/Rooms, with
+-- authenticated human membership and fixed 2/4/6-player teams instead of client-owned slots.
 MatchConfig.SLOT_TYPES = { "you", "bot-easy", "bot-normal", "bot-hard", "off" }
 
 MatchConfig.MIN_FIGHTERS = 2
@@ -78,7 +79,7 @@ function MatchConfig.default(): any
 		mode = "StockFFA", stocks = 3, time = 180, items = true, stageId = "FoundryFloor",
 		slots = {
 			{ type = "you", weaponId = "Sword", avatarId = "Classic", team = 0 },
-			{ type = "bot-normal", weaponId = "Scythe", avatarId = "Noir", team = 1 },
+			{ type = "off", weaponId = "Scythe", avatarId = "Noir", team = 1 },
 			{ type = "off", weaponId = "Blasters", avatarId = "Ember", team = 0 },
 			{ type = "off", weaponId = "Grimoire", avatarId = "Moss", team = 1 },
 		},

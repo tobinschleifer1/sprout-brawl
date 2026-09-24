@@ -34,10 +34,12 @@ function Stage2D.draw(c: any, stage: any)
 		Canvas2D.rect(c, sp.x1, sp.top - 1.2, w, 1.2, groundTop)
 		Canvas2D.rect(c, sp.x1, sp.top - 1.5, w, 0.3, BLACK, 0.22)
 		Canvas2D.rect(c, sp.x1, sp.top - 0.35, w, 0.35, WHITE, 0.22)
-		if sp.ledges ~= false then
-			Canvas2D.rect(c, sp.x1, sp.top - 2.0, 0.7, 2.0, accent)
-			Canvas2D.rect(c, sp.x2 - 0.7, sp.top - 2.0, 0.7, 2.0, accent)
-		end
+	end
+	-- Grabbable corners, from the stage's ACTUAL ledge list - see web/src/render2d/renderer2d.js
+	-- _stage. Marking both ends of any solid whose `ledges` was not false put a marker at every
+	-- inner seam of a split floor, where there is nothing to grab.
+	for _, L in stage.ledges do
+		Canvas2D.rect(c, if L.side < 0 then L.x else L.x - 0.7, L.platform.top - 2.0, 0.7, 2.0, accent)
 	end
 
 	for _, pl in stage.platforms do

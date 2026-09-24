@@ -213,11 +213,13 @@ export class Renderer2D {
       b.fillRect(sp.x1, sp.top - 1.5, sp.x2 - sp.x1, 0.3);
       b.fillStyle = 'rgba(255,255,255,0.22)';                            // lit top edge
       b.fillRect(sp.x1, sp.top - 0.35, sp.x2 - sp.x1, 0.35);
-      if (sp.ledges !== false) {                                         // grabbable corners
-        b.fillStyle = p.accent || '#3E8F35';
-        b.fillRect(sp.x1, sp.top - 2.0, 0.7, 2.0);
-        b.fillRect(sp.x2 - 0.7, sp.top - 2.0, 0.7, 2.0);
-      }
+    }
+    // Grabbable corners, from the stage's ACTUAL ledge list. It used to mark both ends of any solid
+    // whose `ledges` was not false, and "outer" is not false - so every split floor showed a marker
+    // at an inner seam with nothing to grab. The marker is a promise; draw it only where it holds.
+    b.fillStyle = p.accent || '#3E8F35';
+    for (const L of stage.ledges) {
+      b.fillRect(L.side < 0 ? L.x : L.x - 0.7, L.platform.top - 2.0, 0.7, 2.0);
     }
 
     // Then the drop-through shelves, drawn thinner and lighter so they read as pass-through.

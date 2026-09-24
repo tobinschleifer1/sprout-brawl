@@ -58,6 +58,9 @@ const plant = (m, f, x, y = 0) => {
     Rooftops: [0, -20, 20],              // the roof, under the sprinkler's full sweep
     Saltflat: [0, -40, 20],              // the flat, under the mesa's shadow at 20
     Undertow: [0, -14, 14],              // the raft deck at every tide level
+    FreightLift: [0, -24, 24],           // no hazard: the floor under the lift's whole run
+    Faultline: [0, -24, 24],             // no hazard: the fixed centre and both dropping plates
+    AshfallSummit: [0, -20, 20],         // no hazard: the rim either side of the caldera
   };
   const dead = [];
   for (const d of STAGES) {

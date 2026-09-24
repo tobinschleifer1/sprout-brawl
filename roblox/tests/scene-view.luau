@@ -72,4 +72,4 @@ local count = 0
 for _, stage in Stages.LIST do for _, hazard in stage.hazards do assert(checked[hazard.type], "invisible hazard: " .. hazard.type) end end
 for _ in checked do count += 1 end
 assert(count == 10, "all ten hazards must be exercised")
-print(`PASS scene: all {count} hazards draw from live simulations; six backgrounds; serializable projectiles, five items and bursts (peak entity group {maxFrames} Frames)`)
+print(`PASS scene: all {count} hazards draw from live simulations; {#Stages.LIST} backgrounds; serializable projectiles, five items and bursts (peak entity group {maxFrames} Frames)`)

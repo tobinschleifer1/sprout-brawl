@@ -17,6 +17,9 @@
 //   Rooftops       vertical: stacked solids, tall blast ceiling
 //   Saltflat       asymmetric, with a solid block to fight around
 //   Undertow       everything moves, plus a tide that closes the floor
+//   Freight Lift   one platform that crosses the whole stage             (ranked)
+//   Faultline      a floor in four plates, two of which can drop
+//   Ashfall Summit a summit with an island off each side
 
 export const STAGES = [
   {
@@ -302,6 +305,81 @@ export const STAGES = [
       skyStops: [[0, '#33566E'], [0.4, '#6E9CB4'], [0.76, '#B4DAE6'], [1, '#D8EEF4']],
       glows: [{ x: 0.62, y: 176, r: 160, color: 'rgba(220,246,255,0.45)', disc: 8, discColor: 'rgba(248,253,255,0.9)' }] },
     music: { bpm: 58, key: 'Bb', name: 'Ebb and Flow' },        // dorian, the one that cycles
+  },
+
+  {
+    // Ranked, and a third competitive shape beside the triangle and the flat runway: one cage lift
+    // crossing the whole stage every nine seconds. Neutral on the floor; the platform game is
+    // knowing where the lift will be, which is information both players have.
+    id: 'FreightLift', name: 'Freight Lift', theme: 'Mine shaft', ranked: true,
+    archetype: 'Single moving platform',
+    blurb: 'One cage lift crossing the stage every nine seconds. Neutral, until it is not where you left it.',
+    main: { x1: -34, x2: 34, y: 0, thickness: 6 },
+    platforms: [
+      { id: 'lift', x: 0, y: 15, w: 16, soft: true, thickness: 1.5, moving: { x: { from: -20, to: 20, period: 9, phase: 0 } } },
+    ],
+    blast: { left: -115, right: 115, top: 104, bottom: -60 },
+    spawns: [-24, 24, -10, 10, -30, 30, -4, 4],
+    hazards: [],
+    ambient: { kind: 'ash', rate: 0.35, tint: 'rgba(170,160,150,0.8)', drift: 1.6 },
+    palette: { ground: '#34383F', groundTop: '#9C8A6A', platform: '#6E6250', backdrop: '#7E7466', accent: '#F2B03C', sky: '#B8A88C',
+      skyStops: [[0, '#2A2622'], [0.45, '#5A4E42'], [0.8, '#8E7C62'], [1, '#B8A88C']],
+      glows: [{ x: 0.3, y: 60, r: 110, color: 'rgba(255,190,90,0.30)' }] },
+    music: { bpm: 72, key: 'D', name: 'Counterweight' },
+  },
+
+  {
+    // A quarry floor in five plates. The centre plate is the main floor and never moves; the two
+    // beside it can drop in an earthquake; the outer two carry the only ledges, so there is always
+    // somewhere to recover to. Every plate but the outer two MUST be `ledges: false` - the "outer"
+    // rule would otherwise put a grabbable ledge in the middle of the floor. The stable ground is
+    // in the middle on purpose: with the main floor at the left edge, a centre-stage kill launched
+    // across the whole quarry and landed on the far ledge instead (stages.test.mjs, section 8).
+    id: 'Faultline', name: 'Faultline', theme: 'Canyon quarry', ranked: false,
+    disasters: ['earthquake'],   // natural disaster (engine/disasters.js), casual only
+    archetype: 'Breaking floor',
+    blurb: 'A quarry floor in five plates. The two beside the middle do not always stay where they are.',
+    main: { x1: -10, x2: 10, y: 0, thickness: 7, ledges: false },
+    platforms: [
+      { id: 'westOuter', x: -34, y: 0, w: 16, solid: true, thickness: 7, ledges: 'outer' },
+      { id: 'westInner', x: -18, y: 0, w: 16, solid: true, thickness: 7, ledges: false },
+      { id: 'eastInner', x: 18, y: 0, w: 16, solid: true, thickness: 7, ledges: false },
+      { id: 'eastOuter', x: 34, y: 0, w: 16, solid: true, thickness: 7, ledges: 'outer' },
+      { id: 'westShelf', x: -18, y: 15, w: 14, soft: true },
+      { id: 'eastShelf', x: 18, y: 15, w: 14, soft: true },
+      { id: 'crown', x: 0, y: 28, w: 10, soft: true },
+    ],
+    blast: { left: -118, right: 118, top: 104, bottom: -60 },
+    spawns: [-24, 24, -6, 6, -34, 34, -14, 14],
+    hazards: [],
+    ambient: { kind: 'sand', rate: 0.5, tint: 'rgba(160,110,80,0.6)', wind: 3 },
+    palette: { ground: '#3B2F2A', groundTop: '#A0643C', platform: '#6E4E3A', backdrop: '#8A6A56', accent: '#FF6A3C', sky: '#D8A882',
+      skyStops: [[0, '#2A1C18'], [0.45, '#6A4632'], [0.8, '#B07E5C'], [1, '#D8A882']],
+      glows: [{ x: 0.7, y: 190, r: 130, color: 'rgba(255,170,110,0.28)' }] },
+    music: { bpm: 84, key: 'E', name: 'Seams' },
+  },
+
+  {
+    // A summit with two low islands off its sides: going off-stage is rewarded with ground to
+    // fight on, and those islands are exactly where a meteor shower is worst.
+    id: 'AshfallSummit', name: 'Ashfall Summit', theme: 'Volcano summit', ranked: false,
+    disasters: ['meteor'],   // natural disaster (engine/disasters.js), casual only
+    archetype: 'Island summit',
+    blurb: 'A crater rim with an island on either side. The ash is the warning; the sky is the weapon.',
+    main: { x1: -30, x2: 30, y: 0, thickness: 6 },
+    platforms: [
+      { id: 'westIsle', x: -45, y: -7, w: 12, solid: true, thickness: 5, ledges: 'outer' },
+      { id: 'eastIsle', x: 45, y: -7, w: 12, solid: true, thickness: 5, ledges: 'outer' },
+      { id: 'caldera', x: 0, y: 18, w: 16, soft: true },
+    ],
+    blast: { left: -120, right: 120, top: 112, bottom: -64 },
+    spawns: [-20, 20, -8, 8, -26, 26, -2, 2],
+    hazards: [],
+    ambient: { kind: 'ash', rate: 0.9, tint: 'rgba(120,110,105,0.85)', drift: 3.2 },
+    palette: { ground: '#2A2426', groundTop: '#6A4A48', platform: '#5A3E3C', backdrop: '#5E4A4A', accent: '#FF8A3C', sky: '#8A5A4A',
+      skyStops: [[0, '#140C0C'], [0.45, '#3A2220'], [0.8, '#6A3A30'], [1, '#8A5A4A']],
+      glows: [{ x: 0.5, y: 30, r: 140, color: 'rgba(255,110,50,0.35)' }] },
+    music: { bpm: 66, key: 'G', name: 'Ember Sky' },
   },
 ];
 

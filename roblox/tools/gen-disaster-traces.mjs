@@ -100,6 +100,8 @@ S.push({ name: 'tsunami', stage: 'Undertow', mode: 'stage', force: 'tsunami', fi
 // Saltflat's plate is the bunker (-20..-12, top 4): the free fighter is dropped onto it.
 S.push({ name: 'earthquake, plates', stage: 'Saltflat', mode: 'chaos', force: 'earthquake', firstAt: 0.5, seed: 7, frames: dur('earthquake'), place: [-16, 9] });
 S.push({ name: 'earthquake as a tremor', stage: 'FoundryFloor', mode: 'chaos', force: 'earthquake', firstAt: 0.5, seed: 7, frames: dur('earthquake') });
+S.push({ name: 'earthquake on Faultline', stage: 'Faultline', mode: 'stage', force: 'earthquake', firstAt: 0.5, seed: 4, frames: dur('earthquake'), place: [-18, 6] });
+S.push({ name: 'meteor shower on Ashfall Summit', stage: 'AshfallSummit', mode: 'stage', force: 'meteor', firstAt: 0.5, seed: 7, frames: dur('meteor') });
 S.push({ name: 'meteor shower', stage: 'FoundryFloor', mode: 'chaos', force: 'meteor', firstAt: 0.5, seed: 7, frames: dur('meteor') });
 S.push({ name: 'chaos, real schedule', stage: 'Rooftops', mode: 'chaos', seed: 5, frames: 60 * 150 });
 

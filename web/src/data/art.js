@@ -82,6 +82,9 @@ export const SCENES = {
   Rooftops: scene('city', ['#0D1526', '#28364E', '#5C7084'], '#34435A', '#192637', '#A6DCEE', [367, 52, 8]),
   Saltflat: scene('mesa', ['#1C2432', '#64545A', '#B98B64'], '#765E55', '#493E3A', '#E3B782', [143, 103, 16]),
   Undertow: scene('dock', ['#101F2B', '#294A59', '#678F96'], '#365763', '#1C3541', '#9ACDD0', [297, 73, 10]),
+  FreightLift: scene('forge', ['#16120F', '#3A3026', '#7A6448'], '#4A4036', '#261F1A', '#F2B03C', [210, 88, 14]),
+  Faultline: scene('mesa', ['#1E1410', '#4E3024', '#9A6444'], '#6A4636', '#3A261E', '#FF8A4A', [170, 120, 13]),
+  AshfallSummit: scene('forge', ['#120A0A', '#3A1C18', '#7A3A2A'], '#4A2A26', '#241414', '#FF6A2A', [60, 170, 19]),
 };
 
 // Sparse coloured fittings with distinct motifs: runes, cooling vents, rivets and bindings.

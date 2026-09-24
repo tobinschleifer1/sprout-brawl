@@ -92,7 +92,7 @@ checkLookup("Items", Items)
 local counts: { { any } } = {
 	{ "weapons", #Weapons.LIST, 12 },
 	{ "avatars", #Avatars.LIST, 6 },
-	{ "stages", #Stages.LIST, 6 },
+	{ "stages", #Stages.LIST, 9 },   -- six, plus Freight Lift, Faultline and Ashfall Summit (R6)
 	{ "items", #Items.LIST, 5 },
 }
 for _, c in counts do

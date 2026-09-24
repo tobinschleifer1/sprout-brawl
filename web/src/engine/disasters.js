@@ -215,8 +215,9 @@ export const DISASTERS = {
       d.plates = [];
       if (solids.length >= 3) {
         // Never both outermost solids: somewhere must always have a ledge to recover to.
-        const inner = solids.filter((s) => s !== solids.reduce((a, b) => (a.x1 < b.x1 ? a : b)) && s !== solids.reduce((a, b) => (a.x2 > b.x2 ? a : b)));
-        const pool = inner.length ? inner : solids.slice(1);
+        // ...and never the main floor: the stable ground a stage is built around.
+        const inner = solids.filter((s) => s !== ctx.stage.main && s !== solids.reduce((a, b) => (a.x1 < b.x1 ? a : b)) && s !== solids.reduce((a, b) => (a.x2 > b.x2 ? a : b)));
+        const pool = inner.length ? inner : solids.filter((s) => s !== ctx.stage.main);
         const n = pool.length > 1 && ctx.stage.rng() < 0.5 ? 2 : 1;
         for (let i = 0; i < n; i++) {
           const pick = pool[Math.floor(ctx.stage.rng() * pool.length)];

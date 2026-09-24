@@ -223,6 +223,27 @@ for (const type of Object.keys(DISASTERS)) {
   check('tornado: ...while a touchable fighter in the same spot is pulled in', pulled > 0, 'the control');
 }
 
+// ---- Faultline: the quake drops only the plates beside the middle ----
+{
+  const dropped = new Set(); let runs = 0, bad = [];
+  for (let seed = 1; seed <= 40; seed++) {
+    const m = makeMatch({ stageId: 'Faultline', disasters: 'stage', seed });
+    skipCountdown(m);
+    m.stage.director.next = 0;
+    m.step();
+    const act = m.stage.director.active;
+    if (!act) continue;
+    runs++;
+    for (const p of act.plates) {
+      dropped.add(p.id);
+      if (p === m.stage.main || p.ledges) bad.push(`seed ${seed}: dropped ${p.id}`);
+    }
+  }
+  check('Faultline: the quake drops only the inner plates - never the centre, never a ledge plate',
+    runs === 40 && bad.length === 0 && [...dropped].sort().join() === 'eastInner,westInner',
+    bad.length ? bad.join('; ') : `40 quakes dropped only ${[...dropped].sort().join(' and ')}`);
+}
+
 // ---- 7. scheduling: 45 s first, 40-55 s gaps, never in the countdown; deterministic ----
 function schedule(seed) {
   const m = makeMatch({ stageId: 'FoundryFloor', disasters: 'chaos', seed, stocks: 99 });

@@ -31,5 +31,5 @@ for (const stage of STAGES) {
     assert.equal(ctx.stack, 0);
   }
 }
-assert.equal(identities.size, 6, 'six stages keep six distinct identities');
-console.log('PASS art: six distinct backgrounds at three viewport widths and camera extremes' + ' (weapon art: see weapon-art.test.mjs)');
+assert.equal(identities.size, STAGES.length, 'every stage keeps a distinct identity');
+console.log(`PASS art: ${STAGES.length} distinct backgrounds` + ' at three viewport widths and camera extremes' + ' (weapon art: see weapon-art.test.mjs)');

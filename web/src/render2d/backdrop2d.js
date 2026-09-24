@@ -185,6 +185,9 @@ const SKY_CLOUDS = {
   'City rooftops': { colour: '#5E6E86', alpha: 0.4 },
   'Dry lake': { colour: '#FFF4DC', alpha: 0.45 },
   'Flooded dock': { colour: '#FFFFFF', alpha: 0.5 },
+  'Mine shaft': { colour: '#7E7466', alpha: 0.4 },
+  'Canyon quarry': { colour: '#E8C4A0', alpha: 0.4 },
+  'Volcano summit': { colour: '#5E4A4A', alpha: 0.55 },
 };
 
 // --------------------------------------------------------------------------- the scenery -----
@@ -338,6 +341,20 @@ const THEMES = {
     { par: 0.05, dist: 0.50, y: -3, step: 34, s: 0.9, key: 'ground', draw: ridge },
     { par: 0.14, dist: 0.38, y: -5, step: 24, s: 1.0, key: 'backdrop', draw: (b, x, y, s, sd, c) => warehouse(b, x, y, s, sd, c, 'rgba(255,232,180,0.7)') },
     { par: 0.30, dist: 0.28, y: -10, step: 26, s: 1.0, key: 'ground', draw: crane },
+  ],
+  'Mine shaft': [
+    { par: 0.06, dist: 0.55, y: -4, step: 30, s: 1.0, key: 'backdrop', draw: ridge },
+    { par: 0.16, dist: 0.36, y: -6, step: 20, s: 1.0, key: 'ground', draw: gantry },
+    { par: 0.32, dist: 0.26, y: -11, step: 18, s: 0.9, key: 'ground', draw: (b, x, y, s, sd, c) => chimneyStack(b, x, y, s, sd, c, 'rgba(255,190,90,0.6)') },
+  ],
+  'Canyon quarry': [
+    { par: 0.04, dist: 0.50, y: -3, step: 40, s: 1.1, key: 'ground', draw: mesa },
+    { par: 0.12, dist: 0.34, y: -5, step: 30, s: 0.9, key: 'ground', draw: mesa },
+    { par: 0.26, dist: 0.24, y: -9, step: 24, s: 0.8, key: 'ground', draw: crane },
+  ],
+  'Volcano summit': [
+    { par: 0.05, dist: 0.55, y: -4, step: 48, s: 1.2, key: 'backdrop', draw: ridge },
+    { par: 0.15, dist: 0.36, y: -6, step: 26, s: 1.0, key: 'ground', draw: (b, x, y, s, sd, c) => chimneyStack(b, x, y, s, sd, c, 'rgba(255,100,40,0.7)') },
   ],
 };
 export function drawScenery(b, stage, cam, t, BW) {

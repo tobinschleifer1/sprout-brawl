@@ -247,13 +247,16 @@ D.earthquake = {
 				if s.x2 > right.x2 then right = s end
 			end
 			local inner = {}
+			-- ...and never the main floor: the stable ground a stage is built around.
 			for _, s in solids do
-				if s ~= left and s ~= right then table.insert(inner, s) end
+				if s ~= left and s ~= right and s ~= ctx.stage.main then table.insert(inner, s) end
 			end
 			local pool = inner
 			if #pool == 0 then
 				pool = {}
-				for i = 2, #solids do table.insert(pool, solids[i]) end
+				for _, s in solids do
+					if s ~= ctx.stage.main then table.insert(pool, s) end
+				end
 			end
 			local n = if #pool > 1 and ctx.stage.rng() < 0.5 then 2 else 1
 			for _ = 1, n do

@@ -10,6 +10,7 @@
 // scratch out of the simulation state.
 
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
+import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks } from './effects.js';
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, drawSprite, REACH } from './weapons2d.js';
 import { WEAPON_SPRITES } from '../data/weaponArt.js';
@@ -31,7 +32,7 @@ const BW_MIN = 320, BW_MAX = 900;
 const lerp = (a, b, k) => a + (b - a) * k;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
-export const PLAYER_TINT = ['#5FBF4B', '#E8862E', '#4A90D9', '#9A6BD6'];
+export { PLAYER_TINT } from './effects.js';
 
 export class Renderer2D {
   constructor(canvas) {
@@ -47,11 +48,9 @@ export class Renderer2D {
     // HUD sets this itself in HUD.update, because the HUD is the thing that knows how tall it is.
     this.safeBottom = 0;
     this._cssH = 0;
-    this.shake = 0;
     this.debug = false;
     this.stage = null;
-    this.parts = [];                  // transient particles
-    this.slashes = [];                // impact flashes from signatures
+    this.fx = newEffects();           // sparks, impact rings and shake (render2d/effects.js)
     this.time = 0;
     this.resize();
   }
@@ -68,7 +67,7 @@ export class Renderer2D {
     this.ctx.imageSmoothingEnabled = false;
   }
 
-  setStage(stage) { this.stage = stage; this.parts.length = 0; this.slashes.length = 0; }
+  setStage(stage) { this.stage = stage; this.fx = newEffects(); }
 
   // World point -> CSS pixels on the display canvas, for HUD markers that track a fighter.
   project(x, y) {
@@ -79,7 +78,7 @@ export class Renderer2D {
     return { x: ox + (this.BW / 2 + (x - c.x) * c.ppu) * k, y: oy + (BH / 2 - (y - c.y) * c.ppu) * k };
   }
   setFighters() { /* nothing to build: fighters are painted from state every frame */ }
-  clear() { this.parts.length = 0; this.slashes.length = 0; }
+  clear() { this.fx = newEffects(); }
   dispose() { this.stage = null; this.clear(); }
 
   // ---------------------------------------------------------------------- camera ----
@@ -115,8 +114,9 @@ export class Renderer2D {
 
   _world() {
     const b = this.b, c = this.view || this.cam;
-    const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
-    const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 2 : 0;
+    const shake = this.fx.shake;
+    const sx = shake > 0 ? (Math.random() - 0.5) * shake * 2 : 0;
+    const sy = shake > 0 ? (Math.random() - 0.5) * shake * 2 : 0;
     b.setTransform(c.ppu, 0, 0, -c.ppu, this.BW / 2 - c.x * c.ppu + sx, BH / 2 + c.y * c.ppu + sy);
   }
   _screen() { this.b.setTransform(1, 0, 0, 1, 0, 0); }
@@ -134,7 +134,6 @@ export class Renderer2D {
     if (U && ultOver(match.frame - U.frame)) this.ult = null;
     this.view = cine.active && caster
       ? punch(this.cam.x, this.cam.y, this.cam.ppu, caster.x, caster.y + caster.h * 0.5, cine.zoom) : null;
-    if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 9);
 
     this._sky(match.stage);
     this._world();
@@ -393,6 +392,7 @@ export class Renderer2D {
     this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: ch.armR.x, ext: ch.armR.ext }, h, true, art, pal, 1);
 
     // weapon, at the hand
+    let scuff = null;
     if (wid && !wp.hide) {
       const AL = h * 0.30 * (ch.armR.ext || 1);   // same length the arm was drawn at
       const hx = r * 0.55 + Math.cos(armAng) * AL;
@@ -409,19 +409,11 @@ export class Renderer2D {
         const wx = f.x + headLocal.x * f.facing, wy = f.y + HIP + headLocal.y;
         const floor = f.platform.top;
         if (wy < floor + 1.2) {
-          b.globalAlpha = 0.5;
-          b.fillStyle = pal.tertiary;
-          b.fillRect(wx - 0.5, floor, 1.0, 0.22);          // the scuff under the head
-          b.globalAlpha = 1;
+          // The scuff under the head is drawn once the body's transform is gone: it is in world
+          // units, and drawing it here placed it relative to the torso - usually off screen.
+          scuff = { x: wx, y: floor, c: pal.tertiary };
           // grit kicked backwards, more of it the faster you are hauling
-          const rate = 0.25 + wp.drag.scrape * 0.75;
-          if (Math.random() < rate) {
-            this.parts.push({ x: wx, y: floor + 0.1,
-              vx: -f.facing * (2 + Math.random() * 7) - f.vx * 0.12,
-              vy: 1 + Math.random() * 5,
-              life: 0.3 + Math.random() * 0.3, max: 0.6,
-              c: Math.random() < 0.5 ? pal.tertiary : '#6B5A44', s: 0.16 + Math.random() * 0.18 });
-          }
+          dragDirt(this.fx, wx, floor, f.facing, f.vx, wp.drag.scrape, pal.tertiary, Math.random);
         }
       }
 
@@ -435,6 +427,11 @@ export class Renderer2D {
     b.restore();  // body
     b.restore();  // bob
     b.restore();  // fighter
+    if (scuff) {
+      b.globalAlpha = 0.5; b.fillStyle = scuff.c;
+      b.fillRect(scuff.x - 0.5, scuff.y, 1.0, 0.22);
+      b.globalAlpha = 1;
+    }
 
     // shield bubble
     if (ch.bubble > 0) {
@@ -771,7 +768,7 @@ export class Renderer2D {
         b.fillStyle = '#FFFFFF';
         b.beginPath(); b.arc(p.x - 0.1, p.y + 0.1, p.w * 0.18, 0, PI * 2); b.fill();
         // sparks trailing the bolt
-        if (Math.random() < 0.5) this.parts.push({ x: p.x, y: p.y, vx: -p.vx * 0.08 + (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2, life: 0.28, max: 0.28, c: pal.glow || '#7DE8FF', s: 0.16 });
+        orbSparks(this.fx, p.x, p.y, p.vx, pal.glow, Math.random);
       } else if (p.shape === 'rivet') {
         drawRivet(b, p.x, p.y, dir, '#FFD37A');
       } else if (p.itemDef) {
@@ -846,35 +843,14 @@ export class Renderer2D {
     }
   }
 
+  // Sparks and impact rings, from the shape list both builds draw (render2d/effects.js).
   _particles(dt) {
     const b = this.b;
-    for (let i = this.parts.length - 1; i >= 0; i--) {
-      const p = this.parts[i];
-      p.life -= dt;
-      if (p.life <= 0) { this.parts.splice(i, 1); continue; }
-      p.x += p.vx * dt; p.y += p.vy * dt; p.vy -= 26 * dt;
-      b.globalAlpha = clamp(p.life / p.max, 0, 1);
-      b.fillStyle = p.c;
-      b.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s);
-    }
-    // signature impact rings
-    for (let i = this.slashes.length - 1; i >= 0; i--) {
-      const s = this.slashes[i];
-      s.life -= dt;
-      if (s.life <= 0) { this.slashes.splice(i, 1); continue; }
-      const k = 1 - s.life / s.max;
-      b.globalAlpha = (1 - k) * 0.9;
-      b.strokeStyle = s.c; b.lineWidth = 0.5 * (1 - k) + 0.12;
-      b.beginPath(); b.arc(s.x, s.y, s.r * (0.35 + k * 1.5), 0, PI * 2); b.stroke();
-      if (s.heavy) {
-        b.lineWidth = 0.22 * (1 - k);
-        for (let n = 0; n < 8; n++) {
-          const a = (n / 8) * PI * 2 + s.rot;
-          const r0 = s.r * (0.5 + k * 1.2), r1 = r0 + s.r * 0.8 * (1 - k);
-          b.beginPath(); b.moveTo(s.x + Math.cos(a) * r0, s.y + Math.sin(a) * r0);
-          b.lineTo(s.x + Math.cos(a) * r1, s.y + Math.sin(a) * r1); b.stroke();
-        }
-      }
+    stepEffect(this.fx, dt);
+    for (const sh of effectShapes(this.fx)) {
+      b.globalAlpha = sh[sh.length - 1];
+      if (sh[0] === 'r') { b.fillStyle = sh[5]; b.fillRect(sh[1], sh[2], sh[3], sh[4]); }
+      else { b.strokeStyle = sh[6]; b.lineWidth = sh[5]; b.beginPath(); b.moveTo(sh[1], sh[2]); b.lineTo(sh[3], sh[4]); b.stroke(); }
     }
     b.globalAlpha = 1;
   }
@@ -883,124 +859,17 @@ export class Renderer2D {
   // Signature hits get a ring plus a shower of sparks; ordinary hits get a small pop. This is the
   // "effects when coming into contact" the ultimates are supposed to have.
   handle(e, match) {
-    const b = this.parts;
-    const push = (x, y, n, c, sp, life, size) => {
-      for (let i = 0; i < n; i++) {
-        const a = Math.random() * PI * 2, s = sp * (0.4 + Math.random() * 0.8);
-        b.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: life * (0.6 + Math.random() * 0.7), max: life, c, s: size });
-      }
+    const glow = (i) => {
+      const f = match.fighters[i];
+      const pal = f && (f.char.weaponPalette || f.char.palette);
+      return (pal && pal.glow) || null;
     };
-    if (e.type === 'hit') {
-      const heavy = !!e.heavy;
-      const atk = match.fighters[e.attacker];
-      const col = (atk && atk.char.weaponPalette && atk.char.weaponPalette.glow) || '#FFFFFF';
-      push(e.x, e.y, heavy ? 16 : 7, col, heavy ? 26 : 14, heavy ? 0.5 : 0.28, heavy ? 0.32 : 0.2);
-      push(e.x, e.y, heavy ? 8 : 4, '#FFFFFF', heavy ? 18 : 10, 0.24, 0.22);
-      if (heavy) {
-        this.slashes.push({ x: e.x, y: e.y, r: 2.6, life: 0.34, max: 0.34, c: col, heavy: true, rot: Math.random() * PI });
-        this.shake = Math.max(this.shake, 0.5);
-      } else this.shake = Math.max(this.shake, 0.14);
-    } else if (e.type === 'explosion') {
-      push(e.x, e.y, 22, '#FFC44D', 30, 0.5, 0.34);
-      this.slashes.push({ x: e.x, y: e.y, r: e.radius || 3, life: 0.4, max: 0.4, c: '#FFD37A', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 0.7);
-    } else if (e.type === 'block') {
-      push(e.x, e.y, 6, e.perfect ? '#FFFFFF' : '#9FD1E8', 12, 0.25, 0.2);
-    } else if (e.type === 'ko') {
-      push(e.x, e.y, 28, PLAYER_TINT[e.fighter % 4], 34, 0.7, 0.4);
-      this.slashes.push({ x: e.x, y: e.y, r: 4, life: 0.5, max: 0.5, c: PLAYER_TINT[e.fighter % 4], heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 1.0);
-    } else if (e.type === 'projectile' || e.type === 'beam') {
-      push(e.x, e.y, 5, '#FFF3D0', 10, 0.2, 0.18);
-    } else if (e.type === 'land' && e.hard) {
-      push(e.x, e.y, 8, '#D9C9A8', 12, 0.3, 0.24);
-      this.shake = Math.max(this.shake, 0.35);
-    } else if (e.type === 'ultimate') {
+    spawnEffect(this.fx, e, glow, Math.random);
+    if (e.type === 'ultimate') {
       const f = match.fighters[e.fighter];
       const pal = f && (f.char.weaponPalette || f.char.palette);
       this.ult = { frame: match.frame, fighter: e.fighter, label: e.label || 'ULTIMATE', name: (f && f.name) || '',
         weapon: e.weapon, color: (pal && (pal.glow || pal.accent)) || '#FFFFFF' };
-      push(e.x, e.y, 30, (pal && pal.glow) || '#FFFFFF', 30, 0.6, 0.4);
-      this.shake = Math.max(this.shake, 1.4);
-    } else if (e.type === 'ultready') {
-      this.shake = Math.max(this.shake, 0.2);
-    } else if (e.type === 'soulescape') {
-      push(e.x, e.y, 12, '#FFFFFF', 24, 0.35, 0.26);
-    } else if (e.type === 'crater') {
-      // rock and light thrown out of the floor where the greatsword landed
-      push(e.x, e.y, e.first ? 26 : 12, '#5A4A3E', e.first ? 26 : 17, 0.55, e.first ? 0.42 : 0.3);
-      push(e.x, e.y, e.first ? 18 : 8, '#FFB43C', e.first ? 30 : 20, 0.42, 0.3);
-      this.slashes.push({ x: e.x, y: e.y, r: e.radius, life: 0.32, max: 0.32, c: '#FFD37A', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, e.first ? 1.1 : 0.35);
-    } else if (e.type === 'rundown') {
-      // Each dash arrives as a burst of impact at the target, and the last one is the send.
-      push(e.x, e.y, e.last ? 26 : 12, '#FFE9C4', e.last ? 30 : 18, 0.36, e.last ? 0.4 : 0.26);
-      push(e.x, e.y, e.last ? 14 : 6, '#FF9A4A', e.last ? 24 : 14, 0.3, 0.24);
-      this.slashes.push({ x: e.x, y: e.y, r: e.last ? 4.6 : 2.8, life: 0.26, max: 0.26, c: '#FFC98A', heavy: e.last, rot: Math.random() * PI });
-      this.shake = Math.max(this.shake, e.last ? 0.9 : 0.28);
-    } else if (e.type === 'upheaval') {
-      // a column of floor coming up, so the debris is thrown UPWARD rather than outward
-      for (let i = 0; i < 22; i++) {
-        this.parts.push({ x: e.x + (Math.random() - 0.5) * 4.6, y: e.y + Math.random() * 2,
-          vx: (Math.random() - 0.5) * 8, vy: 22 + Math.random() * 26, life: 0.6, max: 0.6,
-          c: i % 3 ? '#8A94A6' : '#4A4038', s: 0.22 + Math.random() * 0.3 });
-      }
-      this.slashes.push({ x: e.x, y: e.y + 3.5, r: 3.4, life: 0.3, max: 0.3, c: '#D8DCE2', heavy: true, rot: PI / 2 });
-      this.shake = Math.max(this.shake, 0.7);
-    } else if (e.type === 'heartseeker') {
-      push(e.x, e.y, 16, '#8EE86A', 34, 0.3, 0.22);
-      this.shake = Math.max(this.shake, 0.5);
-    } else if (e.type === 'anchorset') {
-      push(e.x, e.y, 20, '#6E7684', 20, 0.42, 0.3);
-      this.slashes.push({ x: e.x, y: e.y, r: 2.4, life: 0.3, max: 0.3, c: '#C86AE8', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 0.45);
-    } else if (e.type === 'anchorsnap') {
-      push(e.x, e.y, 26, '#C86AE8', 30, 0.45, 0.32);
-      this.slashes.push({ x: e.x, y: e.y, r: 4.2, life: 0.34, max: 0.34, c: '#D8B0F0', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 1.0);
-    } else if (e.type === 'aegis') {
-      // their own damage, coming back at them
-      push(e.x, e.y, 18, '#7FD4FF', 26, 0.38, 0.28);
-      this.slashes.push({ x: e.x, y: e.y, r: 3.0, life: 0.28, max: 0.28, c: '#FFFFFF', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 0.55);
-    } else if (e.type === 'aegisbreak') {
-      push(e.x, e.y, 30, '#FFFFFF', 34, 0.45, 0.34);
-      this.slashes.push({ x: e.x, y: e.y, r: 5.4, life: 0.36, max: 0.36, c: '#7FD4FF', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 1.1);
-    } else if (e.type === 'bleedmark') {
-      // a mark landing: small, and it stacks visibly so the player can count what they are owed
-      for (let i = 0; i < 4; i++) this.parts.push({ x: e.x + (Math.random() - 0.5) * 1.6, y: e.y + (Math.random() - 0.5) * 2,
-        vx: (Math.random() - 0.5) * 6, vy: 4 + Math.random() * 8, life: 0.4, max: 0.4, c: '#FF4A6A', s: 0.2 });
-    } else if (e.type === 'exsanguinate') {
-      // and the collection: one burst per victim, sized by what they were carrying
-      const n = Math.min(12, e.marks);
-      push(e.x, e.y, 10 + n * 3, '#FF4A6A', 22 + n * 2, 0.5, 0.3);
-      this.slashes.push({ x: e.x, y: e.y, r: 1.8 + n * 0.32, life: 0.34, max: 0.34, c: '#FFFFFF', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 0.4 + n * 0.06);
-    } else if (e.type === 'soulgrab') {
-      push(e.x, e.y, 14, '#C79BFF', 20, 0.4, 0.26);
-    } else if (e.type === 'soulorb') {
-      // matter being dragged inward: particles spawned OUTSIDE and pulled to the centre
-      if (Math.random() < 0.7) {
-        const a = Math.random() * PI * 2, d = 5 + Math.random() * 4;
-        this.parts.push({ x: e.x + Math.cos(a) * d, y: e.y + Math.sin(a) * d,
-          vx: -Math.cos(a) * d * 2.4, vy: -Math.sin(a) * d * 2.4, life: 0.4, max: 0.4, c: '#B36BFF', s: 0.2 });
-      }
-    } else if (e.type === 'soulburst') {
-      push(e.x, e.y, 34, '#C79BFF', 40, 0.6, 0.4);
-      push(e.x, e.y, 14, '#FFFFFF', 26, 0.35, 0.26);
-      this.slashes.push({ x: e.x, y: e.y, r: e.radius, life: 0.45, max: 0.45, c: '#B36BFF', heavy: true, rot: 0 });
-      this.slashes.push({ x: e.x, y: e.y, r: e.radius * 1.7, life: 0.3, max: 0.3, c: '#150B22', heavy: true, rot: 0 });
-      this.shake = Math.max(this.shake, 1.2);
-    } else if (e.type === 'snipe') {
-      push(e.x, e.y, 9, '#FFF3D0', 16, 0.24, 0.24);
-      this.shake = Math.max(this.shake, 0.4);
-    } else if (e.type === 'starfall') {
-      push(e.x, e.y, 6, '#B36BFF', 8, 0.35, 0.22);
-    } else if (e.type === 'mark') {
-      this.shake = Math.max(this.shake, 0.25);
-    } else if (e.type === 'counter' || e.type === 'freeze' || e.type === 'summonbreak') {
-      push(e.x, e.y, 10, '#FFFFFF', 16, 0.3, 0.22);
     }
   }
 

@@ -178,7 +178,7 @@ print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map grid 
 local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
 	-- The results podium has its own test (podium-view); this one is about the match HUD.
-	require=function(name) if name=="PodiumView" then return {} end return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
+	require=function(name) if name=="PodiumView" then return {} end if name=="Callouts" then return Loader.load("Data/Callouts") end return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
 	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local hud=Hud.new(instance("PlayerGui"))
@@ -227,3 +227,31 @@ do
 	print("PASS disaster banner: cool countdown while warning, hot on strike, tremor named, gone after")
 end
 
+-- Callouts: the go call, a KO, sudden death and GAME! in the middle; the stage name above it; each
+-- with the words, colour and hold of web/src/data/callouts.js, fading out at the end.
+do
+	local Callouts = Loader.load("Data/Callouts")
+	hud.disasterView = nil
+	hud:update({}, { state = "countdown", countdown = 0, time = 0 }, nil, chars, nil)
+	assert(hud.callout.Text == Callouts.go.text and hud.callout.TextTransparency == 0, `the last count is the go call, got {hud.callout.Text}`)
+	hud:update({}, { state = "fight", time = 0.1 }, nil, chars, nil)
+	assert(hud.callout.Text == Callouts.go.text, "the go call holds into the fight")
+	for _, key in { "ko", "suddendeath", "shrink", "game" } do
+		hud:announce(key, if key == "ko" then "KO!  ● Player1" else nil)
+		hud:update({}, { state = "fight", time = 5 }, nil, chars, nil)
+		local want = if key == "ko" then "KO!  ● Player1" else Callouts[key].text
+		assert(hud.callout.Text == want and hud.callout.TextTransparency == 0, `{key}: shows {hud.callout.Text}`)
+		assert(hud.callout.TextColor3 == Rbx.Color3.fromHex(Callouts[key].colour), `{key}: in its colour`)
+		hud.flash.start -= Callouts[key].ms / 1000 * 0.85
+		hud:update({}, { state = "fight", time = 5 }, nil, chars, nil)
+		assert(hud.callout.TextTransparency > 0 and hud.callout.TextTransparency < 1, `{key}: fades over its last third`)
+		hud.flash.start -= Callouts[key].ms / 1000
+		hud:update({}, { state = "fight", time = 5 }, nil, chars, nil)
+		assert(hud.callout.TextTransparency == 1, `{key}: gone after its hold`)
+	end
+	hud:announce("stage", "Foundry Floor")
+	hud:update({}, { state = "countdown", countdown = 150, time = 0 }, nil, chars, nil)
+	assert(hud.stageName.Text == "Foundry Floor" and hud.stageName.TextTransparency == 0, "the stage name shows during the countdown")
+	assert(hud.callout.Text == "3", "while the countdown keeps the middle")
+	print("PASS callouts: go call, KO, sudden death, closing in and GAME! with the web's words, colours and holds; stage name above the countdown")
+end

@@ -30,6 +30,9 @@ local Stage2D = require(script.Stage2D)
 local DisasterShapes = require(script.DisasterShapes)
 local UltCinematic = require(script.UltCinematic)
 local UltBanner = require(script.UltBanner)
+local Effects = require(script.Effects)
+local HudColors = require(script.HudColors)
+local Callouts = require(Shared.Data.Callouts)
 local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
@@ -72,6 +75,21 @@ local drawnFrame = 0
 -- The last ultimate activated: who, what, and on which frame. The cutscene is a pure function of
 -- drawnFrame minus that frame (UltCinematic), so it lines up with the freeze the server runs.
 local ult: any = nil
+-- Sparks, impact rings and shake (Effects, held to web/src/render2d/effects.js). One state for the
+-- session, cleared at each match; the fighter and world painters add their per-frame dirt and orb
+-- sparks to it too.
+local fx = Effects.new()
+Fighter2D.effects = fx
+World2D.effects = fx
+-- Events wait here until the drawn picture reaches the frame they happened on: the world is drawn a
+-- few frames behind the newest snapshot, and a spark that lands before the hit it belongs to reads
+-- as the game guessing.
+local pendingFx: { any } = {}
+local function glowOf(i: number?): string?
+	local char = if i ~= nil then chars[i + 1] else nil
+	local pal = char and (char.weaponPalette or char.palette)
+	return pal and pal.glow or nil
+end
 -- Which fighter is ours, and the simulation that runs it ahead of the server. Everyone else is
 -- drawn two frames in the past to smooth out jitter; ours is predicted, so it answers the frame
 -- the input was sampled on rather than a round trip later.
@@ -157,6 +175,8 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	buffer = {}
 	scenes = {}
 	ult = nil
+	fx.parts, fx.rings, fx.shake = {}, {}, 0
+	pendingFx = {}
 	roster = cfg.fighters
 	chars = {}
 	localIndex = nil
@@ -180,6 +200,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	end
 	hud.gui.Enabled = true
 	hud:clearResults()
+	if stageView then hud:announce("stage", stageView.data.name) end
 	hud:bind(roster, chars, localIndex)
 
 	predictor = nil
@@ -263,9 +284,8 @@ Net.remote("Events").OnClientEvent:Connect(function(events: { any }, frame: numb
 			print(`[Blockfall] {e.n}`)
 		elseif e.type == "go" then
 			print("[Blockfall] GO")
-		elseif e.type == "ko" then
-			cam2d.shake = 1.2
 		end
+		table.insert(pendingFx, { frame = frame or 0, e = e })
 	end
 end)
 
@@ -402,6 +422,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		end
 	end
 	if #bodies > 0 then
+		cam2d.shake = fx.shake * canvas:viewport().Y / 270
 		cam2d:update(bodies, dt, canvas:viewport())
 	end
 
@@ -471,6 +492,42 @@ RunService.RenderStepped:Connect(function(dt: number)
 		World2D.hazards(canvas, scene.hazards or {}, stageView, scene.frame * FRAME)
 		World2D.entities(canvas, scene, chars, states, scene.frame * FRAME)
 	end
+	-- Sparks and rings, from the shape list both builds draw.
+	-- (Released anyway past 64 waiting, so a stalled clock can never make them pile up.)
+	while pendingFx[1] and (pendingFx[1].frame <= drawnFrame + 0.5 or #pendingFx > 64) do
+		local item = table.remove(pendingFx, 1) :: any
+		local e = item.e
+		Effects.spawn(fx, e, glowOf, math.random)
+		-- and the words that go with it, on the same frame (web/src/main.js does the same)
+		if hud then
+			if e.type == "ko" then
+				local entry = roster[(e.fighter or 0) + 1]
+				hud:announce("ko", `{Callouts.ko.text}  {HudColors.MARKS[((e.fighter or 0) % 8) + 1]} {if entry then entry.name else ""}`)
+			elseif e.type == "suddendeath" or e.type == "shrink" or e.type == "game" then
+				hud:announce(e.type)
+			end
+		end
+	end
+	local fxOk, fxErr = pcall(function()
+	Effects.step(fx, dt)
+	for _, sh in Effects.shapes(fx) do
+		if sh[1] == "r" then
+			Canvas2D.rect(canvas, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], Color3.new(1, 1, 1)), sh[7])
+		else
+			local dx, dy = sh[4] - sh[2], sh[5] - sh[3]
+			Canvas2D.save(canvas)
+			Canvas2D.translate(canvas, sh[2], sh[3])
+			Canvas2D.rotate(canvas, math.atan2(dy, dx))
+			Canvas2D.rect(canvas, 0, -sh[6] / 2, math.sqrt(dx * dx + dy * dy), sh[6], Canvas2D.hex(sh[7], Color3.new(1, 1, 1)), sh[8])
+			Canvas2D.restore(canvas)
+		end
+	end
+	end)
+	if not fxOk and not posedWarned[-2] then
+		posedWarned[-2] = true
+		fx.parts, fx.rings = {}, {}
+		warn(`[Blockfall] effects failed to draw, and will not be reported again: {fxErr}`)
+	end
 	-- Everything but the caster falls into shadow; the caster stands in gold for exactly the frames
 	-- they cannot be hit, then is drawn on top of it all, then the banner crosses the screen.
 	local banner = nil
@@ -505,9 +562,6 @@ RunService.RenderStepped:Connect(function(dt: number)
 		hud:update(states, buffer[#buffer], canvas, chars, matchCfg)
 	end
 
-	if cam2d.shake > 0 then
-		cam2d.shake = math.max(0, cam2d.shake - dt * 4)
-	end
 end)
 
 -- ---------------------------------------------------------------- go ----

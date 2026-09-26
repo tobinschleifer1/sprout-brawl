@@ -21,7 +21,10 @@ local Avatar2D = require(script.Parent.Avatar2D)
 local BLACK = Color3.new(0, 0, 0)
 local SHIELD = Color3.fromRGB(159, 209, 232)
 
+local Effects = require(script.Parent.Effects)
 local Fighter2D = {}
+-- The live effects state (Effects.new()) that a hauled weapon kicks dirt into; set by the client.
+Fighter2D.effects = nil :: any
 
 local function sign(v: number): number
 	return if v < 0 then -1 else 1
@@ -186,12 +189,27 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
 	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = ch.armR.x, ext = ext }, h, true, 1)
 
+	local scuff: any = nil
 	if wid and not wpose.hide then
 		-- The hand is the far end of the arm, at the length the arm was actually drawn at, so a
 		-- thrust's armR.ext carries the weapon with it instead of leaving the grip behind.
 		local AL = h * 0.30 * ext
 		local hx = r * 0.55 + math.cos(armAng) * AL
 		local hy = (SHO - HIP) + math.sin(armAng) * AL
+		-- A hauled weapon scrapes: the head's world position is the hand plus the weapon's reach
+		-- along its angle, so the dirt comes off where the axe meets the floor (see renderer2d.js).
+		if wpose.drag and s.onGround and platformTop then
+			local rch = Weapons2D.REACH[wid] or 2.4
+			local wx = s.x + (hx + math.cos(wpose.angle) * rch) * s.facing
+			local wy = s.y + HIP + hy + math.sin(wpose.angle) * rch
+			if wy < platformTop + 1.2 then
+				scuff = { x = wx, y = platformTop }
+				if Fighter2D.effects then
+					Effects.dragDirt(Fighter2D.effects, wx, platformTop, s.facing, s.vx or 0, wpose.drag.scrape,
+						pal.tertiary or "#606678", math.random)
+				end
+			end
+		end
 		-- The trail sweeps around the SHOULDER, not the hand: it is where the blade has been.
 		if wpose.trail then
 			Canvas2D.save(c)
@@ -212,6 +230,9 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.restore(c)   -- torso
 	Canvas2D.restore(c)   -- bob
 	Canvas2D.restore(c)   -- fighter
+	if scuff then
+		Canvas2D.rect(c, scuff.x - 0.5, scuff.y, 1.0, 0.22, tertiary, 0.5)
+	end
 
 	-- The shield bubble and the hit flash are drawn in world space around the fighter rather than
 	-- welded to the rig: both are about the fighter rather than part of them, and neither should

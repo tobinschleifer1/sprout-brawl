@@ -10,7 +10,7 @@ import { Menus, mapSet } from './ui/menus.js';
 import { SFX } from './audio/sfx.js';
 import { Music } from './audio/music.js';
 import { FRAME } from './config.js';
-import { GO_CALL } from './data/branding.js';
+import { CALLOUTS } from './data/callouts.js';
 
 const SFX_FOR = { hit: 'hit', chip: 'chip', block: 'block', ko: 'ko', jump: 'jump', doublejump: 'doublejump', land: 'land', dash: 'dash', dodge: 'dodge', ledge: 'ledge', shieldbreak: 'shieldbreak', grabhit: 'grab', explosion: 'explosion', beam: 'beam', burst: 'burst', freeze: 'freeze', counter: 'counter', summon: 'summon', projectile: 'projectile', bloom: 'bloom', momentumready: 'momentum', pickup: 'pickup', throwitem: 'throwitem', tech: 'tech', vent: 'vent', count: 'count', go: 'go', suddendeath: 'suddendeath', game: 'game', teleport: 'teleport', fruiting: 'explosion', pulse: 'burst', shock: 'land' };
 
@@ -121,7 +121,7 @@ class App {
     this.hud.bind(match); this.hud.show();
     this.state = 'match';
     this.music.start(match.stage.data.music);
-    this.hud.message(match.stage.data.name, 'stage', 1600);
+    this.hud.message(match.stage.data.name, 'stage', CALLOUTS.stage.ms);
   }
 
   endMatch(showResults) {
@@ -168,15 +168,16 @@ class App {
       if (s) this.sfx.play(s, e);
       if (e.type === 'movestart') this.sfx.play(e.heavy ? 'whiffheavy' : 'whiff');
       if (this.idle) continue;
-      if (e.type === 'count') this.hud.message(String(e.n), 'count', 700);
-      if (e.type === 'go') this.hud.message(GO_CALL, 'go', 900);
-      if (e.type === 'ko') { const f = match.fighters[e.fighter]; this.hud.message(`KO! <small>${PLAYER_MARKS[f.index]} ${f.name}</small>`, 'ko', 1100); }
-      if (e.type === 'suddendeath') this.hud.message('SUDDEN DEATH', 'sd', 1600);
-      if (e.type === 'game') { this.hud.message('GAME!', 'game', 1800); setTimeout(() => this.endMatch(true), 1700); this.music.setIntensity(0); }
-      if (e.type === 'shrink') this.hud.message('Closing in', 'sd', 800);
+      const C = CALLOUTS;
+      if (e.type === 'count') this.hud.message(String(e.n), 'count', C.count.ms);
+      if (e.type === 'go') this.hud.message(C.go.text, 'go', C.go.ms);
+      if (e.type === 'ko') { const f = match.fighters[e.fighter]; this.hud.message(`${C.ko.text} <small>${PLAYER_MARKS[f.index]} ${f.name}</small>`, 'ko', C.ko.ms); }
+      if (e.type === 'suddendeath') this.hud.message(C.suddendeath.text, 'sd', C.suddendeath.ms);
+      if (e.type === 'game') { this.hud.message(C.game.text, 'game', C.game.ms); setTimeout(() => this.endMatch(true), 1700); this.music.setIntensity(0); }
+      if (e.type === 'shrink') this.hud.message(C.shrink.text, 'sd', C.shrink.ms);
     }
     match.events.length = 0;
-    if (!this.settings.shake) this.view.shake = 0;
+    if (!this.settings.shake) this.view.fx.shake = 0;
   }
 
   loop(now) {

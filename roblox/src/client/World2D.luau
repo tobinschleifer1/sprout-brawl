@@ -2,6 +2,7 @@
 -- World-space threats from the server. A compact Canvas2D port of the web entity/hazard passes:
 -- distinct silhouettes, visible warning phases, and no client simulation of hazard positions.
 local Canvas = require(script.Parent.Canvas2D)
+local Effects = require(script.Parent.Effects)
 local Items = require(game:GetService("ReplicatedStorage").Shared.Data.Items)
 local WHITE = Color3.new(1, 1, 1)
 local DARK = Color3.fromRGB(18, 25, 34)
@@ -9,6 +10,8 @@ local HOT = Color3.fromRGB(255, 171, 85)
 local WATER = Color3.fromRGB(91, 166, 188)
 local SAND = Color3.fromRGB(207, 172, 116)
 local World2D = {}
+-- The live effects state that orb projectiles trail sparks into; set by the client.
+World2D.effects = nil :: any
 
 local function rect(c: any, x: number, y: number, w: number, h: number, col: Color3, alpha: number?)
 	Canvas.rect(c, x, y, w, h, col, alpha)
@@ -87,9 +90,14 @@ function World2D.entities(c: any, scene: any, chars: any, states: any, t: number
 		if p.item then
 			World2D.item(c, p.item, p.x, p.y - 0.5, t, p)
 		elseif p.shape == "orb" then
+			-- a pulsing core, as renderer2d.js draws it, trailing sparks
 			Canvas.circle(c, p.x, p.y, p.w * 0.85, col, 0.35)
-			Canvas.circle(c, p.x, p.y, p.w * 0.45, col)
+			Canvas.circle(c, p.x, p.y, p.w * 0.45 * (0.55 + math.sin(t * 12) * 0.06), col)
 			Canvas.circle(c, p.x - 0.1, p.y + 0.1, p.w * 0.18, WHITE)
+			if World2D.effects then
+				local char = if p.owner ~= nil then chars[p.owner + 1] else nil
+				Effects.orbSparks(World2D.effects, p.x, p.y, p.vx or 0, if char then char.weaponPalette.glow else nil, math.random)
+			end
 		else
 			local a = math.atan2(p.vy or 0, p.vx or 1)
 			local length = if p.shape == "tracer" then 4.5 else 2.2

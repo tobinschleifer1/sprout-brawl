@@ -16,6 +16,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
+local Callouts = require(ReplicatedStorage.Shared.Data.Callouts)
 local HudColors = require(script.Parent.HudColors)
 local Bindings = require(script.Parent.Bindings)
 local AbilityStatus = require(script.Parent.AbilityStatus)
@@ -81,6 +82,12 @@ function Hud.new(parent: Instance): any
 	self.ultCaster.AnchorPoint = Vector2.new(0.5, 0.5)
 	self.ultCaster.TextXAlignment = Enum.TextXAlignment.Center
 	self.ultCaster.Font = Enum.Font.Arcade
+
+	-- The stage's name as the match opens, above the countdown (which owns the callout).
+	self.stageName = label(gui, UDim2.fromOffset(600, 40), UDim2.new(0.5, -300, 0.24, 0), "", 30, Color3.new(1, 1, 1))
+	self.stageName.Name = "StageName"
+	self.stageName.TextXAlignment = Enum.TextXAlignment.Center
+	self.stageName.TextTransparency = 1
 
 	self.callout = label(gui, UDim2.fromOffset(600, 90), UDim2.new(0.5, -300, 0.32, 0), "", 72, Color3.new(1, 1, 1))
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
@@ -173,6 +180,15 @@ local function mmss(t: number): string
 	return string.format("%d:%02d", math.floor(left / 60), math.floor(left % 60))
 end
 
+-- A callout in the middle of the screen - the stage name, a KO, sudden death, GAME! - with the
+-- text, colour and hold time of web/src/data/callouts.js. `text` overrides the table's own.
+function Hud.announce(self: any, key: string, text: string?)
+	local c = Callouts[key]
+	if not c then return end
+	local flash = { text = text or c.text or "", colour = Color3.fromHex(c.colour), start = os.clock(), dur = c.ms / 1000 }
+	if key == "stage" then self.stageFlash = flash else self.flash = flash end
+end
+
 function Hud.abilityEvent(self: any, event: any)
 	if event.fighter ~= self.localIndex then return end
 	local message = AbilityStatus.event(event)
@@ -231,14 +247,33 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		self.disaster.Text = ""
 	end
 
-	-- The callout: the countdown, then GO, then nothing.
+	-- The callout: the countdown, then the go call, then whatever was announced last.
+	local now = os.clock()
+	local sf = self.stageFlash
+	if sf and now < sf.start + sf.dur then
+		local k = (now - sf.start) / sf.dur
+		self.stageName.Text, self.stageName.TextColor3 = sf.text, sf.colour
+		self.stageName.TextTransparency = if k < 0.7 then 0 else (k - 0.7) / 0.3
+	else
+		self.stageName.TextTransparency = 1
+	end
+	self.callout.TextSize = 72
 	if snap and snap.state == "countdown" then
 		local n = math.ceil(snap.countdown / 60)
-		self.callout.Text = if n > 0 then tostring(n) else "GO"
+		self.callout.Text = if n > 0 then tostring(n) else Callouts.go.text
+		self.callout.TextColor3 = if n > 0 then Color3.fromHex(Callouts.count.colour) else Color3.fromHex(Callouts.go.colour)
 		self.callout.TextTransparency = 0
-	elseif snap and snap.state == "fight" and snap.time < 0.9 then
-		self.callout.Text = "GO"
-		self.callout.TextTransparency = math.clamp(snap.time / 0.9, 0, 1)
+	elseif snap and snap.state == "fight" and snap.time < Callouts.go.ms / 1000 then
+		self.callout.Text = Callouts.go.text
+		self.callout.TextColor3 = Color3.fromHex(Callouts.go.colour)
+		self.callout.TextTransparency = math.clamp(snap.time / (Callouts.go.ms / 1000), 0, 1)
+	elseif self.flash and now < self.flash.start + self.flash.dur then
+		-- held, then faded over the last third
+		local k = (now - self.flash.start) / self.flash.dur
+		self.callout.Text = self.flash.text
+		self.callout.TextColor3 = self.flash.colour
+		self.callout.TextSize = if #self.flash.text > 10 then 48 else 72
+		self.callout.TextTransparency = if k < 0.7 then 0 else (k - 0.7) / 0.3
 	else
 		self.callout.TextTransparency = 1
 	end

@@ -669,7 +669,9 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 		ch.armL.z = 0.3 + b1 * 0.06
 		ch.armR.z = -0.3 - math.sin(t * 2.6 + f.index - 0.35) * 0.06
 		ch.head = b2 * 0.05
-		ch.sy = 1 + b1 * 0.04; ch.sx = 1 - b1 * 0.04
+		-- A fighting stance: feet apart, weight low, leaning in (see channels.js).
+		ch.legL = 0.2; ch.legR = -0.14; ch.lean = 0.07
+		ch.sy = 0.96 + b1 * 0.04; ch.sx = 1.02 - b1 * 0.04
 	elseif s == "run" then
 		local sp = math.min(1, math.abs(f.vx) / char.runSpeed)
 		ch.legL = math.sin(runPhase) * 0.95 * sp; ch.legR = -math.sin(runPhase) * 0.95 * sp

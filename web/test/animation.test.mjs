@@ -320,5 +320,30 @@ function angleAt(f, id, at) {
     bad.length ? bad.join('; ') : `worst leans: ${rows.length ? rows.join(', ') : 'every move under 29°'}`);
 }
 
+// The guard. Standing still, a wielded weapon points at the fight - within 45 degrees below
+// horizontal, not hanging - and the fighter stands in a stance, feet apart and leaning in. The
+// hauled and worn weapons keep their own carry: the axe and hammer still drag.
+{
+  const { posedFighter } = await import('../src/render2d/preview.js');
+  const { buildLoadout } = await import('../src/data/loadout.js');
+  const deg = (r) => r * 180 / PI_;
+  const bad = [];
+  for (const id of ['Sword', 'Scythe', 'Blasters', 'Pike', 'Daggers']) {
+    const f = posedFighter(buildLoadout('Classic', id), null, 0, { state: 'idle', onGround: true });
+    for (const t of [0, 0.4, 1.3]) { const a = deg(weaponPose(f, t).angle); if (a < -48 || a > 5) bad.push(`${id}@${t}: ${a.toFixed(1)}`); }
+  }
+  check('idle: wielded weapons are held at the fight, not hanging', bad.length === 0, bad.join('; ') || 'sword, scythe, blasters, pike and daggers all within 0..-45 degrees');
+  const dragged = [];
+  for (const id of ['Axe', 'Hammer']) {
+    const f = posedFighter(buildLoadout('Classic', id), null, 0, { state: 'idle', onGround: true });
+    if (deg(weaponPose(f, 0).angle) > -90) dragged.push(id);
+  }
+  check('idle: the axe and hammer are still hauled, head down', dragged.length === 0, dragged.join(', ') || 'both below -90 degrees');
+  const ch = channelsFor(posedFighter(buildLoadout('Classic', 'Sword'), null, 0, { state: 'idle', onGround: true }), 0.7);
+  check('idle: a fighting stance - feet apart, leaning in, weight low',
+    Math.abs(ch.legL - ch.legR) > 0.2 && ch.lean > 0.03 && ch.sy < 1.0,
+    `legs ${ch.legL.toFixed(2)}/${ch.legR.toFixed(2)}, lean ${ch.lean.toFixed(2)}, sy ${ch.sy.toFixed(3)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

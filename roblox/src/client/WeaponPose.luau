@@ -157,6 +157,13 @@ end
 local function restOr0(wid: string?): number
 	return if wid and REST[wid] then REST[wid] else 0
 end
+-- The guard while standing and moving; see GUARD in web/src/render2d/weapons2d.js.
+local GUARD: { [string]: number } = {
+	Sword = D(-28), Scythe = D(-38), Blasters = D(-34), Pike = D(-10), Daggers = D(-40),
+}
+local function guardOf(wid: string?): number
+	return if wid and GUARD[wid] then GUARD[wid] else restOf(wid)
+end
 
 -- ------------------------------------------------------------- the ultimates -----
 -- One per weapon, each the shape of its own move rather than a louder signature. These share the
@@ -517,7 +524,7 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 
 	-- idle / movement poses
 	if s == "idle" or s == "run" or s == "dash" then
-		out.angle = restOf(wid) + math.sin(t * 3 + f.index) * 0.06
+		out.angle = guardOf(wid) + math.sin(t * 3 + f.index) * 0.06
 		if s == "run" or s == "dash" then
 			out.angle += 0.25
 		end

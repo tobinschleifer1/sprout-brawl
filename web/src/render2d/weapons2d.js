@@ -162,6 +162,13 @@ const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70)
   // hammer rests lowest of anything but the axe; the flail's head hangs.
   Gauntlets: D(-28), Hammer: D(-98), Longbow: D(-84), Flail: D(-96), Shield: D(-20), Daggers: D(-66) };
 
+// The guard: how a weapon is held while standing and moving, when it differs from REST. A blade
+// hanging at the fighter's side read as someone waiting for a bus; Brawlhalla's fighters stand
+// with the weapon out in front, pointed at the fight. Only weapons that are wielded get a guard -
+// the axe and hammer are hauled, the flail's head hangs, gauntlets and shield are worn, the bow
+// is carried upright and the book stays a book.
+const GUARD = { Sword: D(-28), Scythe: D(-38), Blasters: D(-34), Pike: D(-10), Daggers: D(-40) };
+
 // Where a projectile-spawning move actually fires, in absolute move frames.
 const fireFrame = (f, m) => f.startupEff + 1;
 
@@ -175,7 +182,7 @@ export function weaponPose(f, t) {
 
   // idle / movement poses
   if (s === 'idle' || s === 'run' || s === 'dash') {
-    out.angle = (REST[wid] ?? D(-70)) + Math.sin(t * 3 + f.index) * 0.06;
+    out.angle = (GUARD[wid] ?? REST[wid] ?? D(-70)) + Math.sin(t * 3 + f.index) * 0.06;
     if (s === 'run' || s === 'dash') out.angle += 0.25;
     // A weapon with `drag` is not carried, it is hauled: the head stays on the floor and the haft
     // trails BEHIND the direction of travel, so the fighter is visibly pulling it rather than

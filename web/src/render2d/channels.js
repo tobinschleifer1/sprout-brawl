@@ -621,7 +621,10 @@ export function channelsFor(f, t) {
       ch.bob = b1 * 0.26 + b2 * 0.1;
       ch.armL.z = 0.3 + b1 * 0.06; ch.armR.z = -0.3 - Math.sin(t * 2.6 + f.index - 0.35) * 0.06;
       ch.head = b2 * 0.05;
-      ch.sy = 1 + b1 * 0.04; ch.sx = 1 - b1 * 0.04;
+      // A fighting stance rather than standing to attention: feet apart, weight low, leaning into
+      // the fight. The breathing rides on top of the crouch.
+      ch.legL = 0.2; ch.legR = -0.14; ch.lean = 0.07;
+      ch.sy = 0.96 + b1 * 0.04; ch.sx = 1.02 - b1 * 0.04;
       break;
     }
     case 'run': {

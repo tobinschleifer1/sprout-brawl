@@ -29,6 +29,9 @@ const { WEAPON_SPRITES } = await import(`${WEB}/weaponArt.js`);
 const { HUB } = await import(`${WEB}/hub.js`);
 const { RULES } = await import(`${WEB}/rules.js`);
 const { CALLOUTS } = await import(`${WEB}/callouts.js`);
+const { TEAM_COLORS, TEAM_GLOW } = await import(`${WEB}/teams.js`);
+// Team colours as a list (team 0 first): Luau tables index from 1.
+const TEAMS = { colours: [TEAM_COLORS[0], TEAM_COLORS[1]], glow: TEAM_GLOW };
 
 // ---------------------------------------------------------------- emitter ----
 const RESERVED = new Set(['and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
@@ -138,6 +141,8 @@ assertPlain(RULES, 'RULES');
 written.push(write('Rules.luau', 'web/src/data/rules.js', `return ${emit(RULES, 0, 'RULES')}`));
 assertPlain(CALLOUTS, 'CALLOUTS');
 written.push(write('Callouts.luau', 'web/src/data/callouts.js', `return ${emit(CALLOUTS, 0, 'CALLOUTS')}`));
+assertPlain(TEAMS, 'TEAMS');
+written.push(write('Teams.luau', 'web/src/data/teams.js', `return ${emit(TEAMS, 0, 'TEAMS')}`));
 const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
 assertPlain(ART, 'ART');
 written.push(write('Art.luau', 'web/src/data/art.js', `return ${emit(ART, 0, 'ART')}`));
@@ -207,7 +212,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS }));
+  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS, teams: TEAMS }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

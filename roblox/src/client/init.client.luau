@@ -33,6 +33,7 @@ local UltBanner = require(script.UltBanner)
 local Effects = require(script.Effects)
 local HudColors = require(script.HudColors)
 local Callouts = require(Shared.Data.Callouts)
+local Teams = require(Shared.Data.Teams)
 local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
@@ -208,7 +209,17 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	hud.gui.Enabled = true
 	hud:clearResults()
 	if stageView then hud:announce("stage", stageView.data.name) end
-	hud:bind(roster, chars, localIndex)
+	-- In a team match every fighter stands in their team's colour.
+	Fighter2D.teamColours = nil
+	if string.find(cfg.mode or "", "Teams", 1, true) then
+		local teams = {}
+		for _, entry in roster do
+			local hex = Teams.colours[(entry.team or 0) + 1]
+			if hex then teams[entry.index] = Canvas2D.hex(hex, Color3.new(1, 1, 1)) end
+		end
+		Fighter2D.teamColours = teams
+	end
+	hud:bind(roster, chars, localIndex, string.find(cfg.mode or "", "Teams", 1, true) ~= nil)
 
 	predictor = nil
 	if localIndex and stageView then

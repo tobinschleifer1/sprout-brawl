@@ -100,15 +100,16 @@ end
 
 -- One tile per fighter, built once a match. The mark is a shape as well as a colour, because at
 -- tile size four coloured boxes are four boxes.
-function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?)
+function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?, teams: boolean?)
 	self.localIndex = localIndex
+	if teams ~= nil then self.teamsOn = teams end
 	for _, t in self.tiles do
 		t.root:Destroy()
 	end
 	for _, f in self.floats do
 		f:Destroy()
 	end
-	self.tiles, self.floats = {}, {}
+	self.tiles, self.floats, self.floatMarks = {}, {}, {}
 
 	local n = #roster
 	local W, H, GAP = math.clamp(math.floor((self.gui.AbsoluteSize.X - 36) / 2), 140, 190), 62, 10
@@ -116,7 +117,8 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 	local total = columns * W + (columns - 1) * GAP
 	self.layoutWidth = self.gui.AbsoluteSize.X
 	for i, entry in roster do
-		local colour = HudColors.PLAYER[(entry.index % 8) + 1]
+		-- In a team match the tile wears the team's colour, as the web's does.
+		local colour = if self.teamsOn then HudColors.TEAM[((entry.team or 0) % 2) + 1] else HudColors.PLAYER[(entry.index % 8) + 1]
 		local root = Instance.new("Frame")
 		root.Size = UDim2.fromOffset(W, H)
 		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
@@ -169,6 +171,10 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		-- mid-fight: the tiles are for the glance between stocks.
 		local float = label(self.gui, UDim2.fromOffset(90, 22), UDim2.fromOffset(0, 0), "0%", 16, Color3.new(1, 1, 1))
 		float.TextXAlignment = Enum.TextXAlignment.Center
+		-- The player's mark in their (team) colour ahead of the percent, as the web's label has it.
+		float.RichText = true
+		local hex = string.format("%02X%02X%02X", math.floor(colour.R * 255 + 0.5), math.floor(colour.G * 255 + 0.5), math.floor(colour.B * 255 + 0.5))
+		self.floatMarks[#self.floats + 1] = `<font color="#{hex}">{HudColors.MARKS[(entry.index % 8) + 1]}</font>`
 		float.Visible = false
 		float.Parent = self.gui
 		table.insert(self.floats, float)
@@ -226,7 +232,7 @@ end
 
 function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: { any }, cfg: any)
 	if self.results then self.results:draw(os.clock()) end
-	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex) end
+	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex, self.teamsOn) end
 	-- Timer. A stock match has no clock, and says so by showing nothing rather than 0:00.
 	if snap and snap.state == "suddendeath" then
 		self.timer.Text = "SUDDEN DEATH"
@@ -319,7 +325,7 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 				local vp = canvas:viewport()
 				float.Visible = p.X > -60 and p.X < vp.X + 60 and p.Y > -40 and p.Y < vp.Y + 40
 				float.Position = UDim2.fromOffset(p.X - 45, p.Y - 22)
-				float.Text = `{pct}%`
+				float.Text = `{self.floatMarks[i] or ""} {pct}%`
 				float.TextColor3 = HudColors.percent(st.percent)
 			else
 				float.Visible = false

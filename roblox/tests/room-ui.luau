@@ -255,3 +255,20 @@ do
 	assert(hud.callout.Text == "3", "while the countdown keeps the middle")
 	print("PASS callouts: go call, KO, sudden death, closing in and GAME! with the web's words, colours and holds; stage name above the countdown")
 end
+-- Team matches: tiles wear the team colour and the overhead mark is drawn in it, as on the web.
+do
+	local HudColors = Loader.loadFrom("src/client/", "HudColors")
+	local roster6 = {}
+	for i = 1, 4 do roster6[i] = { index = i - 1, team = (i - 1) % 2, name = `P{i}`, weapon = "Sword" } end
+	hud:bind(roster6, chars, 0, true)
+	for i, tile in hud.tiles do
+		assert(tile.colour == HudColors.TEAM[((i - 1) % 2) + 1], `tile {i} wears its team's colour`)
+		local c = tile.colour
+		local hex = string.format("%02X%02X%02X", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+		assert(string.find(hud.floatMarks[i], hex, 1, true) and string.find(hud.floatMarks[i], HudColors.MARKS[i], 1, true),
+			`label {i} carries the player's mark in the team colour`)
+	end
+	hud:bind(roster6, chars, 0, false)
+	assert(hud.tiles[3].colour == HudColors.PLAYER[3], "a free-for-all keeps the player colours")
+	print("PASS team HUD: team-coloured tiles and labels in team matches, player colours otherwise")
+end

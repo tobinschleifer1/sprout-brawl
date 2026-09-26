@@ -11,6 +11,7 @@
 
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
 import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks } from './effects.js';
+import { TEAM_COLORS, TEAM_GLOW } from '../data/teams.js';
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, drawSprite, REACH } from './weapons2d.js';
 import { WEAPON_SPRITES } from '../data/weaponArt.js';
@@ -124,6 +125,8 @@ export class Renderer2D {
   // ---------------------------------------------------------------------- frame ----
   frame(match, dt, t, instant) {
     this.time = t;
+    // In a team match every fighter stands in their team's colour (see _fighter).
+    this.teamsOn = !!match.teams;
     const fighters = match.fighters;
     this._camera(fighters, dt, instant);
     // The ultimate's cutscene (render2d/ultCinematic.js), timed off the match clock so it lasts
@@ -323,6 +326,15 @@ export class Renderer2D {
     rigRotate();
     b.globalAlpha = ch.opacity;
 
+    // Team glow: in a team match each fighter stands in a disc of their team's colour, so who is
+    // with whom reads at a glance mid-fight rather than only from the tiles along the bottom.
+    if (this.teamsOn && f.platform && TEAM_COLORS[f.team]) {
+      const d = clamp(1 - (f.y - f.platform.top) / 14, 0.25, 1);
+      b.globalAlpha = ch.opacity * TEAM_GLOW.alpha;
+      b.fillStyle = TEAM_COLORS[f.team];
+      b.beginPath(); b.ellipse(0, f.platform.top - f.y + 0.1, r * TEAM_GLOW.rx * d, TEAM_GLOW.ry * d, 0, 0, PI * 2); b.fill();
+      b.globalAlpha = ch.opacity;
+    }
     // ground shadow
     if (f.platform) {
       b.globalAlpha = ch.opacity * 0.22;

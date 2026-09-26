@@ -25,6 +25,10 @@ local Effects = require(script.Parent.Effects)
 local Fighter2D = {}
 -- The live effects state (Effects.new()) that a hauled weapon kicks dirt into; set by the client.
 Fighter2D.effects = nil :: any
+-- Team colour by fighter index in a team match, or nil: each fighter then stands in a disc of it
+-- (web/src/data/teams.js TEAM_GLOW). Set by the client when a match starts.
+Fighter2D.teamColours = nil :: any
+local TEAM_GLOW = require(game:GetService("ReplicatedStorage").Shared.Data.Teams).glow
 
 local function sign(v: number): number
 	return if v < 0 then -1 else 1
@@ -128,6 +132,11 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- you. It also rotates with the rig, because it is drawn inside the body's transform, so a
 	-- tumbling fighter drags a spinning ellipse around with it.
 	local ragdolling = s.tumbling and not s.onGround
+	local team = if Fighter2D.teamColours then Fighter2D.teamColours[s.index] else nil
+	if team and platformTop and s.onGround then
+		local d = math.clamp(1 - (s.y - platformTop) / 14, 0.25, 1)
+		Canvas2D.ellipse(c, 0, platformTop - s.y + 0.1, r * TEAM_GLOW.rx * d, TEAM_GLOW.ry * d, team, TEAM_GLOW.alpha)
+	end
 	if platformTop and not ragdolling then
 		local d = math.clamp(1 - (s.y - platformTop) / 14, 0.25, 1)
 		Canvas2D.ellipse(c, 0, platformTop - s.y + 0.1, r * 1.25 * d, 0.45 * d, BLACK, 0.22)

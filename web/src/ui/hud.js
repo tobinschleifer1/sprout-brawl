@@ -5,7 +5,8 @@ import { podiumLayout, places, statValue, ordinal, podiumTitle, STATS } from '..
 
 export const PLAYER_COLORS = ['#3E8A2E', '#DE621C', '#3F7FD6', '#9A5FC8', '#D64C8C', '#2FA39A', '#C9A227', '#8A5A2B'];
 export const PLAYER_MARKS = ['●', '■', '▲', '◆', '✿', '★', '⬢', '❋'];
-export const TEAM_COLORS = { 0: '#3E8A2E', 1: '#DE621C' };
+import { TEAM_COLORS } from '../data/teams.js';
+export { TEAM_COLORS };
 
 const RAMP = [[0, [246, 248, 241]], [50, [243, 217, 92]], [100, [242, 162, 60]], [150, [232, 98, 42]], [200, [180, 35, 30]]];
 export function percentColor(p) {

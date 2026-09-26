@@ -12,7 +12,7 @@
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
 import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks, shieldHit } from './effects.js';
 import { shieldShapes } from './shield.js';
-import { TEAM_COLORS, TEAM_GLOW } from '../data/teams.js';
+import { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } from '../data/teams.js';
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, drawSprite, REACH } from './weapons2d.js';
 import { WEAPON_SPRITES } from '../data/weaponArt.js';
@@ -446,6 +446,14 @@ export class Renderer2D {
       b.globalAlpha = 1;
     }
 
+    // Team chevron over the head, in the team's colour, on the ground and in the air - the glow
+    // underfoot only exists where there is a floor to stand it on.
+    if (this.teamsOn && TEAM_COLORS[f.team]) {
+      const M = TEAM_MARKER, top = f.y + h + M.above;
+      b.globalAlpha = M.alpha; b.fillStyle = TEAM_COLORS[f.team];
+      b.beginPath(); b.moveTo(f.x, top); b.lineTo(f.x - M.w / 2, top + M.h); b.lineTo(f.x + M.w / 2, top + M.h); b.closePath(); b.fill();
+      b.globalAlpha = 1;
+    }
     // shield: an energy shell (render2d/shield.js), flaring where it was last struck
     if (ch.bubble > 0) {
       for (const sh of shieldShapes(f.x, f.y + h * 0.5, h, ch.bubble, Math.floor(t * 60), shieldHit(this.fx, f.index))) {

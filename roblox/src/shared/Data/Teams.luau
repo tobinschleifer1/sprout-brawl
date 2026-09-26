@@ -15,4 +15,10 @@ return {
 		ry = 0.62,
 		alpha = 0.55,
 	},
+	marker = {
+		above = 1,
+		w = 1,
+		h = 0.7,
+		alpha = 0.9,
+	},
 }

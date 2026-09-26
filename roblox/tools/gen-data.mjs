@@ -29,9 +29,9 @@ const { WEAPON_SPRITES } = await import(`${WEB}/weaponArt.js`);
 const { HUB } = await import(`${WEB}/hub.js`);
 const { RULES } = await import(`${WEB}/rules.js`);
 const { CALLOUTS } = await import(`${WEB}/callouts.js`);
-const { TEAM_COLORS, TEAM_GLOW } = await import(`${WEB}/teams.js`);
+const { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } = await import(`${WEB}/teams.js`);
 // Team colours as a list (team 0 first): Luau tables index from 1.
-const TEAMS = { colours: [TEAM_COLORS[0], TEAM_COLORS[1]], glow: TEAM_GLOW };
+const TEAMS = { colours: [TEAM_COLORS[0], TEAM_COLORS[1]], glow: TEAM_GLOW, marker: TEAM_MARKER };
 
 // ---------------------------------------------------------------- emitter ----
 const RESERVED = new Set(['and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',

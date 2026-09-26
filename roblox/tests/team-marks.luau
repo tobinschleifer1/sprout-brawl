@@ -12,7 +12,10 @@ local Teams = Loader.load("Data/Teams")
 
 local drawn: { any } = {}
 Canvas.rect = function() end
-Canvas.tri = function() end
+local tris: { any } = {}
+Canvas.tri = function(c: any, x0: number, y0: number, _x1: number, _y1: number, _x2: number, _y2: number, colour: any, alpha: number?)
+	table.insert(tris, { x = x0, y = y0, colour = colour })
+end
 Canvas.ellipse = function(c: any, x: number, y: number, rx: number, ry: number, colour: any, alpha: number?)
 	table.insert(drawn, { rx = rx, ry = ry, colour = colour, alpha = alpha })
 end
@@ -27,10 +30,15 @@ local function state(onGround: boolean): any
 	return Snapshot.decode(Snapshot.encode(f))
 end
 local orange = Canvas.hex(Teams.colours[2], Canvas.hex("#000000", nil :: any))
+local function chevrons(): number
+	local n = 0
+	for _, t in tris do if t.colour == orange then n += 1 end end
+	return n
+end
 local function glows(): number
 	local n = 0
 	for _, d in drawn do
-		if d.colour == orange and math.abs(d.rx - char.radius * Teams.glow.rx) < 1e-9 then n += 1 end
+		if d.colour == orange then n += 1 end
 	end
 	return n
 end
@@ -38,11 +46,14 @@ end
 Fighter2D.teamColours = { [3] = orange }
 Fighter2D.draw(canvas(), state(true), char, 0, 0)
 assert(glows() == 1, `a grounded fighter in a team match stands in their team colour ({glows()} discs)`)
-table.clear(drawn)
+assert(chevrons() == 1, "and wears the team chevron over their head")
+assert(math.abs(tris[1].y - (char.height + Teams.marker.above)) < 1e-9, "the chevron's point sits just above the head")
+table.clear(drawn); table.clear(tris)
 Fighter2D.draw(canvas(), state(false), char, 0, 0)
 assert(glows() == 0, "no disc in the air, with no ground under the fighter")
-table.clear(drawn)
+assert(chevrons() == 1, "but the chevron stays with them in the air")
+table.clear(drawn); table.clear(tris)
 Fighter2D.teamColours = nil
 Fighter2D.draw(canvas(), state(true), char, 0, 0)
-assert(glows() == 0, "no team disc in a free-for-all")
-print("PASS team marks: team-coloured disc under grounded fighters in team matches only")
+assert(glows() == 0 and chevrons() == 0, "no team disc or chevron in a free-for-all")
+print("PASS team marks: team-coloured disc underfoot on the ground, chevron overhead always, in team matches only")

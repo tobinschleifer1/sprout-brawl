@@ -29,7 +29,8 @@ Fighter2D.effects = nil :: any
 -- Team colour by fighter index in a team match, or nil: each fighter then stands in a disc of it
 -- (web/src/data/teams.js TEAM_GLOW). Set by the client when a match starts.
 Fighter2D.teamColours = nil :: any
-local TEAM_GLOW = require(game:GetService("ReplicatedStorage").Shared.Data.Teams).glow
+local TEAMS = require(game:GetService("ReplicatedStorage").Shared.Data.Teams)
+local TEAM_GLOW, TEAM_MARKER = TEAMS.glow, TEAMS.marker
 
 local function sign(v: number): number
 	return if v < 0 then -1 else 1
@@ -247,6 +248,13 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- The shield bubble and the hit flash are drawn in world space around the fighter rather than
 	-- welded to the rig: both are about the fighter rather than part of them, and neither should
 	-- squash when the body does.
+	-- The team chevron over the head, on the ground and in the air (renderer2d.js).
+	local markerTeam = if Fighter2D.teamColours then Fighter2D.teamColours[s.index] else nil
+	if markerTeam then
+		local M = TEAM_MARKER
+		local top = s.y + h + M.above
+		Canvas2D.tri(c, s.x, top, s.x - M.w / 2, top + M.h, s.x + M.w / 2, top + M.h, markerTeam, M.alpha)
+	end
 	-- The shield is an energy shell (Shield, held to web/src/render2d/shield.js), flaring where it
 	-- was last struck.
 	if ch.bubble > 0 then

@@ -414,5 +414,34 @@ function angleAt(f, id, at) {
     off.length ? off.slice(0, 8).join('; ') : `${frames} live hitbox frames across ${WEAPONS.length} weapons, all within 1.2 studs of the blade`);
 }
 
+// Anticipation. A wind-up starts from the stance the player can see - not the old hanging angle -
+// eases away from it, and is fully loaded for its last third. The curve used to be two front-loaded
+// easings stacked, so a signature was a third of the way cocked on its first frame.
+{
+  const { swing } = await import('../src/render2d/channels.js');
+  const { posedFighter } = await import('../src/render2d/preview.js');
+  const { buildLoadout } = await import('../src/data/loadout.js');
+  const at = (st, mf) => swing({ mf, startupEff: st }, { active: 3, recovery: 10 }).e;
+  const bad = [];
+  for (const st of [8, 13, 21]) {
+    if (at(st, 1) > 0.2) bad.push(`startup ${st}: frame 1 already ${at(st, 1).toFixed(2)}`);
+    for (let mf = Math.ceil(st * 0.7); mf <= st; mf++) if (at(st, mf) < 0.97) bad.push(`startup ${st}: frame ${mf} not loaded (${at(st, mf).toFixed(2)})`);
+  }
+  check('wind-ups start gently and are loaded for their last third', bad.length === 0, bad.join('; ') || 'startups of 8, 13 and 21 frames');
+  const deg = (r) => r * 180 / PI_;
+  const pops = [];
+  for (const w of WEAPONS) {
+    const c = buildLoadout('Classic', w.id);
+    const idle = weaponPose(posedFighter(c, null, 0, { state: 'idle', onGround: true }), 0).angle;
+    for (const id of ['SigSide', 'SigDown', 'SigNeutral']) {
+      const m = c.moves[id];
+      if (!m || m.startup < 12) continue;
+      const a = weaponPose(posedFighter(c, id, 1, { frameCount: 1, onGround: true }), 0).angle;
+      if (Math.abs(deg(a - idle)) > 20) pops.push(`${w.id} ${m.label} ${deg(a - idle).toFixed(0)} deg`);
+    }
+  }
+  check('signatures begin from the stance, without a jump on their first frame', pops.length === 0, pops.join('; ') || 'every signature within 20 degrees of the stance on frame 1');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

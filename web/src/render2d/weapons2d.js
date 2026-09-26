@@ -181,6 +181,20 @@ const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70)
 // is carried upright and the book stays a book.
 const GUARD = { Sword: D(-28), Scythe: D(-38), Blasters: D(-34), Pike: D(-10), Daggers: D(-40) };
 
+// The air pose's weapon angle: trailing on the way up, ready on the way down.
+function airAngle(f) {
+  const up = Math.min(1, Math.max(0, (f.vy + 20) / 60));
+  return D(-55) + (D(-135) - D(-55)) * up;
+}
+
+// Where an attack winds up FROM: the pose the fighter was actually in - the guard on the ground,
+// the air pose in the air. It was REST, the old hanging angle, so on an attack's first frame the
+// weapon jumped 100-170 degrees from the stance the player could see before the wind-up began.
+function stanceOf(f, wid) {
+  if (f.onGround === false) return airAngle(f);
+  return GUARD[wid] ?? REST[wid] ?? 0;
+}
+
 // Where an aimed weapon points for a move: at the move's own hitbox, from the shoulder the arm
 // swings from (the hand lies on that ray, since the arm follows the weapon). Pure shots have no
 // melee hitbox and aim straight ahead. It used to be straight ahead for everything, so the
@@ -229,11 +243,7 @@ export function weaponPose(f, t) {
   // In the air the weapon says which way you are going: trailing behind and below on the way up,
   // swung forward and ready on the way down, blended through the apex by vertical speed. It used
   // to hang straight down either way, so a rising and a falling fighter looked the same.
-  if (s === 'air') {
-    const up = Math.min(1, Math.max(0, (f.vy + 20) / 60));
-    out.angle = D(-55) + (D(-135) - D(-55)) * up;
-    return out;
-  }
+  if (s === 'air') { out.angle = airAngle(f); return out; }
   if (s === 'helpless' || s === 'recovery') { out.angle = D(-95); return out; }
   if (s === 'groundpound') { out.angle = D(-90); return out; }
 
@@ -260,7 +270,12 @@ export function weaponPose(f, t) {
     const since = mf - fire;
     const aim = aimOf(f, m);
     out.angle = aim;
-    if (mf < fire) out.angle = aim + D(-18) * (1 - mf / Math.max(1, fire));       // bringing it up
+    if (mf < fire) {
+      // brought up from the stance to the aim across the startup (smoothstep): it used to start at
+      // aim - 18 degrees wherever it had been held, a 50-70 degree jump for the book and the bow
+      const u = Math.min(1, mf / Math.max(1, fire)), from = stanceOf(f, wid);
+      out.angle = from + (aim - from) * u * u * (3 - 2 * u);
+    }
     else if (since >= 0 && since < 8) {
       const k = since / 8;
       out.angle = aim + D(22) * (1 - k) * (1 - k);                               // recoil kick
@@ -283,7 +298,7 @@ export function weaponPose(f, t) {
   // only; the prop slid home in a straight line.
   const ph = swingPhase(f, m);
   let from, to, k;
-  if (ph.phase === 'wind') { from = REST[wid] ?? 0; to = swing.arc[0]; k = ph.e; }
+  if (ph.phase === 'wind') { from = stanceOf(f, wid); to = swing.arc[0]; k = ph.e; }
   else if (ph.phase === 'strike' && swing.via != null) {
     // two legs, half the active window each, each decelerating into its own contact
     const half = ph.k <= 0.5;

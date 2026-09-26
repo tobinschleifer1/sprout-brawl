@@ -517,6 +517,18 @@ local function fireFrame(f: any): number
 end
 
 -- `f` is a decoded snapshot; `char` and `move` are looked up by the caller, as in Channels.
+-- The air pose's weapon angle, and where an attack winds up from (see weapons2d.js stanceOf).
+local function airAngle(f: any): number
+	local up = math.min(1, math.max(0, ((f.vy or 0) + 20) / 60))
+	return D(-55) + (D(-135) - D(-55)) * up
+end
+local function stanceOf(f: any, wid: string?): number
+	if f.onGround == false then
+		return airAngle(f)
+	end
+	return if wid and GUARD[wid] then GUARD[wid] else restOr0(wid)
+end
+
 -- Where an aimed weapon points for a move: at its own hitbox, from the shoulder (weapons2d.js).
 local function aimOf(char: any, m: any): number
 	local hb = if m.kind == "melee" and m.hitboxes then m.hitboxes[1] else nil
@@ -568,8 +580,7 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	end
 	-- Rising trails the weapon, falling holds it ready; blended by vertical speed (weapons2d.js).
 	if s == "air" then
-		local up = math.min(1, math.max(0, ((f.vy or 0) + 20) / 60))
-		out.angle = D(-55) + (D(-135) - D(-55)) * up
+		out.angle = airAngle(f)
 		return out
 	end
 	if s == "helpless" or s == "recovery" then out.angle = D(-95); return out end
@@ -608,7 +619,10 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 		local aim = aimOf(char, m)
 		out.angle = aim
 		if mf < fire then
-			out.angle = aim + D(-18) * (1 - mf / math.max(1, fire))       -- bringing it up
+			-- brought up from the stance to the aim across the startup (weapons2d.js)
+			local u = math.min(1, mf / math.max(1, fire))
+			local from = stanceOf(f, wid)
+			out.angle = from + (aim - from) * u * u * (3 - 2 * u)
 		elseif since >= 0 and since < 8 then
 			local k = since / 8
 			out.angle = aim + D(22) * (1 - k) * (1 - k)                   -- recoil kick
@@ -626,7 +640,7 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	local ph = Channels.swing(f, m)
 	local from, to, k
 	if ph.phase == "wind" then
-		from = restOr0(wid); to = swing.arc[1]; k = ph.e
+		from = stanceOf(f, wid); to = swing.arc[1]; k = ph.e
 	elseif ph.phase == "strike" and swing.via ~= nil then
 		-- two legs, half the active window each (weapons2d.js)
 		local half = ph.k <= 0.5

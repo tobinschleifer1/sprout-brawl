@@ -73,8 +73,10 @@ function Channels.swing(f: any, m: any): any
 	local st, act, rec, mf = f.startupEff, m.active, m.recovery, f.moveFrame
 	if mf <= st then
 		local k = if st ~= 0 then mf / st else 1
-		-- The wind-up spends its last third loaded and trembling rather than still arriving.
-		return { phase = "wind", k = k, e = back(easeOut(k), 1.1), hold = k > 0.68, smear = 0 }
+		-- Eases away from the stance, arrives two-thirds through, holds loaded (see channels.js).
+		-- the overshoot lives in the hold, not the start (see channels.js)
+		local e = if k <= 0.68 then easeInOut(k / 0.68) else 1 + 0.04 * math.sin(PI * (k - 0.68) / 0.32)
+		return { phase = "wind", k = k, e = e, hold = k > 0.68, smear = 0 }
 	end
 	if mf <= st + act then
 		local k = if act ~= 0 then (mf - st) / act else 1

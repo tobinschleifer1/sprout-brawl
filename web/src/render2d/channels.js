@@ -56,8 +56,15 @@ export function swing(f, m) {
   const st = f.startupEff, act = m.active, rec = m.recovery, mf = f.mf;
   if (mf <= st) {
     const k = st ? mf / st : 1;
-    // The wind-up spends its last third loaded and trembling rather than still arriving.
-    return { phase: 'wind', k, e: back(easeOut(k), 1.1), hold: k > 0.68, smear: 0 };
+    // The wind-up eases away from the stance, accelerates into the cock (overshooting a little),
+    // arrives two-thirds of the way through the startup and spends the last third loaded and
+    // trembling. It was back(easeOut(k)) - two front-loaded curves stacked - so a 5-frame light
+    // attack was 90% cocked on its first frame and a 21-frame signature 34% on its first and 76%
+    // by its third, then held for eighteen: the wind-up read as a jump, not a motion.
+    // The overshoot lives in the hold - pushed a little past the cock and back - because an
+    // overshoot curve is steep at its start and kicked the first frames of every wind-up.
+    const e = k <= 0.68 ? easeInOut(k / 0.68) : 1 + 0.04 * Math.sin(PI * (k - 0.68) / 0.32);
+    return { phase: 'wind', k, e, hold: k > 0.68, smear: 0 };
   }
   if (mf <= st + act) {
     const k = act ? (mf - st) / act : 1;

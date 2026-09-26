@@ -56,6 +56,14 @@ local SWINGS: { [string]: any } = {
 -- comes from armR.ext in channels.js extending the ARM, so the hand moves and the weapon stays
 -- attached. DAGGERS end pointing where the blade is going, because a 1.5-stud blade has no arc
 -- long enough to read. FLAIL overshoots every settle, because its head is on four studs of chain.
+-- Per-move overrides: the flail's Return and Full Circle hit in front, then behind (weapons2d.js).
+local SWING_BY_MOVE: { [string]: { [string]: any } } = {
+	Flail = {
+		LightNeutral2 = { arc = { D(96), D(200), D(220) }, via = D(-2), trail = D(140), heavy = true },
+		LightNeutral3 = { arc = { D(110), D(205), D(225) }, via = D(-4), trail = D(160), heavy = true },
+	},
+}
+
 local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
 	Axe = {
 		jab =     { arc = { D(60), D(-5), D(15) }, trail = D(60), heavy = true },
@@ -509,6 +517,16 @@ local function fireFrame(f: any): number
 end
 
 -- `f` is a decoded snapshot; `char` and `move` are looked up by the caller, as in Channels.
+-- Where an aimed weapon points for a move: at its own hitbox, from the shoulder (weapons2d.js).
+local function aimOf(char: any, m: any): number
+	local hb = if m.kind == "melee" and m.hitboxes then m.hitboxes[1] else nil
+	if not hb then
+		return 0
+	end
+	local a = math.atan2(hb.offset[2] - char.height * 0.70, hb.offset[1] - char.radius * 0.55)
+	return math.max(D(-100), math.min(D(70), a))
+end
+
 function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	local wid = if char.weapon then char.weapon.id else nil
 	local out: any = {
@@ -568,14 +586,16 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 		return ultimatePose(f, m, wid, out, t)
 	end
 	local byWeapon = SWING_BY_WEAPON[wid]
-	local swing = (if byWeapon and cat then byWeapon[cat] else nil)
+	local byMove = SWING_BY_MOVE[wid]
+	local swing = (if byMove and m.id then byMove[m.id] else nil)
+		or (if byWeapon and cat then byWeapon[cat] else nil)
 		or (if cat then SWINGS[cat] else nil)
 		or SWINGS.jab
 
 	-- charge hold: the weapon sits at the top of the windup and vibrates
 	if m.charge and mf == st and f.charge > 0 then
 		out.charge = math.min(1, f.charge / m.charge.maxHold)
-		out.angle = if aimed then D(0) else swing.arc[1]
+		out.angle = if aimed then aimOf(char, m) else swing.arc[1]
 		out.angle += math.sin(f.charge * 0.6) * 0.05
 		return out
 	end
@@ -585,12 +605,13 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 		-- leaves, which is the frame the engine spawns it.
 		local fire = fireFrame(f)
 		local since = mf - fire
-		out.angle = D(0)
+		local aim = aimOf(char, m)
+		out.angle = aim
 		if mf < fire then
-			out.angle = D(-18) * (1 - mf / math.max(1, fire))       -- bringing it up
+			out.angle = aim + D(-18) * (1 - mf / math.max(1, fire))       -- bringing it up
 		elseif since >= 0 and since < 8 then
 			local k = since / 8
-			out.angle = D(22) * (1 - k) * (1 - k)                   -- recoil kick
+			out.angle = aim + D(22) * (1 - k) * (1 - k)                   -- recoil kick
 			out.ox = -0.35 * (1 - k)
 			out.flash = math.max(0, 1 - since / 3)
 		end
@@ -606,6 +627,12 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	local from, to, k
 	if ph.phase == "wind" then
 		from = restOr0(wid); to = swing.arc[1]; k = ph.e
+	elseif ph.phase == "strike" and swing.via ~= nil then
+		-- two legs, half the active window each (weapons2d.js)
+		local half = ph.k <= 0.5
+		from = if half then swing.arc[1] else swing.via
+		to = if half then swing.via else swing.arc[2]
+		k = easeOut(math.min(1, math.max(0, (if half then ph.k else ph.k - 0.5) * 3.2)))
 	elseif ph.phase == "strike" then
 		from = swing.arc[1]; to = swing.arc[2]; k = ph.e
 	else

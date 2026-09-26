@@ -80,7 +80,8 @@ function Channels.swing(f: any, m: any): any
 		local k = if act ~= 0 then (mf - st) / act else 1
 		-- The strike itself: the first two frames cover most of the distance, then a moving hold.
 		local snap = clamp(k * 3.2, 0, 1)
-		return { phase = "strike", k = k, e = easeIn(snap), hold = false, smear = 1 - clamp(k, 0, 1) }
+		-- eased OUT, decelerating into contact (see channels.js)
+		return { phase = "strike", k = k, e = easeOut(snap), hold = false, smear = 1 - clamp(k, 0, 1) }
 	end
 	local k = if rec ~= 0 then (mf - st - act) / rec else 1
 	local e = 1 - settle(k, if m.heavy then 2.6 else 3.4, if m.heavy then 3.4 else 6)

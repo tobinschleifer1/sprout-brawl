@@ -134,6 +134,18 @@ const SWING_BY_WEAPON = {
   },
 };
 
+// Per-move overrides, for the few moves whose motion is not their category's. The flail's Return
+// and Full Circle hit in front and then BEHIND - each has an outbound hitbox for the first half of
+// its active frames and an inbound one behind the fighter for the second - so their strike goes
+// out to `via` and then carries the head up and over to behind. As plain jabs the head stayed out
+// in front while the second hitbox was live at the fighter's back.
+const SWING_BY_MOVE = {
+  Flail: {
+    LightNeutral2: { arc: [D(96), D(200), D(220)], via: D(-2), trail: D(140), heavy: true },
+    LightNeutral3: { arc: [D(110), D(205), D(225)], via: D(-4), trail: D(160), heavy: true },
+  },
+};
+
 function categoryOf(id) {
   if (!id) return null;
   if (id === 'Ultimate') return 'ult';
@@ -168,6 +180,17 @@ const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70)
 // the axe and hammer are hauled, the flail's head hangs, gauntlets and shield are worn, the bow
 // is carried upright and the book stays a book.
 const GUARD = { Sword: D(-28), Scythe: D(-38), Blasters: D(-34), Pike: D(-10), Daggers: D(-40) };
+
+// Where an aimed weapon points for a move: at the move's own hitbox, from the shoulder the arm
+// swings from (the hand lies on that ray, since the arm follows the weapon). Pure shots have no
+// melee hitbox and aim straight ahead. It used to be straight ahead for everything, so the
+// blasters fired Downdraft at the horizon while the hit landed under the fighter's feet.
+function aimOf(f, m) {
+  const hb = m.kind === 'melee' && m.hitboxes && m.hitboxes[0];
+  if (!hb) return 0;
+  const a = Math.atan2(hb.offset[1] - f.char.height * 0.70, hb.offset[0] - f.char.radius * 0.55);
+  return Math.max(D(-100), Math.min(D(70), a));
+}
 
 // Where a projectile-spawning move actually fires, in absolute move frames.
 const fireFrame = (f, m) => f.startupEff + 1;
@@ -220,12 +243,12 @@ export function weaponPose(f, t) {
   const st = f.startupEff, act = m.active, rec = m.recovery, mf = f.mf;
   const cat = categoryOf(m.id);
   if (cat === 'ult') return ultimatePose(f, m, wid, out, t);
-  const swing = (SWING_BY_WEAPON[wid] && SWING_BY_WEAPON[wid][cat]) || SWINGS[cat] || SWINGS.jab;
+  const swing = (SWING_BY_MOVE[wid] && SWING_BY_MOVE[wid][m.id]) || (SWING_BY_WEAPON[wid] && SWING_BY_WEAPON[wid][cat]) || SWINGS[cat] || SWINGS.jab;
 
   // charge hold: the weapon sits at the top of the windup and vibrates
   if (m.charge && mf === st && f.charge > 0) {
     out.charge = Math.min(1, f.charge / m.charge.maxHold);
-    out.angle = aimed ? D(0) : swing.arc[0];
+    out.angle = aimed ? aimOf(f, m) : swing.arc[0];
     out.angle += Math.sin(f.charge * 0.6) * 0.05;
     return out;
   }
@@ -235,11 +258,12 @@ export function weaponPose(f, t) {
     // leaves, which is the frame the engine spawns it.
     const fire = fireFrame(f, m);
     const since = mf - fire;
-    out.angle = D(0);
-    if (mf < fire) out.angle = D(-18) * (1 - mf / Math.max(1, fire));       // bringing it up
+    const aim = aimOf(f, m);
+    out.angle = aim;
+    if (mf < fire) out.angle = aim + D(-18) * (1 - mf / Math.max(1, fire));       // bringing it up
     else if (since >= 0 && since < 8) {
       const k = since / 8;
-      out.angle = D(22) * (1 - k) * (1 - k);                               // recoil kick
+      out.angle = aim + D(22) * (1 - k) * (1 - k);                               // recoil kick
       out.ox = -0.35 * (1 - k);
       out.flash = Math.max(0, 1 - since / 3);
     }
@@ -260,6 +284,12 @@ export function weaponPose(f, t) {
   const ph = swingPhase(f, m);
   let from, to, k;
   if (ph.phase === 'wind') { from = REST[wid] ?? 0; to = swing.arc[0]; k = ph.e; }
+  else if (ph.phase === 'strike' && swing.via != null) {
+    // two legs, half the active window each, each decelerating into its own contact
+    const half = ph.k <= 0.5;
+    from = half ? swing.arc[0] : swing.via; to = half ? swing.via : swing.arc[1];
+    k = easeOut(Math.min(1, Math.max(0, (half ? ph.k : ph.k - 0.5) * 3.2)));
+  }
   else if (ph.phase === 'strike') { from = swing.arc[0]; to = swing.arc[1]; k = ph.e; }
   // during the settle `e` already runs 1 -> 0 with an overshoot, so the weapon springs past its
   // end pose and comes back exactly as the body does

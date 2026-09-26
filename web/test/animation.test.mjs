@@ -367,5 +367,52 @@ function angleAt(f, id, at) {
     `idle ${at('idle').toFixed(0)} deg, shield ${at('shield').toFixed(0)} deg`);
 }
 
+// The blade is where the hit is. For every melee move of every weapon, on every frame a hitbox is
+// live, the weapon (hand to tip, the renderer's own geometry) must come within 1.2 studs of it.
+// Slams used to hit with the blade still overhead - the strike eased IN, so the first live frame
+// was 40% of the way down - aimed weapons pointed at the horizon on their down attacks, and the
+// flail's Return and Full Circle held the head in front while their second hitbox was behind.
+{
+  const { posedFighter } = await import('../src/render2d/preview.js');
+  const { buildLoadout } = await import('../src/data/loadout.js');
+  const { REACH } = await import('../src/render2d/weapons2d.js');
+  const segBox = (ax, ay, bx, by, x0, y0, x1, y1) => {
+    let best = Infinity;
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20, x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+      best = Math.min(best, Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(y0 - y, 0, y - y1)));
+    }
+    return best;
+  };
+  const off = [];
+  let frames = 0;
+  for (const w of WEAPONS) {
+    const char = buildLoadout('Classic', w.id);
+    const h = char.height, r = char.radius;
+    for (const [id, m] of Object.entries(char.moves)) {
+      if (id === 'Ultimate' || m.kind !== 'melee') continue;
+      for (let mf = 1; mf <= m.startup + m.active + m.recovery; mf++) {
+        const live = (m.hitboxes || []).filter((hb) => hb.frames && mf >= hb.frames[0] && mf <= hb.frames[1]);
+        if (!live.length) continue;
+        const f = posedFighter(char, id, mf, { frameCount: mf });
+        const wp = weaponPose(f, 0.3), ch = channelsFor(f, 0.3);
+        if (wp.hide) continue;
+        const AL = h * 0.30 * (ch.armR.ext || 1);
+        const hx = r * 0.55 + Math.cos(wp.angle) * AL, hy = h * 0.70 + Math.sin(wp.angle) * AL;
+        const L = (REACH[w.id] || 2) * (wp.scale || 1);
+        const tx = hx + Math.cos(wp.angle) * L + (wp.ox || 0), ty = hy + Math.sin(wp.angle) * L + (wp.oy || 0);
+        for (const hb of live) {
+          frames++;
+          const [ox, oy] = hb.offset, [sw, sh] = hb.size;
+          const d = segBox(hx, hy, tx, ty, ox - sw / 2, oy - sh / 2, ox + sw / 2, oy + sh / 2);
+          if (d > 1.2) off.push(`${w.id} ${m.label} f${mf} ${d.toFixed(1)} studs`);
+        }
+      }
+    }
+  }
+  check('attacks: the weapon is where the hit is, on every live frame of every melee move', off.length === 0,
+    off.length ? off.slice(0, 8).join('; ') : `${frames} live hitbox frames across ${WEAPONS.length} weapons, all within 1.2 studs of the blade`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

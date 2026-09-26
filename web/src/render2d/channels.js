@@ -62,10 +62,13 @@ export function swing(f, m) {
   if (mf <= st + act) {
     const k = act ? (mf - st) / act : 1;
     // The strike itself: the first two frames cover most of the distance, then a moving hold.
+    // Eased OUT - decelerating into contact. It was eased in, so on the first active frame, when
+    // the hitbox is already live, a slam was 40% of the way down: Earthsplitter hit the floor with
+    // the sword still overhead. Now the blade is ~87% there on the frame it can first hit.
     const snap = clamp(k * 3.2, 0, 1);
     // `1 - k*2.2` reached zero a fifth of the way in, so a two-frame active window — every jab in
     // the game — got exactly 0 on both of its frames and never smeared at all.
-    return { phase: 'strike', k, e: easeIn(snap), hold: false, smear: 1 - clamp(k, 0, 1) };
+    return { phase: 'strike', k, e: easeOut(snap), hold: false, smear: 1 - clamp(k, 0, 1) };
   }
   const k = rec ? (mf - st - act) / rec : 1;
   return { phase: 'settle', k, e: 1 - settle(k, m.heavy ? 2.6 : 3.4, m.heavy ? 3.4 : 6), hold: false, smear: 0 };

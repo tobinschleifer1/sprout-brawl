@@ -240,7 +240,7 @@ Net.remote("Results").OnClientEvent:Connect(function(res: any)
 	launch:reset()
 	if select_ then select_:hide() end
 	if hud then
-		hud:showResults(res)
+		hud:showResults(res, chars)
 	end
 	print(`[Blockfall] --- results ({res.mode}, {res.frames} frames, {string.format("%.1f", res.time)}s) ---`)
 	for place, row in res.rows do

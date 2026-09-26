@@ -342,7 +342,7 @@ function Match.finish(self)
 		table.insert(rows, {
 			index = f.index, name = f.name, char = f.char, team = f.team,
 			kos = f.stats.kos, falls = f.stats.falls, sds = f.stats.selfDestructs,
-			damage = jsRound(f.stats.damageDealt), percent = f.percent,
+			damage = jsRound(f.stats.damageDealt), taken = jsRound(f.stats.damageTaken), percent = f.percent,
 			stocks = f:stocksLeft(), score = Match.teamScore(self, f.team),
 			eliminatedAt = if f.eliminatedAt == nil then math.huge else f.eliminatedAt,
 		})

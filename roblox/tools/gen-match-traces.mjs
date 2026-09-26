@@ -72,7 +72,7 @@ function run(spec) {
         e.last === undefined ? null : e.last, nn(e.winner), nn(e.x), nn(e.y)]));
       row.push(m.results ? m.results.rows.map((r) => [String(r.index), n(r.kos), n(r.falls),
         n(r.sds), n(r.damage), n(r.percent), n(r.stocks), n(r.score),
-        r.eliminatedAt === Infinity ? 'inf' : n(r.eliminatedAt)]) : null);
+        r.eliminatedAt === Infinity ? 'inf' : n(r.eliminatedAt), n(r.taken)]) : null);
       row.push(m.results ? String(m.results.winnerTeam) : null);
       rows.push(row);
       if (m.state === 'results') break;

@@ -1,6 +1,7 @@
 import { onBlock } from '../engine/knockback.js';
 import { ULTIMATE } from '../config.js';
 import { posedFighter } from '../render2d/preview.js';
+import { podiumLayout, places, statValue, ordinal, STATS } from '../render2d/podium.js';
 
 export const PLAYER_COLORS = ['#3E8A2E', '#DE621C', '#3F7FD6', '#9A5FC8', '#D64C8C', '#2FA39A', '#C9A227', '#8A5A2B'];
 export const PLAYER_MARKS = ['●', '■', '▲', '◆', '✿', '★', '⬢', '❋'];
@@ -190,18 +191,72 @@ export class HUD {
 
   showPause(on) { this.pause.classList.toggle('hidden', !on); }
 
-  showResults(results, onAction) {
+  // The results podium (render2d/podium.js), after Brawlhalla's end screen: every fighter on a
+  // stepped pillar in finishing order, winners celebrating, the rest hanging their heads, each over
+  // a card of their match. The figures are painted by the match renderer itself, so they are the
+  // same fighters that were just playing, not portraits of them.
+  showResults(results, onAction, view) {
     const R = results;
-    const rows = R.rows.map((r, i) => {
-      const color = R.teams ? TEAM_COLORS[r.team] : PLAYER_COLORS[r.index];
-      return `<tr class="${i === 0 ? 'win' : ''}"><td class="place">${i + 1}</td><td><span class="mark" style="color:${color}">${PLAYER_MARKS[r.index]}</span> ${r.name}<small>${(r.char.avatar && r.char.avatar.name ? r.char.avatar.name + ' · ' : '')}${r.char.name}${R.teams ? ' · Team ' + (r.team === 0 ? 'Green' : 'Orange') : ''}</small></td><td>${r.kos}</td><td>${r.falls}</td><td>${r.damage}%</td><td>${R.timed ? r.score : r.stocks}</td></tr>`;
-    }).join('');
     const w = R.rows[0];
-    this.results.innerHTML = `<div class="panel results"><div class="eyebrow">Results</div><h2>${R.teams ? (w.team === 0 ? 'Green team' : 'Orange team') : w.name} wins</h2>
-      <table><tr><th></th><th>Player</th><th>KOs</th><th>Falls</th><th>Dmg dealt</th><th>${R.timed ? 'Score' : 'Stocks'}</th></tr>${rows}</table>
-      <div class="row"><button data-act="rematch" class="primary">Play again</button><button data-act="setup">Character select</button><button data-act="menu">Main menu</button></div></div>`;
+    const place = places(R.rows, R.teams);
+    const title = `${R.teams ? (w.team === 0 ? 'Green team' : 'Orange team') : w.name} wins`;
+    this.results.innerHTML = `<div class="podium-screen">
+      <div class="podium-bar"><button data-act="rematch" class="primary">Play again</button><button data-act="gg">Say: GG!</button><button data-act="setup">Character select</button><button data-act="menu">Main menu</button></div>
+      <h2 class="podium-title">${title}</h2>
+      <canvas class="podium-canvas"></canvas><div class="podium-cards"></div></div>`;
     this.results.classList.remove('hidden');
-    this.results.onclick = (e) => { const a = e.target.dataset.act; if (a) onAction(a); };
+    this.results.classList.add('podium');
+    const screen = this.results.querySelector('.podium-screen');
+    const cv = screen.querySelector('.podium-canvas');
+    const cards = screen.querySelector('.podium-cards');
+    const W = screen.clientWidth, H = screen.clientHeight;
+    const slots = podiumLayout(R.rows.length, W, H);
+    const colour = (r) => (R.teams ? TEAM_COLORS[r.team] : PLAYER_COLORS[r.index % PLAYER_COLORS.length]);
+    cards.innerHTML = R.rows.map((r, i) => {
+      const s = slots[i];
+      const stats = STATS.map(([label, field]) => `<div class="pc-stat"><span>${label}</span><b>${statValue(r, field)}</b></div>`).join('');
+      return `<div class="pc${place[i] === 1 ? ' first' : ''}" style="left:${s.card.x}px;top:${s.card.y}px;width:${s.card.w}px;height:${s.card.h}px;--pc:${colour(r)};font-size:${Math.max(9, Math.min(16, s.rowH * 0.62))}px">
+        <div class="pc-place">${ordinal(place[i])}</div>
+        <div class="pc-name"><span style="color:${colour(r)}">${PLAYER_MARKS[r.index % PLAYER_MARKS.length]}</span> ${r.name}<small>${r.char.avatar && r.char.avatar.name ? r.char.avatar.name + ' · ' : ''}${r.char.name}</small></div>${stats}</div>`;
+    }).join('');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    const winnerTeam = R.winnerTeam;
+    let gg = 0;
+    const t0 = performance.now();
+    const draw = () => {
+      if (this.results.classList.contains('hidden') || !cv.isConnected) return;
+      const t = (performance.now() - t0) / 1000, sf = Math.floor(t * 60);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      R.rows.forEach((r, i) => {
+        const s = slots[i];
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#243142'; ctx.fillRect(s.pillar.x, s.pillar.y, s.pillar.w, s.pillar.h);
+        ctx.fillStyle = '#2E3D51'; ctx.fillRect(s.pillar.x, s.pillar.y, s.pillar.w * 0.12, s.pillar.h);
+        ctx.fillStyle = place[i] === 1 ? '#FFD58A' : colour(r); ctx.fillRect(s.cap.x, s.cap.y, s.cap.w, s.cap.h);
+        const won = R.teams ? r.team === winnerTeam : i === 0;
+        const f = posedFighter(r.char, null, sf, { state: won ? 'victory' : 'defeat', index: r.index, frameCount: sf });
+        const ppu = s.figureH / r.char.height;
+        try { view && view.drawFighterInto(ctx, f, t, { ppu: ppu * dpr, x: s.cx * dpr, y: s.top * dpr }); } catch (e) { /* never fail the screen over one figure */ }
+      });
+      if (gg > t) {
+        const s = slots[0];
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.font = `bold ${Math.round(s.figureH * 0.2)}px ui-monospace, monospace`;
+        ctx.textAlign = 'center'; ctx.fillStyle = '#FFFFFF';
+        ctx.fillText('GG!', s.cx, s.top - s.figureH * 1.12);
+      }
+      requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+    this.results.onclick = (e) => {
+      const a = e.target.closest('[data-act]')?.dataset.act;
+      if (a === 'gg') { gg = (performance.now() - t0) / 1000 + 2; return; }
+      if (a) onAction(a);
+    };
   }
-  hideResults() { this.results.classList.add('hidden'); }
+  hideResults() { this.results.classList.add('hidden'); this.results.classList.remove('podium'); }
 }

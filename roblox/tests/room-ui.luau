@@ -136,7 +136,8 @@ print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map layou
 
 local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
-	require=function(name) return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
+	-- The results podium has its own test (podium-view); this one is about the match HUD.
+	require=function(name) if name=="PodiumView" then return {} end return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
 	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local hud=Hud.new(instance("PlayerGui"))

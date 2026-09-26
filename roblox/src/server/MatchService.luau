@@ -208,12 +208,12 @@ function MatchService.results(self: any): any
 			index = row.index, name = row.name, team = row.team,
 			avatar = row.char.avatar.id, weapon = row.char.weapon.id,
 			kos = row.kos, falls = row.falls, sds = row.sds,
-			damage = row.damage, percent = row.percent,
+			damage = row.damage, taken = row.taken, percent = row.percent,
 			stocks = row.stocks, score = row.score,
 		})
 	end
 	return {
-		rows = rows, winnerTeam = r.winnerTeam, mode = r.mode, timed = r.timed,
+		rows = rows, winnerTeam = r.winnerTeam, teams = r.teams, mode = r.mode, timed = r.timed,
 		frames = m.frame, time = m.time,
 	}
 end

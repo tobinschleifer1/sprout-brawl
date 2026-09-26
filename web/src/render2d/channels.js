@@ -727,6 +727,19 @@ export function channelsFor(f, t) {
     case 'tether': ch.armL.z = 2.9; ch.armR.z = -2.9; ch.sy = 1.15; ch.sx = 0.9; ch.lean = Math.sin(t * 7) * 0.08; break;
     case 'frozen': ch.tint = '#A9D8F0'; ch.armL.z = 1.2; ch.armR.z = -1.2; break;
     case 'taunt': ch.bob = Math.abs(Math.sin(sf * 0.25)) * 0.5; ch.spinY = sf * 0.14; ch.armL.z = 2.6 + Math.sin(sf * 0.5) * 0.45; ch.armR.z = -0.4; break;
+    // The results podium. Victory hops with a fist up; defeat hangs its head. Both are loops
+    // driven off sf, so a podium that holds for ten seconds never freezes.
+    case 'victory': {
+      const k = Math.abs(Math.sin(sf * 0.12));
+      ch.bob = k * 0.6; ch.sy = 1 + k * 0.06; ch.sx = 1 - k * 0.04;
+      ch.armR.z = 2.8 + Math.sin(sf * 0.24) * 0.25; ch.armL.z = 0.6; ch.head = -0.15; ch.lean = -0.08;
+      ch.legL = k * 0.25; ch.legR = -k * 0.25;
+      break;
+    }
+    case 'defeat':
+      ch.head = 0.45; ch.lean = 0.18; ch.armL.z = 0.12; ch.armR.z = -0.12;
+      ch.bob = -0.1 + Math.sin(t * 1.3 + f.index) * 0.05; ch.sy = 0.96; ch.sx = 1.03;
+      break;
     case 'ko': ch.visible = false; break;
     case 'respawn': ch.yOff = Math.sin(t * 4) * 0.3; ch.opacity = 0.85; ch.armL.z = 1.2; ch.armR.z = -1.2; break;
   }

@@ -827,6 +827,15 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 	elseif s == "taunt" then
 		ch.bob = math.abs(math.sin(sf * 0.25)) * 0.5; ch.spinY = sf * 0.14
 		ch.armL.z = 2.6 + math.sin(sf * 0.5) * 0.45; ch.armR.z = -0.4
+	elseif s == "victory" then
+		-- The results podium; see web/src/render2d/channels.js.
+		local k = math.abs(math.sin(sf * 0.12))
+		ch.bob = k * 0.6; ch.sy = 1 + k * 0.06; ch.sx = 1 - k * 0.04
+		ch.armR.z = 2.8 + math.sin(sf * 0.24) * 0.25; ch.armL.z = 0.6; ch.head = -0.15; ch.lean = -0.08
+		ch.legL = k * 0.25; ch.legR = -k * 0.25
+	elseif s == "defeat" then
+		ch.head = 0.45; ch.lean = 0.18; ch.armL.z = 0.12; ch.armR.z = -0.12
+		ch.bob = -0.1 + math.sin(t * 1.3 + f.index) * 0.05; ch.sy = 0.96; ch.sx = 1.03
 	elseif s == "ko" then
 		ch.visible = false
 	elseif s == "respawn" then

@@ -43,6 +43,7 @@ node tools/gen-fighter-traces.mjs
 node tools/gen-hazard-traces.mjs
 node tools/gen-disaster-traces.mjs
 node tools/gen-cinematic-fixture.mjs
+node tools/gen-podium-fixture.mjs
 node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-ai-traces.mjs
@@ -105,6 +106,9 @@ lune run tests/disaster-shapes
 echo "== ultimate cutscene: Roblox times and lays it out as the web does =="
 lune run tests/cinematic-parity
 lune run tests/ult-banner
+echo "== podium: the results screen is laid out as the web lays it out =="
+lune run tests/podium-parity
+lune run tests/podium-view
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 echo "== parity: Match vs web/src/engine/match.js =="

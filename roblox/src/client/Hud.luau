@@ -21,6 +21,7 @@ local Bindings = require(script.Parent.Bindings)
 local AbilityStatus = require(script.Parent.AbilityStatus)
 
 local DisasterShapes = require(script.Parent.DisasterShapes)
+local PodiumView = require(script.Parent.PodiumView)
 local Hud = {}
 Hud.__index = Hud
 
@@ -208,6 +209,7 @@ function Hud.ultBanner(self: any, B: any, ult: any)
 end
 
 function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: { any }, cfg: any)
+	if self.results then self.results:draw(os.clock()) end
 	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex) end
 	-- Timer. A stock match has no clock, and says so by showing nothing rather than 0:00.
 	if snap and snap.state == "suddendeath" then
@@ -293,44 +295,27 @@ end
 
 -- The scoreboard, held up until the next match starts. Built fresh each time rather than kept
 -- around hidden: it is shown once every sixty seconds and a stale one is worse than none.
-function Hud.showResults(self: any, res: any)
+-- The results podium (PodiumView, laid out by the shared Podium). "Say: GG!" posts to the
+-- experience's text chat, so the other players see it, not only the one who pressed it.
+function Hud.showResults(self: any, res: any, chars: { any }?)
 	self:clearResults()
-	local rows = res.rows or {}
-	local W, ROW = 460, 30
-	local panel = Instance.new("Frame")
-	panel.Size = UDim2.fromOffset(W, 64 + #rows * ROW)
-	panel.Position = UDim2.new(0.5, -W / 2, 0.5, -(64 + #rows * ROW) / 2)
-	panel.BackgroundColor3 = PANEL
-	panel.BackgroundTransparency = 0.08
-	panel.BorderSizePixel = 0
-	panel.Parent = self.gui
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = panel
-
-	local title = label(panel, UDim2.new(1, -24, 0, 30), UDim2.fromOffset(12, 12), "GAME", 24, Color3.new(1, 1, 1))
-	title.TextXAlignment = Enum.TextXAlignment.Center
-
-	for place, row in ipairs(rows) do
-		local y = 48 + (place - 1) * ROW
-		local colour = HudColors.PLAYER[(row.index % 8) + 1]
-		label(panel, UDim2.fromOffset(24, ROW), UDim2.fromOffset(14, y), tostring(place), 16, colour)
-		label(panel, UDim2.fromOffset(150, ROW), UDim2.fromOffset(40, y), row.name, 16, colour)
-		local weapon = label(panel, UDim2.fromOffset(110, ROW), UDim2.fromOffset(190, y), row.weapon, 14, DIM)
-		weapon.TextTransparency = 0.3
-		local kos = label(panel, UDim2.fromOffset(70, ROW), UDim2.fromOffset(300, y), `KO {row.kos}`, 14, DIM)
-		kos.TextTransparency = 0.15
-		local pct = label(panel, UDim2.fromOffset(70, ROW), UDim2.fromOffset(372, y),
-			`{math.floor(row.percent)}%`, 16, HudColors.percent(row.percent))
-		pct.TextXAlignment = Enum.TextXAlignment.Right
+	local view = PodiumView.new(self.gui, res, chars or {}, self.gui.AbsoluteSize, function()
+		pcall(function()
+			local channels = game:GetService("TextChatService"):FindFirstChild("TextChannels")
+			local general = channels and channels:FindFirstChild("RBXGeneral")
+			if general then (general :: any):SendAsync("GG!") end
+		end)
+	end)
+	for i, row in res.rows or {} do
+		if row.index == self.localIndex then view.localPlace = i end
 	end
-	self.results = panel
+	self.results = view
 	self.callout.TextTransparency = 1
 end
 
 function Hud.clearResults(self: any)
 	if self.results then
-		self.results:Destroy()
+		self.results:destroy()
 		self.results = nil
 	end
 end

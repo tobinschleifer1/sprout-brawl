@@ -158,7 +158,7 @@ export class Match {
     this.state = 'results';
     const teams = [...new Set(this.fighters.map((f) => f.team))];
     const rows = this.fighters.map((f) => ({
-      index: f.index, name: f.name, char: f.char, team: f.team, kos: f.stats.kos, falls: f.stats.falls, sds: f.stats.selfDestructs, damage: Math.round(f.stats.damageDealt), percent: f.percent,
+      index: f.index, name: f.name, char: f.char, team: f.team, kos: f.stats.kos, falls: f.stats.falls, sds: f.stats.selfDestructs, damage: Math.round(f.stats.damageDealt), taken: Math.round(f.stats.damageTaken), percent: f.percent,
       stocks: f.stocksLeft(), score: this.teamScore(f.team), eliminatedAt: f.eliminatedAt == null ? Infinity : f.eliminatedAt,
     }));
     // The final `a.index - b.index` makes the order TOTAL. JavaScript's sort is stable, so two

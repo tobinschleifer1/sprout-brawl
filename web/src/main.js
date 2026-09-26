@@ -127,7 +127,7 @@ class App {
         if (a === 'rematch') { this.hud.hideResults(); const cfg = this.match.cfg; this.startMatch({ ...cfg }); }
         else if (a === 'setup') { this.quitToMenu('setup'); }
         else this.quitToMenu('title');
-      });
+      }, this.view);
     }
   }
 

@@ -209,7 +209,7 @@ for _, spec in T.scenarios do
 				for i, wr in wantResults do
 					local r = m.results.rows[i]
 					local vals = { r.index, r.kos, r.falls, r.sds, r.damage, r.percent, r.stocks,
-						r.score, if r.eliminatedAt == math.huge then "inf" else r.eliminatedAt }
+						r.score, if r.eliminatedAt == math.huge then "inf" else r.eliminatedAt, r.taken }
 					for j, gv in vals do
 						checked += 1
 						local wv = wr[j]

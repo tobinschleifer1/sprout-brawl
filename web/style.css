@@ -244,3 +244,20 @@ select,input[type=range],.charform input[type=text],.chario textarea{background:
 .panel{border-color:#526173;box-shadow:0 8px 0 #080D14}
 .pixgrid{background:#293340}
 @media(max-width:600px){.title-card{padding:26px 18px}.screen{padding:20px 12px 48px}.title-card .row button{font-size:.76rem;padding:.5rem .65rem}.panel{min-width:0;width:94vw;padding:1rem}.opts{margin-left:0}}
+
+/* results podium (ui/hud.js showResults, layout from render2d/podium.js) */
+.overlay.podium{display:block;background:linear-gradient(180deg,#0B1526EE,#101B2CF5 55%,#080D16FA)}
+.podium-screen{position:absolute;inset:0}
+.podium-canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+.podium-bar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 32px)}
+.podium-bar button{font-size:.85rem;padding:.4rem .8rem}
+.podium-title{position:absolute;top:62px;width:100%;text-align:center;font-size:clamp(1.4rem,4vw,2.6rem);color:var(--gold);text-shadow:0 3px 0 #000}
+.podium-cards{position:absolute;inset:0;pointer-events:none}
+.pc{position:absolute;box-sizing:border-box;background:#141E2CF2;border:2px solid #3B4858;border-top:4px solid var(--pc);border-radius:4px;padding:.3em .55em;display:flex;flex-direction:column;overflow:hidden}
+.pc.first{border-color:#FFD58A;border-top-color:#FFD58A;box-shadow:0 0 0 2px #FFD58A33}
+.pc-place{font-family:var(--display);font-size:1.5em;line-height:1;color:var(--gold);text-align:center;margin-top:-.1em}
+.pc-name{font-family:var(--display);font-size:.95em;margin:.25em 0 .35em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-name small{display:block;font-family:var(--body);font-weight:700;font-size:.72em;color:var(--muted)}
+.pc-stat{display:flex;justify-content:space-between;font-weight:800;font-size:.85em;line-height:1.5;border-top:1px solid #FFFFFF10}
+.pc-stat span{color:#8FB8E8}
+.pc-stat b{font-variant-numeric:tabular-nums}

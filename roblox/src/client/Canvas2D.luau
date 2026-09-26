@@ -237,6 +237,16 @@ function Canvas2D.ellipse(self: any, x: number, y: number, rx: number, ry: numbe
 	end
 end
 
+-- A line segment of the given width, as a rotated rectangle: what a canvas stroke is here.
+function Canvas2D.line(self: any, x0: number, y0: number, x1: number, y1: number, width: number, colour: Color3, alpha: number?)
+	local dx, dy = x1 - x0, y1 - y0
+	Canvas2D.save(self)
+	Canvas2D.translate(self, x0, y0)
+	Canvas2D.rotate(self, math.atan2(dy, dx))
+	Canvas2D.rect(self, 0, -width / 2, math.sqrt(dx * dx + dy * dy), width, colour, alpha)
+	Canvas2D.restore(self)
+end
+
 function Canvas2D.circle(self: any, x: number, y: number, r: number, colour: Color3, alpha: number?)
 	Canvas2D.ellipse(self, x, y, r, r, colour, alpha)
 end

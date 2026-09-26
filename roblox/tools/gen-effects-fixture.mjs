@@ -21,7 +21,7 @@ const E = (type, extra = {}) => ({ type, x: 3.25, y: 7.5, ...extra });
 const cases = [
   ['light hit', [E('hit', { attacker: 0 })]], ['heavy hit', [E('hit', { attacker: 2, heavy: true })]],
   ['hit by glowless', [E('hit', { attacker: 1, heavy: true })]], ['explosion', [E('explosion', { radius: 4.5 }), E('explosion')]],
-  ['block', [E('block'), E('block', { perfect: true })]], ['ko', [E('ko', { fighter: 5 })]],
+  ['block', [E('block'), E('block', { perfect: true, victim: 2 }), E('block', { victim: 0 })]], ['ko', [E('ko', { fighter: 5 })]],
   ['projectile', [E('projectile'), E('beam')]], ['land', [E('land'), E('land', { hard: true })]],
   ['ultimate', [E('ultimate', { fighter: 0 }), E('ultready')]], ['soulescape', [E('soulescape')]],
   ['crater', [E('crater', { first: true, radius: 3.2 }), E('crater', { radius: 2 })]],
@@ -38,6 +38,7 @@ const dump = (fx) => ({
   parts: fx.parts.map((p) => [p.x, p.y, p.vx, p.vy, p.life, p.max, p.c, p.s].map(S)),
   rings: fx.rings.map((r) => [r.x, r.y, r.r, r.life, r.max, r.c, r.heavy, r.rot].map(S)),
   shake: S(fx.shake),
+  shields: Object.keys(fx.shields).sort().map((k) => [k, S(fx.shields[k].life), S(fx.shields[k].x), S(fx.shields[k].y)]),
   shapes: effectShapes(fx).map((sh) => sh.map(S)),
 });
 const out = [];

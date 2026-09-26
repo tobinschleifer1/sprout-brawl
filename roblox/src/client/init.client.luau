@@ -183,7 +183,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	buffer = {}
 	scenes = {}
 	ult = nil
-	fx.parts, fx.rings, fx.shake = {}, {}, 0
+	fx.parts, fx.rings, fx.shake, fx.shields = {}, {}, 0, {}
 	pendingFx = {}
 	roster = cfg.fighters
 	chars = {}

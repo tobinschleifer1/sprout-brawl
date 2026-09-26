@@ -10,7 +10,8 @@
 // scratch out of the simulation state.
 
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
-import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks } from './effects.js';
+import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks, shieldHit } from './effects.js';
+import { shieldShapes } from './shield.js';
 import { TEAM_COLORS, TEAM_GLOW } from '../data/teams.js';
 import { channelsFor } from './channels.js';
 import { weaponPose, drawWeapon, drawTrail, drawMuzzle, drawUltimate, drawSprite, REACH } from './weapons2d.js';
@@ -445,11 +446,13 @@ export class Renderer2D {
       b.globalAlpha = 1;
     }
 
-    // shield bubble
+    // shield: an energy shell (render2d/shield.js), flaring where it was last struck
     if (ch.bubble > 0) {
-      b.globalAlpha = 0.30 + ch.bubble * 0.25;
-      b.fillStyle = '#9FD1E8';
-      b.beginPath(); b.arc(f.x, f.y + h * 0.5, h * 0.62 * (0.55 + ch.bubble * 0.45), 0, PI * 2); b.fill();
+      for (const sh of shieldShapes(f.x, f.y + h * 0.5, h, ch.bubble, Math.floor(t * 60), shieldHit(this.fx, f.index))) {
+        b.globalAlpha = sh[sh.length - 1];
+        if (sh[0] === 'e') { b.fillStyle = sh[5]; b.beginPath(); b.ellipse(sh[1], sh[2], sh[3], sh[4], 0, 0, PI * 2); b.fill(); }
+        else { b.strokeStyle = sh[6]; b.lineWidth = sh[5]; b.beginPath(); b.moveTo(sh[1], sh[2]); b.lineTo(sh[3], sh[4]); b.stroke(); }
+      }
       b.globalAlpha = 1;
     }
     // hit flash

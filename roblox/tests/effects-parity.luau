@@ -49,6 +49,16 @@ local function compare(fx: any, want: any, where: string)
 		for j, v in { r.x, r.y, r.r, r.life, r.max, r.c, r.heavy, r.rot } do near(want.rings[i][j], v, `{where} ring {i}.{j}`) end
 	end
 	near(want.shake, fx.shake, `{where} shake`)
+	local keys = {}
+	for k in fx.shields do table.insert(keys, k) end
+	table.sort(keys)
+	assert(#keys == #want.shields, `{where}: {#keys} struck shields, JS {#want.shields}`)
+	for i, k in keys do
+		near(want.shields[i][1], tostring(k), `{where} struck shield {i}`)
+		near(want.shields[i][2], fx.shields[k].life, `{where} shield {k} life`)
+		near(want.shields[i][3], fx.shields[k].x, `{where} shield {k} x`)
+		near(want.shields[i][4], fx.shields[k].y, `{where} shield {k} y`)
+	end
 	local shapes = Fx.shapes(fx)
 	assert(#shapes == #want.shapes, `{where}: {#shapes} shapes, JS {#want.shapes}`)
 	for i, sh in shapes do

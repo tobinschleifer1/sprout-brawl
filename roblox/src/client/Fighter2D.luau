@@ -22,6 +22,7 @@ local BLACK = Color3.new(0, 0, 0)
 local SHIELD = Color3.fromRGB(159, 209, 232)
 
 local Effects = require(script.Parent.Effects)
+local Shield = require(script.Parent.Shield)
 local Fighter2D = {}
 -- The live effects state (Effects.new()) that a hauled weapon kicks dirt into; set by the client.
 Fighter2D.effects = nil :: any
@@ -246,10 +247,17 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- The shield bubble and the hit flash are drawn in world space around the fighter rather than
 	-- welded to the rig: both are about the fighter rather than part of them, and neither should
 	-- squash when the body does.
+	-- The shield is an energy shell (Shield, held to web/src/render2d/shield.js), flaring where it
+	-- was last struck.
 	if ch.bubble > 0 then
-		Canvas2D.ellipse(c, s.x, s.y + h * 0.5,
-			h * 0.62 * (0.55 + ch.bubble * 0.45), h * 0.62 * (0.55 + ch.bubble * 0.45),
-			SHIELD, 0.30 + ch.bubble * 0.25)
+		local hit = if Fighter2D.effects then Effects.shieldHit(Fighter2D.effects, s.index) else nil
+		for _, sh in Shield.shapes(s.x, s.y + h * 0.5, h, ch.bubble, math.floor(t * 60), hit) do
+			if sh[1] == "e" then
+				Canvas2D.ellipse(c, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], SHIELD), sh[7])
+			else
+				Canvas2D.line(c, sh[2], sh[3], sh[4], sh[5], sh[6], Canvas2D.hex(sh[7], SHIELD), sh[8])
+			end
+		end
 	end
 	if ch.tint then
 		Canvas2D.rect(c, s.x - r, s.y, r * 2, h, Canvas2D.hex(ch.tint, BLACK), 0.5)

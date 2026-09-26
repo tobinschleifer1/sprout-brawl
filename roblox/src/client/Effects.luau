@@ -11,7 +11,14 @@ Effects.SHAKE_DECAY = 9
 Effects.RING_SEGMENTS = 16
 
 function Effects.new(): any
-	return { parts = {}, rings = {}, shake = 0 }
+	return { parts = {}, rings = {}, shake = 0, shields = {} }
+end
+Effects.SHIELD_FLARE = 0.3
+
+-- The last impact on fighter i's shield, as Shield.shapes takes it (effects.js shieldHit).
+function Effects.shieldHit(fx: any, i: number): any
+	local s = fx.shields and fx.shields[i]
+	return if s then { k = s.life / s.max, x = s.x, y = s.y } else nil
 end
 
 local function part(fx: any, x: number, y: number, vx: number, vy: number, life: number, max: number, c: string, s: number)
@@ -55,6 +62,10 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 		push(e.x, e.y, 22, "#FFC44D", 30, 0.5, 0.34); ring(e.x, e.y, e.radius or 3, 0.4, "#FFD37A", true, 0); shake(0.7)
 	elseif t == "block" then
 		push(e.x, e.y, 6, if e.perfect then "#FFFFFF" else "#9FD1E8", 12, 0.25, 0.2)
+		push(e.x, e.y, if e.perfect then 18 else 12, "#7FE8FF", 20, 0.35, 0.18)
+		if e.victim ~= nil then
+			fx.shields[e.victim] = { life = Effects.SHIELD_FLARE, max = Effects.SHIELD_FLARE, x = e.x, y = e.y }
+		end
 	elseif t == "ko" then
 		local c = Effects.PLAYER_TINT[(e.fighter % 4) + 1]
 		push(e.x, e.y, 28, c, 34, 0.7, 0.4); ring(e.x, e.y, 4, 0.5, c, true, 0); shake(1.0)
@@ -176,6 +187,10 @@ function Effects.step(fx: any, dt: number)
 	end
 	fx.rings = rings
 	fx.shake = math.max(0, fx.shake - dt * Effects.SHAKE_DECAY)
+	for k, s in fx.shields do
+		s.life -= dt
+		if s.life <= 0 then fx.shields[k] = nil end
+	end
 end
 
 local function clamp01(v: number): number

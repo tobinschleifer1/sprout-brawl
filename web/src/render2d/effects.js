@@ -17,7 +17,14 @@ export const GRAVITY = 26;       // studs/s^2 on a spark
 export const SHAKE_DECAY = 9;    // shake units per second
 export const RING_SEGMENTS = 16;
 
-export function newEffects() { return { parts: [], rings: [], shake: 0 }; }
+export function newEffects() { return { parts: [], rings: [], shake: 0, shields: {} }; }
+export const SHIELD_FLARE = 0.3;   // seconds a struck shield flares where it was hit
+
+// The last impact on fighter i's shield, as render2d/shield.js takes it: { k: 1 fresh .. 0, x, y }.
+export function shieldHit(fx, i) {
+  const s = fx.shields && fx.shields[i];
+  return s ? { k: s.life / s.max, x: s.x, y: s.y } : null;
+}
 
 // `glow(i)` is fighter i's weapon glow colour (or null), and `height(i)` their height in studs: a
 // fighter's own events carry their centre, and dust belongs at their feet.
@@ -51,7 +58,12 @@ export function spawnEffect(fx, e, glow, rand, height = () => 5) {
     case 'explosion':
       push(e.x, e.y, 22, '#FFC44D', 30, 0.5, 0.34); ring(e.x, e.y, e.radius || 3, 0.4, '#FFD37A', true, 0); shake(0.7); break;
     case 'block':
-      push(e.x, e.y, 6, e.perfect ? '#FFFFFF' : '#9FD1E8', 12, 0.25, 0.2); break;
+      // Energy dispersing off the shell where it was struck - the user's reference - and the
+      // struck point remembered so the shell can flare there (render2d/shield.js).
+      push(e.x, e.y, 6, e.perfect ? '#FFFFFF' : '#9FD1E8', 12, 0.25, 0.2);
+      push(e.x, e.y, e.perfect ? 18 : 12, '#7FE8FF', 20, 0.35, 0.18);
+      if (e.victim != null) fx.shields[e.victim] = { life: SHIELD_FLARE, max: SHIELD_FLARE, x: e.x, y: e.y };
+      break;
     case 'ko': {
       const c = PLAYER_TINT[e.fighter % 4];
       push(e.x, e.y, 28, c, 34, 0.7, 0.4); ring(e.x, e.y, 4, 0.5, c, true, 0); shake(1.0); break;
@@ -153,6 +165,10 @@ export function stepEffect(fx, dt) {
   fx.parts = parts;
   fx.rings = fx.rings.filter((r) => { r.life -= dt; return r.life > 0; });
   fx.shake = Math.max(0, fx.shake - dt * SHAKE_DECAY);
+  for (const k of Object.keys(fx.shields)) {
+    fx.shields[k].life -= dt;
+    if (fx.shields[k].life <= 0) delete fx.shields[k];
+  }
 }
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);

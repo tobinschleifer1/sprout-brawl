@@ -182,7 +182,11 @@ const WEAPON_ROTATE_SIGN = /ctx\.rotate\(-pose\.angle\)/.test(wsrc) ? -1 : 1;
       const peak = Math.max(...vals, 1e-6);
       return vals.findIndex((v) => v >= peak * 0.9) + 1;
     };
-    const bodyAt = reach90(() => channelsFor(f, 0).lean);
+    // The body's wind-up through every channel a wind-up moves - arms, lean, stretch, bob - not
+    // the lean alone: an overhead slam (SigDown) winds up with its arms and never leans, so a
+    // lean-only probe read 0 on every frame and the check passed only by accident.
+    const load = () => { const c = channelsFor(f, 0); return Math.abs(c.lean) + Math.abs(c.armL.z) + Math.abs(c.armR.z) + Math.abs(c.sy - 1) + Math.abs(c.bob); };
+    const bodyAt = reach90(load);
     const wpAt = reach90((mf) => weaponPose(f, mf / 60).angle);
     const gap = Math.abs(bodyAt - wpAt);
     rows.push(`${id} body f${bodyAt} weapon f${wpAt}`);

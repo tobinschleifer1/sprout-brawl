@@ -93,6 +93,12 @@ for _, size in { {360,640}, {1280,720}, {1920,1080} } do
 		assert(c.drawn > 100 and c.drawn < 750, "hub must draw real but bounded scenery")
 		assert(#c.stack == 0, "hub leaves no transforms behind for the arena renderer")
 		assert(hub.gui.attributes.NearbyStation == station.id, "visible prompt names the nearby world station")
+		if station.kind == "Format" then
+			-- the door's sign clears its signal posts, which reach 14 + 2 + team size studs
+			local postTop = c:project(station.x, 16 + station.teamSize)
+			local tag = hub.labels[station.id]
+			assert(tag.Position.Y.Offset + tag.Size.Y.Offset <= postTop.Y + 1, `{station.id}: the sign overlaps its posts`)
+		end
 		peak = math.max(peak, c.drawn)
 	end
 end
@@ -125,6 +131,60 @@ for index, format in { "Duel", "Doubles", "Triples" } do
 	hub:setPeers({{userId=2,area=0,name="Outsider",avatar="Classic",weapon="Sword",x=0,y=0,facing=1}},1)
 	assert(not hub.peers[2], "stale concourse presence cannot leak into the preparation room")
 end
+-- The stations show the room: the map board the map (pick, leading ballot or the Random die),
+-- the ready rail a lamp per place, the rules board lives or a clock, the rack your own weapon.
+do
+	local Stages = Loader.load("Data/Stages")
+	local byId = {}
+	for _, st in Stages.LIST do byId[st.id] = st end
+	local room = { id = 9, format = "Doubles", stage = "FoundryFloor", mapChoice = "vote", mode = "stock", stocks = 4,
+		slots = { { userId = 1, team = 0, ready = false, vote = "Undertow" }, { userId = 2, team = 1, ready = true, vote = "Saltflat" },
+			{ team = 0 }, { team = 1, bot = "easy" } } }
+	assert(Hub.shownMap(room).id == "Undertow", "a tied vote shows the earliest ballot")
+	room.slots[3].vote = "Saltflat"
+	assert(Hub.shownMap(room).id == "Saltflat", "the leading ballot is shown")
+	room.slots[3].vote = nil
+	assert(Hub.shownMap({ stage = "Rooftops", mapChoice = "host", slots = {} }).id == "Rooftops", "the host's pick is shown")
+	assert(Hub.shownMap({ stage = "Random", mapChoice = "host", slots = {} }) == nil, "a Random pick shows the die")
+	assert(Hub.shownMap({ stage = "Rooftops", mapChoice = "random", slots = {} }) == nil, "a random room shows the die")
+	hub:setRoom(room)
+	local colours = {}
+	local frames = 0
+	local recorder = function(c, _x, _y, w, h, colour, ...)
+		local key = string.format("%d,%d,%d", math.floor(colour.R * 255 + 0.5), math.floor(colour.G * 255 + 0.5), math.floor(colour.B * 255 + 0.5))
+		colours[key] = (colours[key] or 0) + 1
+		if key == "240,177,82" and math.abs(w - 3.4) < 1e-6 and math.abs(h - 2.4) < 1e-6 then frames += 1 end
+		c.used += 1
+	end
+	local function drawAt(x: number): { [string]: number }
+		colours = {}
+		Canvas.rect = recorder
+		hub.model.fighter.x, hub.model.fighter.y, hub.camX = x, 0, x
+		local c = setmetatable({ used=0,stack={},alpha=1,alphaStack={},m={a=1,b=0,c=0,d=1,e=0,f=0},
+			gui={AbsoluteSize={X=1280,Y=720}},finish=function(self) self.used=0 end },{__index=Canvas})
+		hub:draw(c, 1/60)
+		Canvas.rect = primitive
+		return colours
+	end
+	local function rgb(hex: string): string
+		local c = Rbx.Color3.fromHex(hex)
+		return string.format("%d,%d,%d", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+	end
+	local stations = {}
+	for _, st in Loader.load("Data/Hub").rooms.Doubles.stations do stations[st.id] = st end
+	local seen = drawAt(stations.Maps.x)
+	assert(seen[rgb(byId.Undertow.palette.skyStops[1][2])], "the map board shows the leading map's sky")
+	assert(not seen[rgb(byId.FoundryFloor.palette.skyStops[1][2])], "and not the host's unvoted pick")
+	seen = drawAt(stations.Players.x)
+	assert((seen["96,200,110"] or 0) == 2, `two green lamps (the ready player and the bot), got {seen["96,200,110"] or 0}`)
+	room.slots[1].ready = true
+	hub:setRoom(room)
+	seen = drawAt(stations.Players.x)
+	assert((seen["96,200,110"] or 0) == 3, "readying lights your lamp")
+	frames = 0
+	drawAt(stations.Weapons.x)
+	assert(frames == 1, `exactly one weapon framed on the rack, got {frames}`)
+end
 hub:setRoom({left=true})
 assert(hub.model.data.id=="IronConcourse" and hub.model.fighter.x==returnX,"leaving returns to the entrance, not a setup screen")
 hub:hide()
@@ -133,4 +193,4 @@ hub.input.frame.x = 1
 hub:step(1/60, false)
 hub:interact()
 assert(hub.model.fighter.x == x and opened == 1, "hidden lobby cannot move or interact during a match")
-print(`PASS hub view: real movement, nearby interaction, modal/chat guards, thirty finite draws; peak {peak} primitives`)
+print(`PASS hub view: real movement, nearby interaction, modal/chat guards, thirty finite draws; peak {peak} primitives; stations show the room`)

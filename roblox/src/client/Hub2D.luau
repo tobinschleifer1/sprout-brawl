@@ -15,6 +15,8 @@ local Backdrop = require(script.Parent.BackdropArt)
 local Fighter2D = require(script.Parent.Fighter2D)
 local Weapons = require(Shared.Data.Weapons)
 local WeaponArt = require(script.Parent.Weapons2D)
+local StageThumb = require(script.Parent.StageThumb)
+local Stages = require(Shared.Data.Stages)
 local Hub2D = {}
 Hub2D.__index = Hub2D
 local INK = Color3.fromRGB(14, 20, 27)
@@ -22,6 +24,9 @@ local METAL = Color3.fromRGB(42, 53, 64)
 local STEEL = Color3.fromRGB(97, 117, 125)
 local AMBER = Color3.fromRGB(240, 177, 82)
 local WHITE = Color3.fromRGB(231, 227, 209)
+local READY = Color3.fromRGB(96, 200, 110)
+local TEAM1 = Color3.fromRGB(62, 138, 46)
+local TEAM2 = Color3.fromRGB(222, 98, 28)
 
 local function text(parent: Instance, name: string, value: string, size: number): TextLabel
 	local t = Instance.new("TextLabel")
@@ -30,6 +35,29 @@ local function text(parent: Instance, name: string, value: string, size: number)
 	t.Parent = parent
 	return t
 end
+-- The map this room will fight on as far as anyone can tell yet: the host's pick, the leading
+-- ballot when the room votes (ties to the earliest ballot), or nil for Random.
+local function shownMap(room: any): any
+	if not room then return nil end
+	local id = room.stage
+	if room.mapChoice == "random" then return nil end
+	if room.mapChoice == "vote" then
+		local count, best, bestN = {}, nil, 0
+		for _, slot in room.slots or {} do
+			if slot.vote then
+				count[slot.vote] = (count[slot.vote] or 0) + 1
+				if count[slot.vote] > bestN then best, bestN = slot.vote, count[slot.vote] end
+			end
+		end
+		id = best or id
+	end
+	for _, stage in Stages.LIST do
+		if stage.id == id then return stage end
+	end
+	return nil
+end
+Hub2D.shownMap = shownMap
+
 function Hub2D.new(parent: Instance): any
 	local self = setmetatable({ active = false, held = false, camX = 0, labels = {}, peers = {}, onInteract = nil }, Hub2D)
 	self.input = InputClient.new()
@@ -94,7 +122,12 @@ function Hub2D.setRoom(self: any, room: any)
 			if slot.userId then humans += 1; if slot.ready then ready += 1 end end
 			if slot.bot then bots += 1 end
 		end
-		self.directions.Text = nextRoom.error or `{ready}/{humans} players ready · {bots} CPUs · Map: {nextRoom.stage} · Walk to a station; exit left`
+		local shown = shownMap(nextRoom)
+		local map = if nextRoom.mapChoice == "random" then "Random map"
+			elseif nextRoom.mapChoice == "vote" then (if shown then `Vote: {shown.name} leads` else "Vote for a map")
+			else (if shown then shown.name else "Random map")
+		local rules = if nextRoom.mode == "timed" then `Timed {(nextRoom.time or 180) // 60} min` else `{nextRoom.stocks or 3} lives`
+		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} CPUs · {map} · {rules} · walk to a station; exit left`
 	else
 		self.directions.Text = "1v1  ·  2v2  ·  3v3     —     walk to a gate to prepare your fight"
 	end
@@ -157,7 +190,19 @@ function Hub2D.step(self: any, dt: number, blocked: boolean)
 	self.held = down
 end
 
-local function stationArt(c: any, s: any, active: boolean)
+
+-- A thumbnail (StageThumb shapes, pixels y-down) fitted into a world-space rectangle.
+local function boardThumb(c: any, shapes: { any }, x0: number, y0: number, w: number, h: number, K: number)
+	Canvas.save(c)
+	Canvas.translate(c, x0, y0 + h)
+	Canvas.scale(c, 1 / K, -1 / K)
+	for _, sh in shapes do
+		Canvas.rect(c, sh[2], sh[3], sh[4], sh[5], Canvas.hex(sh[6], INK), sh[7])
+	end
+	Canvas.restore(c)
+end
+
+local function stationArt(c: any, s: any, active: boolean, room: any, weaponId: string?)
 	local color = Canvas.hex(s.color, AMBER)
 	local x = s.x
 	Canvas.rect(c, x - 7, 0, 14, 0.5, color, 0.6)
@@ -189,6 +234,12 @@ local function stationArt(c: any, s: any, active: boolean)
 		if s.kind == "Weapons" then
 			Canvas.rect(c, x - 8, 5.3, 16, 9, INK)
 			for i, weapon in Weapons.LIST do
+				if weapon.id == weaponId then
+					-- your own weapon, framed, so the rack answers "what am I holding"
+					local gx, gy = x - 6 + ((i - 1) % 4) * 4, 7 + math.floor((i - 1) / 4) * 2.6
+					Canvas.rect(c, gx - 1.6, gy - 1.1, 3.4, 2.4, AMBER, 0.9)
+					Canvas.rect(c, gx - 1.4, gy - 0.9, 3.0, 2.0, INK)
+				end
 				Canvas.save(c)
 				Canvas.translate(c, x - 6 + ((i - 1) % 4) * 4, 7 + math.floor((i - 1) / 4) * 2.6)
 				Canvas.scale(c, 0.45, 0.45)
@@ -213,6 +264,39 @@ local function stationArt(c: any, s: any, active: boolean)
 			for n = -1, 1 do
 				Canvas.rect(c, x + n * 3 - 0.7, 5.3, 1.4, 2.5, color)
 				Canvas.rect(c, x + n * 3 - 0.9, 8, 1.8, 1.8, color)
+			end
+		elseif s.kind == "Maps" then
+			-- The map board shows the map: the pick, the leading ballot, or the Random die.
+			Canvas.rect(c, x - 5.6, 5.3, 11.2, 7.6, INK)
+			local stage = shownMap(room)
+			local K = 10
+			boardThumb(c, if stage then StageThumb.shapes(stage, 100, 64) else StageThumb.random(100, 64), x - 5, 5.7, 10, 6.4, K)
+		elseif s.kind == "Players" then
+			-- The ready rail: a light per place, green when ready, amber when waiting, dark when open.
+			Canvas.rect(c, x - 6, 5.3, 12, 4, INK)
+			local slots = if room then room.slots else {}
+			local n = math.max(1, #slots)
+			for i = 1, n do
+				local slot = slots[i]
+				local lx = x - 5 + (i - 0.5) * (10 / n)
+				local lamp = if not slot or (not slot.userId and not slot.bot) then METAL
+					elseif slot.ready or slot.bot then READY else AMBER
+				Canvas.rect(c, lx - 0.6, 6.4, 1.2, 1.8, lamp)
+				Canvas.rect(c, lx - 0.9, 8.4, 1.8, 0.3, if slot and slot.team == 1 then TEAM2 else TEAM1)
+			end
+		elseif s.kind == "Rules" then
+			-- The rules board: a pip per life, or a clock face for a timed fight.
+			Canvas.rect(c, x - 4, 5.3, 8, 6, INK)
+			if room and room.mode == "timed" then
+				Canvas.circle(c, x, 8.3, 2.2, color)
+				Canvas.circle(c, x, 8.3, 1.8, INK)
+				Canvas.rect(c, x - 0.15, 8.3, 0.3, 1.4, WHITE)
+				Canvas.rect(c, x, 8.15, 1.1, 0.3, WHITE)
+			else
+				local lives = if room then room.stocks or 3 else 3
+				for i = 1, lives do
+					Canvas.rect(c, x - 3.4 + (i - 1) * 1.5, 7.6, 1.1, 1.1, color)
+				end
 			end
 		else
 			Canvas.rect(c, x - 4, 5.3, 8, 6, INK)
@@ -255,8 +339,9 @@ function Hub2D.draw(self: any, c: any, dt: number)
 		local visible = s.x > left and s.x < right
 		tag.Visible = visible
 		if visible then
-			stationArt(c, s, self.model:nearest() == s)
-			local at = c:project(s.x, 15.5)
+			stationArt(c, s, self.model:nearest() == s, self.room, self.char and self.char.weapon and self.char.weapon.id)
+			-- Above the door's signal posts (they reach 14 + 2 + team size), not through them.
+			local at = c:project(s.x, if s.kind == "Format" then 21 else 16.5)
 			tag.Position, tag.Size = UDim2.fromOffset(at.X - 12 * ppu, at.Y - 16), UDim2.fromOffset(24 * ppu, 36)
 			tag.TextSize = math.clamp(ppu * 1.2, 11, 18)
 		end

@@ -180,8 +180,9 @@ export function weaponPose(f, t) {
   const s = f.state;
   const aimed = AIMED[wid];
 
-  // idle / movement poses
-  if (s === 'idle' || s === 'run' || s === 'dash') {
+  // idle / movement poses. Jumpsquat and landing hold the same guard: they used REST, so the
+  // weapon dropped for the few frames of a landing and snapped back up - a visible pop.
+  if (s === 'idle' || s === 'run' || s === 'dash' || s === 'jumpsquat' || s === 'landing') {
     out.angle = (GUARD[wid] ?? REST[wid] ?? D(-70)) + Math.sin(t * 3 + f.index) * 0.06;
     if (s === 'run' || s === 'dash') out.angle += 0.25;
     // A weapon with `drag` is not carried, it is hauled: the head stays on the floor and the haft
@@ -195,11 +196,22 @@ export function weaponPose(f, t) {
     }
     return out;
   }
-  if (s === 'shield' || s === 'shielddrop') { out.angle = D(-100); return out; }
+  // Behind the bubble the weapon stays in the guard, a little lower, so raising a shield does not
+  // drop it to the fighter's side (it used to hang at -100) and lowering it does not snap it back.
+  // Held higher it read as a salute: the arm is one straight segment.
+  if (s === 'shield' || s === 'shielddrop') { out.angle = (GUARD[wid] ?? REST[wid] ?? D(-70)) - 0.25; return out; }
   if (s === 'ledge' || s === 'tether') { out.angle = D(-110); return out; }
   if (s === 'knockdown' || s === 'ko') { out.hide = true; return out; }
   if (s === 'hitstun' || s === 'tumble') { out.angle = D(-120) + Math.sin(f.sf * 0.7) * 0.5; return out; }
-  if (s === 'air' || s === 'helpless' || s === 'recovery') { out.angle = D(-95); return out; }
+  // In the air the weapon says which way you are going: trailing behind and below on the way up,
+  // swung forward and ready on the way down, blended through the apex by vertical speed. It used
+  // to hang straight down either way, so a rising and a falling fighter looked the same.
+  if (s === 'air') {
+    const up = Math.min(1, Math.max(0, (f.vy + 20) / 60));
+    out.angle = D(-55) + (D(-135) - D(-55)) * up;
+    return out;
+  }
+  if (s === 'helpless' || s === 'recovery') { out.angle = D(-95); return out; }
   if (s === 'groundpound') { out.angle = D(-90); return out; }
 
   if (s !== 'attack' || !f.move) return out;

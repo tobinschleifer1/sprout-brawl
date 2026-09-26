@@ -345,5 +345,27 @@ function angleAt(f, id, at) {
     `legs ${ch.legL.toFixed(2)}/${ch.legR.toFixed(2)}, lean ${ch.lean.toFixed(2)}, sy ${ch.sy.toFixed(3)}`);
 }
 
+// The air, the landing and the shield. Rising trails the weapon below and behind, falling holds
+// it forward and ready; landing and jumpsquat hold the idle guard, so a landing does not drop the
+// weapon and snap it back; the shield keeps it in the guard, a little lower.
+{
+  const { posedFighter } = await import('../src/render2d/preview.js');
+  const { buildLoadout } = await import('../src/data/loadout.js');
+  const deg = (r) => r * 180 / PI_;
+  const at = (state, extra = {}) => {
+    const f = posedFighter(buildLoadout('Classic', 'Sword'), null, 4, { state, onGround: state !== 'air' });
+    Object.assign(f, extra);
+    return deg(weaponPose(f, 0).angle);
+  };
+  const rising = at('air', { vy: 40 }), falling = at('air', { vy: -25 });
+  check('air: rising trails the weapon, falling holds it ready', rising < -120 && falling > -70 && falling - rising > 60,
+    `rising ${rising.toFixed(0)} deg, falling ${falling.toFixed(0)} deg`);
+  check('landing and jumpsquat hold the idle guard (no pop)', Math.abs(at('landing') - at('idle')) < 1e-9 && Math.abs(at('jumpsquat') - at('idle')) < 1e-9,
+    `idle ${at('idle').toFixed(1)}, landing ${at('landing').toFixed(1)}, jumpsquat ${at('jumpsquat').toFixed(1)}`);
+  const lowered = at('idle') - at('shield');
+  check('shield: the weapon stays in the guard, a little lower, not hanging at the side', lowered > 5 && lowered < 25 && at('shield') > -70,
+    `idle ${at('idle').toFixed(0)} deg, shield ${at('shield').toFixed(0)} deg`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

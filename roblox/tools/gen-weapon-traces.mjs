@@ -23,7 +23,7 @@ const { buildLoadout } = await import('../../web/src/data/loadout.js');
 const n = (v) => (typeof v === 'number' ? String(v) : v);
 
 const STATES = [
-  'idle', 'run', 'dash', 'shield', 'shielddrop', 'ledge', 'tether', 'knockdown', 'ko',
+  'idle', 'run', 'dash', 'jumpsquat', 'landing', 'shield', 'shielddrop', 'ledge', 'tether', 'knockdown', 'ko',
   'hitstun', 'tumble', 'air', 'helpless', 'recovery', 'groundpound', 'attack',
   // No branch of weaponPose matches these, so they must come out as the bare rest pose. Controls.
   'idle_unused', 'grabbed',
@@ -54,6 +54,7 @@ for (const [avatar, weapon] of KITS) {
             avatar, weapon, state, moveId, t,
             index: probes.length % 4,
             vx: String((fr % 5) * 4 - 6),          // crosses the 1.5 drag threshold both ways
+            vy: String((fr % 7) * 12 - 36),        // spans the air pose's rising/falling blend
             onGround: (fr % 2) === 0,
             sf: String(fr), mf: String(fr),
             startupEff: m ? String(m.startup) : '0',
@@ -71,7 +72,7 @@ function fighterFor(p) {
   const char = buildLoadout(p.avatar, p.weapon);
   return {
     char, index: p.index, state: p.state,
-    vx: Number(p.vx), onGround: p.onGround,
+    vx: Number(p.vx), vy: Number(p.vy), onGround: p.onGround,
     sf: Number(p.sf), mf: Number(p.mf),
     moveId: p.moveId, move: p.moveId ? char.moves[p.moveId] : null,
     startupEff: Number(p.startupEff), charge: Number(p.charge),

@@ -68,7 +68,7 @@ for i, p in trace.probes do
 	-- Weapons2D makes. A harness that folds char into the bag tests a shape no caller produces.
 	local f = {
 		index = p.index, state = p.state,
-		vx = tonumber(p.vx), onGround = p.onGround,
+		vx = tonumber(p.vx), vy = tonumber(p.vy), onGround = p.onGround,
 		stateFrame = tonumber(p.sf), moveFrame = tonumber(p.mf),
 		moveId = p.moveId,
 		startupEff = tonumber(p.startupEff), charge = tonumber(p.charge),

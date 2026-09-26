@@ -523,7 +523,8 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	local aimed = AIMED[wid]
 
 	-- idle / movement poses
-	if s == "idle" or s == "run" or s == "dash" then
+	-- Jumpsquat and landing hold the guard too (see weapons2d.js): they used to pop down and back.
+	if s == "idle" or s == "run" or s == "dash" or s == "jumpsquat" or s == "landing" then
 		out.angle = guardOf(wid) + math.sin(t * 3 + f.index) * 0.06
 		if s == "run" or s == "dash" then
 			out.angle += 0.25
@@ -539,14 +540,21 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 		end
 		return out
 	end
-	if s == "shield" or s == "shielddrop" then out.angle = D(-100); return out end
+	-- in the guard, a little lower (see weapons2d.js)
+	if s == "shield" or s == "shielddrop" then out.angle = guardOf(wid) - 0.25; return out end
 	if s == "ledge" or s == "tether" then out.angle = D(-110); return out end
 	if s == "knockdown" or s == "ko" then out.hide = true; return out end
 	if s == "hitstun" or s == "tumble" then
 		out.angle = D(-120) + math.sin(f.stateFrame * 0.7) * 0.5
 		return out
 	end
-	if s == "air" or s == "helpless" or s == "recovery" then out.angle = D(-95); return out end
+	-- Rising trails the weapon, falling holds it ready; blended by vertical speed (weapons2d.js).
+	if s == "air" then
+		local up = math.min(1, math.max(0, ((f.vy or 0) + 20) / 60))
+		out.angle = D(-55) + (D(-135) - D(-55)) * up
+		return out
+	end
+	if s == "helpless" or s == "recovery" then out.angle = D(-95); return out end
 	if s == "groundpound" then out.angle = D(-90); return out end
 
 	if s ~= "attack" or not move then

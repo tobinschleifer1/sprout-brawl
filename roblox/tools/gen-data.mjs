@@ -27,6 +27,7 @@ const { buildLoadout } = await import(`${WEB}/loadout.js`);
 const { SCENES } = await import(`${WEB}/art.js`);
 const { WEAPON_SPRITES } = await import(`${WEB}/weaponArt.js`);
 const { HUB } = await import(`${WEB}/hub.js`);
+const { RULES } = await import(`${WEB}/rules.js`);
 
 // ---------------------------------------------------------------- emitter ----
 const RESERVED = new Set(['and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function',
@@ -132,6 +133,8 @@ function write(file, source, body) {
 const written = [];
 assertPlain(HUB, 'HUB');
 written.push(write('Hub.luau', 'web/src/data/hub.js', `return ${emit(HUB, 0, 'HUB')}`));
+assertPlain(RULES, 'RULES');
+written.push(write('Rules.luau', 'web/src/data/rules.js', `return ${emit(RULES, 0, 'RULES')}`));
 const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
 assertPlain(ART, 'ART');
 written.push(write('Art.luau', 'web/src/data/art.js', `return ${emit(ART, 0, 'ART')}`));
@@ -201,7 +204,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB }));
+  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

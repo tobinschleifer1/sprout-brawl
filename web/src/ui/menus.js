@@ -10,6 +10,7 @@ import { traceProcedural, blitPixelPart } from '../render2d/pixels2d.js';
 import { buildLoadout } from '../data/loadout.js';
 import { STAGES } from '../data/stages/index.js';
 import { stageThumb, randomThumb } from '../render2d/stageThumb.js';
+import { RULES, engineMode } from '../data/rules.js';
 import { BINDINGS_TEXT } from '../engine/input.js';
 import { PLAYER_COLORS, PLAYER_MARKS } from './hud.js';
 import { onBlock } from '../engine/knockback.js';
@@ -30,6 +31,28 @@ const stageSVG = (s) => thumbSVG(stageThumb(s, 160, 90), 160, 90);
 
 // The maps a Random pick draws from, by map set: everything, or the competitive rotation.
 export const MAP_SETS = [['all', 'All maps'], ['ranked', 'Ranked']];
+// Rule presets on a local setup (data/rules.js). The mode keeps the screen's own free-for-all or
+// teams choice; a preset that draws the map at random selects Random, and one that votes keeps
+// the map you picked if it is in the preset's set - there is nobody else here to vote.
+export function applyPreset(config, id) {
+  const p = RULES.presets.find((x) => x.id === id);
+  if (!p) return config;
+  const r = p.rules;
+  const teams = config.mode.includes('Teams');
+  const next = { ...config, mode: engineMode(r.mode, teams), stocks: r.stocks, time: r.time, items: r.items, disasters: r.disasters, mapSet: r.mapSet };
+  if (r.mapChoice === 'random' || (next.stageId !== 'Random' && !mapSet(r.mapSet).some((s) => s.id === next.stageId))) next.stageId = 'Random';
+  return next;
+}
+export function presetOf(config) {
+  const p = RULES.presets.find((x) => {
+    const r = x.rules;
+    return config.mode === engineMode(r.mode, config.mode.includes('Teams')) && config.stocks === r.stocks && config.time === r.time
+      && config.items === r.items && config.disasters === r.disasters && (config.mapSet || 'all') === r.mapSet
+      && (r.mapChoice !== 'random' || config.stageId === 'Random');
+  });
+  return p ? p.id : null;
+}
+
 export function mapSet(set) { return set === 'ranked' ? STAGES.filter((s) => s.ranked) : STAGES; }
 
 export class Menus {
@@ -386,6 +409,7 @@ export class Menus {
     const stages = `<button class="stagetile random ${c.stageId === 'Random' ? 'sel' : ''}" data-stage="Random">${thumbSVG(randomThumb(160, 90), 160, 90)}<span>Random</span><small>Any map in ${MAP_SETS.find(([id]) => id === set)[1].toLowerCase()}</small></button>` + mapSet(set).map((s) => `<button class="stagetile ${s.id === c.stageId ? 'sel' : ''}" data-stage="${s.id}">${stageSVG(s)}<span>${s.name}${s.ranked ? ' <em>ranked</em>' : ''}</span><small>${s.theme}${s.hazards.length ? ' · ' + s.hazards.map((h) => h.type).join(', ') : ' · no hazards'}</small></button>`).join('');
     return `<div class="screen setup">
       <div class="setup-top"><button data-act="title">← Back</button><h2>Set up a match</h2>
+        <div class="presets">${RULES.presets.map((p) => `<button class="preset ${presetOf(c) === p.id ? 'sel' : ''}" data-preset="${p.id}" title="${p.hint}">${p.name}</button>`).join('')}</div>
         <div class="opts">
           <label>Mode <select data-field="mode">${MODES.map(([v, l]) => `<option value="${v}" ${c.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label>Stocks <select data-field="stocks">${[1, 2, 3, 4, 5].map((n) => `<option ${c.stocks === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -457,7 +481,7 @@ export class Menus {
   }
 
   _click(e) {
-    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-mapset],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink]');
+    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-mapset],[data-preset],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink]');
     if (!t) return;
     // The editor's own controls. `_stash` reads the name box before every re-render, because the
     // screen is rebuilt from a string and an unsaved name would otherwise be thrown away by the
@@ -471,6 +495,7 @@ export class Menus {
     if (t.dataset.weapon) { this.config.slots[+t.dataset.slot].weaponId = t.dataset.weapon; this.save(); this.render(); return; }
     if (t.dataset.avatar) { this.config.slots[+t.dataset.slot].avatarId = t.dataset.avatar; this.save(); this.render(); return; }
     if (t.dataset.stage) { this.config.stageId = t.dataset.stage; this.save(); this.render(); return; }
+    if (t.dataset.preset) { this.config = applyPreset(this.config, t.dataset.preset); this.save(); this.render(); return; }
     if (t.dataset.mapset) {
       this.config.mapSet = t.dataset.mapset;
       // A map that has left the set is not still selected behind the filter.

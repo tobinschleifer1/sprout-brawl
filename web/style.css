@@ -266,3 +266,6 @@ select,input[type=range],.charform input[type=text],.chario textarea{background:
 .mapsets .mapset{font-size:.8rem;padding:.3rem .8rem;background:#1B2531;color:var(--ink)}
 .mapsets .mapset.sel{background:var(--leaf);color:#101721}
 .stagetile svg{image-rendering:pixelated}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin:.4rem 0}
+.presets .preset{font-size:.8rem;padding:.3rem .8rem;background:#1B2531;color:var(--ink)}
+.presets .preset.sel{background:var(--gold);color:#101721}

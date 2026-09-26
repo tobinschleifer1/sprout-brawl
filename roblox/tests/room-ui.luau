@@ -49,6 +49,7 @@ local Panel = luau.load(fs.readFile("src/client/RoomPanel.luau"), {environment={
  require=function(name)
   if name=="Canvas2D" then return Canvas end
   if name=="Weapons2D" or name=="StageThumb" then return Loader.loadFrom("src/client/",name) end
+  if name=="Rules" then return Loader.load("Data/Rules") end
   return Loader.load("Data/"..name)
  end,
  Enum={Font=codes,AutomaticSize=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
@@ -139,6 +140,20 @@ panel:openStation("Rules")
 assert(panel.body:FindFirstChild("Disasters_off") and panel.body:FindFirstChild("Disasters_chaos"), "the rules console offers the disaster setting")
 panel.body:FindFirstChild("Disasters_stage").Activated:Fire()
 assert(room.disasters=="stage","the host's disaster choice reaches the room")
+-- The battle builder: a preset sets every rule; the mode swaps lives for a clock.
+panel.body:FindFirstChild("Preset"):FindFirstChild("Preset_tournament").Activated:Fire()
+assert(room.mode=="stock" and room.stocks==3 and room.items==false and room.disasters=="off" and room.mapChoice=="vote" and room.mapSet=="ranked", "Tournament 1v1 sets every rule")
+assert(panel.body:FindFirstChild("PresetHint").Text ~= "Custom rules", "the station names the preset in force")
+assert(panel.body:FindFirstChild("Lives") and not panel.body:FindFirstChild("Time"), "a stock match offers lives, not a clock")
+panel.body:FindFirstChild("Mode"):FindFirstChild("Mode_timed").Activated:Fire()
+assert(room.mode=="timed", "the host's mode reaches the room")
+assert(panel.body:FindFirstChild("Time") and not panel.body:FindFirstChild("Lives"), "a timed match offers a clock, not lives")
+assert(panel.body:FindFirstChild("PresetHint").Text == "Custom rules", "one changed rule and the preset no longer applies")
+panel.body:FindFirstChild("Time"):FindFirstChild("Time_240").Activated:Fire()
+assert(room.time==240, "the clock choice reaches the room")
+panel.body:FindFirstChild("Preset"):FindFirstChild("Preset_casual").Activated:Fire()
+assert(room.mode=="stock" and room.disasters=="stage" and room.items==true, "Casual sets every rule")
+panel.body:FindFirstChild("Disasters_stage").Activated:Fire()
 panel.body:FindFirstChild("Bots OFF — add optional CPU").Activated:Fire()
 assert(room.slots[2].bot=="easy","explicit optional CPU control")
 panel:openStation("Players")

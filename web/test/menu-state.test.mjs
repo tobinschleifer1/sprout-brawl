@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { Menus, mapSet, MAP_SETS } from '../src/ui/menus.js';
+import { Menus, mapSet, MAP_SETS, applyPreset, presetOf } from '../src/ui/menus.js';
+import { RULES } from '../src/data/rules.js';
 import { STAGES } from '../src/data/stages/index.js';
 globalThis.document = { createElement: () => ({ addEventListener() {} }) };
 let saved;
@@ -37,4 +38,21 @@ const ranked = mapSet('ranked');
 assert.ok(ranked.length > 0 && ranked.length < STAGES.length, 'Ranked is a real subset');
 assert.ok(ranked.every((s) => s.ranked), 'Ranked holds only ranked maps');
 assert.equal(ranked.length, STAGES.filter((s) => s.ranked).length, 'and every ranked map');
-console.log('PASS saved menus: malformed slots and settings recover; valid selections survive; map sets and Random');
+// Rule presets: each sets its rules, keeps the free-for-all/teams choice, and is recognised after.
+const base = build().config;
+for (const p of RULES.presets) {
+  for (const mode of ['StockFFA', 'TimedTeams']) {
+    const c = applyPreset({ ...base, mode, stageId: 'Smeltworks' }, p.id);
+    assert.equal(c.mode.includes('Teams'), mode.includes('Teams'), `${p.id} keeps free-for-all or teams`);
+    assert.equal(c.mode.startsWith('Timed'), p.rules.mode === 'timed', `${p.id} sets the mode`);
+    for (const k of ['stocks', 'time', 'items', 'disasters', 'mapSet']) assert.equal(c[k], p.rules[k], `${p.id} sets ${k}`);
+    assert.equal(presetOf(c), p.id, `${p.id} is recognised once applied`);
+    if (p.rules.mapChoice === 'random') assert.equal(c.stageId, 'Random', `${p.id} draws a random map`);
+    if (p.rules.mapSet === 'ranked') assert.ok(c.stageId === 'Random' || mapSet('ranked').some((s) => s.id === c.stageId), `${p.id} leaves no map outside its set selected`);
+  }
+}
+assert.equal(presetOf({ ...applyPreset(base, 'tournament'), stocks: 5 }), null, 'one changed rule and no preset applies');
+for (const [k, v] of [['items', true], ['disasters', 'chaos'], ['time', 300], ['mapSet', 'all']]) {
+  assert.equal(presetOf({ ...applyPreset(base, 'tournament'), [k]: v }), null, `changing ${k} leaves the preset`);
+}
+console.log('PASS saved menus: malformed slots and settings recover; valid selections survive; map sets and Random; rule presets');

@@ -7,6 +7,7 @@ local Stages = require(Shared.Data.Stages)
 local Canvas = require(script.Parent.Canvas2D)
 local Art = require(script.Parent.Weapons2D)
 local StageThumb = require(script.Parent.StageThumb)
+local Rules = require(game:GetService("ReplicatedStorage").Shared.Data.Rules)
 local RoomPanel = {}
 RoomPanel.__index = RoomPanel
 
@@ -188,8 +189,38 @@ function RoomPanel.render(self: any)
 			button(self.body, avatar.name, function() self:send("avatar", avatar.id) end, self.cfg.slots[1].avatarId == avatar.id)
 		end
 	elseif self.page == "Rules" then
-		label(self.body, "Equal teams · stock battle · bots OFF unless explicitly added below", 52)
-		for n = 1, 5 do button(self.body, `{n} stocks`, function() if host then self:send("stocks", n) end end, room.stocks == n) end
+		-- The battle builder, after Brawlhalla's custom room: a preset sets everything at once, then
+		-- each rule can still be changed on its own (which stops the preset matching).
+		local function row(name: string, options: { { any } }, current: any, action: string)
+			local bar = Instance.new("Frame")
+			bar.Name, bar.BackgroundTransparency, bar.Size, bar.Parent = name, 1, UDim2.new(1, 0, 0, 40), self.body
+			for i, opt in options do
+				local b = button(bar, opt[2], function() if host then self:send(action, opt[1]) end end, current == opt[1])
+				b.Name = `{name}_{opt[1]}`
+				b.Position, b.Size = UDim2.new((i - 1) / #options, 2, 0, 0), UDim2.new(1 / #options, -4, 1, 0)
+			end
+		end
+		label(self.body, "Presets", 22)
+		local presets = {}
+		for _, p in Rules.presets do table.insert(presets, { p.id, p.name }) end
+		row("Preset", presets, room.preset, "preset")
+		local on = nil
+		for _, p in Rules.presets do if p.id == room.preset then on = p end end
+		label(self.body, if on then on.hint else "Custom rules", 22).Name = "PresetHint"
+		label(self.body, "Mode", 22)
+		local modes = {}
+		for _, m in Rules.modes do table.insert(modes, { m.id, m.name }) end
+		row("Mode", modes, room.mode or "stock", "mode")
+		if room.mode == "timed" then
+			local times = {}
+			for _, t in Rules.times do table.insert(times, { t, `{t // 60}:00` }) end
+			row("Time", times, room.time, "time")
+		else
+			local lives = {}
+			for _, n in Rules.stocks do table.insert(lives, { n, `{n} {if n == 1 then "life" else "lives"}` }) end
+			row("Lives", lives, room.stocks, "stocks")
+		end
+		label(self.body, "Equal teams · bots OFF unless explicitly added below", 28)
 		button(self.body, "Items: " .. (if room.items then "ON" else "OFF"), function() if host then self:send("items", not room.items) end end)
 		-- Natural disasters. Off by default; "this map's own" runs the stage's signature disaster (if
 		-- it has one), chaos adds the ones that work anywhere. Host-only like every shared rule.

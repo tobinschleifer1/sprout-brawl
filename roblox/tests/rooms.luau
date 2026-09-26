@@ -180,4 +180,41 @@ do
 	local _, opts = model:roster(room, function() return 1 end)
 	assert(opts.stage == "FreightLift", "the resolved map reaches the match")
 end
-print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default), map choice by host, vote or random, map sets and weighted ballots")
+-- The battle builder: mode, time limit and presets, host-only, carried into the match.
+do
+	local Rules = Loader.load("Data/Rules")
+	local model = Rooms.new()
+	local a, b = player(61), player(62)
+	local room = model:join(a, "Duel"); model:join(b, "Duel")
+	local function edit(p: any, action: string, v: any): boolean
+		return (model:edit(p, { id = room.id, revision = room.revision, action = action, value = v }))
+	end
+	assert(room.mode == "stock" and room.time == 180, "a room starts as a 3-minute-capable stock match")
+	local _, opts = model:roster(room, function() return 1 end)
+	assert(opts.mode == "StockTeams", "stock rooms run StockTeams")
+	assert(not edit(b, "mode", "timed"), "a guest cannot change the mode")
+	assert(not edit(a, "mode", "brawlball") and not edit(a, "time", 7) and not edit(a, "time", "180"), "unknown mode and times are refused")
+	assert(edit(a, "mode", "timed") and edit(a, "time", 240))
+	_, opts = model:roster(room, function() return 1 end)
+	assert(opts.mode == "TimedTeams" and opts.timeLimit == 240, "a timed room runs TimedTeams on its own clock")
+	assert(model:view(room).mode == "timed" and model:view(room).time == 240, "every member sees the rules")
+	-- presets set every rule at once
+	for _, p in { a, b } do assert(edit(p, "ready")) end
+	assert(not edit(b, "preset", "tournament"), "a guest cannot apply a preset")
+	assert(not edit(a, "preset", "anything"), "unknown preset refused")
+	for _, preset in Rules.presets do
+		assert(edit(a, "preset", preset.id), `preset {preset.id} applies`)
+		for key, value in preset.rules do
+			assert(room[key] == value, `preset {preset.id} sets {key} to {tostring(value)}, room has {tostring(room[key])}`)
+		end
+		assert(model:view(room).preset == preset.id, `the room shows it is on {preset.id}`)
+		assert(not model:canStart(room), "a preset is a rule change: everyone re-readies")
+	end
+	-- a preset is a shortcut, not a mode: changing one rule stops it matching
+	assert(edit(a, "preset", "tournament"))
+	assert(edit(a, "stocks", 5) and model:view(room).preset == nil, "one changed rule and the room is no longer on the preset")
+	-- a preset clears ballots, which may be for maps outside its set
+	assert(edit(a, "mapSet", "all") and edit(a, "mapChoice", "vote") and edit(b, "vote", "Smeltworks") and edit(a, "preset", "tournament"))
+	assert(room.slots[2].vote == nil, "applying a preset clears the ballots")
+end
+print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default), map choice by host, vote or random, map sets and weighted ballots, stock or timed, time limits and presets")

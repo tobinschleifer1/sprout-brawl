@@ -5,8 +5,11 @@ local Hub = require(Shared.Data.Hub)
 local Weapons = require(Shared.Data.Weapons)
 local Avatars = require(Shared.Data.Avatars)
 local Stages = require(Shared.Data.Stages)
+local Rules = require(Shared.Data.Rules)
 local Rooms = {}
 Rooms.__index = Rooms
+-- The room settings a preset sets (see Rooms.presetOf).
+local PRESET_KEYS = { "mode", "stocks", "time", "items", "disasters", "mapChoice", "mapSet" }
 
 function Rooms.new(): any
 	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {} }, Rooms)
@@ -66,7 +69,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 		room = { id = self.nextId, host = player.UserId, format = format, name = spec.name,
 			state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true,
 			disasters = "off", slots = {},    -- natural disasters: OFF unless the host turns them on
-			mapChoice = "host", mapSet = "all" }
+			mapChoice = "host", mapSet = "all", mode = "stock", time = 180 }
 		for i = 1, spec.teamSize * 2 do room.slots[i] = { team = (i - 1) % 2 } end
 		self.rooms[room.id], place = room, 1
 	end
@@ -96,7 +99,8 @@ function Rooms.view(self: any, room: any): any
 	return { id = room.id, host = room.host, format = room.format, name = room.name,
 		state = room.state, revision = room.revision, stage = room.stage, stocks = room.stocks,
 		items = room.items, disasters = room.disasters, slots = slots, canStart = self:canStart(room),
-		mapChoice = room.mapChoice, mapSet = room.mapSet }
+		mapChoice = room.mapChoice, mapSet = room.mapSet, mode = room.mode, time = room.time,
+		preset = Rooms.presetOf(room) }
 end
 function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local room = self:get(player.UserId)
@@ -139,6 +143,20 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	elseif action == "stage" then
 		if value ~= "Random" and (type(value) ~= "string" or not Stages.BY_ID[value]) then return false, "Unknown map." end
 		room.stage = value
+	elseif action == "mode" then
+		local ok = false
+		for _, m in Rules.modes do if m.id == value then ok = true end end
+		if not ok then return false, "Unknown mode." end
+		room.mode = value
+	elseif action == "time" then
+		if not table.find(Rules.times, value) then return false, "Unknown time limit." end
+		room.time = value
+	elseif action == "preset" then
+		local preset = nil
+		for _, p in Rules.presets do if p.id == value then preset = p end end
+		if not preset then return false, "Unknown preset." end
+		for _, key in PRESET_KEYS do room[key] = preset.rules[key] end
+		for _, slot in room.slots do slot.vote = nil end
 	elseif action == "mapChoice" then
 		if value ~= "host" and value ~= "vote" and value ~= "random" then return false, "Unknown map choice." end
 		room.mapChoice = value
@@ -170,6 +188,19 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	invalidate(room)
 	return true, nil
 end
+-- The room settings a preset sets, and the one a room currently matches, if any: a preset is
+-- a shortcut, not a mode, so changing one setting afterwards simply stops it matching.
+function Rooms.presetOf(room: any): string?
+	for _, p in Rules.presets do
+		local same = true
+		for _, key in PRESET_KEYS do
+			if room[key] ~= p.rules[key] then same = false end
+		end
+		if same then return p.id end
+	end
+	return nil
+end
+
 -- Map sets, as on the web setup screen: everything, or the competitive rotation.
 function Rooms.inSet(stage: any, set: string?): boolean
 	return set ~= "ranked" or stage.ranked == true
@@ -206,7 +237,8 @@ function Rooms.roster(_self: any, room: any, rand: ((number) -> number)?): ({ an
 		table.insert(roster, { player = slot.player, avatar = slot.avatar, weapon = slot.weapon,
 			team = slot.team, botLevel = slot.bot })
 	end
-	return roster, { mode = "StockTeams", stage = stage, stocks = room.stocks, items = room.items,
+	return roster, { mode = if room.mode == "timed" then "TimedTeams" else "StockTeams", timeLimit = room.time,
+		stage = stage, stocks = room.stocks, items = room.items,
 		disasters = room.disasters }
 end
 return Rooms

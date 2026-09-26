@@ -48,7 +48,7 @@ local Panel = luau.load(fs.readFile("src/client/RoomPanel.luau"), {environment={
  game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
  require=function(name)
   if name=="Canvas2D" then return Canvas end
-  if name=="Weapons2D" then return Loader.loadFrom("src/client/",name) end
+  if name=="Weapons2D" or name=="StageThumb" then return Loader.loadFrom("src/client/",name) end
   return Loader.load("Data/"..name)
  end,
  Enum={Font=codes,AutomaticSize=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
@@ -89,9 +89,11 @@ end
 panel.body:FindFirstChild("Weapon_Hammer").Activated:Fire()
 assert(panel.cfg.slots[1].weaponId=="Hammer" and room.slots[1].weapon=="Hammer","image click changes server-owned loadout")
 panel.page="Maps";panel:render()
--- The map board shows every stage's layout, drawn from its own geometry.
+-- The map board shows every stage's layout, drawn from its own geometry, after a Random tile.
 local Stages = Loader.load("Data/Stages")
-assert(#panel.previews == #Stages.LIST, "every map has a layout thumbnail")
+assert(#panel.previews == #Stages.LIST + 1, "every map has a layout thumbnail, plus Random")
+assert(panel.previews[1].random, "Random comes first")
+local grid = panel.body:FindFirstChild("MapGrid")
 for _, preview in panel.previews do preview.frame.AbsoluteSize=Rbx.Vector2.new(170,64) end
 -- Every thumbnail rectangle carries a real colour. A colour constant referenced before it is
 -- declared is a nil global in Luau, and the recorder above would otherwise count it happily.
@@ -102,14 +104,37 @@ Canvas.rect = function(c, x, y, w, h, colour, ...)
 end
 panel:drawPreviews()
 Canvas.rect = counted
-for _, preview in panel.previews do
-  assert(preview.stage, "map previews are stages")
-  -- the backdrop, the main floor with its cap, and one shape per platform at least
-  assert(preview.canvas.drawn >= 3 + #preview.stage.platforms, `{preview.stage.id}: thumbnail draws too little`)
+for i, preview in panel.previews do
+  if i > 1 then
+    assert(preview.stage, "map previews are stages")
+    -- the sky, the main floor with its cap, and one shape per platform at least
+    assert(preview.canvas.drawn >= 3 + #preview.stage.platforms, `{preview.stage.id}: thumbnail draws too little`)
+  else
+    assert(preview.canvas.drawn >= 7, "the Random tile draws its die")
+  end
   assert(#preview.canvas.stack==0, "thumbnail leaves no transforms")
 end
-panel.body:FindFirstChild("Stage_Undertow").Activated:Fire()
+grid:FindFirstChild("Stage_Undertow").Activated:Fire()
 assert(room.stage=="Undertow")
+-- The host switches to the ranked set: only ranked maps (and Random) stay on the board.
+panel.body:FindFirstChild("MapSet"):FindFirstChild("MapSet_ranked").Activated:Fire()
+assert(room.mapSet=="ranked","the host's map set reaches the room")
+local rankedCount = 0
+for _, st in Stages.LIST do if st.ranked then rankedCount += 1 end end
+assert(#panel.previews == rankedCount + 1, `ranked board shows {#panel.previews - 1} maps, want {rankedCount}`)
+panel.body:FindFirstChild("MapGrid"):FindFirstChild("Stage_Random").Activated:Fire()
+assert(room.stage=="Random","Random is a pick the host can make")
+-- Everyone votes: a tap is a ballot, and the tile shows the count.
+panel.body:FindFirstChild("MapChoice"):FindFirstChild("MapChoice_vote").Activated:Fire()
+assert(room.mapChoice=="vote")
+panel.body:FindFirstChild("MapGrid"):FindFirstChild("Stage_TheSpan").Activated:Fire()
+assert(room.slots[1].vote=="TheSpan","tapping a map in vote mode casts your ballot")
+local tile = panel.body:FindFirstChild("MapGrid"):FindFirstChild("Stage_TheSpan")
+assert(tile:FindFirstChild("Votes") and tile:FindFirstChild("Votes").Text=="1 vote","the tile counts ballots")
+assert(string.find(tile:FindFirstChild("MapName").Text, "✓", 1, true), "your own ballot is marked")
+panel.body:FindFirstChild("MapChoice"):FindFirstChild("MapChoice_host").Activated:Fire()
+panel.body:FindFirstChild("MapSet"):FindFirstChild("MapSet_all").Activated:Fire()
+grid = panel.body:FindFirstChild("MapGrid")
 panel:openStation("Rules")
 assert(panel.body:FindFirstChild("Disasters_off") and panel.body:FindFirstChild("Disasters_chaos"), "the rules console offers the disaster setting")
 panel.body:FindFirstChild("Disasters_stage").Activated:Fire()
@@ -124,15 +149,16 @@ panel.start.Activated:Fire()
 assert(room.state=="setup","incomplete teams cannot launch")
 panel:update(model:view(room),2)
 panel.page="Maps";panel:render()
-panel.body:FindFirstChild("Stage_FoundryFloor").Activated:Fire()
-assert(room.stage=="Undertow","guest controls cannot edit host settings")
+local before = room.stage
+panel.body:FindFirstChild("MapGrid"):FindFirstChild("Stage_FoundryFloor").Activated:Fire()
+assert(room.stage==before and before ~= "FoundryFloor","guest controls cannot edit host settings")
 panel:hide()
 panel:update(model:view(room),2)
 assert(not panel.gui.Enabled, "background room update must not reopen a closed station")
 local n=0
 for _ in shapes do n+=1 end
 assert(n==12)
-print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map layout thumbnails, explicit bots, ready and host guards")
+print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map grid with Random, map sets and voting, explicit bots, ready and host guards")
 
 local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},

@@ -6,6 +6,7 @@ local Avatars = require(Shared.Data.Avatars)
 local Stages = require(Shared.Data.Stages)
 local Canvas = require(script.Parent.Canvas2D)
 local Art = require(script.Parent.Weapons2D)
+local StageThumb = require(script.Parent.StageThumb)
 local RoomPanel = {}
 RoomPanel.__index = RoomPanel
 
@@ -13,50 +14,12 @@ local INK, STEEL, GOLD, WHITE = Color3.fromRGB(16,21,28), Color3.fromRGB(44,57,6
 -- A stage's layout as a small diagram, drawn from the same stage data the engine collides against:
 -- solid ground with its lit cap and grabbable ledges, drop-through shelves, and a moving shelf's
 -- travel. The map board shows this beside each name, because a map is chosen by its shape.
-local function stageExtent(stage: any): (number, number, number, number)
-	local x0, x1, y0, y1 = stage.main.x1, stage.main.x2, stage.main.y - stage.main.thickness, stage.main.y
-	for _, p in stage.platforms do
-		local mx = if p.moving and p.moving.x then p.moving.x else nil
-		local lo = if mx then math.min(mx.from, mx.to) else p.x
-		local hi = if mx then math.max(mx.from, mx.to) else p.x
-		x0, x1 = math.min(x0, lo - p.w / 2), math.max(x1, hi + p.w / 2)
-		local my = if p.moving and p.moving.y then p.moving.y else nil
-		y1 = math.max(y1, if my then math.max(my.from, my.to) else p.y)
-		y0 = math.min(y0, p.y - (p.thickness or (if p.solid then 5 else 1)))
-	end
-	return x0 - 4, x1 + 4, y0 - 2, y1 + 6
-end
-function RoomPanel.drawStage(c: any, stage: any, w: number, h: number)
-	local x0, x1, y0, y1 = stageExtent(stage)
-	local ppu = math.min(w / (x1 - x0), h / (y1 - y0))
-	c:world((x0 + x1) / 2, (y0 + y1) / 2, ppu, 0, 0)
-	local pal = stage.palette or {}
-	local ground = Canvas.hex(pal.ground, Color3.fromRGB(62, 68, 80))
-	local top = Canvas.hex(pal.groundTop, Color3.fromRGB(138, 148, 166))
-	local shelf = Canvas.hex(pal.platform, Color3.fromRGB(110, 119, 136))
-	local accent = Canvas.hex(pal.accent, GOLD)
-	Canvas.rect(c, x0, y0, x1 - x0, y1 - y0, INK)
-	local function solid(a: number, b: number, topY: number, thick: number, ledges: any)
-		Canvas.rect(c, a, topY - thick, b - a, thick, ground)
-		Canvas.rect(c, a, topY - 1, b - a, 1, top)
-		if ledges ~= false then
-			Canvas.rect(c, a, topY - 2, 0.9, 2, accent)
-			Canvas.rect(c, b - 0.9, topY - 2, 0.9, 2, accent)
-		end
-	end
-	local m = stage.main
-	solid(m.x1, m.x2, m.y, m.thickness, m.ledges)
-	for _, p in stage.platforms do
-		if p.solid then
-			solid(p.x - p.w / 2, p.x + p.w / 2, p.y, p.thickness or 5, p.ledges)
-		else
-			local mx = if p.moving and p.moving.x then p.moving.x else nil
-			if mx then   -- the shelf's whole travel, faint, so the board says "this one moves"
-				local lo, hi = math.min(mx.from, mx.to), math.max(mx.from, mx.to)
-				Canvas.rect(c, lo - p.w / 2, p.y - 0.4, hi - lo + p.w, 0.4, shelf, 0.35)
-			end
-			Canvas.rect(c, p.x - p.w / 2, p.y - (p.thickness or 1), p.w, p.thickness or 1, shelf)
-		end
+-- A map-select thumbnail from the shape list both builds draw (StageThumb, held to
+-- web/src/render2d/stageThumb.js), in the tile's own pixels.
+function RoomPanel.drawThumb(c: any, shapes: { any })
+	c:screen()
+	for _, sh in shapes do
+		Canvas.rect(c, sh[2], sh[3], sh[4], sh[5], Canvas.hex(sh[6], INK), sh[7])
 	end
 end
 local function label(parent: Instance, value: string, height: number): TextLabel
@@ -152,17 +115,60 @@ function RoomPanel.render(self: any)
 	self.start.Text = if host then (if room.canStart then "Start fight" else "Waiting for team") else "Host starts"
 	self.start.BackgroundColor3 = if host and room.canStart then GOLD else STEEL
 	if self.page == "Maps" then
+		-- After Brawlhalla's map select: a grid of thumbnails with Random first. How the map is
+		-- chosen is the host's call - they pick, everyone votes, or it is random - and so is the set.
+		local choice = room.mapChoice or "host"
+		local set = room.mapSet or "all"
+		local myVote = nil
+		local votes: { [string]: number } = {}
+		for _, slot in room.slots do
+			if slot.userId == self.userId then myVote = slot.vote end
+			if slot.vote then votes[slot.vote] = (votes[slot.vote] or 0) + 1 end
+		end
+		local function row(name: string, options: { { string } }, current: string, action: string)
+			local bar = Instance.new("Frame")
+			bar.Name, bar.BackgroundTransparency, bar.Size, bar.Parent = name, 1, UDim2.new(1, 0, 0, 36), self.body
+			for i, opt in options do
+				local b = button(bar, opt[2], function() if host then self:send(action, opt[1]) end end, current == opt[1])
+				b.Name = `{name}_{opt[1]}`
+				b.Position, b.Size = UDim2.new((i - 1) / #options, 2, 0, 0), UDim2.new(1 / #options, -4, 1, 0)
+			end
+		end
+		row("MapChoice", { { "host", "Host picks" }, { "vote", "Everyone votes" }, { "random", "Random" } }, choice, "mapChoice")
+		row("MapSet", { { "all", "All maps" }, { "ranked", "Ranked" } }, set, "mapSet")
+		local hint = if choice == "vote" then "Tap a map to vote. One ballot is drawn when the fight starts."
+			elseif choice == "random" then "A random map from the set is drawn when the fight starts."
+			elseif host then "Tap the map to fight on." else "The host picks the map."
+		label(self.body, hint, 24).Name = "MapHint"
+		local grid = Instance.new("Frame")
+		grid.Name, grid.BackgroundTransparency, grid.Size = "MapGrid", 1, UDim2.new(1, 0, 0, 0)
+		grid.AutomaticSize, grid.Parent = Enum.AutomaticSize.Y, self.body
+		local gl = Instance.new("UIGridLayout")
+		gl.CellSize, gl.CellPadding, gl.Parent = UDim2.fromOffset(150, 112), UDim2.fromOffset(6, 6), grid
+		local tiles = { { id = "Random", name = "Random" } }
 		for _, stage in Stages.LIST do
-			local selected = room.stage == stage.id
-			local b = button(self.body, "", function() if host then self:send("stage", stage.id) end end, selected)
-			b.Name, b.Size = "Stage_" .. stage.id, UDim2.new(1, 0, 0, 72)
-			local name = label(b, (if selected then "✓ " else "") .. stage.name .. "\n" .. (stage.archetype or ""), 68)
-			name.Position, name.Size = UDim2.new(0.42, 0, 0, 0), UDim2.new(0.58, -8, 1, 0)
-			if selected then name.TextColor3 = INK end
+			if set ~= "ranked" or stage.ranked then table.insert(tiles, stage) end
+		end
+		for _, stage in tiles do
+			local picked = if choice == "vote" then myVote == stage.id elseif choice == "host" then room.stage == stage.id else false
+			local b = button(grid, "", function()
+				if choice == "vote" then self:send("vote", stage.id)
+				elseif choice == "host" and host then self:send("stage", stage.id) end
+			end, picked)
+			b.Name = "Stage_" .. stage.id
 			local frame = Instance.new("Frame")
 			frame.Name, frame.BackgroundTransparency, frame.ClipsDescendants = "StageImage", 1, true
-			frame.Position, frame.Size, frame.Parent = UDim2.fromOffset(4, 4), UDim2.new(0.42, -8, 1, -8), b
-			table.insert(self.previews, { canvas = Canvas.inFrame(frame), stage = stage, frame = frame })
+			frame.Position, frame.Size, frame.Parent = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 0, 76), b
+			local name = label(b, (if picked then "✓ " else "") .. stage.name, 26)
+			name.Name, name.Position = "MapName", UDim2.new(0, 0, 0, 82)
+			if picked then name.TextColor3 = INK end
+			if choice == "vote" and votes[stage.id] then
+				local badge = label(b, `{votes[stage.id]} vote` .. (if votes[stage.id] == 1 then "" else "s"), 18)
+				badge.Name, badge.Position, badge.Size = "Votes", UDim2.fromOffset(6, 6), UDim2.fromOffset(64, 18)
+				badge.BackgroundTransparency, badge.BackgroundColor3, badge.TextSize = 0.1, INK, 12
+			end
+			table.insert(self.previews, { canvas = Canvas.inFrame(frame), stage = if stage.id ~= "Random" then stage else nil,
+				random = stage.id == "Random", frame = frame })
 		end
 	elseif self.page == "Weapons" then
 		for _, weapon in Weapons.LIST do
@@ -216,7 +222,9 @@ function RoomPanel.drawPreviews(self: any)
 			local c = preview.canvas
 			c:clear()
 			if preview.stage then
-				RoomPanel.drawStage(c, preview.stage, size.X, size.Y)
+				RoomPanel.drawThumb(c, StageThumb.shapes(preview.stage, size.X, size.Y))
+			elseif preview.random then
+				RoomPanel.drawThumb(c, StageThumb.random(size.X, size.Y))
 			else
 				-- Flat, fitted to the weapon's own extent at a pixel-exact scale. See Weapons2D.fit.
 				local cx, cy, ppu = Art.fit(preview.weapon.id, size.X, size.Y)

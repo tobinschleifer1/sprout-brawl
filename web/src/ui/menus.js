@@ -9,6 +9,7 @@ import { PART_GRIDS, PART_IDS, INKS, inkColour, blankPart, setCell, cellAt } fro
 import { traceProcedural, blitPixelPart } from '../render2d/pixels2d.js';
 import { buildLoadout } from '../data/loadout.js';
 import { STAGES } from '../data/stages/index.js';
+import { stageThumb, randomThumb } from '../render2d/stageThumb.js';
 import { BINDINGS_TEXT } from '../engine/input.js';
 import { PLAYER_COLORS, PLAYER_MARKS } from './hud.js';
 import { onBlock } from '../engine/knockback.js';
@@ -20,14 +21,16 @@ const SLOT_TYPES = [['off', 'Off'], ['kb1', 'Keyboard 1'], ['kb2', 'Keyboard 2']
 const DISASTER_MODES = [['off', 'Off'], ['stage', "This map's own"], ['chaos', 'Chaos']];
 const MODES = [['StockFFA', 'Stock · Free-for-all'], ['TimedFFA', 'Timed · Free-for-all'], ['StockTeams', 'Stock · 2v2'], ['TimedTeams', 'Timed · 2v2'], ['Training', 'Training']];
 
-function stageSVG(s) {
-  const b = s.blast; const W = b.right - b.left, H = b.top - b.bottom;
-  const X = (x) => ((x - b.left) / W) * 100, Y = (y) => ((b.top - y) / H) * 60;
-  let out = `<svg viewBox="0 0 100 60"><rect x="0" y="0" width="100" height="60" fill="${s.palette.sky}"/>`;
-  out += `<rect x="${X(s.main.x1)}" y="${Y(s.main.y)}" width="${X(s.main.x2) - X(s.main.x1)}" height="${(s.main.thickness / H) * 60}" fill="${s.palette.ground}"/>`;
-  for (const p of s.platforms) out += `<rect x="${X(p.x - p.w / 2)}" y="${Y(p.y)}" width="${(p.w / W) * 100}" height="1.2" fill="${s.palette.platform}"/>`;
-  return out + `</svg>`;
+// Map-select thumbnails from the shape list both builds draw (render2d/stageThumb.js), as SVG.
+function thumbSVG(shapes, w, h) {
+  return `<svg viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">${shapes.map(([, x, y, rw, rh, c, a]) =>
+    `<rect x="${x}" y="${y}" width="${rw}" height="${rh}" fill="${c}"${a < 1 ? ` fill-opacity="${a}"` : ''}/>`).join('')}</svg>`;
 }
+const stageSVG = (s) => thumbSVG(stageThumb(s, 160, 90), 160, 90);
+
+// The maps a Random pick draws from, by map set: everything, or the competitive rotation.
+export const MAP_SETS = [['all', 'All maps'], ['ranked', 'Ranked']];
+export function mapSet(set) { return set === 'ranked' ? STAGES.filter((s) => s.ranked) : STAGES; }
 
 export class Menus {
   constructor(root, handlers) {
@@ -47,7 +50,8 @@ export class Menus {
       const c = JSON.parse(localStorage.getItem(SAVE_KEY + '-config') || 'null');
       if (c && typeof c === 'object') {
         if (MODES.some(([id]) => id === c.mode)) this.config.mode = c.mode;
-        if (STAGES.some(s => s.id === c.stageId)) this.config.stageId = c.stageId;
+        if (c.stageId === 'Random' || STAGES.some(s => s.id === c.stageId)) this.config.stageId = c.stageId;
+        if (MAP_SETS.some(([id]) => id === c.mapSet)) this.config.mapSet = c.mapSet;
         if (Number.isInteger(c.stocks)) this.config.stocks = Math.max(1, Math.min(5, c.stocks));
         if ([120, 180, 240, 300].includes(c.time)) this.config.time = c.time;
         if (typeof c.items === 'boolean') this.config.items = c.items;
@@ -71,7 +75,7 @@ export class Menus {
   }
 
   _defaultConfig() {
-    return { mode: 'StockFFA', stocks: 3, time: 180, items: true, disasters: 'off', stageId: 'FoundryFloor',
+    return { mode: 'StockFFA', stocks: 3, time: 180, items: true, disasters: 'off', stageId: 'FoundryFloor', mapSet: 'all',
       slots: [ { type: 'kb1', weaponId: 'Sword', avatarId: 'Classic', team: 0 },
                { type: 'off', weaponId: 'Scythe', avatarId: 'Noir', team: 1 },
                { type: 'off', weaponId: 'Blasters', avatarId: 'Ember', team: 0 },
@@ -378,7 +382,8 @@ export class Menus {
           <span class="arche">${av.name}</span></div>`}
       </div>`;
     }).join('');
-    const stages = STAGES.map((s) => `<button class="stagetile ${s.id === c.stageId ? 'sel' : ''}" data-stage="${s.id}">${stageSVG(s)}<span>${s.name}${s.ranked ? ' <em>ranked</em>' : ''}</span><small>${s.theme}${s.hazards.length ? ' · ' + s.hazards.map((h) => h.type).join(', ') : ' · no hazards'}</small></button>`).join('');
+    const set = c.mapSet || 'all';
+    const stages = `<button class="stagetile random ${c.stageId === 'Random' ? 'sel' : ''}" data-stage="Random">${thumbSVG(randomThumb(160, 90), 160, 90)}<span>Random</span><small>Any map in ${MAP_SETS.find(([id]) => id === set)[1].toLowerCase()}</small></button>` + mapSet(set).map((s) => `<button class="stagetile ${s.id === c.stageId ? 'sel' : ''}" data-stage="${s.id}">${stageSVG(s)}<span>${s.name}${s.ranked ? ' <em>ranked</em>' : ''}</span><small>${s.theme}${s.hazards.length ? ' · ' + s.hazards.map((h) => h.type).join(', ') : ' · no hazards'}</small></button>`).join('');
     return `<div class="screen setup">
       <div class="setup-top"><button data-act="title">← Back</button><h2>Set up a match</h2>
         <div class="opts">
@@ -389,7 +394,7 @@ export class Menus {
           <label>Disasters <select data-field="disasters">${DISASTER_MODES.map(([v, l]) => `<option value="${v}" ${c.disasters === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </div></div>
       <div class="slots">${slots}</div>
-      <h3>Stage</h3><div class="stages">${stages}</div>
+      <h3>Stage</h3><div class="mapsets">${MAP_SETS.map(([id, l]) => `<button class="mapset ${id === set ? 'sel' : ''}" data-mapset="${id}">${l}</button>`).join('')}</div><div class="stages">${stages}</div>
       <div class="setup-bottom"><button class="primary big" data-act="start">Fight</button></div>
     </div>`;
   }
@@ -452,7 +457,7 @@ export class Menus {
   }
 
   _click(e) {
-    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink]');
+    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-mapset],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink]');
     if (!t) return;
     // The editor's own controls. `_stash` reads the name box before every re-render, because the
     // screen is rebuilt from a string and an unsaved name would otherwise be thrown away by the
@@ -466,6 +471,12 @@ export class Menus {
     if (t.dataset.weapon) { this.config.slots[+t.dataset.slot].weaponId = t.dataset.weapon; this.save(); this.render(); return; }
     if (t.dataset.avatar) { this.config.slots[+t.dataset.slot].avatarId = t.dataset.avatar; this.save(); this.render(); return; }
     if (t.dataset.stage) { this.config.stageId = t.dataset.stage; this.save(); this.render(); return; }
+    if (t.dataset.mapset) {
+      this.config.mapSet = t.dataset.mapset;
+      // A map that has left the set is not still selected behind the filter.
+      if (this.config.stageId !== 'Random' && !mapSet(this.config.mapSet).some((s) => s.id === this.config.stageId)) this.config.stageId = 'Random';
+      this.save(); this.render(); return;
+    }
     const a = t.dataset.act;
     if (a === 'title' || a === 'setup' || a === 'controls' || a === 'settings' || a === 'roster') { this.editing = null; this.charMsg = null; this.show(a); return; }
     if (a === 'chars') { this.editing = null; this.charMsg = null; this.show('chars'); return; }

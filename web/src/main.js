@@ -6,7 +6,7 @@ import { initCustomAvatars } from './data/customAvatars.js';
 import { STAGE_BY_ID } from './data/stages/index.js';
 import { Renderer2D } from './render2d/renderer2d.js';
 import { HUD, PLAYER_MARKS } from './ui/hud.js';
-import { Menus } from './ui/menus.js';
+import { Menus, mapSet } from './ui/menus.js';
 import { SFX } from './audio/sfx.js';
 import { Music } from './audio/music.js';
 import { FRAME } from './config.js';
@@ -87,7 +87,10 @@ class App {
     if (fighters.length < 2) { alert('Turn on at least two players.'); return; }
     if (c.mode.includes('Teams') && new Set(fighters.map((f) => f.team)).size < 2) { alert('Team modes need both teams.'); return; }
     this.lastConfig = c;
-    this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.FoundryFloor, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', disasters: c.mode === 'Training' ? 'off' : c.disasters, fighters });
+    // Random is resolved here, once per match: a rematch replays the map that was drawn.
+    const pool = mapSet(c.mapSet);
+    const stage = c.stageId === 'Random' ? pool[Math.floor(Math.random() * pool.length)] : STAGE_BY_ID[c.stageId];
+    this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: stage || STAGE_BY_ID.FoundryFloor, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', disasters: c.mode === 'Training' ? 'off' : c.disasters, fighters });
   }
 
   quickPlay() {

@@ -44,6 +44,7 @@ node tools/gen-hazard-traces.mjs
 node tools/gen-disaster-traces.mjs
 node tools/gen-cinematic-fixture.mjs
 node tools/gen-podium-fixture.mjs
+node tools/gen-stage-thumb-fixture.mjs
 node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-ai-traces.mjs
@@ -109,6 +110,8 @@ lune run tests/ult-banner
 echo "== podium: the results screen is laid out as the web lays it out =="
 lune run tests/podium-parity
 lune run tests/podium-view
+echo "== map select: thumbnails drawn as the web draws them =="
+lune run tests/stage-thumb
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 echo "== parity: Match vs web/src/engine/match.js =="

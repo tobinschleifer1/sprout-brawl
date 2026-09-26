@@ -112,4 +112,72 @@ do
 	assert(opts.disasters == "chaos", "the setting reaches the match")
 	assert(model:view(room).disasters == "chaos", "and every member sees it")
 end
-print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default)")
+-- Map choice, map sets and voting, after Brawlhalla's custom rooms.
+do
+	local model = Rooms.new()
+	local a, b, c, d = player(51), player(52), player(53), player(54)
+	local room = model:join(a, "Doubles"); model:join(b, "Doubles"); model:join(c, "Doubles"); model:join(d, "Doubles")
+	local function edit(p: any, action: string, v: any, rev: number?): boolean
+		return (model:edit(p, { id = room.id, revision = rev or room.revision, action = action, value = v }))
+	end
+	assert(room.mapChoice == "host" and room.mapSet == "all", "the host picks from every map by default")
+	-- a counting random source: rand(n) returns the next scripted value
+	local script_: { number } = {}
+	local function rand(n: number): number
+		local v = table.remove(script_, 1) or 1
+		assert(v >= 1 and v <= n, `scripted pick {v} outside 1..{n}`)
+		return v
+	end
+	-- host picks
+	assert(edit(a, "stage", "Undertow"))
+	assert(Rooms.resolveStage(room, rand) == "Undertow", "host choice is the host's pick")
+	assert(not edit(b, "vote", "Saltflat"), "no voting while the host picks")
+	assert(edit(a, "stage", "Random"), "Random is a valid pick")
+	local ranked = Rooms.mapPool("ranked")
+	assert(#ranked == 3, `three ranked maps, got {#ranked}`)
+	assert(edit(a, "mapSet", "ranked"))
+	script_ = { 2 }
+	assert(Rooms.resolveStage(room, rand) == ranked[2], "Random draws from the map set")
+	assert(not edit(b, "mapChoice", "vote"), "a guest cannot change how the map is chosen")
+	assert(not edit(a, "mapChoice", "coin"), "unknown map choice refused")
+	assert(not edit(a, "mapSet", "silly"), "unknown map set refused")
+	-- voting
+	assert(edit(a, "mapChoice", "vote"))
+	for _, p in { a, b, c, d } do assert(edit(p, "ready")) end
+	assert(model:canStart(room))
+	local stale = room.revision
+	assert(not edit(b, "vote", "Smeltworks"), "a vote for a map outside the set is refused")
+	assert(edit(b, "vote", "TheSpan", stale - 5), "a vote is your own, like your loadout: no revision check")
+	assert(model:canStart(room), "voting un-readies nobody")
+	assert(edit(c, "vote", "TheSpan") and edit(d, "vote", "Random"))
+	local view = model:view(room)
+	assert(view.mapChoice == "vote" and view.mapSet == "ranked", "everyone sees how the map is chosen")
+	assert(view.slots[2].vote == "TheSpan" and view.slots[4].vote == "Random", "and who voted for what")
+	-- ballots in slot order: b TheSpan, c TheSpan, d Random. Draw ballot 3 (Random), then map 3.
+	script_ = { 3, 3 }
+	assert(Rooms.resolveStage(room, rand) == ranked[3], "a Random ballot becomes any map in the set")
+	script_ = { 1 }
+	assert(Rooms.resolveStage(room, rand) == "TheSpan", "a drawn ballot is the map")
+	-- two of three ballots for The Span: over many draws it wins about two thirds of the time
+	local wins, N = 0, 3000
+	local seed = 7
+	local function lcg(n: number): number
+		seed = (seed * 1103515245 + 12345) % 2147483648
+		return (seed // 65536) % n + 1
+	end
+	for _ = 1, N do
+		if Rooms.resolveStage(room, lcg) == "TheSpan" then wins += 1 end
+	end
+	assert(wins > N * 0.66 and wins < N * 0.84, `The Span with 2 of 3 ballots (plus a third of the Random one) won {wins}/{N}`)
+	-- narrowing the set drops ballots that left it; changing the method clears them
+	assert(edit(a, "mapSet", "all") and edit(b, "vote", "Smeltworks"))
+	assert(edit(a, "mapSet", "ranked") and room.slots[2].vote == nil, "a ballot for a map that left the set is dropped")
+	assert(edit(a, "mapChoice", "random"))
+	for _, slot in room.slots do assert(slot.vote == nil, "changing the method clears the ballots") end
+	-- no ballots: the host's pick
+	assert(edit(a, "mapChoice", "vote") and edit(a, "stage", "FreightLift"))
+	assert(Rooms.resolveStage(room, rand) == "FreightLift", "with nobody voting the host's pick stands")
+	local _, opts = model:roster(room, function() return 1 end)
+	assert(opts.stage == "FreightLift", "the resolved map reaches the match")
+end
+print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default), map choice by host, vote or random, map sets and weighted ballots")

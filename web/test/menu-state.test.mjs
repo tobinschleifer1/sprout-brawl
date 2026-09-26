@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { Menus } from '../src/ui/menus.js';
+import { Menus, mapSet, MAP_SETS } from '../src/ui/menus.js';
+import { STAGES } from '../src/data/stages/index.js';
 globalThis.document = { createElement: () => ({ addEventListener() {} }) };
 let saved;
 globalThis.localStorage = { getItem: (key) => JSON.stringify(key.endsWith('-settings') ? { music: 'bad', sfx: 99, shake: 'yes' } : saved) };
@@ -21,4 +22,19 @@ assert.equal(menu.config.mode, 'TimedTeams');
 assert.equal(menu.config.slots[0].weaponId, 'Hammer');
 assert.equal(menu.config.slots[0].type, 'kb2');
 assert.equal(menu.config.slots[0].avatarId, 'Noir');
-console.log('PASS saved menus: malformed slots and settings recover; valid selections survive');
+// Map sets and the Random pick: a saved Random and a saved set survive; junk falls back.
+saved = { stageId: 'Random', mapSet: 'ranked', slots: [] };
+const rnd = build();
+assert.equal(rnd.config.stageId, 'Random', 'a saved Random pick survives');
+assert.equal(rnd.config.mapSet, 'ranked', 'a saved map set survives');
+saved = { stageId: 'Atlantis', mapSet: 'secret', slots: [] };
+const junk = build();
+assert.equal(junk.config.stageId, 'FoundryFloor', 'an unknown map falls back');
+assert.equal(junk.config.mapSet, 'all', 'an unknown map set falls back');
+assert.deepEqual(MAP_SETS.map(([id]) => id), ['all', 'ranked']);
+assert.equal(mapSet('all').length, STAGES.length, 'All maps is every map');
+const ranked = mapSet('ranked');
+assert.ok(ranked.length > 0 && ranked.length < STAGES.length, 'Ranked is a real subset');
+assert.ok(ranked.every((s) => s.ranked), 'Ranked holds only ranked maps');
+assert.equal(ranked.length, STAGES.filter((s) => s.ranked).length, 'and every ranked map');
+console.log('PASS saved menus: malformed slots and settings recover; valid selections survive; map sets and Random');

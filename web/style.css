@@ -261,3 +261,8 @@ select,input[type=range],.charform input[type=text],.chario textarea{background:
 .pc-stat{display:flex;justify-content:space-between;font-weight:800;font-size:.85em;line-height:1.5;border-top:1px solid #FFFFFF10}
 .pc-stat span{color:#8FB8E8}
 .pc-stat b{font-variant-numeric:tabular-nums}
+/* map sets and the Random tile (ui/menus.js) */
+.mapsets{display:flex;gap:6px;margin:.3rem 0 .2rem}
+.mapsets .mapset{font-size:.8rem;padding:.3rem .8rem;background:#1B2531;color:var(--ink)}
+.mapsets .mapset.sel{background:var(--leaf);color:#101721}
+.stagetile svg{image-rendering:pixelated}

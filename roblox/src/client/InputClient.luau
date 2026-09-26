@@ -11,6 +11,7 @@
 -- queue that drains at 60 and spend the match six frames behind its own inputs.
 
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 
 local Input = require(game:GetService("ReplicatedStorage").Shared.Input)
 local Bindings = require(script.Parent.Bindings)
@@ -28,21 +29,67 @@ function InputClient.new(): any
 	self.prev = {} :: { [string]: boolean }
 	self.pending = {} :: { [string]: boolean }
 	self.accum = 0
+	-- Keys the game has heard go down through its own ContextActionService binding, by KeyCode.
+	self.heldCodes = {} :: { [any]: boolean }
+
+	-- I AND O NEVER REACH UserInputService. They are Roblox's camera zoom keys: the default
+	-- camera script binds them through ContextActionService and sinks the press, so InputBegan
+	-- does not fire for them at all - only InputEnded does - and a physical press of Shield or
+	-- Ultimate was simply lost. (Recorded in Studio from a real keyboard: every other key arrived,
+	-- I and O arrived only as releases. Keys injected by the Studio MCP take a different path and
+	-- DO fire InputBegan, which is why every automated check passed while the game did not work.)
+	--
+	-- So the game binds its own keys through ContextActionService above the camera's priority: it
+	-- hears the press first, keeps its own held state from Begin and End, and passes the input on so
+	-- nothing else - the hub's walking, the camera - loses anything it had.
+	local byCode: { [any]: boolean } = {}
+	local codes = {}
+	for _, keys in (KB :: { [string]: { string } }) do
+		for _, key in keys do
+			local code = (Enum.KeyCode :: any)[key]
+			if not byCode[code] then byCode[code] = true; table.insert(codes, code) end
+		end
+	end
+	for _, key in PAD do
+		local code = (Enum.KeyCode :: any)[key]
+		if not byCode[code] then byCode[code] = true; table.insert(codes, code) end
+	end
+	ContextActionService:BindActionAtPriority("BlockfallCombatKeys", function(_: string, state: any, input: InputObject)
+		if state == Enum.UserInputState.Begin then
+			-- Letters typed into chat are not holds or presses.
+			if not UserInputService:GetFocusedTextBox() then
+				self.heldCodes[input.KeyCode] = true
+				self:press(input.KeyCode)
+			end
+		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			self.heldCodes[input.KeyCode] = nil
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.ContextActionPriority.High.Value + 1, table.unpack(codes))
+	-- A key released while the window is unfocused never delivers End; forget every hold then.
+	UserInputService.WindowFocusReleased:Connect(function()
+		self.heldCodes = {}
+	end)
+
 	-- Polling holds avoids stuck keys, but polling alone loses a whole tap between ticks.
-	-- Roblox marks I/O as processed camera keys, so processed is NOT a combat filter.
 	-- Text entry still owns its keys. Keep one bounded pending edge per action.
 	UserInputService.InputBegan:Connect(function(input: InputObject)
 		if UserInputService:GetFocusedTextBox() then return end
-		for action, keys in (KB :: { [string]: { string } }) do
-			for _, key in keys do
-				if input.KeyCode == (Enum.KeyCode :: any)[key] then self.pending[action] = true end
-			end
-		end
-		for action, key in PAD do
-			if input.KeyCode == (Enum.KeyCode :: any)[key] then self.pending[action] = true end
-		end
+		self:press(input.KeyCode)
 	end)
 	return self
+end
+
+-- Latch the press edge for every action bound to this key or button.
+function InputClient.press(self: any, code: any)
+	for action, keys in (KB :: { [string]: { string } }) do
+		for _, key in keys do
+			if code == (Enum.KeyCode :: any)[key] then self.pending[action] = true end
+		end
+	end
+	for action, key in PAD do
+		if code == (Enum.KeyCode :: any)[key] then self.pending[action] = true end
+	end
 end
 
 function InputClient.reset(self: any)
@@ -80,16 +127,20 @@ function InputClient.levels(self: any): { [string]: any }
 	-- UserInputService is asked directly rather than tracked through InputBegan/InputEnded. A key
 	-- released while the window was unfocused never fires InputEnded, and a fighter that holds a
 	-- direction forever because the player alt-tabbed mid-dash is the bug that costs an hour.
+	-- Held is either: UserInputService knows the key is down, or our own binding heard it go down
+	-- and has not heard it come up. The second is the only way to know about I and O.
 	local down = function(codes: { string }): boolean
 		for _, c in codes do
-			if UserInputService:IsKeyDown((Enum.KeyCode :: any)[c]) then
+			local code = (Enum.KeyCode :: any)[c]
+			if UserInputService:IsKeyDown(code) or self.heldCodes[code] then
 				return true
 			end
 		end
 		return false
 	end
 	local pad = function(code: string): boolean
-		return UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, (Enum.KeyCode :: any)[code])
+		local c = (Enum.KeyCode :: any)[code]
+		return UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, c) or self.heldCodes[c] == true
 	end
 	local ax, ay = padAxis()
 	local l: { [string]: any } = {}

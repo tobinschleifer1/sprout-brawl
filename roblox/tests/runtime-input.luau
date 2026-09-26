@@ -31,6 +31,7 @@ remote:push("tap", burst)
 check(remote:get("tap").ult, "queue overflow must preserve an ultimate press from the oldest frame")
 
 local codes = setmetatable({}, { __index = function(_, k) return k end })
+local focusLost: any = nil
 local focused = false
 local pressedKey = "J"
 local pressedPad = ""
@@ -46,11 +47,27 @@ local uis = {
 	GetGamepadState = function() return gamepad end,
 	IsKeyDown = function(_, k) return k == pressedKey end,
 	IsGamepadButtonDown = function(_, _pad, k) return k == pressedPad end,
+	WindowFocusReleased = { Connect = function(_, fn) focusLost = fn end },
+}
+-- ContextActionService, as the game binds it: the handler, its priority and the keys it claims.
+local bound: any = nil
+local cas = {
+	BindActionAtPriority = function(_, name, fn, touch, priority, ...)
+		bound = { name = name, fn = fn, touch = touch, priority = priority, codes = { ... } }
+	end,
+}
+local enums = {
+	KeyCode = codes, UserInputType = codes, UserInputState = codes, ContextActionResult = codes,
+	ContextActionPriority = { Default = { Value = 2000 }, High = { Value = 3000 } },
 }
 local InputClient = luau.load(fs.readFile("src/client/InputClient.luau"), {
 	environment = {
-		Enum = { KeyCode = codes, UserInputType = codes },
-		game = { GetService = function(_, name) return if name == "UserInputService" then uis else { Shared = { Input = "Input" } } end },
+		Enum = enums,
+		game = { GetService = function(_, name)
+			if name == "UserInputService" then return uis end
+			if name == "ContextActionService" then return cas end
+			return { Shared = { Input = "Input" } }
+		end },
 		script = { Parent = { Bindings = "Bindings" } },
 		require = function(name) return if name == "Bindings" then Loader.loadFrom("src/client/", "Bindings") else Input end,
 	}, injectGlobals = true,
@@ -89,6 +106,58 @@ for _, binding in { {"O", "ult"}, {"I", "guard"} } do
 	if binding[2] == "guard" then check(tapped.guardHeld, "a shield tap must hold for its activation frame") end
 	check(not sampler:build(sampler:levels())[binding[2]], "a latched press is consumed exactly once")
 end
+
+-- I AND O AS A REAL KEYBOARD DELIVERS THEM IN STUDIO. The default camera sinks them, so
+-- UserInputService never sees the press (no InputBegan) and the game's only signal is its own
+-- ContextActionService binding: Begin, then End on release. Recorded from a physical keyboard; the
+-- MCP's injected keys do fire InputBegan, which is how this passed every automated check before.
+assert(bound, "combat keys must be bound through ContextActionService")
+check(bound.priority > 2000, "the binding must outrank the camera's (Default priority) or the camera sinks I and O first")
+check(bound.touch == false, "no on-screen button")
+local claims = {}
+for _, c in bound.codes do claims[c] = true end
+for _, key in { "I", "O", "LeftControl", "J", "ButtonL3", "ButtonR1" } do
+	check(claims[key] == true, key .. " must be claimed by the combat binding")
+end
+local function cam(key: string, state: string)
+	local result = bound.fn("BlockfallCombatKeys", state, { KeyCode = key, UserInputType = "Keyboard" })
+	check(result == "Pass", "the binding passes input on, so the hub and camera keep what they had")
+end
+pressedKey, pressedPad, sampler.prev = "", "", {}
+cam("I", "Begin")
+local shield = sampler:build(sampler:levels())
+check(shield.guard and shield.guardHeld, "I pressed with no InputBegan and IsKeyDown false must still shield")
+for _ = 1, 30 do
+	check(sampler:build(sampler:levels()).guardHeld, "the shield must stay up for as long as I is held")
+end
+cam("I", "End")
+check(not sampler:build(sampler:levels()).guardHeld, "releasing I drops the shield")
+cam("O", "Begin")
+check(sampler:build(sampler:levels()).ult, "O pressed with no InputBegan must fire the ultimate")
+check(not sampler:build(sampler:levels()).ult, "a held O fires the ultimate once, not every frame")
+cam("O", "End")
+-- A tap that goes down and up between two samples leaves no held level to read, only the press.
+cam("O", "Begin"); cam("O", "End")
+check(sampler:build(sampler:levels()).ult, "an O tapped between two samples must still fire the ultimate")
+cam("I", "Begin"); cam("I", "End")
+check(sampler:build(sampler:levels()).guard, "an I tapped between two samples must still register")
+cam("I", "Begin")
+assert(focusLost, "the sampler must listen for the window losing focus")
+focusLost()
+sampler:build(sampler:levels())
+check(not sampler:build(sampler:levels()).guardHeld, "a key held when the window lost focus is released, not stuck")
+cam("I", "Cancel")
+focused = true
+cam("O", "Begin")
+sampler:build(sampler:levels())
+cam("O", "End")
+focused = false
+check(not sampler:build(sampler:levels()).ult, "typing an o in chat cannot fire the ultimate")
+focused = true
+cam("I", "Begin")
+focused = false
+check(not sampler:build(sampler:levels()).guardHeld, "an i typed in chat is not a held shield once chat closes")
+cam("I", "End")
 
 -- Instantiate the real Net module to check its transport, not a copy of the intended setting.
 local made: any = {}

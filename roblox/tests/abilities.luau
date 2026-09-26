@@ -11,11 +11,13 @@ local Status = Loader.loadFrom("src/client/", "AbilityStatus")
 local held, focused, began = "", false, nil
 local codes = setmetatable({}, {__index=function(_,k) return k end})
 local Sampler = luau.load(fs.readFile("src/client/InputClient.luau"), {environment={
-	Enum={KeyCode=codes,UserInputType=codes}, script={Parent={Bindings="Bindings"}},
+	Enum={KeyCode=codes,UserInputType=codes,UserInputState=codes,ContextActionResult=codes,
+		ContextActionPriority={High={Value=3000}}}, script={Parent={Bindings="Bindings"}},
 	require=function(n) return if n=="Bindings" then Loader.loadFrom("src/client/",n) else Input end,
 	game={GetService=function(_,n)
 		if n=="ReplicatedStorage" then return {Shared={Input="Input"}} end
-		return {InputBegan={Connect=function(_,fn) began=fn end}, GetFocusedTextBox=function() return if focused then {} else nil end,
+		if n=="ContextActionService" then return {BindActionAtPriority=function() end} end
+		return {WindowFocusReleased={Connect=function() end}, InputBegan={Connect=function(_,fn) began=fn end}, GetFocusedTextBox=function() return if focused then {} else nil end,
 			GetConnectedGamepads=function() return {} end, IsKeyDown=function(_,k) return held==k end, IsGamepadButtonDown=function() return false end}
 	end},
 },injectGlobals=true})()

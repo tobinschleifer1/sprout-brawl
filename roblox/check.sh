@@ -115,6 +115,7 @@ echo "== map select: thumbnails drawn as the web draws them =="
 lune run tests/stage-thumb
 echo "== effects: hit sparks, rings and shake as the web throws them =="
 lune run tests/effects-parity
+lune run tests/predictor-events
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 echo "== parity: Match vs web/src/engine/match.js =="

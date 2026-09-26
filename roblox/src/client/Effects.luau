@@ -18,7 +18,19 @@ local function part(fx: any, x: number, y: number, vx: number, vy: number, life:
 	table.insert(fx.parts, { x = x, y = y, vx = vx, vy = vy, life = life, max = max, c = c, s = s })
 end
 
-function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> number)
+Effects.DUST = "#D9D2C2"
+function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> number, height: ((number?) -> number)?)
+	local function feet(): number
+		return e.y - (if height then height(e.fighter) else 5) / 2
+	end
+	local function dust(x: number, y: number, n: number, spread: number, lift: number, life: number, size: number)
+		for _ = 1, n do
+			local vx = (rand() - 0.5) * 2 * spread
+			local vy = lift * (0.4 + rand() * 0.6)
+			local px = x + (rand() - 0.5) * 0.8
+			part(fx, px, y, vx, vy, life * (0.7 + rand() * 0.5), life, Effects.DUST, size)
+		end
+	end
 	local function push(x: number, y: number, n: number, c: string, sp: number, life: number, size: number)
 		for _ = 1, n do
 			local a = rand() * PI * 2
@@ -49,7 +61,8 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 	elseif t == "projectile" or t == "beam" then
 		push(e.x, e.y, 5, "#FFF3D0", 10, 0.2, 0.18)
 	elseif t == "land" then
-		if e.hard then push(e.x, e.y, 8, "#D9C9A8", 12, 0.3, 0.24); shake(0.35) end
+		if e.hard then push(e.x, e.y, 8, "#D9C9A8", 12, 0.3, 0.24); shake(0.35)
+		else dust(e.x, feet(), 5, 5, 1.5, 0.26, 0.34) end
 	elseif t == "ultimate" then
 		push(e.x, e.y, 30, glow(e.fighter) or "#FFFFFF", 30, 0.6, 0.4); shake(1.4)
 	elseif t == "ultready" then
@@ -114,6 +127,35 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 		shake(0.25)
 	elseif t == "counter" or t == "freeze" or t == "summonbreak" then
 		push(e.x, e.y, 10, "#FFFFFF", 16, 0.3, 0.22)
+	elseif t == "jump" then
+		dust(e.x, feet(), 8, 7, 3, 0.34, 0.42)
+	elseif t == "doublejump" then
+		dust(e.x, feet(), 5, 5, -2, 0.28, 0.34); ring(e.x, feet(), 1.3, 0.22, "#FFFFFF", false, 0)
+	elseif t == "dash" then
+		dust(e.x, feet(), 9, 10, 2, 0.36, 0.44)
+	elseif t == "dodge" then
+		ring(e.x, e.y, 2.0, 0.2, "#BFE6FF", false, 0)
+	elseif t == "ledge" then
+		dust(e.x, e.y, 4, 3, 1, 0.28, 0.3)
+	elseif t == "tech" then
+		push(e.x, e.y, 8, "#FFFFFF", 14, 0.26, 0.22); ring(e.x, e.y, 2.2, 0.26, "#FFFFFF", false, 0)
+	elseif t == "shieldbreak" then
+		push(e.x, e.y, 24, "#9FD1E8", 28, 0.55, 0.3); ring(e.x, e.y, 4, 0.4, "#FFFFFF", true, 0); shake(0.8)
+	elseif t == "grabhit" then
+		push(e.x, e.y, 8, "#FFE9C4", 12, 0.25, 0.22); shake(0.2)
+	elseif t == "itembreak" or t == "projectilebreak" then
+		push(e.x, e.y, 10, "#C9B79C", 14, 0.35, 0.24)
+	elseif t == "spring" then
+		for _ = 1, 10 do
+			local x = e.x + (rand() - 0.5) * 2
+			local vx = (rand() - 0.5) * 6
+			local vy = 14 + rand() * 12
+			part(fx, x, e.y, vx, vy, 0.4, 0.4, "#FFD37A", 0.24)
+		end
+	elseif t == "teleport" then
+		push(e.x, e.y, 12, "#B36BFF", 16, 0.35, 0.24); ring(e.x, e.y, 2.5, 0.3, "#B36BFF", false, 0)
+	elseif t == "pickup" then
+		push(e.x, e.y, 6, "#FFD58A", 8, 0.3, 0.2)
 	end
 end
 

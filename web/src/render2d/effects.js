@@ -19,9 +19,18 @@ export const RING_SEGMENTS = 16;
 
 export function newEffects() { return { parts: [], rings: [], shake: 0 }; }
 
-// `glow(i)` is fighter i's weapon glow colour (or null): the only thing an effect needs to know
-// about a fighter.
-export function spawnEffect(fx, e, glow, rand) {
+// `glow(i)` is fighter i's weapon glow colour (or null), and `height(i)` their height in studs: a
+// fighter's own events carry their centre, and dust belongs at their feet.
+export const DUST = '#D9D2C2';
+export function spawnEffect(fx, e, glow, rand, height = () => 5) {
+  const feet = () => e.y - height(e.fighter) / 2;
+  // dust thrown sideways along the floor, never much above it
+  const dust = (x, y, n, spread, lift, life, size) => {
+    for (let i = 0; i < n; i++) {
+      const vx = (rand() - 0.5) * 2 * spread, vy = lift * (0.4 + rand() * 0.6);
+      fx.parts.push({ x: x + (rand() - 0.5) * 0.8, y, vx, vy, life: life * (0.7 + rand() * 0.5), max: life, c: DUST, s: size });
+    }
+  };
   const push = (x, y, n, c, sp, life, size) => {
     for (let i = 0; i < n; i++) {
       const a = rand() * PI * 2, s = sp * (0.4 + rand() * 0.8);
@@ -51,6 +60,7 @@ export function spawnEffect(fx, e, glow, rand) {
       push(e.x, e.y, 5, '#FFF3D0', 10, 0.2, 0.18); break;
     case 'land':
       if (e.hard) { push(e.x, e.y, 8, '#D9C9A8', 12, 0.3, 0.24); shake(0.35); }
+      else dust(e.x, feet(), 5, 5, 1.5, 0.26, 0.34);   // a soft landing still meets the floor
       break;
     case 'ultimate':
       push(e.x, e.y, 30, glow(e.fighter) || '#FFFFFF', 30, 0.6, 0.4); shake(1.4); break;
@@ -109,6 +119,24 @@ export function spawnEffect(fx, e, glow, rand) {
     case 'starfall': push(e.x, e.y, 6, '#B36BFF', 8, 0.35, 0.22); break;
     case 'mark': shake(0.25); break;
     case 'counter': case 'freeze': case 'summonbreak': push(e.x, e.y, 10, '#FFFFFF', 16, 0.3, 0.22); break;
+    // Movement, which the web never marked at all: dust off the floor, rings in the air.
+    case 'jump': dust(e.x, feet(), 8, 7, 3, 0.34, 0.42); break;
+    case 'doublejump': dust(e.x, feet(), 5, 5, -2, 0.28, 0.34); ring(e.x, feet(), 1.3, 0.22, '#FFFFFF', false, 0); break;
+    case 'dash': dust(e.x, feet(), 9, 10, 2, 0.36, 0.44); break;
+    case 'dodge': ring(e.x, e.y, 2.0, 0.2, '#BFE6FF', false, 0); break;
+    case 'ledge': dust(e.x, e.y, 4, 3, 1, 0.28, 0.3); break;
+    case 'tech': push(e.x, e.y, 8, '#FFFFFF', 14, 0.26, 0.22); ring(e.x, e.y, 2.2, 0.26, '#FFFFFF', false, 0); break;
+    // Impacts the web left silent.
+    case 'shieldbreak': push(e.x, e.y, 24, '#9FD1E8', 28, 0.55, 0.3); ring(e.x, e.y, 4, 0.4, '#FFFFFF', true, 0); shake(0.8); break;
+    case 'grabhit': push(e.x, e.y, 8, '#FFE9C4', 12, 0.25, 0.22); shake(0.2); break;
+    case 'itembreak': case 'projectilebreak': push(e.x, e.y, 10, '#C9B79C', 14, 0.35, 0.24); break;
+    case 'spring':
+      for (let i = 0; i < 10; i++) {
+        fx.parts.push({ x: e.x + (rand() - 0.5) * 2, y: e.y, vx: (rand() - 0.5) * 6, vy: 14 + rand() * 12, life: 0.4, max: 0.4, c: '#FFD37A', s: 0.24 });
+      }
+      break;
+    case 'teleport': push(e.x, e.y, 12, '#B36BFF', 16, 0.35, 0.24); ring(e.x, e.y, 2.5, 0.3, '#B36BFF', false, 0); break;
+    case 'pickup': push(e.x, e.y, 6, '#FFD58A', 8, 0.3, 0.2); break;
     default: break;
   }
 }

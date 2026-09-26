@@ -14,6 +14,8 @@ let at = 0;
 const rand = () => pool[at++];
 const glows = ['#B77DFF', null, '#7DE8FF', '#FFD37A'];
 const glow = (i) => glows[i] ?? null;
+const heights = [4.8, 5.2, 5.6, 4.4];
+const height = (i) => heights[i] ?? 5;
 
 const E = (type, extra = {}) => ({ type, x: 3.25, y: 7.5, ...extra });
 const cases = [
@@ -28,6 +30,8 @@ const cases = [
   ['aegis', [E('aegis'), E('aegisbreak')]], ['bleed', [E('bleedmark'), E('exsanguinate', { marks: 15 }), E('exsanguinate', { marks: 3 })]],
   ['soul', [E('soulgrab'), E('soulorb'), E('soulorb'), E('soulorb'), E('soulburst', { radius: 5 })]],
   ['snipe', [E('snipe'), E('starfall'), E('mark')]], ['misc', [E('counter'), E('freeze'), E('summonbreak'), E('nothing')]],
+  ['movement', [E('jump', { fighter: 1 }), E('doublejump', { fighter: 2 }), E('dash', { fighter: 0 }), E('dodge', { fighter: 3 }), E('ledge', { fighter: 0 }), E('land', { fighter: 2 }), E('land', { fighter: 9 })]],
+  ['new impacts', [E('tech', { fighter: 0 }), E('shieldbreak', { fighter: 1 }), E('grabhit'), E('itembreak'), E('projectilebreak'), E('spring'), E('teleport'), E('pickup')]],
 ];
 const S = (v) => (typeof v === 'number' ? String(v) : v === null ? null : v);
 const dump = (fx) => ({
@@ -40,7 +44,7 @@ const out = [];
 for (const [name, events] of cases) {
   const start = at;
   const fx = newEffects();
-  for (const e of events) spawnEffect(fx, e, glow, rand);
+  for (const e of events) spawnEffect(fx, e, glow, rand, height);
   const steps = [dump(fx)];
   for (const dt of [1 / 60, 0.05, 0.1, 0.2]) { stepEffect(fx, dt); steps.push(dump(fx)); }
   out.push({ name, events, start, steps });
@@ -57,5 +61,5 @@ for (const [name, events] of cases) {
   stepEffect(fx, 0.1); steps.push(dump(fx));
   out.push({ name: 'dirt and orb sparks', emitters: true, start, steps });
 }
-fs.writeFileSync(path.join(HERE, '../tests/effects-fixture.json'), JSON.stringify({ pool: pool.slice(0, at).map(String), glows, cases: out }));
+fs.writeFileSync(path.join(HERE, '../tests/effects-fixture.json'), JSON.stringify({ pool: pool.slice(0, at).map(String), glows, heights, cases: out }));
 console.log(`effects fixture: ${out.length} cases, ${at} random numbers`);

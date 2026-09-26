@@ -864,7 +864,7 @@ export class Renderer2D {
       const pal = f && (f.char.weaponPalette || f.char.palette);
       return (pal && pal.glow) || null;
     };
-    spawnEffect(this.fx, e, glow, Math.random);
+    spawnEffect(this.fx, e, glow, Math.random, (i) => (match.fighters[i] ? match.fighters[i].h : 5));
     if (e.type === 'ultimate') {
       const f = match.fighters[e.fighter];
       const pal = f && (f.char.weaponPalette || f.char.palette);

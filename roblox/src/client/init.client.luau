@@ -85,6 +85,13 @@ World2D.effects = fx
 -- few frames behind the newest snapshot, and a spark that lands before the hit it belongs to reads
 -- as the game guessing.
 local pendingFx: { any } = {}
+-- Your own fighter's movement is predicted, so its dust comes from the prediction the moment you
+-- act; the server's copy of those events would arrive a round trip and an interpolation late.
+local LOCAL_FX: { [string]: boolean } = { jump = true, doublejump = true, dash = true, dodge = true, land = true, ledge = true, tech = true }
+local function heightOf(i: number?): number
+	local entry = if i ~= nil then roster[i + 1] else nil
+	return if entry and entry.height then entry.height else 5
+end
 local function glowOf(i: number?): string?
 	local char = if i ~= nil then chars[i + 1] else nil
 	local pal = char and (char.weaponPalette or char.palette)
@@ -367,6 +374,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 		-- to see every one of them and no others or the replay window drifts.
 		if predictor then
 			predictor:push(f)
+			for _, e in predictor:drain() do
+				if LOCAL_FX[e.type] then Effects.spawn(fx, e, glowOf, math.random, heightOf) end
+			end
 		end
 	end
 	if #pendingFrames > 0 then
@@ -497,7 +507,9 @@ RunService.RenderStepped:Connect(function(dt: number)
 	while pendingFx[1] and (pendingFx[1].frame <= drawnFrame + 0.5 or #pendingFx > 64) do
 		local item = table.remove(pendingFx, 1) :: any
 		local e = item.e
-		Effects.spawn(fx, e, glowOf, math.random)
+		if not (predictor and LOCAL_FX[e.type] and e.fighter == localIndex) then
+			Effects.spawn(fx, e, glowOf, math.random, heightOf)
+		end
 		-- and the words that go with it, on the same frame (web/src/main.js does the same)
 		if hud then
 			if e.type == "ko" then

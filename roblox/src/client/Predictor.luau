@@ -62,6 +62,8 @@ function Predictor.new(char: any, index: number, stage: any): any
 	self.snaps = {} :: { [number]: any }
 	self.sent = 0
 	self.ready = false
+	-- Events from frames simulated for the first time, waiting for the client to show them.
+	self.fresh = {} :: { any }
 	return self
 end
 
@@ -115,13 +117,26 @@ local function prune(self: any)
 	end
 end
 
-local function simulate(self: any, seq: number)
+local function simulate(self: any, seq: number, live: boolean)
 	local frame = self.inputs[seq]
 	if not frame then
 		return
 	end
 	self.fighter:applyInput(frame)
 	self.fighter:step(self.ctx)
+	-- Take this frame's events out before the snapshot. Left in, the list was never emptied and
+	-- was cloned into every frame's snapshot - a copy growing all match, sixty times a second.
+	-- Only a frame's first simulation is shown: a replay re-emits events the player already saw.
+	local f = self.fighter
+	local events = f.events
+	f.events = {}
+	if live then
+		for _, e in events do
+			table.insert(self.fresh, table.clone(e))
+			local last = self.fresh[#self.fresh]
+			last.fighter, last.x, last.y = self.index, last.x or f.x, last.y or (f.y + f.h / 2)
+		end
+	end
 	-- Our own full state, for the rollback that a correction to this frame will need. The wire
 	-- cannot carry input buffers, hit victims or the weapon mechanic's scratch state, so they are
 	-- restored from here rather than left to be re-derived - replaying a frame onto a fighter that
@@ -134,7 +149,7 @@ function Predictor.push(self: any, frame: Input.Frame)
 	self.sent += 1
 	self.inputs[self.sent] = frame
 	if self.ready then
-		simulate(self, self.sent)
+		simulate(self, self.sent, true)
 	end
 	prune(self)
 end
@@ -160,8 +175,15 @@ function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any
 	self.ready = true
 
 	for seq = consumed + 1, self.sent do
-		simulate(self, seq)
+		simulate(self, seq, false)
 	end
+end
+
+-- The events of newly predicted frames since the last call, stamped with where the fighter was.
+function Predictor.drain(self: any): { any }
+	local out = self.fresh
+	self.fresh = {}
+	return out
 end
 
 -- The predicted fighter in the shape everything downstream of Snapshot.decode reads.

@@ -23,6 +23,9 @@ local function glow(i: number?): string?
 	return if g == nil or g == serde.decode("json", "null") then nil else g
 end
 
+local function height(i: number?): number
+	return if i ~= nil and T.heights[i + 1] then T.heights[i + 1] else 5
+end
 local checked = 0
 local function near(want: any, got: any, where: string)
 	if want == nil then
@@ -65,7 +68,7 @@ for _, case in T.cases do
 		Fx.step(fx, 0.1)
 		compare(fx, case.steps[2], `{case.name} step`)
 	else
-		for _, e in case.events do Fx.spawn(fx, e, glow, rand) end
+		for _, e in case.events do Fx.spawn(fx, e, glow, rand, height) end
 		compare(fx, case.steps[1], `{case.name} spawn`)
 		for k, dt in { 1 / 60, 0.05, 0.1, 0.2 } do
 			Fx.step(fx, dt)
@@ -83,7 +86,8 @@ local function lcg(): number
 end
 local EVENTS = { "hit", "explosion", "block", "ko", "projectile", "beam", "ultimate", "soulescape", "crater", "rundown",
 	"upheaval", "heartseeker", "anchorset", "anchorsnap", "aegis", "aegisbreak", "bleedmark", "exsanguinate", "soulgrab",
-	"soulburst", "snipe", "starfall", "counter", "freeze", "summonbreak" }
+	"soulburst", "snipe", "starfall", "counter", "freeze", "summonbreak", "jump", "doublejump", "dash", "dodge", "ledge",
+	"tech", "shieldbreak", "grabhit", "itembreak", "projectilebreak", "spring", "teleport", "pickup", "land" }
 for _, t in EVENTS do
 	local fx = Fx.new()
 	Fx.spawn(fx, { type = t, x = 0, y = 5, attacker = 0, fighter = 0, radius = 3, marks = 2 }, function() return "#123456" end, lcg)
@@ -98,4 +102,8 @@ assert(heavy.shake > light.shake and light.shake > 0, "every hit shakes, heavy h
 assert(#heavy.parts > #light.parts, "heavy hits throw more sparks")
 for _ = 1, 120 do Fx.step(heavy, 1 / 60) end
 assert(#heavy.parts == 0 and #heavy.rings == 0 and heavy.shake == 0, "everything burns out within two seconds")
-print("effects: every event visible, sparks in the weapon's glow, heavy hits ring and shake harder, all burn out")
+-- dust starts at the fighter's feet, not their middle
+local tall = Fx.new()
+Fx.spawn(tall, { type = "jump", x = 0, y = 10, fighter = 0 }, function() return nil end, lcg, function() return 6 end)
+for _, p in tall.parts do assert(p.y == 7, `jump dust at y {p.y}, the feet are at 7`) end
+print("effects: every event visible, sparks in the weapon's glow, heavy hits ring and shake harder, dust at the feet, all burn out")

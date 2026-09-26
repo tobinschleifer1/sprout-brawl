@@ -46,6 +46,11 @@ for i, want in T.stats do
 	assert(P.STATS[i][1] == want[1] and P.STATS[i][2] == want[2], `stat {i} label/field`)
 	assert(tostring(P.statValue(row, want[2])) == want[3], `stat {want[1]}: JS {want[3]}, Luau {P.statValue(row, want[2])}`)
 end
+for _, c in T.titles do
+	assert(P.title(c.rows, c.teams) == c.want, `title {c.k}: JS {c.want}, Luau {P.title(c.rows, c.teams)}`)
+end
+assert(T.titles[1].want == "Ana wins", "a 1v1 run as teams names the winner, not a team")
+assert(T.titles[2].want == "Green team wins", "a real team win names the team")
 for _, o in T.ordinals do
 	assert(P.ordinal(o[1]) == o[2], `ordinal {o[1]}: JS {o[2]}, Luau {P.ordinal(o[1])}`)
 end

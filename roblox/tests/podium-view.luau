@@ -136,6 +136,12 @@ for i = 1, 4 do
 	assert(card(root2, i):FindFirstChild("Place").Text == want[i], `team card {i} says {card(root2, i):FindFirstChild("Place").Text}`)
 end
 assert(string.find(root2:FindFirstChild("PodiumTitle").Text, "Green team wins", 1, true), "team title")
+-- A duel run as a team match (every lobby room is) names the player.
+local duel = { rows = rowsFor({ 1, 0 }, { 1, 0 }), winnerTeam = 1, teams = true }
+local gui3 = instance("ScreenGui")
+View.new(gui3, duel, chars, Rbx.Vector2.new(W, H), nil)
+local t3 = gui3:FindFirstChild("Podium"):FindFirstChild("PodiumTitle").Text
+assert(t3 == "P1 wins", `a 1v1 as teams is titled {t3}`)
 tv:draw(3)
 for i, d in drawn do
 	assert(d.state == (if i <= 2 then "victory" else "defeat"), `team figure {i} pose {d.state}`)

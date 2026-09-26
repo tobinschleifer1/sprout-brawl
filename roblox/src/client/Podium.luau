@@ -32,6 +32,22 @@ function Podium.places(rows: { any }, teams: boolean?): { number }
 	return out
 end
 
+-- Who won, in words; see web/src/render2d/podium.js.
+function Podium.title(rows: { any }, teams: boolean?): string
+	local w = rows[1]
+	if not w then
+		return ""
+	end
+	local mates = 0
+	for _, r in rows do
+		if r.team == w.team then mates += 1 end
+	end
+	if teams and mates > 1 then
+		return `{if w.team == 0 then "Green team" else "Orange team"} wins`
+	end
+	return `{w.name} wins`
+end
+
 -- Whole numbers, rounded as JavaScript's Math.round does (halves toward +infinity).
 function Podium.statValue(row: any, field: string): number
 	local v = row[field]

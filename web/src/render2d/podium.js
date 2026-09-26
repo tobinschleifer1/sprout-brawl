@@ -28,6 +28,16 @@ export function places(rows, teams) {
   return out;
 }
 
+// Who won, in words. A team is named only when it is more than one fighter: rooms run every
+// lobby match as teams, and a 1v1 announced as "Orange team wins" reads like the wrong result.
+export function podiumTitle(rows, teams) {
+  const w = rows[0];
+  if (!w) return '';
+  const mates = rows.filter((r) => r.team === w.team).length;
+  if (teams && mates > 1) return `${w.team === 0 ? 'Green team' : 'Orange team'} wins`;
+  return `${w.name} wins`;
+}
+
 // The card's number for a stat. Damage is shown whole, as the rest are counts.
 export function statValue(row, field) {
   const v = row[field];

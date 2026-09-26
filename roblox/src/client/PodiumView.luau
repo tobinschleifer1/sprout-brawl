@@ -83,9 +83,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	stage.Name = "PodiumStage"
 	self.canvas = Canvas2D.inFrame(stage)
 
-	local w = rows[1]
-	local winner = if not w then "" elseif res.teams then (if w.team == 0 then "Green team" else "Orange team") else w.name
-	local title = text(root, 0, H * 0.1, W, H * 0.08, `{winner} wins`, H * 0.065, GOLD, Enum.TextXAlignment.Center)
+	local title = text(root, 0, H * 0.1, W, H * 0.08, Podium.title(rows, res.teams), H * 0.065, GOLD, Enum.TextXAlignment.Center)
 	title.Name = "PodiumTitle"
 
 	local gg = Instance.new("TextButton")

@@ -1,7 +1,7 @@
 import { onBlock } from '../engine/knockback.js';
 import { ULTIMATE } from '../config.js';
 import { posedFighter } from '../render2d/preview.js';
-import { podiumLayout, places, statValue, ordinal, STATS } from '../render2d/podium.js';
+import { podiumLayout, places, statValue, ordinal, podiumTitle, STATS } from '../render2d/podium.js';
 
 export const PLAYER_COLORS = ['#3E8A2E', '#DE621C', '#3F7FD6', '#9A5FC8', '#D64C8C', '#2FA39A', '#C9A227', '#8A5A2B'];
 export const PLAYER_MARKS = ['●', '■', '▲', '◆', '✿', '★', '⬢', '❋'];
@@ -199,7 +199,7 @@ export class HUD {
     const R = results;
     const w = R.rows[0];
     const place = places(R.rows, R.teams);
-    const title = `${R.teams ? (w.team === 0 ? 'Green team' : 'Orange team') : w.name} wins`;
+    const title = podiumTitle(R.rows, R.teams);
     this.results.innerHTML = `<div class="podium-screen">
       <div class="podium-bar"><button data-act="rematch" class="primary">Play again</button><button data-act="gg">Say: GG!</button><button data-act="setup">Character select</button><button data-act="menu">Main menu</button></div>
       <h2 class="podium-title">${title}</h2>

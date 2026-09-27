@@ -135,30 +135,38 @@ messages={}
 run.PostSimulation:Fire(1/60)
 run.PostSimulation:Fire(1/60)
 assert(not last(2,"Snapshot") and last(7,"Snapshot"), "disconnect stops only affected match")
-send(9,"HubPose",{area=0,x=1e20,y=-20,facing=-1,moving=true,userId=7})
+-- Poses: somewhere a player could stand on the scene's floor (Plaza.walkable), or ignored.
+local PLAZA = Loader.load("Plaza").DATA
+send(9,"HubPose",{area=0,x=12,z=5,y=-20,facing=-1,moving=true,userId=7})
 run.Heartbeat:Fire(0.1)
 local presence=last(9,"HubPresence")
 local seen={}
 for _, peer in presence do seen[peer.userId]=peer end
 assert(not seen[1] and not seen[7] and not seen[8], "left/playing people excluded from shared hub")
-assert(seen[9].x<200 and seen[9].y==0 and seen[9].facing==-1, "cosmetic poses bounded, sender identity preserved")
-assert(#presence==1 and seen[9], "preparation-room members must not appear in the concourse")
+assert(seen[9].x==12 and seen[9].z==5 and seen[9].y==0 and seen[9].facing==-1, "a pose on the floor is taken, its hop clamped, sender identity preserved")
+assert(#presence==1 and seen[9], "preparation-room members must not appear in the market")
 local roomPresence=last(2,"HubPresence")
 assert(#roomPresence==5, "only the five remaining teammates/opponents occupy this preparation room")
 for _, peer in roomPresence do assert(peer.userId>=2 and peer.userId<=6 and peer.area==returnedRoom.id, "room presence isolation") end
-send(2,"HubPose",{area=0,x=66,y=0})
+local lounge = PLAZA.rooms[returnedRoom.format]
+send(2,"HubPose",{area=0,x=10,z=8,y=0})
 run.Heartbeat:Fire(0.1)
 for _, peer in last(2,"HubPresence") do
-	if peer.userId==2 then assert(peer.x==-53, "stale or forged area cannot move a room avatar") end
+	if peer.userId==2 then assert(peer.x==lounge.spawn.x and peer.z==lounge.spawn.z, "a stale or forged area cannot move a room avatar") end
 end
-send(2,"HubPose",{area=returnedRoom.id,x=1e20,y=0})
+send(2,"HubPose",{area=returnedRoom.id,x=1e20,z=8,y=0})
+send(2,"HubPose",{area=returnedRoom.id,x=10,z=40,y=0})
 run.Heartbeat:Fire(0.1)
 for _, peer in last(2,"HubPresence") do
-	if peer.userId==2 then assert(peer.x==69, "preparation room uses its own bounds") end
+	if peer.userId==2 then assert(peer.x==lounge.spawn.x, "a pose off the lounge floor is ignored") end
 end
-send(9,"HubPose",{area=0,x=0/0,y=10})
+send(9,"HubPose",{area=0,x=PLAZA.cabinets[1].x,z=PLAZA.cabinets[1].z,y=0})
+send(9,"HubPose",{area=0,x=0/0,z=8,y=10})
+send(9,"HubPose",{area=0,x=-90,z=3,y=0})          -- over the gap beside a bridge
 run.Heartbeat:Fire(0.1)
-for _, peer in last(9,"HubPresence") do assert(peer.x==peer.x, "NaN cannot poison hub renderer") end
+for _, peer in last(9,"HubPresence") do
+	assert(peer.x==12 and peer.z==5, "inside a cabinet, NaN and over the gap are all refused; the last good pose stands")
+end
 -- Explicit bot match can finish and cleanly return; completion targets no other room.
 send(9,"RoomAction",{action="join",format="Duel"})
 edit(9,"bot","normal",2); edit(9,"ready"); edit(9,"start")

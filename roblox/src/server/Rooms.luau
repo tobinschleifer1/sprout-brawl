@@ -1,7 +1,7 @@
 --!strict
 -- Server-owned membership and setup, independent of transport and simulation.
 local Shared = game:GetService("ReplicatedStorage").Shared
-local Hub = require(Shared.Data.Hub)
+local Plaza = require(Shared.Plaza)
 local Weapons = require(Shared.Data.Weapons)
 local Loadout = require(Shared.Loadout)
 local AvatarKit = require(Shared.AvatarKit)
@@ -65,7 +65,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	local spec = nil
 	-- Only a fight format opens a room: the concourse also has the wardrobe, and a client naming
 	-- it as a format must not create a room nobody can fight in.
-	for _, entry in Hub.stations do if entry.id == format and entry.kind == "Format" then spec = entry end end
+	for _, entry in Plaza.DATA.market.stations do if entry.id == format and entry.kind == "Format" then spec = entry end end
 	if not spec then return nil, "Choose 1v1, 2v2 or 3v3." end
 	-- Fill the fullest waiting room first, lowest id on a tie. Taking the first open slot in
 	-- `pairs` order - which Luau leaves unspecified - could strand people: after a few leaves

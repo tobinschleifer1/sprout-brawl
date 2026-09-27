@@ -1,5 +1,5 @@
 --!strict
--- Station option panel, opened by proximity interaction in Hub2D. The lobby itself is a world.
+-- Station option panel, opened by proximity interaction in the lobby (Plaza2D). The lobby itself is a world.
 -- All callbacks read self.cfg, never a slot captured before a rematch.
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Stages = require(Shared.Data.Stages)

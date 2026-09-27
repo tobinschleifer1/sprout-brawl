@@ -40,7 +40,7 @@ local Predictor = require(script.Predictor)
 local Hud = require(script.Hud)
 local Select = require(script.RoomPanel)
 local LaunchState = require(script.LaunchState)
-local Hub2D = require(script.Hub2D)
+local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
 local UIS = game:GetService("UserInputService")
 
@@ -112,7 +112,7 @@ local sawFirst = false
 local acceptingSnapshots = false
 local scenes: { any } = {}
 local launch = LaunchState.new()
-local hub = Hub2D.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
+local hub = Plaza2D.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 -- The character studio. It owns nothing the server does not confirm: it sends a code and a name,
 -- and the character you wear is whatever the server's AvatarView says.
 local editor = AvatarEditor.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
@@ -399,9 +399,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 		poseElapsed += dt
 		if poseElapsed >= 0.1 then
 			poseElapsed = 0
-			local f = hub.model.fighter
+			local f = hub.model.p
 			Net.remote("HubPose"):FireServer({ area = if hub.room then hub.room.id else 0,
-				x = f.x, y = f.y, facing = f.facing, moving = math.abs(f.vx) > 0.1 })
+				x = f.x, z = f.z, y = f.y, facing = f.facing, moving = f.state == "run" })
 		end
 	end
 	if not acceptingSnapshots or not matchCfg then

@@ -1,0 +1,739 @@
+--!strict
+-- The lobby: Neon Row, a rooftop night market walked beat-'em-up style (Plaza.luau is the walking,
+-- Data/Plaza the map), and the private rooftop lounges fights are prepared in.
+--
+-- Drawing, back to front: the Rooftops arena's night sky and skyline; every roof (its lit facade
+-- dropping away below it, its tar top, its parapet) and the plank bridges between; then every prop
+-- and person SORTED BY DEPTH, so a player walking behind a cabinet is hidden by it and one walking
+-- in front covers it; then the front railings. A point at depth z is lifted z * DEPTH on screen,
+-- which is the whole of the perspective: characters keep their side-on art and are never scaled.
+--
+-- Props are pixel art built once (PlazaArt) and drawn as sprites; people are drawn by Fighter2D,
+-- exactly as they fight. Labels (station names, stall signs, name tags) are TextLabels projected
+-- from world points, pooled and hidden when unused.
+
+local Shared = game:GetService("ReplicatedStorage").Shared
+local UIS = game:GetService("UserInputService")
+local Plaza = require(Shared.Plaza)
+local Loadout = require(Shared.Loadout)
+local Input = require(Shared.Input)
+local Config = require(Shared.Config)
+local Weapons = require(Shared.Data.Weapons)
+local Stages = require(Shared.Data.Stages)
+local KIT: any = require(Shared.Data.AvatarKit)
+local InputClient = require(script.Parent.InputClient)
+local Canvas = require(script.Parent.Canvas2D)
+local Backdrop = require(script.Parent.BackdropArt)
+local Fighter2D = require(script.Parent.Fighter2D)
+local WeaponArt = require(script.Parent.Weapons2D)
+local StageThumb = require(script.Parent.StageThumb)
+local PlazaArt = require(script.Parent.PlazaArt)
+local PosedFighter = require(script.Parent.PosedFighter)
+
+local PLAZA: any = Plaza.DATA
+local D = PLAZA.depth :: number
+local A = PlazaArt.C
+
+local Plaza2D = {}
+Plaza2D.__index = Plaza2D
+
+local INK = Color3.fromRGB(14, 11, 22)
+local WHITE = Color3.fromRGB(236, 232, 222)
+local AMBER = Color3.fromRGB(255, 181, 71)
+local CYAN = Color3.fromRGB(79, 227, 255)
+local PINK = Color3.fromRGB(255, 79, 163)
+local METAL = Color3.fromRGB(39, 35, 56)
+local STEEL = Color3.fromRGB(74, 78, 99)
+local READY = Color3.fromRGB(98, 224, 138)
+local TEAM1 = Color3.fromRGB(62, 138, 46)
+local TEAM2 = Color3.fromRGB(222, 98, 28)
+local MANNEQUIN_SECONDS = 4
+
+-- Where things stand in the market, beyond the stations themselves. Depths behind the floor's back
+-- edge (18) stand on the parapet line, drawn over the roof and under everyone walking on it.
+local STALLS = {
+	{ x = -62, sign = "RAMEN", goods = "bowls", a = A.lantern, b = A.paper, vendor = "samurai" },
+	{ x = -28, sign = "MASKS", goods = "masks", a = A.pink, b = A.white, vendor = "ninja" },
+	{ x = 28, sign = "SKEWERS", goods = "skewers", a = A.amber, b = A.woodDk, vendor = "cowboy" },
+	{ x = 62, sign = "GADGETS", goods = "gadgets", a = A.cyan, b = A.slate, vendor = "robot" },
+}
+local STALL_Z = 18.8
+Plaza2D.STALLS = STALLS
+
+local function text(parent: Instance, name: string, value: string, size: number): TextLabel
+	local t = Instance.new("TextLabel")
+	t.Name, t.Text, t.Font, t.TextSize = name, value, Enum.Font.GothamBold, size
+	t.TextColor3, t.BackgroundTransparency, t.TextWrapped = WHITE, 1, true
+	t.Parent = parent
+	return t
+end
+
+-- The map this room will fight on as far as anyone can tell yet: the host's pick, the leading
+-- ballot when the room votes (ties to the earliest ballot), or nil for Random.
+local function shownMap(room: any): any
+	if not room then return nil end
+	local id = room.stage
+	if room.mapChoice == "random" then return nil end
+	if room.mapChoice == "vote" then
+		local count, best, bestN = {}, nil, 0
+		for _, slot in room.slots or {} do
+			if slot.vote then
+				count[slot.vote] = (count[slot.vote] or 0) + 1
+				if count[slot.vote] > bestN then best, bestN = slot.vote, count[slot.vote] end
+			end
+		end
+		id = best or id
+	end
+	for _, stage in Stages.LIST do
+		if stage.id == id then return stage end
+	end
+	return nil
+end
+Plaza2D.shownMap = shownMap
+
+-- A deterministic hash for scenery that should look random but never flicker.
+local function hash(a: number, b: number): number
+	local h = (a * 73856093 + b * 19349663) % 1000003
+	return h / 1000003
+end
+
+-- ------------------------------------------------------------------ construction ----
+function Plaza2D.new(parent: Instance): any
+	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},
+		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, blocked = false, bannerAt = -10 }, Plaza2D)
+	self.input = InputClient.new()
+	local gui = Instance.new("ScreenGui")
+	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
+	gui.DisplayOrder, gui.Enabled, gui.Parent = 12, false, parent
+	self.gui = gui
+	local title = text(gui, "Title", "NEON ROW", 22)
+	title.Position, title.Size = UDim2.fromOffset(16, 12), UDim2.new(1, -200, 0, 30)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextColor3 = PINK
+	self.title = title
+	local directions = text(gui, "Directions", "", 12)
+	directions.Position, directions.Size = UDim2.fromOffset(16, 42), UDim2.new(1, -200, 0, 20)
+	directions.TextXAlignment = Enum.TextXAlignment.Left
+	self.directions = directions
+	-- The district you walked into, large, for a moment.
+	local banner = text(gui, "District", "", 34)
+	banner.AnchorPoint = Vector2.new(0.5, 0)
+	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, 70), UDim2.fromOffset(600, 44)
+	banner.TextColor3, banner.TextStrokeTransparency = CYAN, 0.4
+	banner.TextTransparency = 1
+	self.banner = banner
+	local controls = text(gui, "Movement", "WASD / arrows: walk (up / down into the roof)   •   Space: hop   •   E: use", 13)
+	controls.Position, controls.Size = UDim2.new(0, 12, 1, -34), UDim2.new(1, -24, 0, 26)
+	local prompt = Instance.new("TextButton")
+	prompt.Name, prompt.Font, prompt.TextSize = "Interact", Enum.Font.GothamBold, 16
+	prompt.AnchorPoint = Vector2.new(0.5, 1)
+	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, -40), UDim2.new(1, -32, 0, 44)
+	local cap = Instance.new("UISizeConstraint")
+	cap.MaxSize, cap.Parent = Vector2.new(540, 44), prompt
+	prompt.BackgroundColor3, prompt.BackgroundTransparency, prompt.BorderSizePixel = INK, 0.15, 0
+	prompt.TextColor3, prompt.TextWrapped, prompt.Parent = AMBER, true, gui
+	local round = Instance.new("UICorner")
+	round.CornerRadius, round.Parent = UDim.new(0, 8), prompt
+	prompt.Activated:Connect(function() self:interact() end)
+	self.prompt = prompt
+	local character = Instance.new("TextButton")
+	character.Name, character.Font, character.TextSize = "CharacterButton", Enum.Font.GothamBold, 15
+	character.AnchorPoint = Vector2.new(1, 0)
+	character.Position, character.Size = UDim2.new(1, -16, 0, 12), UDim2.fromOffset(150, 38)
+	character.BackgroundColor3, character.BorderSizePixel = Color3.fromRGB(28, 60, 78), 0
+	character.TextColor3, character.Text, character.Parent = CYAN, "CHARACTER", gui
+	local round2 = Instance.new("UICorner")
+	round2.CornerRadius, round2.Parent = UDim.new(0, 8), character
+	character.Activated:Connect(function()
+		if self.active and not self.blocked and self.onCharacter then self.onCharacter() end
+	end)
+	self.characterButton = character
+	self.labelLayer = gui
+	return self
+end
+
+-- ------------------------------------------------------------------ labels ----
+-- World labels are pooled by id: `label` claims one for this frame, `endLabels` hides the rest.
+function Plaza2D.label(self: any, id: string, value: string, size: number, colour: Color3): TextLabel
+	local t = self.pool[id]
+	if not t then
+		t = text(self.labelLayer, "Label_" .. id, value, size)
+		t.TextStrokeTransparency = 0.55
+		self.pool[id] = t
+	end
+	t.Text, t.TextColor3, t.Visible = value, colour, true
+	self.used[id] = true
+	return t
+end
+
+function Plaza2D.placeLabel(self: any, c: any, id: string, value: string, x: number, y: number, size: number, colour: Color3, width: number?)
+	local at = c:project(x, y)
+	local t = self:label(id, value, size, colour)
+	local w = width or 260
+	t.TextSize = size
+	t.Position, t.Size = UDim2.fromOffset(at.X - w / 2, at.Y - size * 1.2), UDim2.fromOffset(w, size * 2.4)
+	return t
+end
+
+function Plaza2D.endLabels(self: any)
+	for id, t in self.pool do
+		if not self.used[id] then t.Visible = false end
+	end
+	table.clear(self.used)
+end
+
+-- ------------------------------------------------------------------ state ----
+function Plaza2D.configure(self: any, cfg: any)
+	local sl = cfg.slots[1]
+	local key = sl.avatarId .. "/" .. sl.weaponId
+	if key == self.loadout then return end
+	self.char = Loadout.build(sl.avatarId, sl.weaponId)
+	self.loadout = key
+	if not self.model then self.model = Plaza.new(PLAZA.market) end
+end
+
+function Plaza2D.show(self: any, cfg: any)
+	self:configure(cfg)
+	self.active, self.gui.Enabled, self.blocked = true, true, false
+	self.input:reset()
+	self:setRoom(nil)
+	self.held = true                                  -- a held key must be released first
+end
+
+function Plaza2D.hide(self: any)
+	self.active, self.gui.Enabled = false, false
+end
+
+function Plaza2D.setRoom(self: any, room: any)
+	local nextRoom = if room and not room.left then room else nil
+	local oldId = if self.room then self.room.id else 0
+	local nextId = if nextRoom then nextRoom.id else 0
+	self.room = nextRoom
+	if oldId ~= nextId then
+		if oldId == 0 then self.returnAt = { x = self.model.p.x, z = self.model.p.z } end
+		local scene = if nextRoom then PLAZA.rooms[nextRoom.format] else PLAZA.market
+		self.model:setScene(scene, if nextId == 0 then self.returnAt else nil)
+		self.camX = self.model.p.x
+		self:setPeers({}, 0)
+		self.input:reset()
+		self.held = true
+		self.district = nil
+	end
+	self.characterButton.Visible = nextRoom == nil
+	self.gui:SetAttribute("Scene", self.model.data.id)
+	self.gui:SetAttribute("RoomId", nextId)
+	if nextRoom then
+		local ready, humans, bots = 0, 0, 0
+		for _, slot in nextRoom.slots do
+			if slot.userId then humans += 1; if slot.ready then ready += 1 end end
+			if slot.bot then bots += 1 end
+		end
+		local shown = shownMap(nextRoom)
+		local map = if nextRoom.mapChoice == "random" then "Random map"
+			elseif nextRoom.mapChoice == "vote" then (if shown then `Vote: {shown.name} leads` else "Vote for a map")
+			else (if shown then shown.name else "Random map")
+		local rules = if nextRoom.mode == "timed" then `Timed {(nextRoom.time or 180) // 60} min` else `{nextRoom.stocks or 3} lives`
+		self.title.Text = string.upper(self.model.data.name)
+		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} CPUs · {map} · {rules} · the stairs on the left go back down`
+	else
+		self.title.Text = "NEON ROW"
+		self.directions.Text = "Arcade cabinets for 1v1  ·  crew lifts for 2v2 and 3v3  ·  the tailor's roof makes your character"
+	end
+end
+
+function Plaza2D.setPeers(self: any, entries: any, localId: number)
+	local present = {}
+	local area = if self.room then self.room.id else 0
+	for _, entry in entries do
+		if entry.userId ~= localId and (entry.area or 0) == area then
+			local key = entry.avatar .. "/" .. entry.weapon
+			local peer = self.peers[entry.userId]
+			if not peer then
+				peer = { x = entry.x, z = entry.z or 8, y = entry.y or 0, name = entry.name }
+				self.peers[entry.userId] = peer
+			end
+			if peer.key ~= key then
+				peer.char = Loadout.build(entry.avatar, entry.weapon)
+				peer.key = key
+			end
+			peer.target, present[entry.userId] = entry, true
+		end
+	end
+	for id in self.peers do
+		if not present[id] then self.peers[id] = nil end
+	end
+end
+
+function Plaza2D.interact(self: any)
+	if not self.active or self.blocked or UIS:GetFocusedTextBox() then return end
+	local station = self.model:nearest()
+	if station and self.onInteract then self.onInteract(station) end
+end
+
+function Plaza2D.warp(self: any, id: string): boolean
+	return self.model:warp(id)
+end
+
+function Plaza2D.step(self: any, dt: number, blocked: boolean)
+	if not self.active then return end
+	self.blocked = blocked
+	for _, frame in self.input:sample(dt, Config.FRAME) do
+		self.model:step(if blocked then Input.emptyFrame() else frame)
+	end
+	local down = not UIS:GetFocusedTextBox() and (UIS:IsKeyDown(Enum.KeyCode.E)
+		or UIS:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonX))
+	if down and not self.held then self:interact() end
+	self.held = down
+end
+
+-- ------------------------------------------------------------------ drawing: the ground ----
+local function facade(c: any, id: string, r: any)
+	-- The building under a roof, dropping out of sight: storeys of paired windows between
+	-- pilasters, a few lit (at random, but never changing), fading into the dark below. Built once.
+	local w = r.x2 - r.x1
+	local key = `facade|{id}|{r.x1}`
+	local prop = PlazaArt.get(key, function()
+		local W, H = math.floor(w * 8), 14 * 8
+		local rects: { any } = { { 0, 0, W, H, A.night, 1 } :: { any }, { 0, 0, W, 2, A.slateHi, 1 } :: { any }, { 0, 2, W, 2, A.ink, 0.6 } :: { any } }
+		local bays = math.floor(w / 5)
+		for i = 0, bays - 1 do
+			local bx = i * 40
+			table.insert(rects, { bx, 4, 3, H - 4, A.slate, 0.8 } :: { any })           -- pilaster
+			for j = 0, 3 do
+				local ry = 12 + j * 24
+				table.insert(rects, { bx + 6, ry - 3, 30, 2, A.slate, 0.9 } :: { any })   -- storey ledge
+				for k = 0, 1 do
+					local v = hash(i * 2 + k + math.floor(r.x1), j)
+					local lit = v < 0.22
+					local col = if not lit then A.ink elseif v < 0.12 then A.amber elseif v < 0.18 then A.lanternHi else A.cyan
+					local wx = bx + 9 + k * 13
+					if lit then table.insert(rects, { wx - 1, ry - 1, 10, 12, col, 0.18 } :: { any }) end
+					table.insert(rects, { wx, ry, 8, 10, col, if lit then 0.85 else 1 } :: { any })
+					table.insert(rects, { wx + 3, ry, 1, 10, A.night, 0.8 } :: { any })     -- mullion
+				end
+			end
+		end
+		for f = 0, 5 do                                                         -- the drop into the dark
+			table.insert(rects, { 0, H - 16 - f * 10, W, 16 + f * 10, A.ink, 0.16 } :: { any })
+		end
+		return { rects = rects, w = W, h = H }
+	end)
+	Canvas.sprite(c, key, prop.rects, r.x1, r.z1 * D, PlazaArt.CELL, PlazaArt.CELL, prop.w, prop.h)
+end
+
+function Plaza2D.drawGround(self: any, c: any, scene: any, left: number, right: number)
+	for _, r in scene.floor do
+		if r.x2 < left or r.x1 > right then continue end
+		local bridge = r.bridge == true
+		local y1, y2 = r.z1 * D, r.z2 * D
+		if bridge then
+			-- Planks over the drop, with a rope rail either side.
+			Canvas.rect(c, r.x1, y1, r.x2 - r.x1, y2 - y1, Canvas.hex(A.woodDk, INK))
+			for x = r.x1 + 0.2, r.x2 - 0.6, 1.1 do
+				Canvas.rect(c, x, y1 + 0.05, 0.9, y2 - y1 - 0.1, Canvas.hex(A.wood, INK))
+			end
+			Canvas.rect(c, r.x1, y2 + 1.1, r.x2 - r.x1, 0.12, Canvas.hex(A.paper, WHITE), 0.6)
+			Canvas.rect(c, r.x1, y1 - 0.4, r.x2 - r.x1, 0.3, Canvas.hex(A.woodDk, INK))
+		else
+			facade(c, scene.id, r)
+			Canvas.rect(c, r.x1, y1, r.x2 - r.x1, y2 - y1, Canvas.hex(A.tar, INK))
+			for z = r.z1 + 2, r.z2 - 0.5, 2.5 do                            -- seams across the roof
+				Canvas.rect(c, r.x1, z * D, r.x2 - r.x1, 0.06, Canvas.hex(A.tarHi, INK))
+			end
+			Canvas.rect(c, r.x1, y1 - 0.2, r.x2 - r.x1, 0.35, Canvas.hex(A.slateHi, INK))   -- the roof's front lip
+			Canvas.rect(c, r.x1, y2, r.x2 - r.x1, 1.4, Canvas.hex(A.slate, INK))              -- parapet
+			Canvas.rect(c, r.x1, y2 + 1.4, r.x2 - r.x1, 0.3, Canvas.hex(A.slateHi, INK))
+		end
+	end
+end
+
+-- The rail along each roof's front edge, drawn over everyone: the nearest thing to the viewer.
+function Plaza2D.drawRails(self: any, c: any, scene: any, left: number, right: number)
+	for _, r in scene.floor do
+		if r.bridge or r.x2 < left or r.x1 > right then continue end
+		local y = r.z1 * D - 0.2
+		Canvas.rect(c, r.x1, y + 1.3, r.x2 - r.x1, 0.18, STEEL, 0.9)
+		for x = math.ceil(r.x1 / 4) * 4, r.x2, 4 do
+			Canvas.rect(c, x - 0.08, y, 0.16, 1.4, STEEL, 0.9)
+		end
+	end
+end
+
+-- ------------------------------------------------------------------ drawing: people ----
+local function posed(char: any, state: string, sf: number, x: number, z: number, y: number, facing: number, vx: number): any
+	local st = PosedFighter.posed(char, 0, state, sf)
+	st.x, st.y, st.facing, st.vx = x, y + z * D, facing, vx
+	st.onGround = y <= 0.01
+	return st
+end
+
+function Plaza2D.drawPerson(self: any, c: any, char: any, st: any, z: number, clock: number)
+	Fighter2D.draw(c, st, char, clock, z * D)
+end
+
+local function vendorChar(self: any, id: string): any
+	local v = self.vendors[id]
+	if not v then
+		for _, p in KIT.presets do
+			if p.id == id then
+				v = table.clone(Loadout.build(p.code, "Sword"))
+				v.weapon = nil                             -- vendors sell; they do not fight
+			end
+		end
+		self.vendors[id] = v
+	end
+	return v
+end
+
+-- ------------------------------------------------------------------ drawing: the market ----
+function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), clock: number)
+	local model = self.model
+	-- The billboard over the square: the game's name, and who is on the rooftop tonight.
+	add(24, function()
+		local bb = PlazaArt.get("billboard", PlazaArt.billboard)
+		-- 0.7 scale: the screen is 23 studs across, 10 tall, standing over the stalls.
+		local k, base = 0.7, 24 * D
+		PlazaArt.draw(c, "billboard", bb, 0, base, k)
+		local sx0, sy0, sw, sh = -16.5 * k, base + 7.5 * k, 33 * k, 10.25 * k
+		local pulse = 0.55 + 0.25 * math.sin(clock * 2.2)
+		Canvas.rect(c, sx0, sy0, sw, sh, PINK, 0.05 + pulse * 0.05)
+		for i = 0, 7 do
+			Canvas.rect(c, sx0, sy0 + ((clock * 2 + i * 1.3) % sh), sw, 0.1, CYAN, 0.08)
+		end
+		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, PINK, 520)
+		local n = 1
+		for _ in self.peers do n += 1 end
+		self:placeLabel(c, "billboard2", `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`, 0, sy0 + sh * 0.25, 14, CYAN, 520)
+	end)
+	add(22, function()
+		local wt = PlazaArt.get("tower", PlazaArt.waterTower)
+		PlazaArt.draw(c, "tower", wt, 76, 22 * D)
+		local lights = PlazaArt.get("lights", function() return PlazaArt.stringLights(640) end)
+		PlazaArt.draw(c, "lights", lights, -42, 18.6 * D)
+		PlazaArt.draw(c, "lights", lights, 42, 18.6 * D)
+	end)
+	for _, st in STALLS do
+		local back = PlazaArt.get("stallB" .. st.sign, function() return PlazaArt.stallBack(st.a, st.b) end)
+		local front = PlazaArt.get("stallF" .. st.sign, function() return PlazaArt.stallFront(st.goods) end)
+		add(STALL_Z + 0.2, function()
+			PlazaArt.draw(c, "stallB" .. st.sign, back, st.x, STALL_Z * D)
+			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10, 15, Canvas.hex(st.a, AMBER), 160)
+		end)
+		add(STALL_Z + 0.1, function()
+			local vc = vendorChar(self, st.vendor)
+			if vc then
+				local s = posed(vc, "idle", math.floor(clock * 60), st.x + 1.5, STALL_Z, 0, -1, 0)
+				self:drawPerson(c, vc, s, STALL_Z, clock)
+			end
+		end)
+		add(STALL_Z, function() PlazaArt.draw(c, "stallF" .. st.sign, front, st.x, STALL_Z * D) end)
+	end
+	add(18.5, function()
+		local ac = PlazaArt.get("ac", PlazaArt.acUnit)
+		PlazaArt.draw(c, "ac", ac, -80, 18.5 * D)
+		PlazaArt.draw(c, "ac", ac, 12, 18.5 * D)
+	end)
+	add(14, function()
+		local k = PlazaArt.get("kiosk", PlazaArt.kiosk)
+		PlazaArt.draw(c, "kiosk", k, 0, 12 * D)
+		-- The hologram: a turning diamond of light over the projector.
+		local turn = math.sin(clock * 1.6)
+		local cy = 12 * D + 10.5
+		for i = 0, 5 do
+			local w = (3 - math.abs(i - 2.5) * 1.05) * math.abs(turn) + 0.3
+			Canvas.rect(c, -w, cy - 2.8 + i * 1.1, w * 2, 1, CYAN, 0.28)
+		end
+		Canvas.rect(c, -0.12, 12 * D + 6.2, 0.24, 7, CYAN, 0.18)
+	end)
+	-- Tailor's roof: the boutique, its mannequins, and you in its mirror.
+	local wardrobe
+	for _, s in model.data.stations do if s.kind == "Wardrobe" then wardrobe = s end end
+	if wardrobe then
+		add(17.4, function()
+			local shop = PlazaArt.get("boutique", PlazaArt.boutique)
+			PlazaArt.draw(c, "boutique", shop, wardrobe.x, 17.4 * D)
+			self:drawWardrobe(c, wardrobe, clock)
+		end)
+	end
+	add(16.6, function()
+		local pl = PlazaArt.get("plant", PlazaArt.plant)
+		PlazaArt.draw(c, "plant", pl, -144, 16.6 * D)
+		PlazaArt.draw(c, "plant", pl, -100, 16.6 * D)
+	end)
+	add(20.4, function()
+		PlazaArt.draw(c, "plant", PlazaArt.get("plant", PlazaArt.plant), 99, 20.4 * D)
+		PlazaArt.draw(c, "plant", PlazaArt.get("plant", PlazaArt.plant), 181, 20.4 * D)
+	end)
+	-- The notice board and the roof map.
+	for _, s in model.data.stations do
+		if s.kind == "Members" then
+			add(s.z + 1, function()
+				PlazaArt.draw(c, "board", PlazaArt.get("board", PlazaArt.noticeBoard), s.x, (s.z + 1) * D)
+			end)
+		elseif s.kind == "Warp" then
+			add(s.z + 1, function()
+				PlazaArt.draw(c, "mapsign", PlazaArt.get("mapsign", PlazaArt.mapSign), s.x, (s.z + 1) * D)
+			end)
+		elseif s.kind == "Format" then
+			add(s.z + 1.8, function()
+				local colour = if s.teamSize == 1 then A.amber elseif s.teamSize == 2 then A.cyan else A.pink
+				PlazaArt.draw(c, "lift" .. s.id, PlazaArt.get("lift" .. s.id, function() return PlazaArt.lift(colour) end), s.x, (s.z + 1.8) * D)
+			end)
+		end
+	end
+	-- The arcade: its canopy, and the cabinets, each pair with its stools and number.
+	add(20.5, function()
+		local canopy = PlazaArt.get("canopy", function() return PlazaArt.canopy(88 * 8) end)
+		PlazaArt.draw(c, "canopy", canopy, 140, 20.5 * D)
+		local flick = if math.floor(clock * 7) % 23 == 0 then 0.35 else 1
+		self:placeLabel(c, "arcade", "THE ARCADE", 140, 20.5 * D + 16.2, 30, if flick < 1 then CYAN:Lerp(INK, 0.5) else CYAN, 400)
+	end)
+	for _, cab in PLAZA.cabinets do
+		add(cab.z, function()
+			PlazaArt.draw(c, "cab", PlazaArt.get("cab", PlazaArt.cabinetPair), cab.x, cab.z * D)
+			local flick = 0.7 + 0.3 * math.sin(clock * 9 + cab.number)
+			Canvas.rect(c, cab.x - 2.2, cab.z * D + 3.3, 0.3, 2, CYAN, 0.25 * flick)
+			Canvas.rect(c, cab.x + 1.9, cab.z * D + 3.3, 0.3, 2, PINK, 0.25 * flick)
+			self:placeLabel(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x, cab.z * D + 8.4, 18, AMBER, 60)
+		end)
+		for _, side in { -1, 1 } do
+			add(cab.z - 0.05, function()
+				PlazaArt.draw(c, "stool", PlazaArt.get("stool", PlazaArt.stool), cab.x + side * 5, cab.z * D)
+			end)
+		end
+	end
+end
+
+-- ------------------------------------------------------------------ drawing: the lounge ----
+local function boardThumb(c: any, shapes: { any }, x0: number, y0: number, w: number, h: number, K: number)
+	Canvas.save(c)
+	Canvas.translate(c, x0, y0 + h)
+	Canvas.scale(c, 1 / K, -1 / K)
+	for _, sh in shapes do
+		Canvas.rect(c, sh[2], sh[3], sh[4], sh[5], Canvas.hex(sh[6], INK), sh[7])
+	end
+	Canvas.restore(c)
+end
+
+-- A preparation station, standing at its depth. The room's own state is drawn on it: the map
+-- board the map, the ready rail a lamp per place, the rules board lives or a clock, the rack your
+-- weapon.
+local function stationArt(c: any, s: any, active: boolean, room: any, weaponId: string?)
+	local x = s.x
+	local colour = AMBER
+	Canvas.rect(c, x - 6, 0, 12, 5, METAL)
+	Canvas.rect(c, x - 6.5, 4.5, 13, 0.8, STEEL)
+	Canvas.rect(c, x - 5, 0.8, 10, 0.4, colour)
+	if s.kind == "Weapons" then
+		Canvas.rect(c, x - 8, 5.3, 16, 9, INK)
+		for i, weapon in Weapons.LIST do
+			if weapon.id == weaponId then
+				local gx, gy = x - 6 + ((i - 1) % 4) * 4, 7 + math.floor((i - 1) / 4) * 2.6
+				Canvas.rect(c, gx - 1.6, gy - 1.1, 3.4, 2.4, AMBER, 0.9)
+				Canvas.rect(c, gx - 1.4, gy - 0.9, 3.0, 2.0, INK)
+			end
+			Canvas.save(c)
+			Canvas.translate(c, x - 6 + ((i - 1) % 4) * 4, 7 + math.floor((i - 1) / 4) * 2.6)
+			Canvas.scale(c, 0.45, 0.45)
+			WeaponArt.draw(c, weapon.id, weapon.palette, { angle = 0.2, ox = 0, oy = 0, scale = 1, charge = 0 })
+			Canvas.restore(c)
+		end
+	elseif s.kind == "Maps" then
+		Canvas.rect(c, x - 5.6, 5.3, 11.2, 7.6, INK)
+		local stage = shownMap(room)
+		boardThumb(c, if stage then StageThumb.shapes(stage, 100, 64) else StageThumb.random(100, 64), x - 5, 5.7, 10, 6.4, 10)
+	elseif s.kind == "Players" then
+		Canvas.rect(c, x - 6, 5.3, 12, 4, INK)
+		local slots = if room then room.slots else {}
+		local n = math.max(1, #slots)
+		for i = 1, n do
+			local slot = slots[i]
+			local lx = x - 5 + (i - 0.5) * (10 / n)
+			local lamp = if not slot or (not slot.userId and not slot.bot) then METAL
+				elseif slot.ready or slot.bot then READY else AMBER
+			Canvas.rect(c, lx - 0.6, 6.4, 1.2, 1.8, lamp)
+			Canvas.rect(c, lx - 0.9, 8.4, 1.8, 0.3, if slot and slot.team == 1 then TEAM2 else TEAM1)
+		end
+	elseif s.kind == "Rules" then
+		Canvas.rect(c, x - 4, 5.3, 8, 6, INK)
+		if room and room.mode == "timed" then
+			Canvas.circle(c, x, 8.3, 2.2, colour)
+			Canvas.circle(c, x, 8.3, 1.8, INK)
+			Canvas.rect(c, x - 0.15, 8.3, 0.3, 1.4, WHITE)
+			Canvas.rect(c, x, 8.15, 1.1, 0.3, WHITE)
+		else
+			local lives = if room then room.stocks or 3 else 3
+			for i = 1, lives do
+				Canvas.rect(c, x - 3.4 + (i - 1) * 1.5, 7.6, 1.1, 1.1, colour)
+			end
+		end
+	end
+	if active then
+		Canvas.rect(c, x - 2, 0.6, 4, 0.3, WHITE)
+		Canvas.rect(c, x - 1, 1, 2, 0.3, WHITE)
+	end
+end
+Plaza2D.stationArt = stationArt
+
+function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), clock: number)
+	local near = self.model:nearest()
+	add(18.4, function()
+		local lights = PlazaArt.get("lights", function() return PlazaArt.stringLights(640) end)
+		PlazaArt.draw(c, "lights", lights, 0, 18.4 * D)
+		local pl = PlazaArt.get("plant", PlazaArt.plant)
+		PlazaArt.draw(c, "plant", pl, -41, 18.4 * D)
+		PlazaArt.draw(c, "plant", pl, 41, 18.4 * D)
+	end)
+	add(17.8, function()
+		PlazaArt.draw(c, "couchP", PlazaArt.get("couchP", function() return PlazaArt.couch(A.pinkDk) end), -31, 17.8 * D)
+		PlazaArt.draw(c, "couchC", PlazaArt.get("couchC", function() return PlazaArt.couch(A.cyanDk) end), 7, 17.8 * D)
+	end)
+	for _, s in self.model.data.stations do
+		if s.kind == "Exit" then
+			add(s.z + 8, function()
+				-- The stairwell back down to Neon Row.
+				local x, y = s.x, 16 * D
+				Canvas.rect(c, x - 3, y + 1, 6, 12, INK)
+				Canvas.rect(c, x - 3.4, y + 1, 0.4, 12.5, PINK)
+				Canvas.rect(c, x + 3, y + 1, 0.4, 12.5, PINK)
+				for i = 0, 5 do Canvas.rect(c, x - 2.6, y + 1.2 + i * 1.6, 5.2, 0.3, STEEL) end
+				self:placeLabel(c, "st" .. s.id, s.name .. "\n" .. s.landmark, x, y + 15.5, 14, PINK, 220)
+			end)
+		else
+			add(s.z + 1, function()
+				-- At 0.7 scale about its base: the stations were drawn for the old hub's wider camera.
+				Canvas.save(c)
+				Canvas.translate(c, s.x, (s.z + 1) * D)
+				Canvas.scale(c, 0.7, 0.7)
+				Canvas.translate(c, -s.x, 0)
+				stationArt(c, s, near == s, self.room, self.char and self.char.weapon and self.char.weapon.id)
+				Canvas.restore(c)
+				self:placeLabel(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + 11, 14, AMBER, 220)
+			end)
+		end
+	end
+end
+
+-- ------------------------------------------------------------------ the wardrobe ----
+function Plaza2D.drawWardrobe(self: any, c: any, s: any, clock: number)
+	local presets = KIT.presets
+	local turn = math.floor(clock / MANNEQUIN_SECONDS)
+	local baseY = 17.4 * D
+	for k, side in { -1, 1 } do
+		local code = presets[(turn * 2 + k) % #presets + 1].code
+		local m = self.mannequins[k]
+		if not m or m.code ~= code then
+			local char = table.clone(Loadout.build(code, "Sword"))
+			char.weapon = nil
+			m = { code = code, char = char }
+			self.mannequins[k] = m
+		end
+		local st = posed(m.char, "idle", math.floor(clock * 60), s.x + side * 5.6, 17.4, 0.5, -side, 0)
+		Fighter2D.draw(c, st, m.char, clock + k * 0.7, baseY + 0.5)
+	end
+	if self.char then
+		local p = self.model.p
+		local r = posed(self.char, p.state, p.sf, s.x, 17.4, 0.6 + math.max(0, p.y) * 0.3, -p.facing, p.vx)
+		Fighter2D.draw(c, r, self.char, clock, baseY + 0.6)
+	end
+	Canvas.rect(c, s.x - 2.4, baseY + 0.9, 4.8, 8.7, CYAN, 0.10)
+	Canvas.rect(c, s.x - 1.6, baseY + 6.8, 0.25, 2.2, WHITE, 0.25)
+	Canvas.rect(c, s.x - 1.1, baseY + 7.6, 0.2, 1.3, WHITE, 0.18)
+	self:placeLabel(c, "wardrobe", s.name .. "\n" .. s.landmark, s.x, baseY + 16.2, 15, PINK, 300)
+end
+
+-- ------------------------------------------------------------------ the frame ----
+function Plaza2D.draw(self: any, c: any, dt: number)
+	-- Team colours are a match's; the lobby is not one.
+	local teams = Fighter2D.teamColours
+	Fighter2D.teamColours = nil
+	self:drawScene(c, dt)
+	Fighter2D.teamColours = teams
+end
+
+function Plaza2D.drawScene(self: any, c: any, dt: number)
+	local model = self.model
+	local p = model.p
+	local scene = model.data
+	local clock = os.clock()
+	local vp = c:viewport()
+	local ppu = math.clamp(vp.Y / 38, 6, 22)
+	local half = vp.X / ppu / 2
+	local b = scene.bounds
+	local target = p.x + p.facing * 4
+	if b.x2 - b.x1 > half * 2 then
+		target = math.clamp(target, b.x1 + half, b.x2 - half)
+	else
+		target = (b.x1 + b.x2) / 2
+	end
+	self.camX += (target - self.camX) * math.min(1, dt * 6)
+	Backdrop.sky(c, "Rooftops", self.camX)
+	-- Framed on the roof, not the building under it: the facade is a strip at the bottom.
+	c:world(self.camX, 12.5 + p.z * D * 0.3, ppu, 0, 0)
+	local left, right = self.camX - half - 12, self.camX + half + 12
+	self:drawGround(c, scene, left, right)
+
+	-- Everything that stands on the roof, sorted back to front by depth.
+	local items: { any } = {}
+	local seq = 0
+	local function add(z: number, fn: () -> ())
+		seq += 1
+		table.insert(items, { z = z, seq = seq, fn = fn })
+	end
+	if scene.kind == "plaza" then self:marketItems(c, add, clock) else self:loungeItems(c, add, clock) end
+	for id, peer in self.peers do
+		local goal = peer.target
+		local blend = math.min(1, dt * 14)
+		peer.x += (goal.x - peer.x) * blend
+		peer.z += ((goal.z or 8) - peer.z) * blend
+		peer.y += ((goal.y or 0) - peer.y) * blend
+		if peer.x > left and peer.x < right then
+			add(peer.z, function()
+				local state = if peer.y > 0.1 then "air" elseif goal.moving then "run" else "idle"
+				local st = posed(peer.char, state, math.floor(clock * 60), peer.x, peer.z, peer.y, goal.facing or 1, if goal.moving then (goal.facing or 1) * 15 else 0)
+				self:drawPerson(c, peer.char, st, peer.z, clock)
+				self:placeLabel(c, "name" .. id, peer.name or "", peer.x, peer.y + peer.z * D + peer.char.height + 1.6, 12, WHITE, 180)
+			end)
+		end
+	end
+	if self.char then
+		add(p.z, function()
+			local st = posed(self.char, p.state, p.sf, p.x, p.z, p.y, p.facing, p.vx)
+			self:drawPerson(c, self.char, st, p.z, clock)
+		end)
+	end
+	table.sort(items, function(a, b2)
+		if a.z ~= b2.z then return a.z > b2.z end
+		return a.seq < b2.seq
+	end)
+	for _, it in items do it.fn() end
+	self:drawRails(c, scene, left, right)
+
+	-- The district you are in, announced as you enter it.
+	local d = model:district()
+	if d and d.id ~= self.district then
+		self.district = d.id
+		self.banner.Text = d.name
+		self.bannerAt = clock
+	end
+	local age = clock - self.bannerAt
+	self.banner.TextTransparency = if age < 2 then 0 elseif age < 3 then age - 2 else 1
+	self.banner.TextStrokeTransparency = math.max(0.4, self.banner.TextTransparency)
+
+	local near = model:nearest()
+	if near and near.kind == "Cabinet" then
+		self:placeLabel(c, "seat", "SIT HERE", near.x, near.z * D + 7.2, 14, AMBER, 140)
+	end
+	self:endLabels()
+	c:finish()
+	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
+		elseif near then `[E / X]  {if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif near.kind == "Cabinet" then "SIT AT" else "USE"} {near.name}`
+		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade is east, the tailor is west."
+	self.prompt.Active = not self.blocked and near ~= nil
+	self.gui:SetAttribute("NearbyStation", if near then near.id else "")
+	self.gui:SetAttribute("FighterX", p.x)
+	self.gui:SetAttribute("FighterZ", p.z)
+	self.gui:SetAttribute("District", if d then d.id else "")
+end
+
+return Plaza2D

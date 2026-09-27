@@ -55,7 +55,6 @@ node tools/gen-rng-fixture.mjs
 node tools/gen-channel-traces.mjs
 node tools/gen-weapon-traces.mjs
 node tools/gen-hud-fixture.mjs
-node tools/gen-hub-trace.mjs
 node tools/gen-plaza-trace.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
@@ -71,9 +70,8 @@ lune run tests/runtime-input
 lune run tests/abilities
 echo "== lobby: opponent controls, bindings and launch recovery =="
 lune run tests/lobby-ui
-echo "== walkable hub: movement, stations and web replay =="
-lune run tests/hub-parity
-lune run tests/hub-view
+echo "== the lobby: walking the rooftop market, its stations and its drawing =="
+lune run tests/plaza-view
 lune run tests/plaza-parity
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch

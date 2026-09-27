@@ -4,7 +4,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Net = require(Shared.Net)
-local Hub = require(Shared.Data.Hub)
+local Plaza = require(Shared.Plaza)
 local Rooms = require(script.Rooms)
 local AvatarStore = require(script.AvatarStore)
 local MatchService = require(script.MatchService)
@@ -129,14 +129,19 @@ end)
 local function finite(value: any): boolean
 	return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
+-- Where a player says they are standing. Cosmetic - nothing is decided by it - but everyone else
+-- draws it, so it has to be somewhere a player could be: on the floor of the scene they are in
+-- (Plaza.walkable, the same test their own walking uses). A position off the floor is ignored and
+-- the last good one kept.
 Net.remote("HubPose").OnServerEvent:Connect(function(player: Player, pose: any)
 	local room = rooms:get(player.UserId)
 	local area = if room then room.id else 0
 	if not loaded[player.UserId] or (room and room.state == "playing") or type(pose) ~= "table"
-		or pose.area ~= area or not admitted(player, "pose", 0.08) or not finite(pose.x) or not finite(pose.y) then return end
-	local scene = if room then Hub.rooms[room.format] else Hub
-	poses[player.UserId] = { area = area, x = math.clamp(pose.x, scene.main.x1 + 3, scene.main.x2 - 3),
-		y = math.clamp(pose.y, 0, 60), facing = if pose.facing == -1 then -1 else 1,
+		or pose.area ~= area or not admitted(player, "pose", 0.08) or not finite(pose.x) or not finite(pose.z) then return end
+	local scene = Plaza.scene(if room then room.format else nil)
+	if not Plaza.walkable(scene, pose.x, pose.z) then return end
+	poses[player.UserId] = { area = area, x = pose.x, z = pose.z,
+		y = if finite(pose.y) then math.clamp(pose.y, 0, 6) else 0, facing = if pose.facing == -1 then -1 else 1,
 		moving = pose.moving == true, at = os.clock() }
 end)
 local elapsed, saveClock = 0, 0
@@ -154,12 +159,12 @@ RunService.Heartbeat:Connect(function(dt: number)
 		local room, pose = rooms:get(id), poses[id]
 		if not room or room.state ~= "playing" then
 			local area = if room then room.id else 0
-			local scene = if room then Hub.rooms[room.format] else Hub
+			local scene = Plaza.scene(if room then room.format else nil)
 			if pose and pose.area ~= area then pose = nil end
 			groups[area] = groups[area] or {}
 			local p = rooms:profile(id)
 			table.insert(groups[area], { area = area, userId = id, name = player.DisplayName, avatar = p.avatar, weapon = p.weapon,
-				x = if pose then pose.x else scene.spawn.x, y = if pose then pose.y else scene.spawn.y,
+				x = if pose then pose.x else scene.spawn.x, z = if pose then pose.z else scene.spawn.z, y = if pose then pose.y else 0,
 				facing = if pose then pose.facing else 1, moving = pose ~= nil and pose.moving and os.clock() - pose.at < 0.3 })
 		end
 	end

@@ -28,6 +28,8 @@ export const WALK = {
 };
 
 const R = (x1, x2, z1, z2) => ({ x1, x2, z1, z2 });
+// A plank bridge over a gap between roofs: walked like any floor, drawn as planks over the drop.
+const BRIDGE = (x1, x2, z1, z2) => ({ x1, x2, z1, z2, bridge: true });
 
 // ------------------------------------------------------------------------ the market ----
 // West to east: the tailor's roof (the wardrobe), Neon Square (spawn, notice board, roof map), the
@@ -51,11 +53,11 @@ export const MARKET = {
   bounds: { x1: -152, x2: 242 },
   floor: [
     R(-150, -95, 2, 16),       // tailor's roof
-    R(-96, -84, 7, 11),        // plank bridge
+    BRIDGE(-96, -84, 7, 11),        // plank bridge
     R(-85, 85, 1, 18),         // Neon Square
-    R(84, 96, 7, 11),          // plank bridge
+    BRIDGE(84, 96, 7, 11),          // plank bridge
     R(95, 185, 2, 20),         // the arcade
-    R(184, 196, 7, 11),        // plank bridge
+    BRIDGE(184, 196, 7, 11),        // plank bridge
     R(195, 240, 2, 17),        // crew gates
   ],
   blocks: [

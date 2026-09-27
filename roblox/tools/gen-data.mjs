@@ -26,7 +26,6 @@ const { ITEM_LIST } = await import(`${WEB}/items.js`);
 const { buildLoadout } = await import(`${WEB}/loadout.js`);
 const { SCENES } = await import(`${WEB}/art.js`);
 const { WEAPON_SPRITES } = await import(`${WEB}/weaponArt.js`);
-const { HUB } = await import(`${WEB}/hub.js`);
 const { RULES } = await import(`${WEB}/rules.js`);
 const { CALLOUTS } = await import(`${WEB}/callouts.js`);
 const { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } = await import(`${WEB}/teams.js`);
@@ -155,8 +154,6 @@ function write(file, source, body) {
 
 // ---------------------------------------------------------------- modules ----
 const written = [];
-assertPlain(HUB, 'HUB');
-written.push(write('Hub.luau', 'web/src/data/hub.js', `return ${emit(HUB, 0, 'HUB')}`));
 assertPlain(RULES, 'RULES');
 written.push(write('Rules.luau', 'web/src/data/rules.js', `return ${emit(RULES, 0, 'RULES')}`));
 assertPlain(CALLOUTS, 'CALLOUTS');
@@ -236,7 +233,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA }));
+  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

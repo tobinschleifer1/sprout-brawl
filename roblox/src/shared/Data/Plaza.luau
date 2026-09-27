@@ -43,6 +43,7 @@ return {
 				x2 = -84,
 				z1 = 7,
 				z2 = 11,
+				bridge = true,
 			},
 			{
 				x1 = -85,
@@ -55,6 +56,7 @@ return {
 				x2 = 96,
 				z1 = 7,
 				z2 = 11,
+				bridge = true,
 			},
 			{
 				x1 = 95,
@@ -67,6 +69,7 @@ return {
 				x2 = 196,
 				z1 = 7,
 				z2 = 11,
+				bridge = true,
 			},
 			{
 				x1 = 195,

@@ -30,6 +30,19 @@ const { HUB } = await import(`${WEB}/hub.js`);
 const { RULES } = await import(`${WEB}/rules.js`);
 const { CALLOUTS } = await import(`${WEB}/callouts.js`);
 const { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } = await import(`${WEB}/teams.js`);
+const KITMOD = await import(`${WEB}/avatarKit.js`);
+// The character kit: the part catalogue plus everything the code and the composer need. Presets
+// are emitted as their FULL specs, so the Luau never has to know how a preset is merged.
+// Copied through JSON because the catalogue shares on purpose (five builds share one arm, three
+// colour slots share one cloth palette) and the emitter wants plain trees. structuredClone would
+// keep the sharing: it preserves the object graph.
+const KIT = JSON.parse(JSON.stringify({
+  version: KITMOD.KIT_VERSION, codeLength: KITMOD.CODE_LENGTH, outline: KITMOD.OUTLINE,
+  parts: KITMOD.KIT_PARTS, roles: KITMOD.KIT_ROLES, fixed: KITMOD.KIT_FIXED,
+  categories: KITMOD.KIT_CATEGORIES, colours: KITMOD.KIT_COLOURS,
+  defaults: KITMOD.DEFAULT_KIT,
+  presets: KITMOD.KIT_PRESETS.map((p) => ({ id: p.id, name: p.name, code: KITMOD.encodeKit(KITMOD.presetKit(p)) })),
+}));
 // Team colours as a list (team 0 first): Luau tables index from 1.
 const TEAMS = { colours: [TEAM_COLORS[0], TEAM_COLORS[1]], glow: TEAM_GLOW, marker: TEAM_MARKER };
 
@@ -143,6 +156,8 @@ assertPlain(CALLOUTS, 'CALLOUTS');
 written.push(write('Callouts.luau', 'web/src/data/callouts.js', `return ${emit(CALLOUTS, 0, 'CALLOUTS')}`));
 assertPlain(TEAMS, 'TEAMS');
 written.push(write('Teams.luau', 'web/src/data/teams.js', `return ${emit(TEAMS, 0, 'TEAMS')}`));
+assertPlain(KIT, 'KIT');
+written.push(write('AvatarKit.luau', 'web/src/data/avatarKit.js and avatarParts.js', `return ${emit(KIT, 0, 'KIT')}`));
 const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
 assertPlain(ART, 'ART');
 written.push(write('Art.luau', 'web/src/data/art.js', `return ${emit(ART, 0, 'ART')}`));
@@ -212,7 +227,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS, teams: TEAMS }));
+  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

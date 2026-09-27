@@ -17,6 +17,8 @@ local WeaponPose = require(script.Parent.WeaponPose)
 local Weapons2D = require(script.Parent.Weapons2D)
 local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
+local AvatarCompose = require(script.Parent.AvatarCompose)
+local KIT_PARTS = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit).parts
 
 local BLACK = Color3.new(0, 0, 0)
 local SHIELD = Color3.fromRGB(159, 209, 232)
@@ -24,6 +26,8 @@ local SHIELD = Color3.fromRGB(159, 209, 232)
 local Effects = require(script.Parent.Effects)
 local Shield = require(script.Parent.Shield)
 local Fighter2D = {}
+-- Screen pixels per kit cell below which a kit character is drawn at half resolution.
+Fighter2D.KIT_LOD_PX = 1.3
 -- The live effects state (Effects.new()) that a hauled weapon kicks dirt into; set by the client.
 Fighter2D.effects = nil :: any
 -- Team colour by fighter index in a team match, or nil: each fighter then stands in a disc of it
@@ -39,7 +43,10 @@ end
 -- `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere, and
 -- sliding the PROP forward off a fixed-length arm is what put the pike's grip further from the hand
 -- than the fighter is tall. Extending the arm moves the hand, so the weapon travels with it.
-local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number)
+-- `kit`, when the fighter is a kit character, draws the limb's pixel art instead of the block; it
+-- is handed the limb's drawn length so a thrust stretches the art with the arm.
+local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number,
+	kit: ((number) -> ())?)
 	local w = r * 0.34
 	local L = h * 0.30 * (if a.ext ~= 0 then a.ext else 1)
 	Canvas2D.save(c)
@@ -50,7 +57,11 @@ local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: nu
 	-- 2.9, meant to be overhead) draws pointing backwards and down.
 	-- `a.x` is the across-the-body component; the run writes its whole arm swing into it.
 	Canvas2D.rotate(c, a.z + a.x)
-	Canvas2D.rect(c, -w / 2, -L, w, L, colour, alpha)
+	if kit then
+		kit(L)
+	else
+		Canvas2D.rect(c, -w / 2, -L, w, L, colour, alpha)
+	end
 	Canvas2D.restore(c)
 end
 
@@ -82,6 +93,10 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		glow = Canvas2D.hex(pal.glow, accent),
 	}
 	local feat = Avatar2D.features(char.avatar)
+	-- A kit character (AvatarKit) draws each puppet piece as its composed pixel art, one sprite per
+	-- piece, in exactly the transforms the block rig uses.
+	local kitCode = if char.avatar and char.avatar.kit then char.avatar.id else nil
+	local kitArt = if kitCode then AvatarCompose.sprites(kitCode) else nil
 
 	-- Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole drawing
 	-- out of its own hurtbox - a tech roll spans a full body height below the floor, and an air
@@ -121,6 +136,19 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.scale(c, s.facing, 1)
 	applyRigRot()
 	c.alpha = ch.opacity
+	-- One kit cell is a twelfth of the head. Below about a screen pixel and a third it shimmers, so
+	-- the half-resolution cut takes over (AvatarCompose.halve).
+	local PW = r * 1.15 / 12
+	local m = c.m
+	local half = kitArt ~= nil and PW * math.sqrt(math.abs(m.a * m.d - m.b * m.c)) < Fighter2D.KIT_LOD_PX
+	local function kitPiece(id: string, ph: number, far: boolean?)
+		local P = KIT_PARTS[id]
+		local art = (kitArt :: any)[id]
+		local list = if far then (if half then art.farHalf else art.farFull) else (if half then art.half else art.full)
+		local k = if half then 2 else 1
+		Canvas2D.sprite(c, `{kitCode}|{id}|{if far then "f" else ""}{if half then "h" else ""}`, list,
+			-P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
+	end
 	-- Every alpha passed to a primitive below is RELATIVE - Canvas2D multiplies it by c.alpha
 	-- itself. Passing c.alpha through as well squares the opacity, which is invisible at full
 	-- opacity and wrong everywhere it matters: an air dodge draws at 0.12 instead of 0.35.
@@ -158,7 +186,11 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Canvas2D.save(c)
 		Canvas2D.translate(c, dx, HIP)
 		Canvas2D.rotate(c, -rot)
-		Canvas2D.rect(c, -lw / 2, -ll, lw, ll, tertiary, shade)
+		if kitArt then
+			kitPiece("leg", ll / KIT_PARTS.leg.span, shade < 1)
+		else
+			Canvas2D.rect(c, -lw / 2, -ll, lw, ll, tertiary, shade)
+		end
 		Canvas2D.restore(c)
 	end
 
@@ -166,7 +198,14 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- torso so it covers where they attach. Without it the torso starts AT the hip and goes up,
 	-- the legs hang from the hip and go down, and the joint is simply open - which is invisible
 	-- standing still and reads as two detached limbs the moment the body rotates away from them.
-	Canvas2D.rect(c, -r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10, secondary)
+	if kitArt then
+		Canvas2D.save(c)
+		Canvas2D.translate(c, 0, HIP)
+		kitPiece("pelvis", h * 0.10 / KIT_PARTS.pelvis.span)
+		Canvas2D.restore(c)
+	else
+		Canvas2D.rect(c, -r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10, secondary)
+	end
 
 	-- The torso carries the lean and the squash, so everything welded to it inherits both.
 	Canvas2D.save(c)
@@ -176,9 +215,16 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 
 	-- Back arm, then torso, then head, then front arm and the weapon it is holding. The torso has
 	-- to hide the far shoulder, and the front arm has to sit over the head.
-	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74)
-	Canvas2D.rect(c, -r * 0.80, 0, r * 1.60, SHO - HIP, primary)
-	Avatar2D.drawTorsoMark(c, avPal, r, SHO - HIP, feat)
+	local kitArm = if kitArt then function(far: boolean): (number) -> ()
+		return function(L: number) kitPiece("arm", L / KIT_PARTS.arm.span, far) end
+	end else nil
+	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74, if kitArm then kitArm(true) else nil)
+	if kitArt then
+		kitPiece("torso", (SHO - HIP) / KIT_PARTS.torso.span)
+	else
+		Canvas2D.rect(c, -r * 0.80, 0, r * 1.60, SHO - HIP, primary)
+		Avatar2D.drawTorsoMark(c, avPal, r, SHO - HIP, feat)
+	end
 
 	-- The head: shape, face and headgear, all from the avatar, so a preset and a player-made
 	-- character are drawn by the same code at the same moment. It takes the head channel at 0.4 as
@@ -188,7 +234,11 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.save(c)
 	Canvas2D.translate(c, 0, HEAD - HIP)
 	Canvas2D.rotate(c, -ch.head * 0.4)
-	Avatar2D.drawHead(c, avPal, hs, feat)
+	if kitArt then
+		kitPiece("head", PW)
+	else
+		Avatar2D.drawHead(c, avPal, hs, feat)
+	end
 	Canvas2D.restore(c)
 
 	-- THE FRONT ARM IS DRIVEN BY THE WEAPON, not by armR.z, so the swing and the limb always
@@ -198,7 +248,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local wpal = char.weaponPalette or pal
 	local armAng = if wid then wpose.angle else ch.armR.z - math.pi / 2
 	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
-	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = ch.armR.x, ext = ext }, h, true, 1)
+	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = ch.armR.x, ext = ext }, h, true, 1,
+		if kitArm then kitArm(false) else nil)
 
 	local scuff: any = nil
 	if wid and not wpose.hide then

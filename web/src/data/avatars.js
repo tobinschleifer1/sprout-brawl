@@ -69,6 +69,8 @@ export const PALETTE_LABELS = {
   glow: 'Highlight',
 };
 
+import { isKitCode, kitAvatar } from './avatarKit.js';
+
 // Presets shown in the avatar row of the select screen.
 export const AVATARS = [
   { id: 'Classic', name: 'Classic', rig: 'avatar', features: { head: 'block', face: 'dot', hat: 'none', torso: 'belt' },
@@ -98,7 +100,18 @@ const REGISTRY = new Map(AVATARS.map((a) => [a.id, a]));
 
 export function registerAvatar(a) { if (a && a.id) REGISTRY.set(a.id, a); }
 export function unregisterAvatar(id) { if (!PRESET_IDS.has(id)) REGISTRY.delete(id); }
-export function avatarById(id) { return REGISTRY.get(id) || DEFAULT_AVATAR; }
+// A kit code (avatarKit.js) is resolved on demand rather than registered: it is its own complete
+// description, and every client in a match has to be able to draw a character it has never seen.
+const KITS = new Map();
+export function avatarById(id) {
+  const hit = REGISTRY.get(id);
+  if (hit) return hit;
+  if (isKitCode(id)) {
+    if (!KITS.has(id)) KITS.set(id, kitAvatar(id));
+    return KITS.get(id) || DEFAULT_AVATAR;
+  }
+  return DEFAULT_AVATAR;
+}
 export function allAvatars() { return [...REGISTRY.values()]; }
 export function customAvatars() { return [...REGISTRY.values()].filter((a) => !PRESET_IDS.has(a.id)); }
 export function featuresOf(avatar) { return { ...DEFAULT_FEATURES, ...((avatar && avatar.features) || {}) }; }

@@ -8,6 +8,7 @@
 
 local Avatars = require(script.Parent.Data.Avatars)
 local Weapons = require(script.Parent.Data.Weapons)
+local AvatarKit = require(script.Parent.AvatarKit)
 
 local Loadout = {}
 
@@ -36,10 +37,26 @@ function Loadout.applyStats(weapon: any): { [string]: number }
 	return out
 end
 
+-- A preset id or a kit code (AvatarKit), exactly as web/src/data/avatars.js resolves them. A kit
+-- code is its own complete description, which is what lets every client draw a character it has
+-- never seen. The browser's localStorage characters are not here: Roblox saves kit codes instead.
 function Loadout.avatarById(id: string?): any
-	-- Presets only for now. web/src/data/avatars.js also resolves player-made characters through a
-	-- runtime registry, which is part of the character-creator question and not ported yet.
-	return (if id then Avatars.BY_ID[id] else nil) or Avatars.BY_ID[Avatars.DEFAULT_ID]
+	if id and Avatars.BY_ID[id] then
+		return Avatars.BY_ID[id]
+	end
+	return AvatarKit.avatar(id) or Avatars.BY_ID[Avatars.DEFAULT_ID]
+end
+
+-- The avatar id a server will accept from a client: a preset id as it is, a kit code in its
+-- canonical form, anything else nil.
+function Loadout.validAvatar(id: any): string?
+	if type(id) ~= "string" then
+		return nil
+	end
+	if Avatars.BY_ID[id] then
+		return id
+	end
+	return AvatarKit.canonical(id)
 end
 
 function Loadout.build(avatarId: string?, weaponId: string?): any

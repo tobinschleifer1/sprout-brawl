@@ -47,6 +47,7 @@ node tools/gen-podium-fixture.mjs
 node tools/gen-stage-thumb-fixture.mjs
 node tools/gen-effects-fixture.mjs
 node tools/gen-shield-fixture.mjs
+node tools/gen-kit-fixture.mjs
 node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-ai-traces.mjs
@@ -118,6 +119,9 @@ echo "== effects: hit sparks, rings and shake as the web throws them =="
 lune run tests/effects-parity
 lune run tests/predictor-events
 lune run tests/team-marks
+echo "== character kit: codes and composed parts as the web builds them =="
+lune run tests/kit-parity
+lune run tests/kit-draw
 lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity

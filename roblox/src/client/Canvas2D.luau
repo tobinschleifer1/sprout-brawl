@@ -66,6 +66,9 @@ function Canvas2D.new(parent: Instance): any
 	self.stack = {} :: { Matrix }
 	self.alpha = 1
 	self.alphaStack = {} :: { number }
+	self.sprites = {} :: { [string]: any }
+	self.spriteUse = {} :: { [string]: number }
+	self.frameNo = 0
 	return self
 end
 
@@ -73,7 +76,7 @@ end
 -- Embedded canvases reuse the exact same weapon art inside loadout cards.
 function Canvas2D.inFrame(frame: Frame): any
 	return setmetatable({ gui = frame, layer = frame, pool = {}, used = 0, z = 0,
-		m = identity(), stack = {}, alpha = 1, alphaStack = {} }, Canvas2D)
+		m = identity(), stack = {}, alpha = 1, alphaStack = {}, sprites = {}, spriteUse = {}, frameNo = 0 }, Canvas2D)
 end
 
 -- Parsed rather than converted at generation time, so the two builds read the same data file.
@@ -190,6 +193,22 @@ function Canvas2D.finish(self: any)
 	end
 	self.used = 0
 	self.z = 0
+	-- Sprites nobody drew this frame are hidden; ones nobody has drawn for ten seconds (a player
+	-- who left, a character that was changed) are destroyed, because they are not reusable by
+	-- anything else - their children are one particular picture.
+	if self.sprites then
+		for key, sp in self.sprites do
+			if sp.seen ~= self.frameNo then
+				sp.frame.Visible = false
+				if self.frameNo - sp.seen > 600 then
+					sp.frame:Destroy()
+					self.sprites[key] = nil
+				end
+			end
+		end
+		table.clear(self.spriteUse)
+		self.frameNo += 1
+	end
 end
 
 function Canvas2D.clear(self: any)
@@ -198,6 +217,12 @@ function Canvas2D.clear(self: any)
 	end
 	self.used = 0
 	self.z = 0
+	if self.sprites then
+		for _, sp in self.sprites do
+			sp.frame.Visible = false
+		end
+		table.clear(self.spriteUse)
+	end
 end
 
 -- ---------------------------------------------------------------- primitives ----
@@ -224,6 +249,99 @@ function Canvas2D.rect(self: any, x: number, y: number, w: number, h: number, co
 	f.BackgroundColor3 = colour
 	f.BackgroundTransparency = 1 - (alpha or 1) * self.alpha
 	;(f:FindFirstChild("Corner") :: UICorner).CornerRadius = UDim.new(0, 0)
+end
+
+-- ---------------------------------------------------------------- sprites ----
+-- A picture made of many rectangles that always move together: a kit character's head, a limb.
+--
+-- Drawing each rectangle with `rect` would re-place every one of them every frame - a character is
+-- well over a hundred - so a sprite is ONE container Frame placed exactly like a rect, holding its
+-- rectangles as children laid out in scale units. Per frame only the container moves; the
+-- children are touched when the picture changes, when the drawing mirrors, or when the alpha does.
+--
+-- `rects` are { col, row, w, h, hex, alpha } in cells of a `cols` x `rows` canvas whose top-left
+-- corner is at (x0, y1) in the current transform's space, with cells `pw` wide and `ph` tall and
+-- rows running DOWN from y1 (the art's rows) while the space's y runs up. The same `rects` table
+-- must come back for the same key each frame: identity is how a sprite knows it is unchanged.
+--
+-- Mirroring: a Frame can rotate but not flip. The container's x axis follows the transform's; if
+-- the transform is orientation-preserving on screen (det > 0 - the world flips y, so this is a
+-- facing of -1) the art's rows have to run up the container instead of down, and a vertical flip
+-- under the container's 180-degree turn is exactly the horizontal mirror the facing asked for.
+function Canvas2D.eachSpriteRect(rects: { any }, x0: number, y1: number, pw: number, ph: number,
+	fn: (number, number, number, number, string, number) -> ())
+	for _, r in rects do
+		fn(x0 + r[1] * pw, y1 - (r[2] + r[4]) * ph, r[3] * pw, r[4] * ph, r[5], r[6])
+	end
+end
+
+function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1: number, pw: number, ph: number,
+	cols: number, rows: number, alpha: number?)
+	local m = self.m
+	local w, h = cols * pw, rows * ph
+	local cx, cy = x0 + w / 2, y1 - h / 2
+	local sx = m.a * cx + m.c * cy + m.e
+	local sy = m.b * cx + m.d * cy + m.f
+	local ax, ay = m.a * w, m.b * w
+	local bx, by = m.c * h, m.d * h
+	local sizeX = math.sqrt(ax * ax + ay * ay)
+	local sizeY = math.sqrt(bx * bx + by * by)
+	if sizeX < 0.5 and sizeY < 0.5 then
+		return
+	end
+	local flip = m.a * m.d - m.b * m.c > 0
+	local n = (self.spriteUse[key] or 0) + 1
+	self.spriteUse[key] = n
+	local slot = key .. "#" .. n
+	local sp = self.sprites[slot]
+	if not sp then
+		local f = Instance.new("Frame")
+		f.Name = "Sprite"
+		f.BorderSizePixel = 0
+		f.BackgroundTransparency = 1
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Parent = self.layer
+		sp = { frame = f, children = {}, seen = self.frameNo }
+		self.sprites[slot] = sp
+	end
+	if sp.rects ~= rects then
+		for _, child in sp.children do
+			child:Destroy()
+		end
+		table.clear(sp.children)
+		for i, r in rects do
+			local child = Instance.new("Frame")
+			child.BorderSizePixel = 0
+			child.BackgroundColor3 = Canvas2D.hex(r[5], Color3.new(1, 0, 1))
+			child.ZIndex = i
+			child.Parent = sp.frame
+			sp.children[i] = child
+		end
+		sp.rects, sp.flip, sp.alpha = rects, nil, nil
+	end
+	if sp.flip ~= flip then
+		for i, r in rects do
+			local row = if flip then rows - r[2] - r[4] else r[2]
+			sp.children[i].Position = UDim2.fromScale(r[1] / cols, row / rows)
+			sp.children[i].Size = UDim2.fromScale(r[3] / cols, r[4] / rows)
+		end
+		sp.flip = flip
+	end
+	local a = (alpha or 1) * self.alpha
+	if sp.alpha ~= a then
+		for i, r in rects do
+			sp.children[i].BackgroundTransparency = 1 - r[6] * a
+		end
+		sp.alpha = a
+	end
+	local f = sp.frame
+	f.Position = UDim2.fromOffset(sx, sy)
+	f.Size = UDim2.fromOffset(math.max(1, sizeX), math.max(1, sizeY))
+	f.Rotation = math.deg(math.atan2(ay, ax))
+	self.z += 1
+	f.ZIndex = self.z
+	f.Visible = true
+	sp.seen = self.frameNo
 end
 
 -- An ellipse centred on (x, y). UICorner at half the smaller side rounds a Frame into a capsule,

@@ -17,6 +17,7 @@
 local Stages = require(script.Parent.Data.Stages)
 local Weapons = require(script.Parent.Data.Weapons)
 local Avatars = require(script.Parent.Data.Avatars)
+local AvatarKit = require(script.Parent.AvatarKit)
 
 local MatchConfig = {}
 
@@ -112,8 +113,10 @@ function MatchConfig.sanitise(cfg: any, player: Player): ({ any }?, any?, string
 			if kind ~= "off" then
 				local weapon = if type(sl.weaponId) == "string" and Weapons.BY_ID[sl.weaponId]
 					then sl.weaponId else Weapons.DEFAULT_ID
+				-- A preset id, or a kit code rebuilt digit by digit (AvatarKit.canonical), so a
+				-- player-made character arrives here already known to be drawable.
 				local avatar = if type(sl.avatarId) == "string" and Avatars.BY_ID[sl.avatarId]
-					then sl.avatarId else Avatars.DEFAULT_ID
+					then sl.avatarId else (AvatarKit.canonical(sl.avatarId) or Avatars.DEFAULT_ID)
 				-- Teams are two-sided; in a free-for-all the team is ignored by Match anyway, and
 				-- is set from the slot index so every fighter still has a distinct one.
 				local team = if teams then intIn(sl.team, 0, 1, 0) else i - 1

@@ -3,7 +3,7 @@
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Hub = require(Shared.Data.Hub)
 local Weapons = require(Shared.Data.Weapons)
-local Avatars = require(Shared.Data.Avatars)
+local Loadout = require(Shared.Loadout)
 local Stages = require(Shared.Data.Stages)
 local Rules = require(Shared.Data.Rules)
 local Rooms = {}
@@ -136,9 +136,12 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		room.revision += 1
 		return true, nil
 	elseif action == "weapon" or action == "avatar" then
-		local catalog = if action == "weapon" then Weapons.BY_ID else Avatars.BY_ID
-		if type(value) ~= "string" or not catalog[value] then return false, "Unknown loadout." end
-		own[action] = value; self:profile(player.UserId)[action] = value
+		-- An avatar is a preset id or a kit code; Loadout.validAvatar hands back the canonical code,
+		-- so what is stored is always something every client can draw.
+		local clean = if action == "weapon" then (if type(value) == "string" and Weapons.BY_ID[value] then value else nil)
+			else Loadout.validAvatar(value)
+		if not clean then return false, "Unknown loadout." end
+		own[action] = clean; self:profile(player.UserId)[action] = clean
 	elseif room.host ~= player.UserId then return false, "Only the host can change match settings."
 	elseif action == "stage" then
 		if value ~= "Random" and (type(value) ~= "string" or not Stages.BY_ID[value]) then return false, "Unknown map." end

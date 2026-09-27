@@ -30,6 +30,13 @@ const { HUB } = await import(`${WEB}/hub.js`);
 const { RULES } = await import(`${WEB}/rules.js`);
 const { CALLOUTS } = await import(`${WEB}/callouts.js`);
 const { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } = await import(`${WEB}/teams.js`);
+const PLAZAMOD = await import(`${WEB}/plaza.js`);
+// The rooftop lobby. Copied through JSON for the same reason as the kit below: the seat list is
+// built by a loop and the emitter wants plain trees.
+const PLAZA = JSON.parse(JSON.stringify({
+  depth: PLAZAMOD.DEPTH, walk: PLAZAMOD.WALK, market: PLAZAMOD.MARKET, rooms: PLAZAMOD.ROOMS,
+  cabinets: PLAZAMOD.CABINETS, messages: PLAZAMOD.MESSAGES, stamps: PLAZAMOD.STAMPS,
+}));
 const KITMOD = await import(`${WEB}/avatarKit.js`);
 // The character kit: the part catalogue plus everything the code and the composer need. Presets
 // are emitted as their FULL specs, so the Luau never has to know how a preset is merged.
@@ -156,6 +163,8 @@ assertPlain(CALLOUTS, 'CALLOUTS');
 written.push(write('Callouts.luau', 'web/src/data/callouts.js', `return ${emit(CALLOUTS, 0, 'CALLOUTS')}`));
 assertPlain(TEAMS, 'TEAMS');
 written.push(write('Teams.luau', 'web/src/data/teams.js', `return ${emit(TEAMS, 0, 'TEAMS')}`));
+assertPlain(PLAZA, 'PLAZA');
+written.push(write('Plaza.luau', 'web/src/data/plaza.js', `return ${emit(PLAZA, 0, 'PLAZA')}`));
 assertPlain(KIT, 'KIT');
 written.push(write('AvatarKit.luau', 'web/src/data/avatarKit.js and avatarParts.js', `return ${emit(KIT, 0, 'KIT')}`));
 const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
@@ -227,7 +236,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT }));
+  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, hub: HUB, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

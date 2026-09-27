@@ -76,6 +76,7 @@ compare(fixture.rules, Loader.load("Data/Rules"), "rules")
 compare(fixture.callouts, Loader.load("Data/Callouts"), "callouts")
 compare(fixture.teams, Loader.load("Data/Teams"), "teams")
 compare(fixture.kit, Loader.load("Data/AvatarKit"), "kit")
+compare(fixture.plaza, Loader.load("Data/Plaza"), "plaza")
 
 -- The BY_ID lookups must hold the SAME tables as the lists, the way WEAPON_BY_ID does in the
 -- JavaScript. A copy would work everywhere until something mutated a move at runtime.

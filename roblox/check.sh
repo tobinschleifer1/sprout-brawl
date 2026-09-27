@@ -56,6 +56,7 @@ node tools/gen-channel-traces.mjs
 node tools/gen-weapon-traces.mjs
 node tools/gen-hud-fixture.mjs
 node tools/gen-hub-trace.mjs
+node tools/gen-plaza-trace.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
@@ -73,6 +74,7 @@ lune run tests/lobby-ui
 echo "== walkable hub: movement, stations and web replay =="
 lune run tests/hub-parity
 lune run tests/hub-view
+lune run tests/plaza-parity
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch
 lune run tests/rooms

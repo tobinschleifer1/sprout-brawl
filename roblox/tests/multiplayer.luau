@@ -34,7 +34,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" then return Loader.loadFrom("src/server/", name) end
+	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
@@ -43,7 +43,7 @@ local env: any = {
 		if name == "ReplicatedStorage" then return {Shared=shared} end
 		if name == "Players" then return players end
 		return run
-	end}, script=setmetatable({Parent=codes}, {__index=function(_,k) return k end}), require=module,
+	end, BindToClose=function() end}, script=setmetatable({Parent=codes}, {__index=function(_,k) return k end}), require=module,
 	os={clock=function() return now end},
 	task={spawn=function(fn, ...) table.insert(tasks,{fn=fn,args={...}}) end, wait=function() end},
 }
@@ -66,12 +66,41 @@ for i=1,9 do
 	people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}
 	send(i,"Hello")
 end
+-- Characters: every player is told their wardrobe on arrival. There is no DataStore here, so it is
+-- session-only and says so rather than pretending to save.
+local AvatarKit = Loader.load("AvatarKit")
+local KNIGHT = AvatarKit.KIT.presets[2].code
+for i=1,9 do
+	local w = last(i,"AvatarView")
+	assert(w and #w.slots==1 and w.slots[1].code==AvatarKit.defaultCode(), "every player starts wearing the default character")
+	assert(w.saving==false and type(w.note)=="string", "a server with no DataStore says saving is off")
+end
+send(9,"Avatar",{action="save",slot=1,code="k1" .. string.upper(string.sub(KNIGHT, 3)),name="<b>Sir</b> Knight"})
+assert(last(9,"AvatarView").slots[1].code==KNIGHT and last(9,"AvatarView").slots[1].name=="bSirb Knight", "a saved character comes back canonical, its name cleaned")
+run.Heartbeat:Fire(0.1)
+local worn = nil
+for _, peer in last(1,"HubPresence") do if peer.userId==9 then worn = peer.avatar end end
+assert(worn==KNIGHT, "everyone in the concourse sees the character a player put on")
+send(9,"Avatar",{action="save",slot=1,code="k1<script>",name="x"})
+send(9,"Avatar",{action="save",slot=7,code=KNIGHT})
+send(9,"Avatar",{action="wear",slot=0})
+assert(#last(9,"AvatarView").slots==1 and type(last(9,"AvatarView").error)=="string", "a bad slot or a skipped slot is refused")
 for i=1,6 do send(i,"RoomAction",{action="join",format="Triples"}) end
+-- Changing character inside a room updates your place in it and un-readies no-one.
+edit(2,"ready")
+local before = last(3,"RoomView").revision
+send(3,"Avatar",{action="save",slot=1,code=KNIGHT})
+local after = last(3,"RoomView")
+assert(after.revision==before and after.slots[3].avatar==KNIGHT and after.slots[2].ready, "a character change is not a rules change")
+edit(2,"ready")
 for i=7,8 do send(i,"RoomAction",{action="join",format="Duel"}) end
 for i=1,8 do edit(i,"ready") end
 edit(1,"start")
 edit(7,"start")
 assert(#last(1,"Match").fighters==6 and #last(7,"Match").fighters==2)
+local knights = 0
+for _, f in last(1,"Match").fighters do if f.avatar==KNIGHT then knights += 1 end end
+assert(knights==1, "the character a player saved is the one they fight in")
 assert(last(1,"Match").id ~= last(7,"Match").id, "generation globally unique")
 assert(not last(9,"Match"), "uninvolved player stays in the hub")
 messages={}
@@ -144,4 +173,4 @@ assert(last(7,"Results") and last(8,"Results") and not last(2,"Results") and not
 for _, job in tasks do job.fn(table.unpack(job.args)) end
 assert(not active.match and last(7,"RoomView").state=="setup", "completed matches tear down and return to ready check")
 for _, slot in last(7,"RoomView").slots do assert(not slot.bot and not slot.ready,"rematch resets readiness and bots") end
-print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence and bot opt-in")
+print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in and saved characters worn in the hub, the room and the fight")

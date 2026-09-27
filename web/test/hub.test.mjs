@@ -4,7 +4,8 @@ import { Lobby } from '../src/engine/lobby.js';
 import { buildLoadout } from '../src/data/loadout.js';
 import { emptyFrame } from '../src/engine/input.js';
 
-assert.deepEqual(HUB.stations.map(s => [s.name, s.kind, s.teamSize]), [['1v1','Format',1],['2v2','Format',2],['3v3','Format',3]]);
+assert.deepEqual(HUB.stations.map(s => [s.name, s.kind, s.teamSize]), [['1v1','Format',1],['2v2','Format',2],['3v3','Format',3],['WARDROBE','Wardrobe',undefined]]);
+assert.deepEqual(Object.keys(HUB.rooms), ['Duel', 'Doubles', 'Triples'], 'only fight formats open a preparation room');
 for (const target of HUB.stations) {
   const hub = new Lobby(buildLoadout('Classic', 'Sword'));
   for (let n = 0; n < 1000 && Math.abs(hub.fighter.x - target.x) > 1; n++) {
@@ -35,7 +36,8 @@ console.log('PASS walkable hub: three reachable mode portals, jumping, harmless 
 
 for (const [format, scene] of Object.entries(HUB.rooms)) {
   assert.equal(scene.teamSize, HUB.stations.find(g => g.id === format).teamSize);
-  assert.deepEqual(scene.stations.map(s => s.id), ['Exit', 'Maps', 'Weapons', 'Looks', 'Rules', 'Players']);
+  // No lockers: characters are made at the concourse's wardrobe, once, not per fight.
+  assert.deepEqual(scene.stations.map(s => s.id), ['Exit', 'Maps', 'Weapons', 'Rules', 'Players']);
   for (const target of scene.stations) {
     const room = new Lobby(buildLoadout('Classic', 'Sword'), scene);
     assert.equal(room.nearest(), null, 'arrival must not immediately activate a station');

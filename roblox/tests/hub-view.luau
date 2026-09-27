@@ -15,7 +15,7 @@ WeaponArt.draw = function(c, id, ...)
 	return drawWeapon(c, id, ...)
 end
 local codes = setmetatable({}, { __index = function(_, key) return key end })
-local shared = setmetatable({ Data = { Hub = "Data/Hub", Stages = "Data/Stages", Weapons = "Data/Weapons" } }, { __index = function(_, key) return key end })
+local shared = setmetatable({ Data = { Hub = "Data/Hub", Stages = "Data/Stages", Weapons = "Data/Weapons", AvatarKit = "Data/AvatarKit" } }, { __index = function(_, key) return key end })
 local eDown, focused = false, false
 local function instance(): any
 	local obj: any = { attributes = {} }
@@ -39,10 +39,19 @@ local Hub = luau.load(fs.readFile("src/client/Hub2D.luau"), { environment = {
 		if fs.isFile("src/client/" .. name .. ".luau") then return Loader.loadFrom("src/client/", name) end
 		return Loader.load(name)
 	end,
-	Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim2 = Rbx.UDim2,
+	Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim2 = Rbx.UDim2, UDim = Rbx.UDim,
 	Enum = { Font = codes, KeyCode = codes, UserInputType = codes }, Instance = { new = instance },
 }, injectGlobals = true })()
+local KIT = Loader.load("Data/AvatarKit")
 local cfg = Loader.load("MatchConfig").default()
+-- You arrive wearing a kit character, as a player who has used the studio does - one no preset
+-- matches, so a mannequin can never be mistaken for your reflection.
+do
+	local code = KIT.presets[2].code
+	local last = string.sub(code, -1)
+	cfg.slots[1].avatarId = string.sub(code, 1, -2) .. (if last == "1" then "2" else "1")
+	for _, p in KIT.presets do assert(p.code ~= cfg.slots[1].avatarId, "the test character is a preset") end
+end
 local hub = Hub.new({})
 hub:show(cfg)
 local opened = 0
@@ -76,7 +85,12 @@ local function primitive(c: any, ...: any)
 	end
 	c.used += 1
 end
+local sprites: { string } = {}
 Canvas.rect, Canvas.circle, Canvas.ellipse = primitive, primitive, primitive
+Canvas.sprite = function(c: any, key: string, _list: any, ...: any)
+	table.insert(sprites, key)
+	primitive(c, ...)
+end
 local peak = 0
 hub:setPeers({ {userId=2,name="Guest",avatar="Noir",weapon="Hammer",x=14,y=0,facing=1,moving=true},
 	{userId=1,name="Self",avatar="Classic",weapon="Sword",x=14,y=0,facing=1} }, 1)
@@ -105,6 +119,62 @@ end
 local tag = hub.peers[2].tag
 hub:setPeers({}, 1)
 assert(not hub.peers[2] and tag.destroyed, "departed players are removed from the lobby")
+-- The wardrobe: two mannequins in ready-made characters that change every few seconds, and your own
+-- character in the mirror.
+do
+	local wardrobe
+	for _, st in Loader.load("Data/Hub").stations do if st.kind == "Wardrobe" then wardrobe = st end end
+	assert(wardrobe, "the concourse has a wardrobe station")
+	local function wornAt(clock: number): { [string]: number }
+		table.clear(sprites)
+		local c = setmetatable({ used=0,stack={},alpha=1,alphaStack={},m={a=1,b=0,c=0,d=1,e=0,f=0},
+			gui={AbsoluteSize={X=1280,Y=720}},finish=function(self) self.used=0 end },{__index=Canvas})
+		hub:drawWardrobe(c, wardrobe, hub.model.fighter, clock)
+		local codes = {}
+		for _, key in sprites do
+			local code = string.match(key, "^(k1%w+)|")
+			if code then codes[code] = (codes[code] or 0) + 1 end
+		end
+		return codes
+	end
+	local presetCodes = {}
+	for _, p in KIT.presets do presetCodes[p.code] = true end
+	local a, b = wornAt(0), wornAt(4.01)
+	local mannequins, changed = 0, false
+	for code, n in a do
+		if presetCodes[code] then mannequins += n // 7 end
+		if not b[code] then changed = true end
+	end
+	assert(a[cfg.slots[1].avatarId] and a[cfg.slots[1].avatarId] >= 7, "your character is in the mirror")
+	assert(mannequins >= 2, `two mannequins in ready-made characters, drew {mannequins}`)
+	assert(changed, "the mannequins change character over time")
+	-- Its sign clears its roof.
+	hub.model.fighter.x, hub.camX = wardrobe.x, wardrobe.x
+	local c = setmetatable({ used=0,stack={},alpha=1,alphaStack={},m={a=1,b=0,c=0,d=1,e=0,f=0},
+		gui={AbsoluteSize={X=1280,Y=720}},finish=function(self) self.used=0 end },{__index=Canvas})
+	hub:draw(c, 1/60)
+	local roof = c:project(wardrobe.x, 13.8)
+	local sign = hub.labels[wardrobe.id]
+	assert(sign.Position.Y.Offset + sign.Size.Y.Offset <= roof.Y + 1, "the wardrobe sign overlaps its roof")
+	assert(hub.gui.attributes.NearbyStation == wardrobe.id, "standing at the wardrobe offers it")
+end
+-- The CHARACTER button: in the concourse, not in a fight's preparation room, and not while a panel
+-- is open over the lobby.
+do
+	local studio = 0
+	hub.onCharacter = function() studio += 1 end
+	assert(hub.characterButton.Visible ~= false, "the concourse shows the CHARACTER button")
+	hub.characterButton.activate()
+	assert(studio == 1, "the CHARACTER button opens the studio")
+	hub:step(1/60, true)
+	hub.characterButton.activate()
+	assert(studio == 1, "a panel open over the lobby blocks the CHARACTER button")
+	hub:step(1/60, false)
+	hub:setRoom({ id = 77, format = "Duel", stage = "FoundryFloor", slots = { { userId = 1 } } })
+	assert(hub.characterButton.Visible == false, "a preparation room hides the CHARACTER button")
+	hub:setRoom({ left = true })
+	assert(hub.characterButton.Visible == true, "back in the concourse, the button returns")
+end
 local returnX = hub.model.fighter.x
 for index, format in { "Duel", "Doubles", "Triples" } do
 	local view = { id = index, format = format, stage = "FoundryFloor", slots = { {userId=1,ready=false} } }

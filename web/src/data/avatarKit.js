@@ -19,7 +19,7 @@
 // Every option in the catalogue is drawn by the composer; test/avatar-kit.test.mjs fails if an
 // option paints nothing different from its neighbours, the same dead-data rule as the old features.
 
-import { CATEGORIES, PARTS, ROLES, FIXED, COLOURS, PRESETS } from './avatarParts.js';
+import { CATEGORIES, PARTS, ROLES, FIXED, COLOURS, PRESETS, GROUPS } from './avatarParts.js';
 
 export const KIT_VERSION = 'k1';
 export const KIT_PARTS = PARTS;
@@ -28,6 +28,7 @@ export const KIT_FIXED = FIXED;
 export const KIT_CATEGORIES = CATEGORIES;
 export const KIT_COLOURS = COLOURS;
 export const KIT_PRESETS = PRESETS;
+export const KIT_GROUPS = GROUPS;
 export const OUTLINE = '#120E16';
 
 const DIGITS = '0123456789abcdefghijklmnopqrstuvwxyz';

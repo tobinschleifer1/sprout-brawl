@@ -51,7 +51,7 @@ local View = luau.load(fs.readFile("src/client/PodiumView.luau"), { environment 
 		if name == "Canvas2D" then return Canvas end
 		if name == "Fighter2D" then return FakeFighter2D end
 		if name == "Podium" then return Podium end
-		if name == "HudColors" then return Loader.loadFrom("src/client/", "HudColors") end
+		if name == "HudColors" or name == "PosedFighter" then return Loader.loadFrom("src/client/", name) end
 		return Loader.load(name)
 	end,
 	Enum = { Font = codes, TextXAlignment = codes, TextTruncate = codes },

@@ -16,13 +16,18 @@ export const HUB = {
     { id: 'Duel', name: '1v1', landmark: 'DUEL FOUNDRY', kind: 'Format', teamSize: 1, x: -28, y: 0, color: '#E5AB65' },
     { id: 'Doubles', name: '2v2', landmark: 'TWIN GANTRY', kind: 'Format', teamSize: 2, x: 14, y: 0, color: '#E5AB65' },
     { id: 'Triples', name: '3v3', landmark: 'FREIGHT HALL', kind: 'Format', teamSize: 3, x: 56, y: 0, color: '#E5AB65' },
+    // Characters are made here, in the concourse, not in a fight's preparation room: who you are
+    // is yours across every fight, so it is chosen once rather than per room.
+    { id: 'Wardrobe', name: 'WARDROBE', landmark: 'CHARACTER STUDIO', kind: 'Wardrobe', x: -50, y: 0, color: '#7FD4FF' },
   ],
 };
+// The fight formats a player can join - every station that opens a room.
+export const FORMAT_STATIONS = HUB.stations.filter((s) => s.kind === 'Format');
 
 // Separate harmless preparation scenes, never arena maps. Generated into Data/Hub with the
 // concourse so movement, station reach and collision use one source in both builds.
 HUB.rooms = {};
-for (const gate of HUB.stations) {
+for (const gate of FORMAT_STATIONS) {
   HUB.rooms[gate.id] = {
     id: `Prep${gate.id}`, name: `${gate.name} · ${gate.landmark}`, teamSize: gate.teamSize,
     spawn: { x: -53, y: 0 }, main: { x1: -74, x2: 72, y: 0, thickness: 9 },
@@ -31,11 +36,10 @@ for (const gate of HUB.stations) {
     palette: { ground: '#18212D', groundTop: '#89959C', platform: '#33404F', accent: '#E5AB65' },
     stations: [
       { id: 'Exit', name: 'CONCOURSE', kind: 'Exit', x: -65, y: 0, color: '#E5AB65' },
-      { id: 'Maps', name: 'MAP BOARD', kind: 'Maps', x: -40, y: 0, color: '#E5AB65' },
-      { id: 'Weapons', name: 'WEAPON RACK', kind: 'Weapons', x: -17, y: 0, color: '#E5AB65' },
-      { id: 'Looks', name: 'LOCKERS', kind: 'Looks', x: 6, y: 0, color: '#E5AB65' },
-      { id: 'Rules', name: 'RULES + BOTS', kind: 'Rules', x: 29, y: 0, color: '#E5AB65' },
-      { id: 'Players', name: 'READY RAIL', kind: 'Players', x: 54, y: 0, color: '#E5AB65' },
+      { id: 'Maps', name: 'MAP BOARD', kind: 'Maps', x: -38, y: 0, color: '#E5AB65' },
+      { id: 'Weapons', name: 'WEAPON RACK', kind: 'Weapons', x: -11, y: 0, color: '#E5AB65' },
+      { id: 'Rules', name: 'RULES + BOTS', kind: 'Rules', x: 16, y: 0, color: '#E5AB65' },
+      { id: 'Players', name: 'READY RAIL', kind: 'Players', x: 44, y: 0, color: '#E5AB65' },
     ],
   };
 }

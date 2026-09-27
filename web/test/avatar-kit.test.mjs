@@ -9,7 +9,7 @@
 //   - the rectangles the renderer draws ARE the composed picture (the cut loses nothing), and there
 //     are few enough of them to draw six fighters;
 //   - a face survives being drawn at half resolution, which is how the game draws it zoomed out.
-import { KIT_PARTS, KIT_ROLES, KIT_CATEGORIES, KIT_COLOURS, KIT_PRESETS, DEFAULT_KIT, CODE_LENGTH, OUTLINE,
+import { KIT_PARTS, KIT_ROLES, KIT_CATEGORIES, KIT_COLOURS, KIT_PRESETS, KIT_GROUPS, DEFAULT_KIT, CODE_LENGTH, OUTLINE,
   encodeKit, decodeKit, canonicalKit, sanitizeKit, isKitCode, kitAvatar, presetKit, partCombinations, colourCombinations } from '../src/data/avatarKit.js';
 import { compose, halve, piece, kitSprites, layersOf, resolveRoles, PIECES } from '../src/render2d/avatarCompose.js';
 import { buildLoadout } from '../src/data/loadout.js';
@@ -45,6 +45,13 @@ const fingerprint = (g) => PIECES.map((id) => g[id].cells.map((c) => (c ? c.hex 
         for (const row of L.rows) for (const ch of row) if (ch !== '.' && !KIT_ROLES[ch]) bad.push(`${cat.id}.${o.id}: unknown colour role '${ch}'`);
       }
     }
+  }
+  for (const cat of KIT_CATEGORIES) {
+    if (!KIT_GROUPS.some((g) => g.id === cat.group)) bad.push(`${cat.id}: no tab '${cat.group}'`);
+    const listed = KIT_GROUPS.filter((g) => g.parts.includes(cat.id));
+    if (listed.length !== 1 || listed[0].id !== cat.group) bad.push(`${cat.id}: offered under ${listed.map((g) => g.id).join(', ') || 'no tab'}, belongs to '${cat.group}'`);
+    if (!['head', 'body'].includes(cat.view)) bad.push(`${cat.id}: view '${cat.view}'`);
+    for (const slot of cat.paint) if (!KIT_COLOURS.some((c) => c.id === slot)) bad.push(`${cat.id}: paints unknown slot '${slot}'`);
   }
   for (const c of KIT_COLOURS) {
     if (c.list.length > 36) bad.push(`${c.id}: ${c.list.length} swatches`);

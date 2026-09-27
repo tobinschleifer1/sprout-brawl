@@ -72,8 +72,8 @@ local old = menu.cfg
 menu.cfg = Loader.load("MatchConfig").default()
 menu.cfg.slots[2].type = "bot-normal" -- this launch test explicitly opts into a CPU
 click(menu.content,"WeaponHammer")
-click(menu.content,"AvatarNoir")
-assert(menu.cfg.slots[1].weaponId == "Hammer" and menu.cfg.slots[1].avatarId == "Noir", "rematch callbacks must edit current cfg")
+assert(not menu.content:FindFirstChild("AvatarNoir"), "the fight setup must not offer an avatar: characters are made at the wardrobe")
+assert(menu.cfg.slots[1].weaponId == "Hammer", "rematch callbacks must edit current cfg")
 assert(old.slots[1].weaponId == "Sword", "callbacks must not mutate detached cfg")
 click(menu.nav,"Rules")
 click(menu.content,"Stocks5")

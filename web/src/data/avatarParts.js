@@ -730,25 +730,39 @@ const HEADWEAR = [
 // ---------------------------------------------------------------------------- catalogue -----
 // ORDER IS PERMANENT (see avatarKit.js): categories and their options are addressed by index in
 // every saved character. `fallback` is the index the default character uses and the one a bad
-// digit decodes to. `group` is only how the creator arranges its tabs.
+// digit decodes to. The rest is for the creator: `group` is the tab a category sits under,
+// `paint` the colour slots its swatches change (what the part is actually drawn in), and `view`
+// whether its thumbnails show the head close up or the whole figure.
+const C = (id, name, group, options, paint, view) => ({ id, name, group, options, paint, view });
 export const CATEGORIES = [
-  { id: 'build', name: 'Build', group: 'body', options: BUILD },
-  { id: 'head', name: 'Head', group: 'body', options: HEAD },
-  { id: 'ears', name: 'Ears', group: 'face', options: EARS },
-  { id: 'eyes', name: 'Eyes', group: 'face', options: EYES },
-  { id: 'brows', name: 'Brows', group: 'face', options: BROWS },
-  { id: 'nose', name: 'Nose', group: 'face', options: NOSE },
-  { id: 'mouth', name: 'Mouth', group: 'face', options: MOUTH },
-  { id: 'facialHair', name: 'Facial hair', group: 'hair', options: FACIAL_HAIR },
-  { id: 'hair', name: 'Hair', group: 'hair', options: HAIR },
-  { id: 'marks', name: 'Face marks', group: 'face', options: MARKS },
-  { id: 'top', name: 'Top', group: 'outfit', options: TOP },
-  { id: 'neck', name: 'Neckwear', group: 'extras', options: NECK },
-  { id: 'bottom', name: 'Bottoms', group: 'outfit', options: BOTTOM },
-  { id: 'shoes', name: 'Shoes', group: 'outfit', options: SHOES },
-  { id: 'gloves', name: 'Gloves', group: 'extras', options: GLOVES },
-  { id: 'eyewear', name: 'Eyewear', group: 'extras', options: EYEWEAR },
-  { id: 'headwear', name: 'Headwear', group: 'extras', options: HEADWEAR },
+  C('build', 'Build', 'body', BUILD, ['skin'], 'body'),
+  C('head', 'Head', 'body', HEAD, ['skin'], 'head'),
+  C('ears', 'Ears', 'face', EARS, ['skin'], 'head'),
+  C('eyes', 'Eyes', 'face', EYES, ['eyes'], 'head'),
+  C('brows', 'Brows', 'face', BROWS, ['hair'], 'head'),
+  C('nose', 'Nose', 'face', NOSE, ['skin'], 'head'),
+  C('mouth', 'Mouth', 'face', MOUTH, ['skin'], 'head'),
+  C('facialHair', 'Facial hair', 'hair', FACIAL_HAIR, ['hair'], 'head'),
+  C('hair', 'Hair', 'hair', HAIR, ['hair'], 'head'),
+  C('marks', 'Face marks', 'face', MARKS, ['accessory', 'skin'], 'head'),
+  C('top', 'Top', 'outfit', TOP, ['top', 'trim'], 'body'),
+  C('neck', 'Neckwear', 'extras', NECK, ['accessory'], 'body'),
+  C('bottom', 'Bottoms', 'outfit', BOTTOM, ['bottom'], 'body'),
+  C('shoes', 'Shoes', 'outfit', SHOES, ['shoes'], 'body'),
+  C('gloves', 'Gloves', 'extras', GLOVES, ['accessory'], 'body'),
+  C('eyewear', 'Eyewear', 'extras', EYEWEAR, ['accessory'], 'head'),
+  C('headwear', 'Headwear', 'extras', HEADWEAR, ['accessory'], 'head'),
+];
+
+// The creator's tabs, in order, and the parts under each in the order they are offered. This is
+// display order, free to change - unlike CATEGORIES, whose order is baked into every saved code.
+export const GROUPS = [
+  { id: 'presets', name: 'Presets', parts: [] },
+  { id: 'body', name: 'Body', parts: ['build', 'head'] },
+  { id: 'face', name: 'Face', parts: ['eyes', 'brows', 'mouth', 'nose', 'ears', 'marks'] },
+  { id: 'hair', name: 'Hair', parts: ['hair', 'facialHair'] },
+  { id: 'outfit', name: 'Outfit', parts: ['top', 'bottom', 'shoes'] },
+  { id: 'extras', name: 'Extras', parts: ['headwear', 'eyewear', 'neck', 'gloves'] },
 ];
 
 // Colour slots, each a curated list rather than a free picker: a palette of swatches is what makes a

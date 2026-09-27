@@ -2,7 +2,6 @@
 -- Only opened from a world portal. All choices are server-confirmed room edits.
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Weapons = require(Shared.Data.Weapons)
-local Avatars = require(Shared.Data.Avatars)
 local Stages = require(Shared.Data.Stages)
 local Canvas = require(script.Parent.Canvas2D)
 local Art = require(script.Parent.Weapons2D)
@@ -78,7 +77,7 @@ end
 function RoomPanel.hide(self: any) self.gui.Enabled = false end
 function RoomPanel.openStation(self: any, page: string)
 	if not self.room or self.room.left or self.room.state ~= "setup" then return end
-	if not table.find({ "Maps", "Weapons", "Looks", "Rules", "Players" }, page) then return end
+	if not table.find({ "Maps", "Weapons", "Rules", "Players" }, page) then return end
 	self.page = page
 	self:render()
 	self.gui.Enabled = true
@@ -183,10 +182,6 @@ function RoomPanel.render(self: any)
 			frame.Name, frame.BackgroundTransparency, frame.ClipsDescendants = "WeaponImage", 1, true
 			frame.Size, frame.Parent = UDim2.new(0.32,0,1,0), b
 			table.insert(self.previews, { canvas = Canvas.inFrame(frame), weapon = weapon, frame = frame })
-		end
-	elseif self.page == "Looks" then
-		for _, avatar in Avatars.LIST do
-			button(self.body, avatar.name, function() self:send("avatar", avatar.id) end, self.cfg.slots[1].avatarId == avatar.id)
 		end
 	elseif self.page == "Rules" then
 		-- The battle builder, after Brawlhalla's custom room: a preset sets everything at once, then

@@ -6,9 +6,17 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Net = require(Shared.Net)
 local Hub = require(Shared.Data.Hub)
 local Rooms = require(script.Rooms)
+local AvatarStore = require(script.AvatarStore)
 local MatchService = require(script.MatchService)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
+-- Saved characters. GetDataStore itself can fail (no DataStore service in a local test server);
+-- the store then runs session-only rather than taking the lobby down with it.
+local okStore, dataStore = pcall(function()
+	return game:GetService("DataStoreService"):GetDataStore("BlockfallCharacters1")
+end)
+local avatars = AvatarStore.new(if okStore then dataStore else nil)
+avatars.wait = function(n: number) task.wait(n) end
 local services: any = {}
 local poses: any = {}
 local limits: any = {}
@@ -49,9 +57,22 @@ local function leave(player: Player)
 	if room.state == "playing" then resetRoom(room, "A player left. Fight cancelled; ready up again.")
 	else publish(room) end
 end
+-- Player objects that have left, weakly held: a Hello that yielded on the DataStore must not put a
+-- departed player back into the lobby. By object, not user id, so a rejoin is a fresh start.
+local departed: { [Player]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+local function sendAvatars(player: Player, why: string?)
+	local view = avatars:view(player.UserId)
+	view.error = why
+	Net.remote("AvatarView"):FireClient(player, view)
+end
 Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	if not admitted(player, "hello", 1) then return end
+	-- Their saved character before anything shows them: the hub, the room and the roster all read
+	-- the profile's avatar. load() yields on the DataStore and is cached after the first time.
+	rooms:profile(player.UserId).avatar = avatars:active(player.UserId)
+	if departed[player] then return end      -- left while the DataStore was answering
 	loaded[player.UserId] = player
+	sendAvatars(player)
 	local room = rooms:get(player.UserId)
 	if room and services[room.id] and services[room.id]:rejoin(player) then return end
 	hub(player)
@@ -88,6 +109,15 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		if not ok then warn(`[Blockfall] room launch failed: {err}`); resetRoom(room, "Arena failed to load. Please try again.") end
 	end
 end)
+Net.remote("Avatar").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or not admitted(player, "avatar", 0.15) then return end
+	local ok, why = avatars:apply(player.UserId, msg)
+	if ok then
+		local room = rooms:setAvatar(player, avatars:active(player.UserId))
+		if room then publish(room) end
+	end
+	sendAvatars(player, why)
+end)
 Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any)
 	local room = rooms:get(player.UserId)
 	local service = room and services[room.id]
@@ -109,9 +139,14 @@ Net.remote("HubPose").OnServerEvent:Connect(function(player: Player, pose: any)
 		y = math.clamp(pose.y, 0, 60), facing = if pose.facing == -1 then -1 else 1,
 		moving = pose.moving == true, at = os.clock() }
 end)
-local elapsed = 0
+local elapsed, saveClock = 0, 0
 RunService.Heartbeat:Connect(function(dt: number)
 	elapsed += dt
+	saveClock += dt
+	if saveClock >= 1 then
+		saveClock = 0
+		task.spawn(function() avatars:tick() end)
+	end
 	if elapsed < 0.1 then return end
 	elapsed = 0
 	local groups: any = {}
@@ -139,4 +174,10 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	leave(player)
 	local id = player.UserId
 	loaded[id], poses[id], limits[id], rooms.profiles[id] = nil, nil, nil, nil
+	departed[player] = true
+	avatars:release(id)
+end)
+-- A server shutting down writes every unsaved character first.
+game:BindToClose(function()
+	avatars:flushAll()
 end)

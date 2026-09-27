@@ -78,6 +78,7 @@ lune run tests/match-launch
 lune run tests/rooms
 lune run tests/room-ui
 lune run tests/multiplayer
+lune run tests/avatar-store
 echo "== scene: visible projectiles, items, hazards and backdrops =="
 lune run tests/scene-view
 echo "== parity: the seeded generator vs web/src/engine/rng.js =="
@@ -122,6 +123,7 @@ lune run tests/team-marks
 echo "== character kit: codes and composed parts as the web builds them =="
 lune run tests/kit-parity
 lune run tests/kit-draw
+lune run tests/creator-ui
 lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity

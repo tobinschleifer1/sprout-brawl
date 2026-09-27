@@ -4,12 +4,33 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Hub = require(Shared.Data.Hub)
 local Weapons = require(Shared.Data.Weapons)
 local Loadout = require(Shared.Loadout)
+local AvatarKit = require(Shared.AvatarKit)
 local Stages = require(Shared.Data.Stages)
 local Rules = require(Shared.Data.Rules)
 local Rooms = {}
 Rooms.__index = Rooms
 -- The room settings a preset sets (see Rooms.presetOf).
 local PRESET_KEYS = { "mode", "stocks", "time", "items", "disasters", "mapChoice", "mapSet" }
+
+local BOT_LOOKS = {}
+for _, p in (AvatarKit.KIT :: any).presets do
+	if p.id ~= "rookie" then table.insert(BOT_LOOKS, p.code) end
+end
+
+-- The player's character changed (the creator saved or they switched): it is cosmetic, so unlike
+-- a rules change it un-readies nobody and does not bump the revision - a teammate's ready press
+-- in flight must not fail because someone changed their hat.
+function Rooms.setAvatar(self: any, player: any, code: string): any
+	self:profile(player.UserId).avatar = code
+	local room = self:get(player.UserId)
+	if room and room.state == "setup" then
+		for _, slot in room.slots do
+			if slot.player == player then slot.avatar = code end
+		end
+		return room
+	end
+	return nil
+end
 
 function Rooms.new(): any
 	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {} }, Rooms)
@@ -42,7 +63,9 @@ end
 function Rooms.join(self: any, player: any, format: any): (any, string?)
 	if self:get(player.UserId) then return self:get(player.UserId), nil end
 	local spec = nil
-	for _, entry in Hub.stations do if entry.id == format then spec = entry end end
+	-- Only a fight format opens a room: the concourse also has the wardrobe, and a client naming
+	-- it as a format must not create a room nobody can fight in.
+	for _, entry in Hub.stations do if entry.id == format and entry.kind == "Format" then spec = entry end end
 	if not spec then return nil, "Choose 1v1, 2v2 or 3v3." end
 	-- Fill the fullest waiting room first, lowest id on a tie. Taking the first open slot in
 	-- `pairs` order - which Luau leaves unspecified - could strand people: after a few leaves
@@ -186,7 +209,9 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		if slot.player then return false, "Cannot replace a player with a bot." end
 		if value ~= false and value ~= "easy" and value ~= "normal" and value ~= "hard" then return false, "Unknown difficulty." end
 		slot.bot = value or nil
-		slot.weapon, slot.avatar = "Sword", "Classic"
+		-- A bot wears a ready-made character (by slot, so it is stable), which also shows every
+		-- player what the kit can do before they open the creator.
+		slot.weapon, slot.avatar = "Sword", if value then BOT_LOOKS[(i * 5) % #BOT_LOOKS + 1] else "Classic"
 	else return false, "Unknown room action." end
 	invalidate(room)
 	return true, nil

@@ -183,7 +183,10 @@ local function take(self: any): Frame
 end
 
 -- Called at the end of a frame: anything the draw did not claim is hidden rather than destroyed.
-function Canvas2D.finish(self: any)
+-- `purge` destroys the sprites this frame did not draw straight away instead of after ten seconds:
+-- for a canvas drawn once per change (a creator thumbnail), where anything not drawn now is a
+-- picture that will never come back.
+function Canvas2D.finish(self: any, purge: boolean?)
 	for i = self.used + 1, #self.pool do
 		local f = self.pool[i]
 		if not f.Visible then
@@ -200,7 +203,7 @@ function Canvas2D.finish(self: any)
 		for key, sp in self.sprites do
 			if sp.seen ~= self.frameNo then
 				sp.frame.Visible = false
-				if self.frameNo - sp.seen > 600 then
+				if purge or self.frameNo - sp.seen > 600 then
 					sp.frame:Destroy()
 					self.sprites[key] = nil
 				end

@@ -656,6 +656,8 @@ return {
 					},
 				},
 			},
+			paint = { "skin" },
+			view = "body",
 		},
 		{
 			id = "head",
@@ -875,6 +877,8 @@ return {
 					},
 				},
 			},
+			paint = { "skin" },
+			view = "head",
 		},
 		{
 			id = "ears",
@@ -939,6 +943,8 @@ return {
 					layers = {},
 				},
 			},
+			paint = { "skin" },
+			view = "head",
 		},
 		{
 			id = "eyes",
@@ -1115,6 +1121,8 @@ return {
 					},
 				},
 			},
+			paint = { "eyes" },
+			view = "head",
 		},
 		{
 			id = "brows",
@@ -1244,6 +1252,8 @@ return {
 					},
 				},
 			},
+			paint = { "hair" },
+			view = "head",
 		},
 		{
 			id = "nose",
@@ -1360,6 +1370,8 @@ return {
 					layers = {},
 				},
 			},
+			paint = { "skin" },
+			view = "head",
 		},
 		{
 			id = "mouth",
@@ -1523,6 +1535,8 @@ return {
 					},
 				},
 			},
+			paint = { "skin" },
+			view = "head",
 		},
 		{
 			id = "facialHair",
@@ -1652,6 +1666,8 @@ return {
 					},
 				},
 			},
+			paint = { "hair" },
+			view = "head",
 		},
 		{
 			id = "hair",
@@ -2422,6 +2438,8 @@ return {
 					},
 				},
 			},
+			paint = { "hair" },
+			view = "head",
 		},
 		{
 			id = "marks",
@@ -2525,6 +2543,8 @@ return {
 					},
 				},
 			},
+			paint = { "accessory", "skin" },
+			view = "head",
 		},
 		{
 			id = "top",
@@ -3549,6 +3569,8 @@ return {
 					},
 				},
 			},
+			paint = { "top", "trim" },
+			view = "body",
 		},
 		{
 			id = "neck",
@@ -3662,6 +3684,8 @@ return {
 					},
 				},
 			},
+			paint = { "accessory" },
+			view = "body",
 		},
 		{
 			id = "bottom",
@@ -4051,6 +4075,8 @@ return {
 					},
 				},
 			},
+			paint = { "bottom" },
+			view = "body",
 		},
 		{
 			id = "shoes",
@@ -4190,6 +4216,8 @@ return {
 					},
 				},
 			},
+			paint = { "shoes" },
+			view = "body",
 		},
 		{
 			id = "gloves",
@@ -4267,6 +4295,8 @@ return {
 					},
 				},
 			},
+			paint = { "accessory" },
+			view = "body",
 		},
 		{
 			id = "eyewear",
@@ -4383,6 +4413,8 @@ return {
 					},
 				},
 			},
+			paint = { "accessory" },
+			view = "head",
 		},
 		{
 			id = "headwear",
@@ -4692,6 +4724,8 @@ return {
 					trim = 6,
 				},
 			},
+			paint = { "accessory" },
+			view = "head",
 		},
 	},
 	colours = {
@@ -4918,6 +4952,38 @@ return {
 				"#C4CCD6",
 				"#B0703A",
 			},
+		},
+	},
+	groups = {
+		{
+			id = "presets",
+			name = "Presets",
+			parts = {},
+		},
+		{
+			id = "body",
+			name = "Body",
+			parts = { "build", "head" },
+		},
+		{
+			id = "face",
+			name = "Face",
+			parts = { "eyes", "brows", "mouth", "nose", "ears", "marks" },
+		},
+		{
+			id = "hair",
+			name = "Hair",
+			parts = { "hair", "facialHair" },
+		},
+		{
+			id = "outfit",
+			name = "Outfit",
+			parts = { "top", "bottom", "shoes" },
+		},
+		{
+			id = "extras",
+			name = "Extras",
+			parts = { "headwear", "eyewear", "neck", "gloves" },
 		},
 	},
 	defaults = {

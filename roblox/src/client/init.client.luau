@@ -41,6 +41,8 @@ local Hud = require(script.Hud)
 local Select = require(script.RoomPanel)
 local LaunchState = require(script.LaunchState)
 local Hub2D = require(script.Hub2D)
+local AvatarEditor = require(script.AvatarEditor)
+local UIS = game:GetService("UserInputService")
 
 local FRAME = Config.FRAME
 -- Two snapshots of buffer. Snapshots arrive at 30Hz but not evenly, and drawing the newest one the
@@ -111,6 +113,29 @@ local acceptingSnapshots = false
 local scenes: { any } = {}
 local launch = LaunchState.new()
 local hub = Hub2D.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
+-- The character studio. It owns nothing the server does not confirm: it sends a code and a name,
+-- and the character you wear is whatever the server's AvatarView says.
+local editor = AvatarEditor.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	send = function(msg: any) Net.remote("Avatar"):FireServer(msg) end,
+	weapon = function(): string return if select_ then select_.cfg.slots[1].weaponId else "Sword" end,
+})
+local function openStudio()
+	if hub.active and not hub.room and not (select_ and select_.gui.Enabled) then editor:open() end
+end
+hub.onCharacter = openStudio
+Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
+	editor:setView(view)
+	local worn = view.slots and view.slots[view.active]
+	if worn and select_ then
+		select_.cfg.slots[1].avatarId = worn.code
+		hub:configure(select_.cfg)
+	end
+end)
+UIS.InputBegan:Connect(function(input: InputObject)
+	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	editor:key(input.KeyCode, UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
+		or UIS:IsKeyDown(Enum.KeyCode.LeftMeta) or UIS:IsKeyDown(Enum.KeyCode.RightMeta))
+end)
 
 -- ---------------------------------------------------------------- match setup ----
 -- The server says "pick a match". It also says when it refused one, and why.
@@ -132,7 +157,9 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 		end
 		hub.onInteract = function(station: any)
 			if not select_.gui.Enabled then
-				if station.kind == "Format" then
+				if station.kind == "Wardrobe" then
+					openStudio()
+				elseif station.kind == "Format" then
 					select_:waiting("Joining " .. station.name .. "…")
 					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
 				elseif station.kind == "Exit" then
@@ -169,6 +196,7 @@ end)
 
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	launch:accept(os.clock())
+	editor.gui.Enabled = false             -- a fight starting closes the studio
 	if select_ then
 		select_:waiting("Loading arena and fighters…")
 	end
@@ -367,7 +395,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		Net.remote("Hello"):FireServer()
 	end
 	if hub.active then
-		hub:step(dt, select_ ~= nil and select_.gui.Enabled)
+		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen())
 		poseElapsed += dt
 		if poseElapsed >= 0.1 then
 			poseElapsed = 0
@@ -400,6 +428,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if select_ then select_:drawPreviews() end
 	if hub.active then
 		hub:draw(canvas, dt)
+		editor:draw(os.clock())
 		return
 	end
 	local drawAt = os.clock()

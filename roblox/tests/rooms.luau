@@ -42,6 +42,11 @@ for size, format in { "Duel", "Doubles", "Triples" } do
 	for i = 2, #people do model:leave(people[i]) end
 	assert(not model.rooms[room.id], "empty rooms removed")
 end
+do
+	local m = Rooms.new()
+	local joined, why = m:join(player(50), "Wardrobe")
+	assert(joined == nil and why and next(m.rooms) == nil, "the wardrobe is a station, not a fight: joining it must open no room")
+end
 local model, p = Rooms.new(), player(1)
 local room = model:join(p, "Duel")
 assert(not model:canStart(room), "solo never launches with implicit bots")

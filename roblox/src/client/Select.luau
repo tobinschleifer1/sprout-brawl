@@ -4,7 +4,6 @@
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Stages = require(Shared.Data.Stages)
 local Weapons = require(Shared.Data.Weapons)
-local Avatars = require(Shared.Data.Avatars)
 local MatchConfig = require(Shared.MatchConfig)
 local Bindings = require(script.Parent.Bindings)
 local Select = {}
@@ -229,14 +228,11 @@ function Select.build(self: any)
 		end
 		y += math.ceil(#Stages.LIST/columns)*254
 	elseif self.page=="Loadout" then
-		heading("WEAPON + LOOK","Weapons change your moves and mechanics. Looks change no stats.")
-		local weapons,avatars={},{}
+		-- Your character is made at the concourse's wardrobe, not here: this page is the weapon only.
+		heading("WEAPON","Weapons change your moves and mechanics. Your character is made at the wardrobe.")
+		local weapons={}
 		for _,a in Weapons.LIST do table.insert(weapons,{id=a.id,text=a.name}) end
-		for _,a in Avatars.LIST do table.insert(avatars,{id=a.id,text=a.name}) end
 		choices("Weapon",weapons,function() return self.cfg.slots[1].weaponId end,function(id) self.cfg.slots[1].weaponId=id end,3)
-		label(content,"LooksLabel","YOUR LOOK",0,y,w,30,18,TEAL)
-		y += 38
-		choices("Avatar",avatars,function() return self.cfg.slots[1].avatarId end,function(id) self.cfg.slots[1].avatarId=id end,3)
 	elseif self.page=="Opponents" then
 		heading("BUILD THE ROSTER","Add up to three CPUs. Count, difficulty and weapon are separate choices.")
 		for i=2,4 do

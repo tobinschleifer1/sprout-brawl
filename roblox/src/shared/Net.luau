@@ -60,6 +60,8 @@ if RunService:IsServer() then
 		make("RemoteEvent", "RoomView")
 		make("RemoteEvent", "HubPose")
 		make("RemoteEvent", "HubPresence")
+		make("RemoteEvent", "Avatar")               -- client -> server, save / wear / delete a character
+		make("RemoteEvent", "AvatarView")           -- server -> client, your saved characters
 		folder.Parent = ReplicatedStorage
 	end
 else

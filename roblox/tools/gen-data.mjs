@@ -39,7 +39,7 @@ const KITMOD = await import(`${WEB}/avatarKit.js`);
 const KIT = JSON.parse(JSON.stringify({
   version: KITMOD.KIT_VERSION, codeLength: KITMOD.CODE_LENGTH, outline: KITMOD.OUTLINE,
   parts: KITMOD.KIT_PARTS, roles: KITMOD.KIT_ROLES, fixed: KITMOD.KIT_FIXED,
-  categories: KITMOD.KIT_CATEGORIES, colours: KITMOD.KIT_COLOURS,
+  categories: KITMOD.KIT_CATEGORIES, colours: KITMOD.KIT_COLOURS, groups: KITMOD.KIT_GROUPS,
   defaults: KITMOD.DEFAULT_KIT,
   presets: KITMOD.KIT_PRESETS.map((p) => ({ id: p.id, name: p.name, code: KITMOD.encodeKit(KITMOD.presetKit(p)) })),
 }));

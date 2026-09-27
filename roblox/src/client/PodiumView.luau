@@ -3,11 +3,9 @@
 -- drawn into a ScreenGui. Fighters stand on stepped pillars in finishing order, painted through the
 -- same Fighter2D the match uses in a victory or defeat pose; a card of stats sits on each pillar.
 -- tests/podium-view.luau checks what this puts on screen.
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Fighter = require(ReplicatedStorage.Shared.Fighter)
-local Snapshot = require(ReplicatedStorage.Shared.Snapshot)
 local Canvas2D = require(script.Parent.Canvas2D)
 local Fighter2D = require(script.Parent.Fighter2D)
+local PosedFighter = require(script.Parent.PosedFighter)
 local Podium = require(script.Parent.Podium)
 local HudColors = require(script.Parent.HudColors)
 
@@ -47,20 +45,8 @@ local function text(parent: Instance, x: number, y: number, w: number, h: number
 	return t
 end
 
--- A fighter standing still in `state`, in the shape Fighter2D reads (Snapshot's field names), built
--- from a real Fighter so every field the pose code reads exists - the web does the same with
--- render2d/preview.js posedFighter.
-function PodiumView.posed(char: any, index: number, state: string, sf: number): any
-	local f: any = Fighter.new({ index = index, char = char, x = 0, y = 0, stocks = 1 })
-	f.state, f.sf, f.frameCount, f.onGround = state, sf, sf, true
-	local out: any = {}
-	for _, pair in Snapshot.FIELDS do
-		local name = pair[1]
-		out[name] = f[Snapshot.FROM_FIGHTER[name] or name]
-	end
-	out.index, out.chillStacks = index, 0
-	return out
-end
+-- See PosedFighter: shared with the character studio's preview.
+PodiumView.posed = PosedFighter.posed
 
 -- `res` is MatchService.results: rows in finishing order, winnerTeam, teams. `chars` is indexed
 -- by fighter index + 1, as the client's roster is. `onGG` is what "Say: GG!" does.

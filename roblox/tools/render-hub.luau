@@ -12,7 +12,7 @@ local Loader = require("../tests/loader")
 local Input = Loader.load("Input")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local codes = setmetatable({}, { __index = function(_, key) return key end })
-local shared = setmetatable({ Data = { Hub = "Data/Hub", Stages = "Data/Stages", Weapons = "Data/Weapons" } }, { __index = function(_, key) return key end })
+local shared = setmetatable({ Data = { Hub = "Data/Hub", Stages = "Data/Stages", Weapons = "Data/Weapons", AvatarKit = "Data/AvatarKit" } }, { __index = function(_, key) return key end })
 local labels = {}
 local function instance(): any
 	local obj: any = { attributes = {}, Visible = true }
@@ -36,7 +36,7 @@ local Hub = luau.load(fs.readFile("src/client/Hub2D.luau"), { environment = {
 		if fs.isFile("src/client/" .. name .. ".luau") then return Loader.loadFrom("src/client/", name) end
 		return Loader.load(name)
 	end,
-	Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim2 = Rbx.UDim2,
+	Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim2 = Rbx.UDim2, UDim = Rbx.UDim,
 	Enum = { Font = codes, KeyCode = codes, UserInputType = codes }, Instance = { new = instance },
 }, injectGlobals = true })()
 
@@ -57,11 +57,23 @@ end
 Canvas.circle = function(c: any, x: number, y: number, r: number, colour: any, alpha: number?)
 	Canvas.ellipse(c, x, y, r, r, colour, alpha)
 end
+-- A sprite is its rectangles, recorded one by one in the sprite's transform.
+Canvas.sprite = function(c: any, _key: string, rects: any, x0: number, y1: number, pw: number, ph: number)
+	Canvas.eachSpriteRect(rects, x0, y1, pw, ph, function(x, y, w, h, hex, alpha)
+		Canvas.rect(c, x, y, w, h, Rbx.Color3.fromHex(hex), alpha)
+	end)
+end
 
 local W, H = 1280, 720
 local scene = process.args[2] or "concourse"
 local at = tonumber(process.args[3] or "0") or 0
 local cfg = Loader.load("MatchConfig").default()
+-- Optional 4th/5th arguments: wear this kit code (or preset id) in the render.
+if process.args[6] then
+	local KIT = Loader.load("Data/AvatarKit")
+	for _, p in KIT.presets do if p.id == process.args[6] then cfg.slots[1].avatarId = p.code end end
+	if string.sub(process.args[6], 1, 2) == "k1" then cfg.slots[1].avatarId = process.args[6] end
+end
 local hub = Hub.new({})
 hub:show(cfg)
 if scene ~= "concourse" then

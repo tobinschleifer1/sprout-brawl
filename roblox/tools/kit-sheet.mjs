@@ -60,7 +60,8 @@ let entries = [];
 if (mode === 'presets') entries = KIT_PRESETS.map((p) => [sanitizeKit({ parts: { ...DEFAULT_KIT.parts, ...p.parts }, colours: { ...DEFAULT_KIT.colours, ...p.colours } }), p.name]);
 else if (mode === 'random') {
   let seed = 7;
-  const rnd = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  // High bits: the low bits of this generator cycle with a short period.
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return Math.floor(seed / 65536) % n; };
   const { KIT_COLOURS } = await import('../../web/src/data/avatarKit.js');
   for (let i = 0; i < 24; i++) {
     const parts = {}, colours = {};

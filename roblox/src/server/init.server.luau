@@ -5,6 +5,7 @@ local RunService = game:GetService("RunService")
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Net = require(Shared.Net)
 local Plaza = require(Shared.Plaza)
+local PresenceCodec = require(Shared.PresenceCodec)
 local Rooms = require(script.Rooms)
 local AvatarStore = require(script.AvatarStore)
 local Cabinets = require(script.Cabinets)
@@ -77,6 +78,8 @@ end
 -- Player objects that have left, weakly held: a Hello that yielded on the DataStore must not put a
 -- departed player back into the lobby. By object, not user id, so a rejoin is a fresh start.
 local departed: { [Player]: boolean } = setmetatable({}, { __mode = "k" }) :: any
+-- The lobby roster each player was last sent (PresenceCodec.signature): it goes again only on change.
+local presenceSig: { [number]: string } = {}
 local function sendAvatars(player: Player, why: string?)
 	local view = avatars:view(player.UserId)
 	view.error = why
@@ -89,6 +92,7 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	rooms:profile(player.UserId).avatar = avatars:active(player.UserId)
 	if departed[player] then return end      -- left while the DataStore was answering
 	loaded[player.UserId] = player
+	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
 	sendAvatars(player)
 	local climbView = climbs:view(player.UserId)
 	Net.remote("ClimbView"):FireClient(player, climbView)
@@ -407,17 +411,29 @@ RunService.Heartbeat:Connect(function(dt: number)
 			if not busy then table.insert(groups[area], entry) end
 		end
 	end
+	-- Positions as a buffer; who is who only when that changed for this player (PresenceCodec).
+	local packed: any = {}
+	for area, list in groups do
+		packed[area] = { buf = PresenceCodec.encode(area, list), sig = PresenceCodec.signature(list), list = list }
+	end
 	for id, player in loaded do
 		local room = rooms:get(id)
 		if not room or room.state ~= "playing" then
-			Net.remote("HubPresence"):FireClient(player, groups[if room then room.id else 0] or {})
+			local area = if room then room.id else 0
+			local p = packed[area] or { buf = PresenceCodec.encode(area, {}), sig = "", list = {} }
+			local roster = nil
+			if presenceSig[id] ~= p.sig then
+				presenceSig[id] = p.sig
+				roster = PresenceCodec.roster(p.list)
+			end
+			Net.remote("HubPresence"):FireClient(player, p.buf, roster)
 		end
 	end
 end)
 Players.PlayerRemoving:Connect(function(player: Player)
 	leave(player)
 	local id = player.UserId
-	loaded[id], poses[id], limits[id], rooms.profiles[id] = nil, nil, nil, nil
+	loaded[id], poses[id], limits[id], rooms.profiles[id], presenceSig[id] = nil, nil, nil, nil, nil
 	departed[player] = true
 	climbs:leave(player.UserId)
 	local cab = arcade:leave(player)

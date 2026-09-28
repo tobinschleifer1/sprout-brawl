@@ -16,10 +16,26 @@ end
 local players: any = { PlayerRemoving = signal() }
 local run: any = { Heartbeat = signal(), PostSimulation = signal() }
 local remotes, messages = {}, {}
+-- Lobby presence arrives as a position buffer plus, only when it changed, a roster. Each player
+-- keeps the last roster they were sent, as the client does, and the message is recorded decoded -
+-- so every presence check below reads what a client would draw. `rosterSent` counts rosters.
+local PresenceCodec = Loader.load("PresenceCodec")
+local rosters, rosterSent, presenceBytes = {}, {}, {}
 local function remote(name: string): any
 	if not remotes[name] then
 		remotes[name] = { OnServerEvent = signal(), FireAllClients = function() error("cross-room broadcast forbidden") end,
-			FireClient = function(_, player, data) table.insert(messages, { name=name, player=player, data=data }) end }
+			FireClient = function(_, player, data, extra)
+				if name == "HubPresence" then
+					assert(typeof(data) == "buffer", "presence positions travel as a buffer")
+					if extra then
+						rosters[player] = PresenceCodec.index(extra)
+						rosterSent[player.UserId] = (rosterSent[player.UserId] or 0) + 1
+					end
+					presenceBytes[player.UserId] = buffer.len(data)
+					data = PresenceCodec.decode(data, rosters[player] or {})
+				end
+				table.insert(messages, { name=name, player=player, data=data })
+			end }
 	end
 	return remotes[name]
 end
@@ -87,6 +103,17 @@ run.Heartbeat:Fire(0.1)
 local worn = nil
 for _, peer in last(1,"HubPresence") do if peer.userId==9 then worn = peer.avatar end end
 assert(worn==KNIGHT, "everyone in the concourse sees the character a player put on")
+-- The roster goes only when it changes: another tick with nobody changing sends positions alone.
+local sentBefore = rosterSent[1]
+run.Heartbeat:Fire(0.1)
+assert(rosterSent[1] == sentBefore and #last(1,"HubPresence") == 9, "an unchanged lobby re-sends positions, not who everyone is")
+assert(presenceBytes[1] == 10 + 9 * PresenceCodec.ENTRY, `nine people's positions are {10 + 9 * PresenceCodec.ENTRY} bytes, sent {presenceBytes[1]}`)
+-- A client that loads again (Hello) has no roster: it is sent one on the next tick, without anyone
+-- else in the lobby changing. The reload is a second later, past Hello's rate limit.
+now += 1.1
+send(1,"Hello")
+run.Heartbeat:Fire(0.1)
+assert(rosterSent[1] == sentBefore + 1 and #last(1,"HubPresence") == 9, "a reloaded client is sent the roster again")
 send(9,"Avatar",{action="save",slot=1,code="k1<script>",name="x"})
 send(9,"Avatar",{action="save",slot=7,code=KNIGHT})
 send(9,"Avatar",{action="wear",slot=0})

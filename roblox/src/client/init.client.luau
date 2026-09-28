@@ -46,6 +46,7 @@ local LobbySocial = require(script.LobbySocial)
 local ParkourView = require(script.ParkourView)
 local ClimbRecords = require(script.ClimbRecords)
 local Plaza = require(Shared.Plaza)
+local PresenceCodec = require(Shared.PresenceCodec)
 local UIS = game:GetService("UserInputService")
 
 local FRAME = Config.FRAME
@@ -284,8 +285,11 @@ Net.remote("RoomView").OnClientEvent:Connect(function(view: any)
 	hub:configure(select_.cfg)
 	hub:setRoom(view)
 end)
-Net.remote("HubPresence").OnClientEvent:Connect(function(peers: any)
-	hub:setPeers(peers, Players.LocalPlayer.UserId)
+-- Who is where in the lobby: positions every tenth of a second, who they are only when it changes.
+local presenceRoster: { [number]: any } = {}
+Net.remote("HubPresence").OnClientEvent:Connect(function(positions: any, roster: any)
+	if roster then presenceRoster = PresenceCodec.index(roster) end
+	hub:setPeers(PresenceCodec.decode(positions, presenceRoster), Players.LocalPlayer.UserId)
 end)
 
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)

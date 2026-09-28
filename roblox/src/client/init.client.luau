@@ -47,6 +47,7 @@ local ParkourView = require(script.ParkourView)
 local ClimbRecords = require(script.ClimbRecords)
 local Plaza = require(Shared.Plaza)
 local PresenceCodec = require(Shared.PresenceCodec)
+local SnapshotCodec = require(Shared.SnapshotCodec)
 local UIS = game:GetService("UserInputService")
 
 local FRAME = Config.FRAME
@@ -67,6 +68,9 @@ local roster: { any } = {}
 local chars: { any } = {}
 local stageView: any = nil
 local buffer: { any } = {}        -- snapshots, oldest first, each tagged with arrival time
+-- The last snapshot received: what the server's next delta is made against (SnapshotCodec). Nil
+-- until a keyframe arrives; a new match description clears it.
+local snapBase: any = nil
 local pendingFrames: { number } = {}
 -- Posing errors are reported once per fighter. Reported every frame, a single broken rig produces
 -- sixty lines a second and buries whatever else the console had to say.
@@ -300,6 +304,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 		select_:waiting("Loading arena and fighters…")
 	end
 	canvas:clear()
+	snapBase = nil
 	acceptingSnapshots = true
 	pendingFrames = {}
 	input:reset()
@@ -359,7 +364,12 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 		.. (if predictor then " (predicting)" else ""))
 end)
 
-Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
+Net.remote("Snapshot").OnClientEvent:Connect(function(packed: any)
+	local snap = SnapshotCodec.decode(packed, snapBase)
+	if not snap then
+		return            -- a delta we have no base for: the next keyframe is at most a second away
+	end
+	snapBase = snap
 	if not acceptingSnapshots or not matchCfg or snap.id ~= matchCfg.id then
 		return
 	end

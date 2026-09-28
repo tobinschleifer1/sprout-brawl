@@ -87,6 +87,7 @@ lune run tests/climb-boards
 lune run tests/room-ui
 lune run tests/multiplayer
 lune run tests/presence-codec
+lune run tests/snapshot-codec
 lune run tests/avatar-store
 echo "== scene: visible projectiles, items, hazards and backdrops =="
 lune run tests/scene-view

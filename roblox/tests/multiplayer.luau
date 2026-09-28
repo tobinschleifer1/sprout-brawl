@@ -21,10 +21,17 @@ local remotes, messages = {}, {}
 -- so every presence check below reads what a client would draw. `rosterSent` counts rosters.
 local PresenceCodec = Loader.load("PresenceCodec")
 local rosters, rosterSent, presenceBytes = {}, {}, {}
+-- Fight snapshots arrive as keyframes and deltas (SnapshotCodec): each player decodes against the
+-- last one they received, as the client does, and anything they could not decode is counted.
+local SnapshotCodec = Loader.load("SnapshotCodec")
+local snapBases, snapDropped, keyframes = {}, {}, {}
 local function remote(name: string): any
 	if not remotes[name] then
 		remotes[name] = { OnServerEvent = signal(), FireAllClients = function() error("cross-room broadcast forbidden") end,
 			FireClient = function(_, player, data, extra)
+				if name == "Match" then
+					snapBases[player] = nil          -- the client starts over on a match description
+				end
 				if name == "HubPresence" then
 					assert(typeof(data) == "buffer", "presence positions travel as a buffer")
 					if extra then
@@ -33,6 +40,16 @@ local function remote(name: string): any
 					end
 					presenceBytes[player.UserId] = buffer.len(data)
 					data = PresenceCodec.decode(data, rosters[player] or {})
+				elseif name == "Snapshot" then
+					assert(typeof(data) == "buffer", "snapshots travel as a buffer")
+					if SnapshotCodec.isKeyframe(data) then keyframes[player.UserId] = (keyframes[player.UserId] or 0) + 1 end
+					local decoded = SnapshotCodec.decode(data, snapBases[player])
+					if not decoded then
+						snapDropped[player.UserId] = (snapDropped[player.UserId] or 0) + 1
+						return
+					end
+					snapBases[player] = decoded
+					data = decoded
 				end
 				table.insert(messages, { name=name, player=player, data=data })
 			end }
@@ -205,8 +222,19 @@ for id=1,8 do
 		end
 	end
 	assert(count==150, "complete 30Hz snapshots for every participant")
+	assert(not snapDropped[id], `player {id} could not decode {snapDropped[id]} snapshots`)
+	-- Mostly deltas: a keyframe at the start and one a second, 300 frames here.
+	assert(keyframes[id] and keyframes[id] >= 5 and keyframes[id] <= 7, `player {id}: {keyframes[id]} keyframes in five seconds`)
 end
 assert(not last(9,"Snapshot") and not last(9,"Events") and not last(9,"Scene"))
+-- A fighter whose client reloads mid-fight (Hello again) is sent the match and starts over with no
+-- base: the next snapshot has to be a keyframe for them. 20 frames in, far from a periodic one.
+for _=1,20 do now+=1/60; run.PostSimulation:Fire(1/60) end
+now += 1.1
+send(5,"Hello")
+local keysBefore = keyframes[5]
+now+=1/30; run.PostSimulation:Fire(1/30)
+assert(keyframes[5] == keysBefore + 1 and not snapDropped[5], "a rejoined fighter gets a keyframe next, and decodes it")
 local six=instances[1]
 local before=six.input:consumedBy("p1")
 send(9,"Input",{0},six.generation,0)
@@ -296,8 +324,12 @@ do
 	assert(#last(10,"Match").fighters == 2 and last(11,"Match").id == last(10,"Match").id and not last(12,"Match"), "the two at the cabinet fight; nobody else is pulled in")
 	-- Watching.
 	now += 1
+	for _ = 1, 30 do run.PostSimulation:Fire(1/60) end   -- into the fight, between periodic keyframes
 	send(12,"CabinetAction",{action="watch",cabinet=1})
 	assert(last(12,"Match") and last(12,"Match").id == last(10,"Match").id, "a spectator is sent the fight")
+	-- Joining mid-fight, they have no base for a delta: the next snapshot is a keyframe for them.
+	now += 1/30; run.PostSimulation:Fire(1/30)
+	assert(last(12,"Snapshot") and not snapDropped[12], "a spectator decodes the fight from their first snapshot")
 	service:removeViewer(people[10])
 	assert(table.find(service.audience, people[10]), "removing a viewer never drops one of the fighters")
 	run.Heartbeat:Fire(0.1)
@@ -360,5 +392,19 @@ do
 	local back = false
 	for _, peer in last(9,"HubPresence") or {} do if peer.userId == 12 then back = true end end
 	assert(back, "leaving the climb puts you back on the floor")
+end
+-- One service, two matches in a row (a rematch on the same machine): the second match's first
+-- snapshot is a keyframe, never a delta against the first match's last one.
+do
+	local viewer = { UserId = 90, Name = "V", DisplayName = "V" }
+	local svc = service.new({ viewer }, 500)
+	local bots = { { avatar = "Classic", weapon = "Sword" }, { avatar = "Classic", weapon = "Axe" } }
+	svc:start(bots, { stage = "FoundryFloor" })
+	for _ = 1, 20 do svc:tick(1/60) end
+	svc:start(bots, { stage = "FoundryFloor" })
+	local k = keyframes[90] or 0
+	svc:tick(1/30)
+	assert(keyframes[90] == k + 1 and not snapDropped[90], "a new match on the same service starts with a keyframe")
+	svc:stop()
 end
 print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight, and arcade fights: countdown, spectators, winner stays, vs CPU, leavers")

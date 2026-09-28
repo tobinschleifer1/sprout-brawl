@@ -30,6 +30,7 @@ local Service = luau.load(fs.readFile("src/server/MatchService.luau"), { environ
 		return Loader.load(name)
 	end,
 }, injectGlobals = true })()
+local SnapshotCodec = Loader.load("SnapshotCodec")
 local player = { UserId = 17, Name = "LaunchTest", DisplayName = "LaunchTest" }
 local outsider = { UserId = 99 }
 local service = Service.new()
@@ -47,9 +48,16 @@ for _, stage in Loader.load("Data/Stages").LIST do
 		assert(messages.Match[1].stage == stage.id)
 		for _ = 1, 300 do service:tick(1/60) end
 		assert(#messages.Snapshot == 150, "snapshot cadence must be exactly 30Hz, independent of roster size")
-		for _, snap in messages.Snapshot do
+		-- Decoded in order, as a client does (keyframes and deltas, SnapshotCodec): every one decodes
+		-- to a complete state of the current match, the first needing no base.
+		local base = nil
+		for n, packed in messages.Snapshot do
+			local snap = SnapshotCodec.decode(packed, base)
+			assert(snap, `snapshot {n} could not be decoded from the one before it`)
 			assert(#snap.fighters == count and snap.id == service.generation, "every packet must be a complete current-match state")
+			base = snap
 		end
+		assert(SnapshotCodec.isKeyframe(messages.Snapshot[1]), "a match starts with a keyframe")
 		assert(#messages.Scene == 150, "world state stays at 30Hz")
 		assert(#messages.Events > 0, "countdown events are never suppressed by snapshot throttling")
 		local match = service.match

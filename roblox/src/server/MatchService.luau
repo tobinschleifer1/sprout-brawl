@@ -21,6 +21,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
 local SceneSnapshot = require(Shared.SceneSnapshot)
+local SnapshotCodec = require(Shared.SnapshotCodec)
 local Stage = require(Shared.Stage)
 local RemoteInput = require(script.Parent.RemoteInput)
 
@@ -120,6 +121,9 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 	self.finished = false
 	self.sceneFrame = -2
 	self.snapshotFrame = -2
+	-- A new match's first snapshot is a keyframe: the last one sent (self.lastSnap, the base of the
+	-- next delta - SnapshotCodec) belonged to the match before.
+	self.keyframeAt = -math.huge
 	self.conn = RunService.PostSimulation:Connect(function(dt: number)
 		self:tick(dt)
 	end)
@@ -150,6 +154,7 @@ function MatchService.rejoin(self: any, player: Player): boolean
 	cfg.inputEpoch = self.inputEpochs[player.UserId]
 	Net.remote("Match"):FireClient(player, cfg)
 	if self.finished then Net.remote("Results"):FireClient(player, self:results()) end
+	self.keyframeDue = true          -- a rejoined client has no base for a delta
 	return true
 end
 
@@ -160,6 +165,7 @@ function MatchService.addViewer(self: any, player: Player): boolean
 	if table.find(self.audience, player) then return true end
 	table.insert(self.audience, player)
 	Net.remote("Match"):FireClient(player, self:description())
+	self.keyframeDue = true          -- nor has a new viewer
 	return true
 end
 
@@ -283,7 +289,7 @@ function MatchService.broadcast(self: any)
 		for i, f in m.fighters do
 			fighters[i] = Snapshot.encode(f)
 		end
-		self:send("Snapshot", {
+		local snap = {
 			id = self.generation,
 			frame = m.frame, state = m.state, time = m.time,
 			countdown = m.countdown, fighters = fighters,
@@ -291,7 +297,15 @@ function MatchService.broadcast(self: any)
 			-- Count consumed frames per human. A sparse table keyed by index would not survive
 			-- transport intact, so acknowledgements remain a list.
 			acks = self:acks(),
-		})
+		}
+		-- Only what changed since the last snapshot, except for a keyframe: the first, one a second,
+		-- and the next after anyone joins the audience late (SnapshotCodec).
+		local keyframe = self.lastSnap == nil or self.keyframeDue or m.frame - self.keyframeAt >= SnapshotCodec.KEYFRAME_EVERY
+		self:send("Snapshot", SnapshotCodec.encode(snap, if keyframe then nil else self.lastSnap))
+		if keyframe then
+			self.keyframeAt, self.keyframeDue = m.frame, false
+		end
+		self.lastSnap = snap
 	end
 	if #m.events > 0 then
 		-- With the frame they happened on: snapshots go out at 30Hz, so a client stamping an event

@@ -57,6 +57,20 @@ hub:show(cfg)
 local opened: { any } = {}
 hub.onInteract = function(st) table.insert(opened, st) end
 
+-- 0. Nobody in the lobby blinks: a posed character is fully opaque on every frame. (A fresh Fighter
+--    carries spawn invincibility, drawn as a 10Hz blink; the lobby poses a fresh one each frame.)
+do
+	local Posed = Loader.loadFrom("src/client/", "PosedFighter")
+	local Channels = Loader.loadFrom("src/client/", "Channels")
+	local char = Loader.load("Loadout").build(KIT.presets[2].code, "Sword")
+	for _, state in { "idle", "run", "air", "victory" } do
+		for sf = 0, 30 do
+			local ch = Channels.For(Posed.posed(char, 0, state, sf), char, nil, sf / 60)
+			assert(ch.visible and ch.opacity == 1, `{state} frame {sf}: opacity {ch.opacity} - the lobby would flicker`)
+		end
+	end
+end
+
 -- 1. Walking: arrows move you along the street and into the depth; nothing happens at spawn.
 hub:step(1/60, false)
 hub:interact()

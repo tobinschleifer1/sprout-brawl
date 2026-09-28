@@ -11,6 +11,10 @@ local PosedFighter = {}
 function PosedFighter.posed(char: any, index: number, state: string, sf: number): any
 	local f: any = Fighter.new({ index = index, char = char, x = 0, y = 0, stocks = 1 })
 	f.state, f.sf, f.frameCount, f.onGround = state, sf, sf, true
+	-- A new Fighter has just "respawned" and carries spawn invincibility, which the pose code draws
+	-- as a blink - 55% opacity three frames in six. Posed afresh every frame, every lobby character
+	-- and podium winner flickered at 10Hz, re-tinting every rectangle of its sprites each time.
+	f.invincible = 0
 	local out: any = {}
 	for _, pair in Snapshot.FIELDS do
 		local name = pair[1]

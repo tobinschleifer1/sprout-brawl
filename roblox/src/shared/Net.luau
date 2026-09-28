@@ -65,6 +65,8 @@ if RunService:IsServer() then
 		make("RemoteEvent", "Social")               -- client -> server, a stamp or a quick message
 		make("RemoteEvent", "SocialEvent")          -- server -> client, someone near you stamped or spoke
 		make("RemoteEvent", "Members")              -- both ways: "who is here?" and the answer
+		make("RemoteEvent", "CabinetAction")        -- client -> server, sit / stand / vs CPU / watch
+		make("RemoteEvent", "Cabinets")             -- server -> client, the arcade's seats and streaks
 		folder.Parent = ReplicatedStorage
 	end
 else

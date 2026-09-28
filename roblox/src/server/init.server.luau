@@ -7,9 +7,14 @@ local Net = require(Shared.Net)
 local Plaza = require(Shared.Plaza)
 local Rooms = require(script.Rooms)
 local AvatarStore = require(script.AvatarStore)
+local Cabinets = require(script.Cabinets)
+local PLAZA = Plaza.DATA
+local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
 local MatchService = require(script.MatchService)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
+local arcade = Cabinets.new()
+local cabinetServices: { [number]: any } = {}
 -- Saved characters. GetDataStore itself can fail (no DataStore service in a local test server);
 -- the store then runs session-only rather than taking the lobby down with it.
 local okStore, dataStore = pcall(function()
@@ -75,6 +80,8 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	sendAvatars(player)
 	local room = rooms:get(player.UserId)
 	if room and services[room.id] and services[room.id]:rejoin(player) then return end
+	local seat = arcade.seatOf[player.UserId]
+	if seat and cabinetServices[seat.n] and cabinetServices[seat.n]:rejoin(player) then return end
 	hub(player)
 	if room then publish(room) end
 end)
@@ -82,7 +89,9 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 	if not loaded[player.UserId] or type(msg) ~= "table" or not admitted(player, "room", 0.08) then return end
 	if msg.action == "leave" then leave(player); hub(player); Net.remote("RoomView"):FireClient(player, { left = true }); return end
 	local room, why
-	if msg.action == "join" then room, why = rooms:join(player, msg.format)
+	if msg.action == "join" and arcade.seatOf[player.UserId] then
+		room, why = nil, "Get up from the cabinet first."
+	elseif msg.action == "join" then room, why = rooms:join(player, msg.format)
 	else
 		room = rooms:get(player.UserId)
 		local ok
@@ -120,7 +129,8 @@ Net.remote("Avatar").OnServerEvent:Connect(function(player: Player, msg: any)
 end)
 Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any)
 	local room = rooms:get(player.UserId)
-	local service = room and services[room.id]
+	local seat = arcade.seatOf[player.UserId]
+	local service = (room and services[room.id]) or (seat and cabinetServices[seat.n])
 	if service then service:receiveInput(player, packed, matchId, epoch) end
 end)
 Net.remote("Setup").OnServerEvent:Connect(function(player: Player)
@@ -129,6 +139,97 @@ end)
 local function finite(value: any): boolean
 	return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
+-- ---------------------------------------------------------------- the arcade ----
+-- Cabinet fights: winner stays. Cabinets.luau decides; this turns its decisions into matches.
+local function publishCabinets()
+	local views = arcade:views(os.clock())
+	for id, player in loaded do
+		local room = rooms:get(id)
+		if not room then Net.remote("Cabinets"):FireClient(player, views) end
+	end
+end
+local startCabinet
+local function endCabinet(n: number, winner: number?)
+	local service = cabinetServices[n]
+	cabinetServices[n] = nil
+	local audience: { any } = if service and service.audience then table.clone(service.audience) else {}
+	if service then service:stop() end
+	arcade:finish(n, winner)
+	for _, p in audience do if loaded[p.UserId] then hub(p) end end
+	publishCabinets()
+end
+startCabinet = function(cab: any)
+	local seats = {}
+	for _, side in Cabinets.SIDES do if cab.seats[side] then table.insert(seats, cab.seats[side].player) end end
+	local roster = {}
+	for i, p in seats do
+		local prof = rooms:profile(p.UserId)
+		table.insert(roster, { player = p, avatar = prof.avatar, weapon = prof.weapon, team = i - 1 })
+	end
+	if cab.cpu then
+		local look = PLAZA_KIT.presets[(cab.number * 3) % #PLAZA_KIT.presets + 1].code
+		table.insert(roster, { avatar = look, weapon = "Sword", team = 1, botLevel = "normal" })
+	end
+	generation += 1
+	local service = MatchService.new(table.clone(seats), generation * 1000)
+	cabinetServices[cab.number] = service
+	service.onFinished = function(_: any, match: any)
+		task.wait(6)
+		if cabinetServices[cab.number] ~= service or service.match ~= match then return end
+		local res = service:results()
+		local winner = nil
+		local first = res.rows and res.rows[1]
+		if first then
+			for _, entry in service:roster() do
+				if entry.index == first.index then winner = entry.userId end
+			end
+		end
+		endCabinet(cab.number, winner)
+	end
+	local pool = Rooms.mapPool("ranked")
+	local ok, err = pcall(function()
+		service:start(roster, { mode = "StockFFA", stocks = 3, stage = pool[math.random(1, #pool)] })
+	end)
+	if not ok then
+		warn(`[Blockfall] cabinet {cab.number} failed to start: {err}`)
+		cabinetServices[cab.number] = nil
+		for _, p in arcade:cancel(cab.number) do hub(p, "The cabinet failed to start. Please sit down again.") end
+	end
+	publishCabinets()
+end
+Net.remote("CabinetAction").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or type(msg) ~= "table" or not admitted(player, "cabinet", 0.2) then return end
+	if rooms:get(player.UserId) then return end
+	local action = msg.action
+	if action == "sit" then
+		local ok, why = arcade:sit(player, msg.cabinet, msg.side, os.clock())
+		if not ok then
+			Net.remote("Cabinets"):FireClient(player, arcade:views(os.clock()), why)
+			return
+		end
+	elseif action == "stand" then
+		arcade:stand(player)
+	elseif action == "cpu" then
+		local cab = arcade:vsCpu(player)
+		if cab then
+			startCabinet(cab)
+			return
+		end
+	elseif action == "watch" then
+		local n = msg.cabinet
+		if arcade:watch(player, n) and cabinetServices[n] then
+			if not cabinetServices[n]:addViewer(player) then arcade:stopWatching(player) end
+		end
+	elseif action == "unwatch" then
+		local n = arcade:stopWatching(player)
+		if n and cabinetServices[n] then cabinetServices[n]:removeViewer(player) end
+		hub(player)
+	else
+		return
+	end
+	publishCabinets()
+end)
+
 -- Where a player says they are standing. Cosmetic - nothing is decided by it - but everyone else
 -- draws it, so it has to be somewhere a player could be: on the floor of the scene they are in
 -- (Plaza.walkable, the same test their own walking uses). A position off the floor is ignored and
@@ -148,7 +249,6 @@ end)
 -- sends this way is free text and nothing needs filtering; the server checks the index, limits the
 -- rate, and passes it to the people in the same place - the market, or one room - and no one else.
 -- Nobody hears the lobby from inside a fight.
-local PLAZA = Plaza.DATA
 local STAMP_IDS: { [string]: boolean } = {}
 for _, st in PLAZA.stamps do STAMP_IDS[st.id] = true end
 local function areaOf(id: number): number?
@@ -200,16 +300,22 @@ Net.remote("Members").OnServerEvent:Connect(function(player: Player)
 	table.sort(list, function(a, b) return a.name < b.name end)
 	Net.remote("Members"):FireClient(player, list)
 end)
-local elapsed, saveClock = 0, 0
+local elapsed, saveClock, cabinetClock = 0, 0, 0
 RunService.Heartbeat:Connect(function(dt: number)
 	elapsed += dt
 	saveClock += dt
+	for _, cab in arcade:due(os.clock()) do startCabinet(cab) end
 	if saveClock >= 1 then
 		saveClock = 0
 		task.spawn(function() avatars:tick() end)
 	end
 	if elapsed < 0.1 then return end
 	elapsed = 0
+	cabinetClock += 0.1
+	if cabinetClock >= 0.5 then
+		cabinetClock = 0
+		publishCabinets()
+	end
 	local groups: any = {}
 	for id, player in loaded do
 		local room, pose = rooms:get(id), poses[id]
@@ -219,9 +325,21 @@ RunService.Heartbeat:Connect(function(dt: number)
 			if pose and pose.area ~= area then pose = nil end
 			groups[area] = groups[area] or {}
 			local p = rooms:profile(id)
-			table.insert(groups[area], { area = area, userId = id, name = player.DisplayName, avatar = p.avatar, weapon = p.weapon,
+			local entry = { area = area, userId = id, name = player.DisplayName, avatar = p.avatar, weapon = p.weapon,
 				x = if pose then pose.x else scene.spawn.x, z = if pose then pose.z else scene.spawn.z, y = if pose then pose.y else 0,
-				facing = if pose then pose.facing else 1, moving = pose ~= nil and pose.moving and os.clock() - pose.at < 0.3 })
+				facing = if pose then pose.facing else 1, moving = pose ~= nil and pose.moving and os.clock() - pose.at < 0.3 }
+			-- Seated at a cabinet: at the seat, facing the machine, whatever the client last said.
+			local seat = arcade.seatOf[id]
+			if seat and area == 0 then
+				for _, st in PLAZA.market.stations do
+					if st.kind == "Cabinet" and st.cabinet == seat.n and st.id == `Cab{seat.n}{seat.side}` then
+						entry.x, entry.z, entry.y, entry.facing, entry.moving = st.x, st.z, 0, st.facing, false
+					end
+				end
+			end
+			-- Mid cabinet-fight or watching one: not on the floor.
+			local busy = (seat and cabinetServices[seat.n]) or arcade.watching[id]
+			if not busy then table.insert(groups[area], entry) end
 		end
 	end
 	for id, player in loaded do
@@ -236,6 +354,18 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	local id = player.UserId
 	loaded[id], poses[id], limits[id], rooms.profiles[id] = nil, nil, nil, nil
 	departed[player] = true
+	local cab = arcade:leave(player)
+	if cab then
+		local service = cabinetServices[cab.number]
+		cabinetServices[cab.number] = nil
+		local audience: { any } = if service and service.audience then table.clone(service.audience) else {}
+		if service then service:stop() end
+		arcade:cancel(cab.number)
+		for _, p in audience do
+			if p ~= player and loaded[p.UserId] then hub(p, "Your opponent left. The fight was called off.") end
+		end
+	end
+	publishCabinets()
 	avatars:release(id)
 end)
 -- A server shutting down writes every unsaved character first.

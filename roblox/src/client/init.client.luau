@@ -146,6 +146,22 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 })
 hub.social, hub.localId = social, Players.LocalPlayer.UserId
 Net.remote("SocialEvent").OnClientEvent:Connect(function(ev: any) social:onEvent(ev) end)
+-- The arcade: sit, stand, vs CPU, watch. The server decides; the lobby draws what it says.
+hub.onCabinet = function(intent: any) Net.remote("CabinetAction"):FireServer(intent) end
+Net.remote("Cabinets").OnClientEvent:Connect(function(views: any, why: string?)
+	hub:setCabinets(views, Players.LocalPlayer.UserId)
+	if why then social:addLog(why, Color3.fromRGB(255, 181, 71)) end
+end)
+-- Watching a cabinet fight: the match plays with no fighter of our own; this is the way out.
+local watchGui = Instance.new("ScreenGui")
+watchGui.Name, watchGui.ResetOnSpawn, watchGui.DisplayOrder, watchGui.Enabled = "BlockfallWatching", false, 14, false
+watchGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+local stopWatching = Instance.new("TextButton")
+stopWatching.Name, stopWatching.Text, stopWatching.Font, stopWatching.TextSize = "StopWatching", "STOP WATCHING", Enum.Font.GothamBold, 15
+stopWatching.AnchorPoint, stopWatching.Position, stopWatching.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 12), UDim2.fromOffset(170, 38)
+stopWatching.BackgroundColor3, stopWatching.TextColor3, stopWatching.BorderSizePixel = Color3.fromRGB(28, 24, 44), Color3.fromRGB(255, 79, 163), 0
+stopWatching.Parent = watchGui
+stopWatching.Activated:Connect(function() Net.remote("CabinetAction"):FireServer({ action = "unwatch" }) end)
 Net.remote("Members").OnClientEvent:Connect(function(list: any) social:setMembers(list) end)
 Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 	editor:setView(view)
@@ -167,6 +183,7 @@ end)
 -- ---------------------------------------------------------------- match setup ----
 -- The server says "pick a match". It also says when it refused one, and why.
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
+	watchGui.Enabled = false
 	acceptingSnapshots = false
 	predictor = nil
 	launch:reset()
@@ -190,10 +207,6 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 					social:toggle("People")
 				elseif station.kind == "Warp" then
 					social:toggle("Map")
-				elseif station.kind == "Cabinet" then
-					-- Until the cabinets run their own fights, a seat is the way into a 1v1 room.
-					select_:waiting("Joining a 1v1…")
-					Net.remote("RoomAction"):FireServer({ action = "join", format = "Duel" })
 				elseif station.kind == "Format" then
 					select_:waiting("Joining " .. station.name .. "…")
 					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
@@ -257,6 +270,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 			localIndex = entry.index
 		end
 	end
+	watchGui.Enabled = localIndex == nil      -- no fighter of ours: we are watching
 	for _, data in Stages.LIST do
 		if data.id == cfg.stage then
 			-- A view-only Stage, built from the same data and seed as the server's, and never

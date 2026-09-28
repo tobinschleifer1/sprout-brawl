@@ -18,7 +18,7 @@ WeaponArt.draw = function(c, id, ...)
 end
 local codes = setmetatable({}, { __index = function(_, key) return key end })
 local shared = setmetatable({ Data = setmetatable({}, { __index = function(_, k) return "Data/" .. k end }) }, { __index = function(_, key) return key end })
-local eDown, focused = false, false
+local eDown, focused, cDown = false, false, false
 local function instance(): any
 	local obj: any = { attributes = {}, Visible = true, TextTransparency = 0 }
 	obj.Destroy = function() obj.destroyed = true end
@@ -30,7 +30,7 @@ local Plaza2D = luau.load(fs.readFile("src/client/Plaza2D.luau"), { environment 
 	game = { GetService = function(_, name)
 		if name == "ReplicatedStorage" then return { Shared = shared } end
 		return { GetFocusedTextBox = function() return focused end,
-			IsKeyDown = function(_, key) return eDown and key == "E" end,
+			IsKeyDown = function(_, key) return (eDown and key == "E") or (cDown and key == "C") end,
 			IsGamepadButtonDown = function() return false end }
 	end },
 	script = { Parent = codes },
@@ -216,6 +216,77 @@ do
 		table.insert(sprites, key)
 		primitive(c, ...)
 	end
+end
+
+-- 5c. The arcade: a seat's use depends on the cabinet; seated, you stay put, facing the machine.
+do
+	local intents: { any } = {}
+	hub.onCabinet = function(intent) table.insert(intents, intent) end
+	local seatA, seatB
+	for _, st in PLAZA.market.stations do
+		if st.id == "Cab3A" then seatA = st end
+		if st.id == "Cab3B" then seatB = st end
+	end
+	local function views(state: string, seats: any, extra: any?): any
+		local list = {}
+		for _, cab in PLAZA.cabinets do
+			local v = { number = cab.number, state = "open", seats = {}, watchers = 0 }
+			if cab.number == 3 then
+				v.state, v.seats = state, seats
+				for k, val in extra or {} do v[k] = val end
+			end
+			table.insert(list, v)
+		end
+		return list
+	end
+	local labelsSeen: { [string]: string } = {}
+	local function frame()
+		hub:draw(canvas(1280, 720), 1/60)
+		for id, t in hub.pool do if t.Visible then labelsSeen[id] = t.Text end end
+	end
+	-- Open cabinet: sit at the seat you stand by.
+	hub:setCabinets(views("open", {}), 1)
+	stand(seatA)
+	hub:interact()
+	assert(intents[#intents].action == "sit" and intents[#intents].cabinet == 3 and intents[#intents].side == "A", "an empty seat is sat at")
+	-- Taken: nothing to do there; the prompt says so.
+	hub:setCabinets(views("open", { A = { userId = 7, name = "Rin" } }), 1)
+	local n = #intents
+	hub:interact()
+	frame()
+	assert(#intents == n and string.find(hub.prompt.Text, "TAKEN"), "a taken seat cannot be sat in, and says so")
+	-- A fight on: watch it, and the cabinet says who is watching.
+	hub:setCabinets(views("playing", { A = { userId = 7, name = "Rin" }, B = { userId = 8, name = "Kai" } }, { watchers = 2 }), 1)
+	stand(seatB)
+	hub:interact()
+	frame()
+	assert(intents[#intents].action == "watch" and intents[#intents].cabinet == 3, "a busy cabinet is watched")
+	assert(labelsSeen["cabT3"] == "IN PLAY · 2 watching", `the cabinet says it is in play, got {labelsSeen["cabT3"]}`)
+	-- Countdown and streak on the cabinet.
+	hub:setCabinets(views("countdown", { A = { userId = 7, name = "Rin" }, B = { userId = 8, name = "Kai" } }, { startsIn = 2.4, streak = { userId = 7, name = "Rin", wins = 3 } }), 1)
+	frame()
+	assert(labelsSeen["cabT3"] == "READY · 3" and labelsSeen["cabS3"] == "3 WINS\nRin", "the countdown and the champion's streak show on the cabinet")
+	-- Seated: locked to the seat, facing the machine, walking moves nothing; E gets up; alone, C plays the CPU.
+	hub:setCabinets(views("open", { A = { userId = 1, name = "Me" } }), 1)
+	stand({ x = 0, z = 8 })
+	hub.input.frame.x = 1
+	for _ = 1, 20 do hub:step(1/60, false) end
+	hub.input.frame.x = 0
+	assert(hub.model.p.x == seatA.x and hub.model.p.z == seatA.z and hub.model.p.facing == seatA.facing, "a seated player stays at the seat, facing the cabinet")
+	assert(hub.cpuButton.Visible, "alone at a cabinet, the CPU button shows")
+	hub:interact()
+	assert(intents[#intents].action == "stand", "E at your seat gets up")
+	cDown = true
+	hub:step(1/60, false)
+	hub:step(1/60, false)
+	cDown = false
+	assert(intents[#intents].action == "cpu" and intents[#intents - 1].action == "stand", "C once plays the CPU, once")
+	hub:setCabinets(views("countdown", { A = { userId = 1, name = "Me" }, B = { userId = 8, name = "Kai" } }), 1)
+	hub:step(1/60, false)
+	assert(not hub.cpuButton.Visible, "no CPU once someone sits across")
+	hub:setCabinets(views("open", {}), 1)
+	hub:step(1/60, false)
+	hub.onCabinet = nil
 end
 
 -- 6. The CHARACTER button: in the market, not in a lounge, not while a panel is open.

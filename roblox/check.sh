@@ -77,6 +77,7 @@ lune run tests/plaza-parity
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch
 lune run tests/rooms
+lune run tests/cabinets
 lune run tests/room-ui
 lune run tests/multiplayer
 lune run tests/avatar-store

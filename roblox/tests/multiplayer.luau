@@ -34,7 +34,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" then return Loader.loadFrom("src/server/", name) end
+	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
@@ -239,4 +239,66 @@ assert(last(7,"Results") and last(8,"Results") and not last(2,"Results") and not
 for _, job in tasks do job.fn(table.unpack(job.args)) end
 assert(not active.match and last(7,"RoomView").state=="setup", "completed matches tear down and return to ready check")
 for _, slot in last(7,"RoomView").slots do assert(not slot.bot and not slot.ready,"rematch resets readiness and bots") end
-print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in and saved characters worn in the hub, the room and the fight")
+-- The arcade, through the real server: sit, count down, fight, watch, winner stays.
+do
+	local Cabinets = Loader.loadFrom("src/server/", "Cabinets")
+	for i=10,12 do
+		people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}
+		now += 1.1
+		send(i,"Hello")
+	end
+	local function cabinets(id: number): any return last(id,"Cabinets") end
+	now += 1
+	send(10,"CabinetAction",{action="sit",cabinet=1,side="A"})
+	now += 1
+	send(11,"CabinetAction",{action="sit",cabinet=1,side="B"})
+	assert(cabinets(12)[1].state == "countdown" and cabinets(12)[1].seats.A.name == "P10", "everyone on the floor sees the seats fill and the countdown start")
+	send(10,"RoomAction",{action="join",format="Doubles"})
+	assert(last(10,"RoomView").left and string.find(last(10,"RoomView").error or "", "cabinet"), "a seated player cannot go into a room")
+	local before = #instances
+	now += Cabinets.COUNTDOWN + 0.1
+	run.Heartbeat:Fire(0.1)
+	assert(#instances == before + 1, "the countdown starts a fight")
+	local service = instances[#instances]
+	assert(#last(10,"Match").fighters == 2 and last(11,"Match").id == last(10,"Match").id and not last(12,"Match"), "the two at the cabinet fight; nobody else is pulled in")
+	-- Watching.
+	now += 1
+	send(12,"CabinetAction",{action="watch",cabinet=1})
+	assert(last(12,"Match") and last(12,"Match").id == last(10,"Match").id, "a spectator is sent the fight")
+	service:removeViewer(people[10])
+	assert(table.find(service.audience, people[10]), "removing a viewer never drops one of the fighters")
+	run.Heartbeat:Fire(0.1)
+	for _, peer in last(9,"HubPresence") or {} do assert(peer.userId ~= 12 and peer.userId ~= 10, "fighters and watchers are off the floor") end
+	for _ = 1, 240 do now += 1/60; run.PostSimulation:Fire(1/60) end   -- past the 3-2-1, when input is read
+	local consumed = service.input:consumedBy("p10")
+	send(10,"Input",{0},service.generation,0)
+	run.PostSimulation:Fire(1/60)
+	assert(service.input:consumedBy("p10") == consumed + 1, "a cabinet fighter's input reaches the cabinet's fight")
+	send(12,"Input",{0},service.generation,0)
+	run.PostSimulation:Fire(1/60)
+	assert(service.input:consumedBy("p12") == 0, "a spectator's input goes nowhere")
+	-- The result: winner stays, loser and spectator go back to the lobby.
+	local mark = #messages
+	tasks = {}
+	Loader.load("Match").finish(service.match)
+	service:tick(1/60)
+	for _, job in tasks do job.fn(table.unpack(job.args)) end
+	local view = cabinets(12)[1]
+	assert(view.state == "open" and view.streak and view.streak.wins == 1, "the fight ends with a streak begun")
+	local winner = view.streak.userId
+	local loser = if winner == 10 then 11 else 10
+	assert(view.seats.A or view.seats.B, "the winner is still sitting")
+	for _, side in {"A","B"} do if view.seats[side] then assert(view.seats[side].userId == winner, "only the winner stays") end end
+	local backs = {}
+	for k = mark + 1, #messages do if messages[k].name == "Select" then backs[messages[k].player.UserId] = true end end
+	assert(backs[loser] and backs[12] and backs[winner], "everyone at the cabinet is sent back to the lobby")
+	-- Alone, the winner takes on the CPU.
+	now += 1
+	send(winner,"CabinetAction",{action="cpu"})
+	local cpu = instances[#instances]
+	assert(cpu ~= service and #last(winner,"Match").fighters == 2, "vs CPU starts a fight against a bot")
+	-- And leaving mid-fight calls it off.
+	players.PlayerRemoving:Fire(people[winner])
+	assert(cabinets(loser)[1].state == "open" and not cabinets(loser)[1].seats.A and not cabinets(loser)[1].seats.B, "a leaver clears the cabinet")
+end
+print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight, and arcade fights: countdown, spectators, winner stays, vs CPU, leavers")

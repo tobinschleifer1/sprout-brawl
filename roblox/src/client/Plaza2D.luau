@@ -148,6 +148,20 @@ function Plaza2D.new(parent: Instance): any
 		if self.active and not self.blocked and self.onCharacter then self.onCharacter() end
 	end)
 	self.characterButton = character
+	-- Alone at a cabinet: take on the CPU (also C).
+	local cpu = Instance.new("TextButton")
+	cpu.Name, cpu.Font, cpu.TextSize, cpu.Visible = "CpuButton", Enum.Font.GothamBold, 15, false
+	cpu.AnchorPoint = Vector2.new(0.5, 1)
+	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, -92), UDim2.fromOffset(200, 38)
+	cpu.BackgroundColor3, cpu.BorderSizePixel, cpu.TextColor3, cpu.Text = Color3.fromRGB(90, 30, 64), 0, PINK, "VS CPU  (C)"
+	cpu.Parent = gui
+	local round3 = Instance.new("UICorner")
+	round3.CornerRadius, round3.Parent = UDim.new(0, 8), cpu
+	cpu.Activated:Connect(function()
+		if self.active and not self.blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
+	end)
+	self.cpuButton = cpu
+	self.cabinets = {}
 	self.labelLayer = gui
 	return self
 end
@@ -304,9 +318,50 @@ function Plaza2D.setPeers(self: any, entries: any, localId: number)
 	end
 end
 
+-- The arcade as the server last described it (Cabinets.views), and which seat, if any, is yours.
+function Plaza2D.setCabinets(self: any, views: any, localId: number)
+	if type(views) ~= "table" then return end
+	local byNumber = {}
+	local mine = nil
+	for _, v in views do
+		byNumber[v.number] = v
+		for side, seat in v.seats or {} do
+			if seat.userId == localId then mine = `Cab{v.number}{side}` end
+		end
+	end
+	self.cabinets = byNumber
+	self.seatId = mine
+end
+
+function Plaza2D.seatStation(self: any): any
+	if not self.seatId or self.room then return nil end
+	for _, st in PLAZA.market.stations do
+		if st.id == self.seatId then return st end
+	end
+	return nil
+end
+
+-- What using a cabinet seat means right now: get up from yours, watch a fight, or sit down.
+function Plaza2D.cabinetIntent(self: any, st: any): any
+	local view = self.cabinets[st.cabinet]
+	if self.seatId then
+		return if self.seatId == st.id then { action = "stand" } else nil
+	end
+	if view and view.state == "playing" then return { action = "watch", cabinet = st.cabinet } end
+	local side = if st.side < 0 then "A" else "B"
+	if view and view.seats and view.seats[side] then return nil end
+	return { action = "sit", cabinet = st.cabinet, side = side }
+end
+
 function Plaza2D.interact(self: any)
 	if not self.active or self.blocked or UIS:GetFocusedTextBox() then return end
-	local station = self.model:nearest()
+	local seat = self:seatStation()
+	local station = seat or self.model:nearest()
+	if station and station.kind == "Cabinet" then
+		local intent = self:cabinetIntent(station)
+		if intent and self.onCabinet then self.onCabinet(intent) end
+		return
+	end
 	if station and self.onInteract then self.onInteract(station) end
 end
 
@@ -320,6 +375,20 @@ function Plaza2D.step(self: any, dt: number, blocked: boolean)
 	for _, frame in self.input:sample(dt, Config.FRAME) do
 		self.model:step(if blocked then Input.emptyFrame() else frame)
 	end
+	-- Seated, you stay at the machine, facing it: put back at the seat after every step, which also
+	-- undoes any walking or hop the frames just made.
+	local seat = self:seatStation()
+	if seat then
+		local p = self.model.p
+		if p.x ~= seat.x or p.z ~= seat.z then self.model:setScene(self.model.data, { x = seat.x, z = seat.z }) end
+		p.facing = seat.facing
+	end
+	local view = seat and self.cabinets[seat.cabinet]
+	local alone = view ~= nil and view.state == "open" and not (view.seats.A and view.seats.B)
+	self.cpuButton.Visible = alone and not blocked
+	local cDown = alone and not UIS:GetFocusedTextBox() and UIS:IsKeyDown(Enum.KeyCode.C)
+	if cDown and not self.cHeld and not blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
+	self.cHeld = cDown
 	local down = not UIS:GetFocusedTextBox() and (UIS:IsKeyDown(Enum.KeyCode.E)
 		or UIS:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonX))
 	if down and not self.held then self:interact() end
@@ -535,6 +604,21 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			Canvas.rect(c, cab.x - 2.2, cab.z * D + 3.3, 0.3, 2, CYAN, 0.25 * flick)
 			Canvas.rect(c, cab.x + 1.9, cab.z * D + 3.3, 0.3, 2, PINK, 0.25 * flick)
 			self:placeLabel(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x, cab.z * D + 8.4, 18, AMBER, 60)
+			-- What the cabinet is doing: a countdown, a fight (and who is watching), the streak.
+			local view = self.cabinets[cab.number]
+			if view then
+				if view.state == "countdown" and view.startsIn then
+					self:placeLabel(c, "cabT" .. cab.number, `READY · {math.ceil(view.startsIn)}`, cab.x, cab.z * D + 10.2, 16, CYAN, 160)
+				elseif view.state == "playing" then
+					local watchers = if (view.watchers or 0) > 0 then ` · {view.watchers} watching` else ""
+					self:placeLabel(c, "cabT" .. cab.number, (if view.cpu then "VS CPU" else "IN PLAY") .. watchers, cab.x, cab.z * D + 10.2, 14, PINK, 200)
+					Canvas.rect(c, cab.x - 3.2, cab.z * D + 3.2, 6.4, 2.4, PINK, 0.08 + 0.06 * math.sin(clock * 12))
+				end
+				if view.streak and view.streak.wins > 0 then
+					local s2 = if view.streak.wins == 1 then "1 WIN" else `{view.streak.wins} WINS`
+					self:placeLabel(c, "cabS" .. cab.number, `{s2}\n{view.streak.name}`, cab.x, cab.z * D + 12.2, 15, AMBER, 200)
+				end
+			end
 		end)
 		for _, side in { -1, 1 } do
 			add(cab.z - 0.05, function()
@@ -763,14 +847,20 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.banner.TextTransparency = if age < 2 then 0 elseif age < 3 then age - 2 else 1
 	self.banner.TextStrokeTransparency = math.max(0.4, self.banner.TextTransparency)
 
-	local near = model:nearest()
+	local near = self:seatStation() or model:nearest()
+	local cabinetWord = nil
 	if near and near.kind == "Cabinet" then
-		self:placeLabel(c, "seat", "SIT HERE", near.x, near.z * D + 7.2, 14, AMBER, 140)
+		local intent = self:cabinetIntent(near)
+		cabinetWord = if not intent then "TAKEN:" elseif intent.action == "stand" then "STAND UP FROM"
+			elseif intent.action == "watch" then "WATCH" else "SIT AT"
+		if intent and intent.action == "sit" then
+			self:placeLabel(c, "seat", "SIT HERE", near.x, near.z * D + 7.2, 14, AMBER, 140)
+		end
 	end
 	self:endLabels()
 	c:finish()
 	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
-		elseif near then `[E / X]  {if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif near.kind == "Cabinet" then "SIT AT" else "USE"} {near.name}`
+		elseif near then `[E / X]  {if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
 		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade is east, the tailor is west."
 	self.prompt.Active = not self.blocked and near ~= nil
 	self.gui:SetAttribute("NearbyStation", if near then near.id else "")

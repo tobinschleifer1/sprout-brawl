@@ -153,6 +153,22 @@ function MatchService.rejoin(self: any, player: Player): boolean
 	return true
 end
 
+-- Spectators: someone watching joins the audience and is sent the match as it stands; their client
+-- finds no fighter of its own in the roster and simply draws. Leaving takes them out again.
+function MatchService.addViewer(self: any, player: Player): boolean
+	if not self.match or not self.audience or self.finished then return false end
+	if table.find(self.audience, player) then return true end
+	table.insert(self.audience, player)
+	Net.remote("Match"):FireClient(player, self:description())
+	return true
+end
+
+function MatchService.removeViewer(self: any, player: Player)
+	if not self.audience or self.sources[player.UserId] then return end
+	local at = table.find(self.audience, player)
+	if at then table.remove(self.audience, at) end
+end
+
 function MatchService.roster(self: any): { any }
 	local out = {}
 	for _, f in self.match.fighters do

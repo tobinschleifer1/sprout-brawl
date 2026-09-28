@@ -24,6 +24,10 @@ local LEVEL_KEYS = { "left", "right", "up", "down", "jump", "light", "heavy", "d
 local InputClient = {}
 InputClient.__index = InputClient
 
+-- Every sampler made, for the one shared ContextActionService binding to feed (see new()).
+local LIVE: { any } = {}
+local bound = false
+
 function InputClient.new(): any
 	local self: any = setmetatable({}, InputClient)
 	self.prev = {} :: { [string]: boolean }
@@ -54,22 +58,34 @@ function InputClient.new(): any
 		local code = (Enum.KeyCode :: any)[key]
 		if not byCode[code] then byCode[code] = true; table.insert(codes, code) end
 	end
-	ContextActionService:BindActionAtPriority("BlockfallCombatKeys", function(_: string, state: any, input: InputObject)
-		if state == Enum.UserInputState.Begin then
-			-- Letters typed into chat are not holds or presses.
-			if not UserInputService:GetFocusedTextBox() then
-				self.heldCodes[input.KeyCode] = true
-				self:press(input.KeyCode)
+	-- ONE binding for every sampler. The match, the lobby and the Skyline Climb each have one, and a
+	-- binding made under a name already bound REPLACES the old one: with a binding per sampler, only
+	-- the newest heard I and O at all - the Climb's, created last - and a live game's shield and
+	-- ultimate went deaf in every fight. So the first sampler binds, and the binding feeds them all.
+	table.insert(LIVE, self)
+	if not bound then
+		bound = true
+		ContextActionService:BindActionAtPriority("BlockfallCombatKeys", function(_: string, state: any, input: InputObject)
+			for _, client in LIVE do
+				if state == Enum.UserInputState.Begin then
+					-- Letters typed into chat are not holds or presses.
+					if not UserInputService:GetFocusedTextBox() then
+						client.heldCodes[input.KeyCode] = true
+						client:press(input.KeyCode)
+					end
+				elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+					client.heldCodes[input.KeyCode] = nil
+				end
 			end
-		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
-			self.heldCodes[input.KeyCode] = nil
-		end
-		return Enum.ContextActionResult.Pass
-	end, false, Enum.ContextActionPriority.High.Value + 1, table.unpack(codes))
-	-- A key released while the window is unfocused never delivers End; forget every hold then.
-	UserInputService.WindowFocusReleased:Connect(function()
-		self.heldCodes = {}
-	end)
+			return Enum.ContextActionResult.Pass
+		end, false, Enum.ContextActionPriority.High.Value + 1, table.unpack(codes))
+		-- A key released while the window is unfocused never delivers End; forget every hold then.
+		UserInputService.WindowFocusReleased:Connect(function()
+			for _, client in LIVE do
+				client.heldCodes = {}
+			end
+		end)
+	end
 
 	-- Polling holds avoids stuck keys, but polling alone loses a whole tap between ticks.
 	-- Text entry still owns its keys. Keep one bounded pending edge per action.

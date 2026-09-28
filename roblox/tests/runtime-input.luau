@@ -51,8 +51,10 @@ local uis = {
 }
 -- ContextActionService, as the game binds it: the handler, its priority and the keys it claims.
 local bound: any = nil
+local binds = 0
 local cas = {
 	BindActionAtPriority = function(_, name, fn, touch, priority, ...)
+		binds += 1
 		bound = { name = name, fn = fn, touch = touch, priority = priority, codes = { ... } }
 	end,
 }
@@ -132,6 +134,15 @@ for _ = 1, 30 do
 end
 cam("I", "End")
 check(not sampler:build(sampler:levels()).guardHeld, "releasing I drops the shield")
+-- Every sampler hears I and O: the match's, the lobby's and the Climb's all exist at once, and a
+-- binding per sampler meant only the newest one heard anything.
+local later = InputClient.new()
+check(binds == 1, `one shared binding for every sampler, not one each ({binds})`)
+later.prev = {}
+cam("I", "Begin")
+check(sampler:build(sampler:levels()).guardHeld and later:build(later:levels()).guardHeld, "a second sampler must not deafen the first to I")
+cam("I", "End")
+check(not sampler:build(sampler:levels()).guardHeld and not later:build(later:levels()).guardHeld, "and both hear it released")
 cam("O", "Begin")
 check(sampler:build(sampler:levels()).ult, "O pressed with no InputBegan must fire the ultimate")
 check(not sampler:build(sampler:levels()).ult, "a held O fires the ultimate once, not every frame")
@@ -146,6 +157,8 @@ assert(focusLost, "the sampler must listen for the window losing focus")
 focusLost()
 sampler:build(sampler:levels())
 check(not sampler:build(sampler:levels()).guardHeld, "a key held when the window lost focus is released, not stuck")
+later:build(later:levels())
+check(not later:build(later:levels()).guardHeld, "by every sampler, not just one")
 cam("I", "Cancel")
 focused = true
 cam("O", "Begin")

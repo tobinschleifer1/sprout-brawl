@@ -131,6 +131,7 @@ lune run tests/team-marks
 echo "== character kit: codes and composed parts as the web builds them =="
 lune run tests/kit-parity
 lune run tests/kit-draw
+lune run tests/canvas-writes
 lune run tests/creator-ui
 lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="

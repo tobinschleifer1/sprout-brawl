@@ -80,9 +80,12 @@ local function primitive(c: any, ...: any)
 	end
 	c.used += 1
 end
-local sprites = 0
+local sprites, weapons = 0, 0
 Canvas.rect, Canvas.circle, Canvas.ellipse = primitive, primitive, primitive
-Canvas.sprite = function(c: any, ...: any) sprites += 1; c.used += 1 end
+Canvas.sprite = function(c: any, key: string, ...: any)
+	if string.sub(key, 1, 7) == "weapon|" then weapons += 1 else sprites += 1 end
+	c.used += 1
+end
 local function canvas(w: number, h: number): any
 	return setmetatable({ used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 },
 		gui = { AbsoluteSize = { X = w, Y = h } }, finish = function(self) self.drawn = self.used; self.used = 0 end }, { __index = Canvas })
@@ -95,12 +98,13 @@ for _, size in { { 390, 844 }, { 1280, 720 }, { 1920, 1080 } } do
 			if p.id == cp.pad then v.pk.fighter.x, v.pk.fighter.y = p.cx, p.top end
 		end
 		v.camX, v.camY = v.pk.fighter.x, v.pk.fighter.y
-		sprites = 0
+		sprites, weapons = 0, 0
 		local c = canvas(size[1], size[2])
 		v:draw(c, 1/60)
 		assert(c.drawn > 10 and c.drawn < 700, `{cp.id} at {size[1]}x{size[2]}: {c.drawn} primitives`)
 		assert(#c.stack == 0, "the climb leaves no transforms behind")
 		assert(sprites == 7, `the climber is the seven pieces of their character, drew {sprites}`)
+		assert(weapons == 1, `and holds the course's weapon, one sprite, drew {weapons}`)
 		peak = math.max(peak, c.drawn)
 	end
 end

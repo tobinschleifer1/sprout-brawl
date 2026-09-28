@@ -126,7 +126,7 @@ local drawHead, drawMark = Avatar2D.drawHead, Avatar2D.drawTorsoMark
 Avatar2D.drawHead = function(...) blockHeads += 1; return drawHead(...) end
 Avatar2D.drawTorsoMark = function(...) blockHeads += 1; return drawMark(...) end
 
-local sprites, blocks = {}, 0
+local sprites, blocks, weapons = {}, 0, 0
 Canvas.rect = function() blocks += 1 end
 Canvas.ellipse = function() end
 Canvas.tri = function() end
@@ -134,6 +134,8 @@ Canvas.line = function() end
 Canvas.sprite = function(cv: any, key: string, list: any, x0: number, y1: number, pw: number, ph: number, cols: number, rows: number)
 	local m = cv.m
 	local function P(x: number, y: number) return m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f end
+	-- The weapon is a sprite too (one Frame for the whole weapon); counted apart from the body.
+	if string.sub(key, 1, 7) == "weapon|" then weapons += 1; return end
 	table.insert(sprites, { key = key, list = list, x0 = x0, y1 = y1, pw = pw, ph = ph, cols = cols, rows = rows, P = P })
 end
 local function canvas(scale: number): any
@@ -150,8 +152,9 @@ local s = Snapshot.decode(Snapshot.encode(f))
 local art = Compose.sprites(code)
 
 -- Big on screen: full resolution.
-table.clear(sprites); blocks = 0; blockHeads = 0
+table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
 Fighter2D.draw(canvas(24), s, char, 0, 2)
+assert(weapons == 1, `the kit fighter's sword should be one sprite, drew {weapons}`)
 assert(blockHeads == 0, "the kit fighter drew the block head or chest mark as well")
 local by: any = {}
 for _, sp in sprites do
@@ -209,10 +212,11 @@ local pwCell = char.radius * 1.15 / 12
 assert(pwCell * 8 < Fighter2D.KIT_LOD_PX and pwCell * 24 >= Fighter2D.KIT_LOD_PX, "the test's two zooms do not straddle the threshold")
 
 -- A preset character with the same weapon draws the block body and no sprites; the kit character
--- drew none of that body (the rectangles it did draw are the sword's).
-table.clear(sprites); blocks = 0; blockHeads = 0
+-- drew none of that body.
+table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
 Fighter2D.draw(canvas(24), s, Loadout.build("Classic", "Sword"), 0, 2)
-assert(#sprites == 0, "a preset character drew sprites")
+assert(#sprites == 0, "a preset character drew body sprites")
+assert(weapons == 1, "a preset character's sword is one sprite as well")
 assert(blockHeads == 2, "a preset character stopped drawing its head and chest mark")
 assert(blocks - kitBlocks >= 7, `the kit fighter drew the block body as well ({kitBlocks} rectangles against the preset's {blocks})`)
 print(`PASS kit fighter: seven sprites on the rig's joints (neck at the head, feet where the block legs end), far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; presets unchanged`)

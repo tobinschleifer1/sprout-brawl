@@ -60,6 +60,7 @@ function Canvas2D.new(parent: Instance): any
 	self.layer = world
 
 	self.pool = {} :: { Frame }
+	self.poolState = {} :: { any }   -- what was last written to each pooled Frame (see take)
 	self.used = 0
 	self.z = 0
 	self.m = identity()
@@ -75,7 +76,7 @@ end
 -- Palette entries arrive from the shared data layer as the CSS hex strings the web build uses.
 -- Embedded canvases reuse the exact same weapon art inside loadout cards.
 function Canvas2D.inFrame(frame: Frame): any
-	return setmetatable({ gui = frame, layer = frame, pool = {}, used = 0, z = 0,
+	return setmetatable({ gui = frame, layer = frame, pool = {}, poolState = {}, used = 0, z = 0,
 		m = identity(), stack = {}, alpha = 1, alphaStack = {}, sprites = {}, spriteUse = {}, frameNo = 0 }, Canvas2D)
 end
 
@@ -137,6 +138,7 @@ end
 -- units scale by ppu, Y flips, and the camera centre lands in the middle of the viewport.
 function Canvas2D.world(self: any, camX: number, camY: number, ppu: number, shakeX: number, shakeY: number)
 	local vp = self.gui.AbsoluteSize
+	self.vpW, self.vpH = vp.X, vp.Y        -- for culling (see offscreen)
 	Canvas2D.setTransform(self, ppu, 0, 0, -ppu,
 		vp.X / 2 - camX * ppu + shakeX, vp.Y / 2 + camY * ppu + shakeY)
 end
@@ -161,25 +163,44 @@ end
 -- ---------------------------------------------------------------- frame pool ----
 -- Frames are reused between draws and never destroyed. Creating and destroying a few hundred
 -- Instances per frame is the one thing guaranteed to make a UI renderer unusable.
-local function take(self: any): Frame
+--
+-- The second thing is writing properties. Every write to a Frame crosses into the engine, even
+-- when the value is the one it already has - and a draw re-places every Frame, every frame. So
+-- each pooled Frame (and each sprite container) keeps what was last written to it in a plain
+-- table, and a property is written only when its value changes. Measured in Studio with 24 people
+-- in the lobby, the end-of-frame hide pass alone was 1.8ms a frame: it re-hid every sprite on the
+-- whole street, most of which had been hidden for minutes.
+local function take(self: any): (Frame, any)
 	self.used += 1
 	local f = self.pool[self.used]
+	local st: any
 	if not f then
 		f = Instance.new("Frame")
 		f.BorderSizePixel = 0
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.BackgroundTransparency = 0
+		f.Visible = false
 		local corner = Instance.new("UICorner")
 		corner.Name = "Corner"
 		corner.CornerRadius = UDim.new(0, 0)
 		corner.Parent = f
 		f.Parent = self.layer
 		self.pool[self.used] = f
+		st = { corner = corner, round = false, vis = false }
+		self.poolState[self.used] = st
+	else
+		st = self.poolState[self.used]
 	end
-	f.Visible = true
+	if not st.vis then
+		f.Visible = true
+		st.vis = true
+	end
 	self.z += 1
-	f.ZIndex = self.z
-	return f
+	if st.z ~= self.z then
+		f.ZIndex = self.z
+		st.z = self.z
+	end
+	return f, st
 end
 
 -- Called at the end of a frame: anything the draw did not claim is hidden rather than destroyed.
@@ -188,11 +209,12 @@ end
 -- picture that will never come back.
 function Canvas2D.finish(self: any, purge: boolean?)
 	for i = self.used + 1, #self.pool do
-		local f = self.pool[i]
-		if not f.Visible then
+		local st = self.poolState[i]
+		if not st.vis then
 			break            -- everything past the first hidden frame was hidden last time too
 		end
-		f.Visible = false
+		self.pool[i].Visible = false
+		st.vis = false
 	end
 	self.used = 0
 	self.z = 0
@@ -202,7 +224,10 @@ function Canvas2D.finish(self: any, purge: boolean?)
 	if self.sprites then
 		for key, sp in self.sprites do
 			if sp.seen ~= self.frameNo then
-				sp.frame.Visible = false
+				if sp.vis then
+					sp.frame.Visible = false
+					sp.vis = false
+				end
 				if purge or self.frameNo - sp.seen > 600 then
 					sp.frame:Destroy()
 					self.sprites[key] = nil
@@ -215,23 +240,56 @@ function Canvas2D.finish(self: any, purge: boolean?)
 end
 
 function Canvas2D.clear(self: any)
-	for _, f in self.pool do
+	for i, f in self.pool do
 		f.Visible = false
+		self.poolState[i].vis = false
 	end
 	self.used = 0
 	self.z = 0
 	if self.sprites then
 		for _, sp in self.sprites do
 			sp.frame.Visible = false
+			sp.vis = false
 		end
 		table.clear(self.spriteUse)
 	end
 end
 
+-- Where a Frame goes, written only where it moved: Position, Size and Rotation.
+local function place(f: Frame, st: any, sx: number, sy: number, w: number, h: number, rot: number)
+	if st.px ~= sx or st.py ~= sy then
+		f.Position = UDim2.fromOffset(sx, sy)
+		st.px, st.py = sx, sy
+	end
+	if st.w ~= w or st.h ~= h then
+		f.Size = UDim2.fromOffset(w, h)
+		st.w, st.h = w, h
+	end
+	if st.rot ~= rot then
+		f.Rotation = rot
+		st.rot = rot
+	end
+end
+
+-- A box centred on (sx, sy) in screen pixels, sizeX by sizeY at any rotation, lies wholly outside
+-- the viewport: nothing of it would show, so it is not placed at all (finish hides what it held).
+-- Half the sum of the sides bounds half the diagonal, so nothing partly on screen is ever culled.
+-- The lobby is a street 440 studs long and a screen shows about 70 of it. A canvas that has not had
+-- `world` called (a portrait tile) knows no viewport and culls nothing.
+local function offscreen(self: any, sx: number, sy: number, sizeX: number, sizeY: number): boolean
+	local W, H = self.vpW, self.vpH
+	if not W then return false end
+	local r = (sizeX + sizeY) * 0.5
+	return sx + r < 0 or sx - r > W or sy + r < 0 or sy - r > H
+end
+Canvas2D.offscreen = offscreen
+
 -- ---------------------------------------------------------------- primitives ----
 -- A rectangle in the current transform's space, with its corner at (x, y) and extending by (w, h) -
 -- the same convention as fillRect, including negative sizes.
-function Canvas2D.rect(self: any, x: number, y: number, w: number, h: number, colour: Color3, alpha: number?)
+-- `round` makes it an ellipse (see Canvas2D.ellipse); decided here, so a round Frame is not squared
+-- and rounded again every frame.
+local function box(self: any, x: number, y: number, w: number, h: number, colour: Color3, alpha: number?, round: boolean)
 	local m = self.m
 	local cx, cy = x + w / 2, y + h / 2
 	local sx = m.a * cx + m.c * cy + m.e
@@ -245,13 +303,28 @@ function Canvas2D.rect(self: any, x: number, y: number, w: number, h: number, co
 	if sizeX < 0.5 and sizeY < 0.5 then
 		return          -- smaller than a pixel: drawing it costs a Frame and shows nothing
 	end
-	local f = take(self)
-	f.Position = UDim2.fromOffset(sx, sy)
-	f.Size = UDim2.fromOffset(math.max(1, sizeX), math.max(1, sizeY))
-	f.Rotation = math.deg(math.atan2(ay, ax))
-	f.BackgroundColor3 = colour
-	f.BackgroundTransparency = 1 - (alpha or 1) * self.alpha
-	;(f:FindFirstChild("Corner") :: UICorner).CornerRadius = UDim.new(0, 0)
+	if offscreen(self, sx, sy, sizeX, sizeY) then
+		return
+	end
+	local f, st = take(self)
+	place(f, st, sx, sy, math.max(1, sizeX), math.max(1, sizeY), math.deg(math.atan2(ay, ax)))
+	if st.colour ~= colour then
+		f.BackgroundColor3 = colour
+		st.colour = colour
+	end
+	local transparency = 1 - (alpha or 1) * self.alpha
+	if st.tr ~= transparency then
+		f.BackgroundTransparency = transparency
+		st.tr = transparency
+	end
+	if st.round ~= round then
+		st.corner.CornerRadius = if round then UDim.new(0.5, 0) else UDim.new(0, 0)
+		st.round = round
+	end
+end
+
+function Canvas2D.rect(self: any, x: number, y: number, w: number, h: number, colour: Color3, alpha: number?)
+	box(self, x, y, w, h, colour, alpha, false)
 end
 
 -- ---------------------------------------------------------------- sprites ----
@@ -295,6 +368,10 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 	local flip = m.a * m.d - m.b * m.c > 0
 	local n = (self.spriteUse[key] or 0) + 1
 	self.spriteUse[key] = n
+	-- Counted before culling, so the n-th draw of a key keeps its slot whatever is off screen.
+	if offscreen(self, sx, sy, sizeX, sizeY) then
+		return
+	end
 	local slot = key .. "#" .. n
 	local sp = self.sprites[slot]
 	if not sp then
@@ -338,24 +415,23 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 		sp.alpha = a
 	end
 	local f = sp.frame
-	f.Position = UDim2.fromOffset(sx, sy)
-	f.Size = UDim2.fromOffset(math.max(1, sizeX), math.max(1, sizeY))
-	f.Rotation = math.deg(math.atan2(ay, ax))
+	place(f, sp, sx, sy, math.max(1, sizeX), math.max(1, sizeY), math.deg(math.atan2(ay, ax)))
 	self.z += 1
-	f.ZIndex = self.z
-	f.Visible = true
+	if sp.z ~= self.z then
+		f.ZIndex = self.z
+		sp.z = self.z
+	end
+	if not sp.vis then
+		f.Visible = true
+		sp.vis = true
+	end
 	sp.seen = self.frameNo
 end
 
 -- An ellipse centred on (x, y). UICorner at half the smaller side rounds a Frame into a capsule,
 -- and into an ellipse when the sides are equal, which covers every arc this renderer draws.
 function Canvas2D.ellipse(self: any, x: number, y: number, rx: number, ry: number, colour: Color3, alpha: number?)
-	local before = self.used
-	Canvas2D.rect(self, x - rx, y - ry, rx * 2, ry * 2, colour, alpha)
-	if self.used > before then
-		local f = self.pool[self.used]
-		;(f:FindFirstChild("Corner") :: UICorner).CornerRadius = UDim.new(0.5, 0)
-	end
+	box(self, x - rx, y - ry, rx * 2, ry * 2, colour, alpha, true)
 end
 
 -- A line segment of the given width, as a rotated rectangle: what a canvas stroke is here.

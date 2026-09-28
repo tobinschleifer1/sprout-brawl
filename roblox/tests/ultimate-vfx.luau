@@ -48,6 +48,13 @@ Canvas2D.tri = function(c: any, _x0: number, _y0: number, _x1: number, _y1: numb
 	_x2: number, _y2: number, _colour: any, _alpha: number?)
 	c.used += 6
 end
+-- The weapon body: one container Frame moved per frame, its rectangles laid out inside it.
+Canvas2D.sprite = function(c: any, _key: string, rects: { any }, ...: any)
+	if #rects == 0 then
+		fail("a sprite with no rectangles")
+	end
+	c.used += 1
+end
 
 local WEAPONS = {
 	"Sword", "Scythe", "Blasters", "Grimoire", "Axe", "Pike",

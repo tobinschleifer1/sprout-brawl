@@ -12,6 +12,7 @@ local Teams = Loader.load("Data/Teams")
 
 local drawn: { any } = {}
 Canvas.rect = function() end
+Canvas.sprite = function() end          -- the weapon (and a kit body): not what this test looks at
 local tris: { any } = {}
 Canvas.tri = function(c: any, x0: number, y0: number, _x1: number, _y1: number, _x2: number, _y2: number, colour: any, alpha: number?)
 	table.insert(tris, { x = x0, y = y0, colour = colour })

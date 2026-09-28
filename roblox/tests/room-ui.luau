@@ -76,6 +76,11 @@ local function primitive(c, ...)
  c.used+=1
 end
 Canvas.rect,Canvas.circle,Canvas.ellipse=primitive,primitive,primitive
+-- A weapon is one sprite: checked finite like any primitive, and counted as the rectangles it holds.
+Canvas.sprite=function(c,_key,rects,...)
+ primitive(c,...)
+ c.used+=#rects-1
+end
 local finish = Canvas.finish
 Canvas.finish = function(c) c.drawn = c.used; finish(c) end
 for _, size in {{100,80},{200,80},{300,100}} do

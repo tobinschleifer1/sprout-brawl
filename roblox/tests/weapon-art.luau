@@ -13,8 +13,21 @@ local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
 
 local FRAME_BUDGET = 80
 local drawn: { any } = {}
+local sprites = 0
 Canvas.rect = function(_c: any, x: number, y: number, w: number, h: number, colour: any, alpha: number?)
 	table.insert(drawn, { x, y, w, h, colour, alpha })
+end
+-- The weapon is drawn as one sprite (one Frame moved per frame): expanded back into the rectangles
+-- it holds, in the weapon's own frame, it must be exactly the art - same order, geometry, colour and
+-- alpha - so the check below is the same check it was when every rectangle was a separate Frame.
+Canvas.sprite = function(_c: any, _key: string, rects: any, x0: number, y1: number, pw: number, ph: number, cols: number, rows: number, alpha: number?)
+	sprites += 1
+	for _, r in rects do
+		assert(r[1] >= 0 and r[2] >= 0 and r[1] + r[3] <= cols and r[2] + r[4] <= rows, "a cell lies outside the sprite")
+	end
+	Canvas.eachSpriteRect(rects, x0, y1, pw, ph, function(x, y, w, h, hex, a)
+		table.insert(drawn, { x, y, w, h, Canvas.hex(hex, nil :: any), a * (alpha or 1) })
+	end)
 end
 local function canvas(): any
 	return { m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 }, stack = {}, alpha = 1, alphaStack = {} }
@@ -27,9 +40,11 @@ for _, w in Weapons.LIST do
 	assert(rects, `{w.id} has no art`)
 	assert(#rects <= FRAME_BUDGET, `{w.id} costs {#rects} Frames, over the budget of {FRAME_BUDGET}`)
 	table.clear(drawn)
+	sprites = 0
 	local c = canvas()
 	Weapons2D.draw(c, w.id, w.palette, POSE)
 	assert(#c.stack == 0, `{w.id}: transform stack left unbalanced`)
+	assert(sprites == 1, `{w.id}: drawn as {sprites} sprites, not one`)
 	assert(#drawn == #rects, `{w.id}: drew {#drawn} rectangles, the art has {#rects}`)
 	for i, r in rects do
 		local d = drawn[i]

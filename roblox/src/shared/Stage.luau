@@ -325,9 +325,11 @@ function Stage.collide(self: Stage, f: any, px: number, py: number, nx: number, 
 			elseif px >= sp.x2 + r - 0.001 and x < sp.x2 + r then
 				x = sp.x2 + r
 				wall = true
-			elseif sp.dx ~= 0 and x > sp.x1 - r and x < sp.x2 + r then
+			elseif sp.dx ~= 0 and x > sp.x1 - r and x < sp.x2 + r and py < sp.top - sp.dy - 0.05 then
 				-- Only for a solid that MOVED this frame: it drove into a fighter who never moved
-				-- into it, so nothing above catches it. Eject out the nearer face.
+				-- into it, so nothing above catches it. Eject out the nearer face. Not a fighter whose
+				-- feet were on or above its surface last frame: that is a landing, which sinks into
+				-- the surface for a frame before it lands - ejected, nobody could land on a slider.
 				x = if x - sp.cx < 0 then sp.x1 - r else sp.x2 + r
 				wall = true
 			end

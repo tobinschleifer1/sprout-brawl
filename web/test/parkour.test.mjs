@@ -83,6 +83,69 @@ const results = [];
   }
   check('every step of the Skyline Climb can be made with the real engine', bad.length === 0,
     bad.length ? `impossible: ${bad.join('; ')}` : `${results.length} steps, each landed by at least one of its attempts`);
+  // "At least one attempt" let a broken step through: while landing on a sliding girder was
+  // impossible, a fall that happened to sink less than 0.05 studs on the landing frame still
+  // counted, so the Crane Arm passed at a fraction of a percent and nobody could get past it. Every
+  // step before the final stretch has to be a fair one, not a fluke.
+  const FAIR = 0.03;
+  const flukes = results.filter((r) => !r.final && r.rate < FAIR);
+  check('every step before the final stretch lands often enough to be fair', flukes.length === 0,
+    flukes.length ? `only by fluke: ${flukes.map((r) => `${r.from}->${r.to} ${(100 * r.rate).toFixed(2)}%`).join(', ')}`
+      : `each lands at least ${FAIR * 100}% of attempts`);
+}
+
+// ---- 1b. a moving foothold holds you, whenever you arrive on it ----
+// The property directly, not through the solver: bring a climber down onto every moving foothold
+// as a jump does - falling at 30 studs/s, from just above its surface - at thirty points of its
+// cycle, and they land on it and are still on it a third of a second later. The speed matters: the
+// bug this guards against only threw off a fall that sank into the surface on the landing frame,
+// which a gentle set-down never does. (Just above, not higher: the final stretch's slider moves a
+// stud a frame, and a long drop measures whether you led it, which is the solver's business.)
+{
+  const bad = [];
+  let drops = 0;
+  for (const d of COURSE.platforms.filter((p) => p.moving)) {
+    const M = d.moving.x || d.moving.y;
+    for (let k = 0; k < 30; k++) {
+      const pk = new Parkour(COURSE, CHAR);
+      const wait = Math.round((k / 30) * M.period * 60);
+      for (let i = 0; i < wait; i++) pk.step(frame(0));
+      const p = byId(pk, d.id), f = pk.fighter;
+      Object.assign(f, { x: p.cx, y: p.top + 0.3, vx: 0, vy: -30, onGround: false, platform: null });
+      let landedOn = null, held = 0;
+      for (let i = 0; i < 90 && held < 20; i++) {
+        pk.step(frame(0));
+        if (f.onGround && !landedOn) landedOn = f.platform;
+        if (landedOn === p && f.onGround && f.platform === p) held++;
+      }
+      drops++;
+      if (landedOn !== p || held < 20) {
+        bad.push(`${d.id} at ${k}/30 of its cycle: ${landedOn ? `landed on ${landedOn.id}, held ${held} frames` : 'fell through'}`);
+      }
+    }
+  }
+  check('every moving foothold can be landed on and holds you, at any point of its cycle', bad.length === 0,
+    bad.length ? bad.slice(0, 6).join('; ') : `${drops} drops onto ${drops / 30} moving footholds, every one landed and held`);
+}
+
+// ---- 1c. a sliding block still shoves aside whoever stands in its way ----
+// The other half of the rule the landing fix narrowed: a fighter standing BESIDE a sliding solid,
+// on the ground, is pushed out of its side when it moves into them - never left inside it.
+{
+  const course = { ...COURSE, platforms: [{ id: 'ram', x: 10, y: 2, w: 4, solid: true, thickness: 2, ledges: false,
+    moving: { x: { from: 0, to: 20, period: 2, phase: 0 } } }], route: ['main'], checkpoints: [{ id: 'start', name: 'Start', pad: 'main' }] };
+  const pk = new Parkour(course, CHAR);
+  const ram = byId(pk, 'ram'), f = pk.fighter;
+  Object.assign(f, { x: 13, y: 0, vx: 0, vy: 0, onGround: true, platform: pk.stage.main });
+  let inside = 0, pushed = false;
+  const x0 = f.x;
+  for (let i = 0; i < 120; i++) {
+    pk.step(frame(0));
+    if (f.y < ram.top - 0.05 && f.x > ram.x1 - f.r + 1e-6 && f.x < ram.x2 + f.r - 1e-6) inside++;
+    if (Math.abs(f.x - x0) > 1) pushed = true;
+  }
+  check('a sliding block still shoves aside a fighter standing in its way', inside === 0 && pushed,
+    `pushed ${pushed ? 'yes' : 'no'}, frames spent inside the block ${inside}`);
 }
 
 // ---- 2. the last stretch is the hardest, by a long way ----

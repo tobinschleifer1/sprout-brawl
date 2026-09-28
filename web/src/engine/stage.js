@@ -169,10 +169,14 @@ export class StageRuntime {
       if (!(bodyBottom < sp.top - 0.05 && bodyTop > sp.bottom)) continue;
       if (px <= sp.x1 - r + 0.001 && x > sp.x1 - r) { x = sp.x1 - r; wall = true; }
       else if (px >= sp.x2 + r - 0.001 && x < sp.x2 + r) { x = sp.x2 + r; wall = true; }
-      else if (sp.dx && x > sp.x1 - r && x < sp.x2 + r) {
+      else if (sp.dx && x > sp.x1 - r && x < sp.x2 + r && py < sp.top - sp.dy - 0.05) {
         // Only for a solid that MOVED this frame: it drove into a fighter who never moved into it,
         // so nothing above catches it. Eject out the nearer face. Restricted to moving solids
-        // because a static one overlapping here is just a fighter landing on top of it.
+        // because a static one overlapping here is just a fighter landing on top of it - and so is
+        // a moving one, when the fighter's feet were on or above its surface last frame (the test
+        // the landing below uses). Without that, every landing on a sliding girder was thrown off
+        // its side: a fall sinks into the surface for a frame before it lands, and that overlap
+        // looked like the girder driving into the fighter. Nobody could land on one.
         x = (x - sp.cx < 0) ? sp.x1 - r : sp.x2 + r;
         wall = true;
       }

@@ -28,5 +28,29 @@ for (const from of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {   // 8: on the Summit, finishe
   }
   cases.push({ from, frames });
 }
+// Set-downs onto every moving foothold, falling as a jump lands, at six points of its cycle. Random
+// climbs almost never land on a slider, and a landing on one was the bug both builds shared: every
+// one was thrown off the side (web/src/engine/stage.js collide). These hold the port to the fix.
+const still = { x: 0, y: 0, jump: false, jumpHeld: false, downTap: false };
+for (const d of COURSE.platforms.filter((p) => p.moving)) {
+  const M = d.moving.x || d.moving.y;
+  for (let k = 0; k < 6; k++) {
+    const pk = new Parkour(COURSE, char, 0);
+    const wait = Math.round((k / 6) * M.period * 60);
+    for (let i = 0; i < wait; i++) pk.step(still);
+    pk.drain();
+    const drop = { wait, id: d.id, dy: 0.3, vy: -30 };
+    const p = pk.stage.platforms.find((q) => q.id === d.id);
+    Object.assign(pk.fighter, { x: p.cx, y: p.top + drop.dy, vx: 0, vy: drop.vy, onGround: false, platform: null });
+    const frames = [];
+    for (let i = 0; i < 40; i++) {
+      pk.step(still);
+      const f = pk.fighter;
+      frames.push({ input: still, values: FIELDS.map((key) => S(f[key])), reached: pk.reached, deaths: pk.deaths, frames: pk.frames,
+        platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.checkpoint ?? e.frames)).join(',') });
+    }
+    cases.push({ from: 0, drop, frames });
+  }
+}
 fs.writeFileSync(new URL('../tests/parkour-fixture.json', import.meta.url), JSON.stringify({ fields: FIELDS, weapon: COURSE_WEAPON, cases }));
-console.log(`parkour trace: ${cases.length} climbs, ${cases.length * 1500} frames`);
+console.log(`parkour trace: ${cases.length} climbs and set-downs, ${cases.reduce((n, c) => n + c.frames.length, 0)} frames`);

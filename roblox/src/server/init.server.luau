@@ -9,6 +9,7 @@ local Rooms = require(script.Rooms)
 local AvatarStore = require(script.AvatarStore)
 local Cabinets = require(script.Cabinets)
 local ClimbProgress = require(script.ClimbProgress)
+local ClimbBoards = require(script.ClimbBoards)
 local PARKOUR: any = require(Shared.Data.Parkour)
 local PLAZA = Plaza.DATA
 local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
@@ -25,6 +26,14 @@ end)
 local avatars = AvatarStore.new(if okStore then dataStore else nil)
 avatars.wait = function(n: number) task.wait(n) end
 local climbs = ClimbProgress.new(avatars, #PARKOUR.course.checkpoints)
+-- The climb's leaderboards, shared by every server and re-read every two hours (ClimbBoards). No
+-- ordered stores (a local test server): the boards say they are offline.
+local okBoards, fastest, highest = pcall(function()
+	local service = game:GetService("DataStoreService")
+	return service:GetOrderedDataStore("BlockfallClimbFastest1"), service:GetOrderedDataStore("BlockfallClimbHighest1")
+end)
+local boards = ClimbBoards.new({ speed = if okBoards then fastest else nil, levels = if okBoards then highest else nil,
+	clock = os.time, name = function(userId: number) return Players:GetNameFromUserIdAsync(userId) end })
 local services: any = {}
 local poses: any = {}
 local limits: any = {}
@@ -81,7 +90,11 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	if departed[player] then return end      -- left while the DataStore was answering
 	loaded[player.UserId] = player
 	sendAvatars(player)
-	Net.remote("ClimbView"):FireClient(player, climbs:view(player.UserId))
+	local climbView = climbs:view(player.UserId)
+	Net.remote("ClimbView"):FireClient(player, climbView)
+	Net.remote("ClimbBoards"):FireClient(player, boards:view())
+	-- A record set before the boards existed, or on a server whose write never landed.
+	boards:submit(player.UserId, climbView)
 	local room = rooms:get(player.UserId)
 	if room and services[room.id] and services[room.id]:rejoin(player) then return end
 	local seat = arcade.seatOf[player.UserId]
@@ -257,8 +270,22 @@ Net.remote("Climb").OnServerEvent:Connect(function(player: Player, msg: any)
 	else
 		return
 	end
-	Net.remote("ClimbView"):FireClient(player, climbs:view(id))
+	local view = climbs:view(id)
+	boards:submit(id, view)
+	Net.remote("ClimbView"):FireClient(player, view)
 end)
+-- Writes go out every half-minute; the boards everyone sees are read on the two-hour marks. Both
+-- yield on DataStores, so one job at a time.
+local boardsBusy = false
+local function boardsJob()
+	if boardsBusy then return end
+	boardsBusy = true
+	boards:flush()
+	if boards:due(os.time()) and boards:refresh(os.time()) then
+		for _, player in loaded do Net.remote("ClimbBoards"):FireClient(player, boards:view()) end
+	end
+	boardsBusy = false
+end
 
 -- Where a player says they are standing. Cosmetic - nothing is decided by it - but everyone else
 -- draws it, so it has to be somewhere a player could be: on the floor of the scene they are in
@@ -333,10 +360,15 @@ Net.remote("Members").OnServerEvent:Connect(function(player: Player)
 	table.sort(list, function(a, b) return a.name < b.name end)
 	Net.remote("Members"):FireClient(player, list)
 end)
-local elapsed, saveClock, cabinetClock = 0, 0, 0
+local elapsed, saveClock, cabinetClock, boardsClock = 0, 0, 0, 30
 RunService.Heartbeat:Connect(function(dt: number)
 	elapsed += dt
 	saveClock += dt
+	boardsClock += dt
+	if boardsClock >= 30 then
+		boardsClock = 0
+		task.spawn(boardsJob)
+	end
 	for _, cab in arcade:due(os.clock()) do startCabinet(cab) end
 	if saveClock >= 1 then
 		saveClock = 0

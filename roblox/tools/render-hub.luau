@@ -86,6 +86,7 @@ end
 local z = tonumber(process.args[7] or "8") or 8
 hub.model:setScene(hub.model.data, { x = at, z = z })
 hub.camX = at
+hub.recordsLine = process.args[9]          -- what the CLIMB RECORDS board says leads, if anything
 local crowd = tonumber(process.args[8] or "0") or 0
 if crowd > 0 then
 	local KIT = Loader.load("Data/AvatarKit")

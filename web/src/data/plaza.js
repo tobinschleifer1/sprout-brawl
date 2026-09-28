@@ -83,6 +83,7 @@ export const MARKET = {
     { id: 'Doubles', name: '2v2', landmark: 'CREW LIFT', kind: 'Format', teamSize: 2, x: 217, z: 15.5, rx: 5, rz: 3 },
     { id: 'Triples', name: '3v3', landmark: 'FREIGHT LIFT', kind: 'Format', teamSize: 3, x: 232, z: 15.5, rx: 5, rz: 3 },
     { id: 'Climb', name: 'SKYLINE CLIMB', landmark: 'PARKOUR', kind: 'Parkour', x: 268, z: 14.5, rx: 6, rz: 3 },
+    { id: 'Records', name: 'CLIMB RECORDS', landmark: 'LEADERBOARDS', kind: 'Records', x: 280.5, z: 14.5, rx: 3.5, rz: 3 },
   ],
   warps: [
     { id: 'tailor', name: "Tailor's Roof", x: -122, z: 8 },

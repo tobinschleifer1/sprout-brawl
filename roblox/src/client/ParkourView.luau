@@ -17,6 +17,7 @@ local InputClient = require(script.Parent.InputClient)
 local Canvas = require(script.Parent.Canvas2D)
 local Backdrop = require(script.Parent.BackdropArt)
 local Fighter2D = require(script.Parent.Fighter2D)
+local ClimbRecords = require(script.Parent.ClimbRecords)
 
 local PARKOUR: any = Parkour.DATA
 local COURSE = PARKOUR.course
@@ -62,13 +63,11 @@ local function button(parent: Instance, name: string, value: string, onClick: ()
 	return b
 end
 
--- 83.25 seconds -> "1:23.25"
-function ParkourView.clock(frames: number): string
-	local cs = math.floor(frames * 100 / 60 + 0.5)
-	return string.format("%d:%02d.%02d", cs // 6000, (cs // 100) % 60, cs % 100)
-end
+-- 83.25 seconds -> "1:23.25", the same on the climb and on its leaderboards.
+ParkourView.clock = ClimbRecords.clock
 
--- `opts.send(msg)` goes to the Climb remote; `opts.leave()` puts the player back in the lobby.
+-- `opts.send(msg)` goes to the Climb remote; `opts.leave()` puts the player back in the lobby;
+-- `opts.records()` opens the leaderboards.
 function ParkourView.new(parent: Instance, opts: any): any
 	local self: any = setmetatable({ opts = opts, active = false, camX = 0, camY = 6, progress = { best = 0, summits = 0 },
 		labels = {}, bannerAt = -10 }, ParkourView)
@@ -102,6 +101,11 @@ function ParkourView.new(parent: Instance, opts: any): any
 	end)
 	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 56), UDim2.fromOffset(250, 34)
 	self.restartButton = restart
+	local records = button(gui, "Records", "RECORDS", function()
+		if self.opts.records then self.opts.records() end
+	end)
+	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 0), UDim2.new(1, -216, 0, 12), UDim2.fromOffset(110, 38)
+	self.recordsButton = records
 	return self
 end
 

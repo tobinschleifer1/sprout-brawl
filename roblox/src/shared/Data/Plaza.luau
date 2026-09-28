@@ -445,6 +445,16 @@ return {
 				rx = 6,
 				rz = 3,
 			},
+			{
+				id = "Records",
+				name = "CLIMB RECORDS",
+				landmark = "LEADERBOARDS",
+				kind = "Records",
+				x = 280.5,
+				z = 14.5,
+				rx = 3.5,
+				rz = 3,
+			},
 		},
 		warps = {
 			{

@@ -152,7 +152,11 @@ do
 		if string.sub(key, 1, 2) == "k1" then table.insert(order, "person:" .. string.match(key, "^(k1%w+)")) end
 		primitive(c, x0, y1, ...)
 	end
-	local guest = KIT.presets[5].code
+	-- A code no preset has: the tailor's mannequins cycle through the presets on the clock, and a
+	-- mannequin wearing the guest's code (drawn at the back) made this order check flaky.
+	local guest = string.sub(KIT.presets[5].code, 1, -2) .. (if string.sub(KIT.presets[5].code, -1) == "3" then "4" else "3")
+	for _, preset in KIT.presets do assert(preset.code ~= guest, "the guest must not wear a preset") end
+	assert(Loader.load("AvatarKit").canonical(guest) == guest, "and must wear a real character")
 	local function drawWith(z: number): { string }
 		table.clear(order)
 		hub:setPeers({ { userId = 2, name = "Guest", avatar = guest, weapon = "Sword", x = cab.x, z = z, y = 0, facing = 1 } }, 1)

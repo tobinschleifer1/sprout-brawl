@@ -34,7 +34,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" then return Loader.loadFrom("src/server/", name) end
+	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
@@ -44,7 +44,7 @@ local env: any = {
 		if name == "Players" then return players end
 		return run
 	end, BindToClose=function() end}, script=setmetatable({Parent=codes}, {__index=function(_,k) return k end}), require=module,
-	os={clock=function() return now end},
+	os={clock=function() return now end, time=function() return math.floor(now) end},
 	task={spawn=function(fn, ...) table.insert(tasks,{fn=fn,args={...}}) end, wait=function() end},
 }
 service = luau.load(fs.readFile("src/server/MatchService.luau"), {environment=env,injectGlobals=true})()
@@ -74,7 +74,13 @@ for i=1,9 do
 	local w = last(i,"AvatarView")
 	assert(w and #w.slots==1 and w.slots[1].code==AvatarKit.defaultCode(), "every player starts wearing the default character")
 	assert(w.saving==false and type(w.note)=="string", "a server with no DataStore says saving is off")
+	local b = last(i,"ClimbBoards")
+	assert(b and b.offline==true and #b.speed==0, "and is shown the climb's leaderboards, offline here")
 end
+-- The leaderboard job runs from the server's clock without taking it down, offline or not.
+for _ = 1, 4 do run.Heartbeat:Fire(10) end
+for _, t in tasks do t.fn(table.unpack(t.args)) end
+table.clear(tasks)
 send(9,"Avatar",{action="save",slot=1,code="k1" .. string.upper(string.sub(KNIGHT, 3)),name="<b>Sir</b> Knight"})
 assert(last(9,"AvatarView").slots[1].code==KNIGHT and last(9,"AvatarView").slots[1].name=="bSirb Knight", "a saved character comes back canonical, its name cleaned")
 run.Heartbeat:Fire(0.1)

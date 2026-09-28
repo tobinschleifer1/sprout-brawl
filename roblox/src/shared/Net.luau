@@ -69,6 +69,7 @@ if RunService:IsServer() then
 		make("RemoteEvent", "Cabinets")             -- server -> client, the arcade's seats and streaks
 		make("RemoteEvent", "Climb")                -- client -> server, entering / leaving the Skyline Climb, checkpoints, the Summit
 		make("RemoteEvent", "ClimbView")            -- server -> client, your climb progress
+		make("RemoteEvent", "ClimbBoards")          -- server -> client, the climb's leaderboards (every two hours)
 		folder.Parent = ReplicatedStorage
 	end
 else

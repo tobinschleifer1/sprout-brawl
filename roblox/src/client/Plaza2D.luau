@@ -588,6 +588,14 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 				PlazaArt.draw(c, "climbgate", PlazaArt.get("climbgate", PlazaArt.climbGate), s.x, (s.z + 1.6) * D)
 				self:placeLabel(c, "climb", s.name .. "\n" .. s.landmark, s.x, (s.z + 1.6) * D + 20.5, 16, AMBER, 300)
 			end)
+		elseif s.kind == "Records" then
+			add(s.z + 1, function()
+				PlazaArt.draw(c, "records", PlazaArt.get("records", PlazaArt.recordBoard), s.x, (s.z + 1) * D)
+				self:placeLabel(c, "records", s.name, s.x, (s.z + 1) * D + 11.8, 13, AMBER, 200)
+				if self.recordsLine then
+					self:placeLabel(c, "recordsTop", self.recordsLine, s.x, (s.z + 1) * D + 10.4, 11, WHITE, 240)
+				end
+			end)
 		elseif s.kind == "Format" then
 			add(s.z + 1.8, function()
 				local colour = if s.teamSize == 1 then A.amber elseif s.teamSize == 2 then A.cyan else A.pink

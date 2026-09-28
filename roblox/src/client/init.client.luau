@@ -44,6 +44,7 @@ local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
 local LobbySocial = require(script.LobbySocial)
 local ParkourView = require(script.ParkourView)
+local ClimbRecords = require(script.ClimbRecords)
 local Plaza = require(Shared.Plaza)
 local UIS = game:GetService("UserInputService")
 
@@ -154,16 +155,29 @@ local function askClimb(from: any)
 	climbWanted = true
 	Net.remote("Climb"):FireServer({ action = "enter", from = from })
 end
+-- The climb's leaderboards: from the CLIMB RECORDS board at its foot, or the climb's RECORDS button.
+local records = ClimbRecords.new(Players.LocalPlayer:WaitForChild("PlayerGui"), { localId = Players.LocalPlayer.UserId })
+Net.remote("ClimbBoards").OnClientEvent:Connect(function(view: any)
+	records:set(view)
+	-- The board in the lobby shows who leads, so the boards are worth walking over to.
+	local top = type(view) == "table" and type(view.speed) == "table" and view.speed[1]
+	local high = type(view) == "table" and type(view.levels) == "table" and view.levels[1]
+	hub.recordsLine = if top then `FASTEST  {top.name}  {ClimbRecords.clock(top.frames)}`
+		elseif high then `HIGHEST  {high.name}  ·  {ClimbRecords.reach(high.best, high.summits)}` else nil
+end)
 local parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	send = function(msg: any) Net.remote("Climb"):FireServer(msg) end,
+	records = function() records:toggle() end,
 	restart = function() askClimb(0) end,
 	leave = function()
+		records:close()
 		Net.remote("Climb"):FireServer({ action = "leave" })
 		if select_ then hub:show(select_.cfg) end
 	end,
 })
 Net.remote("ClimbView").OnClientEvent:Connect(function(view: any)
 	parkour:setProgress(view)
+	records:setMine(view)
 	if climbWanted and type(view.start) == "number" and select_ then
 		climbWanted = false
 		hub:hide()
@@ -200,6 +214,7 @@ Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 end)
 UIS.InputBegan:Connect(function(input: InputObject)
 	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	if records:key(input.KeyCode) then return end
 	if hub.active and not editor:isOpen() and not (select_ and select_.gui.Enabled) and not UIS:GetFocusedTextBox() then
 		social:key(input.KeyCode)
 	end
@@ -232,6 +247,8 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 					openStudio()
 				elseif station.kind == "Parkour" then
 					askClimb(if parkour.progress.best > 0 then "best" else 0)
+				elseif station.kind == "Records" then
+					records:toggle()
 				elseif station.kind == "Members" then
 					social:toggle("People")
 				elseif station.kind == "Warp" then
@@ -274,6 +291,7 @@ end)
 Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	launch:accept(os.clock())
 	editor.gui.Enabled = false             -- a fight starting closes the studio
+	records:close()
 	if select_ then
 		select_:waiting("Loading arena and fighters…")
 	end
@@ -473,9 +491,10 @@ RunService.Heartbeat:Connect(function(dt: number)
 		select_:show("Arena delayed. Rejoining your match…")
 		Net.remote("Hello"):FireServer()
 	end
-	if parkour.active then parkour:step(dt) end
+	if records:isOpen() then records:tick() end
+	if parkour.active then parkour:step(dt, records:isOpen()) end
 	if hub.active then
-		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen())
+		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen() or records:isOpen())
 		if not social.enabled then social:setEnabled(true) end
 		poseElapsed += dt
 		if poseElapsed >= 0.1 then

@@ -267,6 +267,31 @@ function PlazaArt.climbGate(): any
 	return b.done()
 end
 
+-- The climb's leaderboard: a lit scoreboard on steel legs, two columns of names under an amber
+-- header, a gold, a silver and a bronze at the top of each (the names themselves are labels).
+function PlazaArt.recordBoard(): any
+	local W, H = 60, 76
+	local b = builder(W, H)
+	b.r(8, 0, 4, 30, C.steel); b.r(48, 0, 4, 30, C.steel)
+	b.r(9, 0, 1, 30, C.steelHi); b.r(49, 0, 1, 30, C.steelHi)
+	b.r(0, 26, W, 46, C.ink); b.r(2, 28, W - 4, 42, C.night)
+	b.r(2, 62, W - 4, 8, C.amberDk); b.r(4, 64, W - 8, 4, C.amber)          -- header strip
+	b.r(29, 30, 2, 30, C.slateHi)                                           -- column divider
+	local medals: { string } = { C.amber, C.steelHi, C.rust }
+	for col = 0, 1 do
+		local x = 5 + col * 27
+		for row = 0, 5 do
+			local y = 55 - row * 4
+			b.r(x, y, 2, 2, medals[row + 1] or C.slateHi)
+			b.r(x + 4, y, 12 - (row * 3) % 5, 2, if row < 3 then C.paper else C.steel, if row < 3 then 0.9 else 0.6)
+			b.r(x + 18, y, 4, 2, C.cyan, 0.7)
+		end
+	end
+	b.r(0, 72, W, 4, C.steelHi)
+	b.r(0, 0, W, 2, C.ink, 0.6)
+	return b.done()
+end
+
 function PlazaArt.couch(colour: string): any
 	local b = builder(56, 22)
 	b.r(0, 0, 56, 12, colour); b.r(0, 12, 56, 8, colour); b.r(0, 12, 4, 10, C.ink, 0.4); b.r(52, 12, 4, 10, C.ink, 0.4)

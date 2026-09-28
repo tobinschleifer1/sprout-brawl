@@ -38,9 +38,9 @@ assert(View.clock(0) == "0:00.00" and View.clock(4995) == "1:23.25" and View.clo
 local stick = { frame = Input.emptyFrame() }
 stick.sample = function(self) return { self.frame } end
 stick.reset = function() end
-local sent, left, restarts = {}, 0, 0
+local sent, left, restarts, boards = {}, 0, 0, 0
 local v = View.new({}, { input = stick, send = function(m) table.insert(sent, m) end,
-	leave = function() left += 1 end, restart = function() restarts += 1 end })
+	leave = function() left += 1 end, restart = function() restarts += 1 end, records = function() boards += 1 end })
 local code = KIT.presets[3].code
 
 -- 1. A climb from the bottom.
@@ -126,6 +126,8 @@ assert(string.find(v.fallsLabel.Text, "resumed"), "a resumed climb says it is no
 -- 5. Restart and leave.
 v.restartButton.activate()
 assert(restarts == 1, "RESTART asks for a climb from the bottom")
+v.recordsButton.activate()
+assert(boards == 1, "RECORDS opens the leaderboards")
 v:setProgress({ best = 4, summits = 2, bestFrames = 4995 })
 assert(string.find(v.bestLabel.Text, "Billboard Scaffold") and string.find(v.bestLabel.Text, "1:23.25") and string.find(v.bestLabel.Text, "Summits: 2"), `progress: {v.bestLabel.Text}`)
 v:leave()

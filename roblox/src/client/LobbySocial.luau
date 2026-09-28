@@ -23,14 +23,14 @@ LobbySocial.STAMP_SECONDS = 2.6
 LobbySocial.SAY_SECONDS = 4.5
 LobbySocial.LOG_LINES = 6
 
-local INK = Color3.fromRGB(14, 11, 22)
-local PANEL = Color3.fromRGB(28, 24, 44)
-local PANEL2 = Color3.fromRGB(44, 38, 66)
-local TEXT = Color3.fromRGB(236, 232, 222)
-local DIM = Color3.fromRGB(150, 146, 172)
-local PINK = Color3.fromRGB(255, 79, 163)
-local CYAN = Color3.fromRGB(79, 227, 255)
-local AMBER = Color3.fromRGB(255, 181, 71)
+local INK = Color3.fromRGB(15, 18, 24)
+local PANEL = Color3.fromRGB(30, 34, 42)
+local PANEL2 = Color3.fromRGB(46, 52, 63)
+local TEXT = Color3.fromRGB(230, 225, 214)
+local DIM = Color3.fromRGB(138, 148, 166)
+local PINK = Color3.fromRGB(200, 100, 60)
+local CYAN = Color3.fromRGB(127, 168, 184)
+local AMBER = Color3.fromRGB(232, 162, 74)
 
 local function corner(parent: Instance, px: number)
 	local c = Instance.new("UICorner")
@@ -65,8 +65,8 @@ local function panel(parent: Instance, name: string, title: string, w: number, h
 	f.Parent = parent
 	corner(f, 10)
 	local s = Instance.new("UIStroke")
-	s.Color, s.Thickness, s.Parent = PINK, 2, f
-	local t = label(f, "Title", title, 16, PINK)
+	s.Color, s.Thickness, s.Parent = AMBER, 2, f
+	local t = label(f, "Title", title, 16, AMBER)
 	t.Position, t.Size = UDim2.fromOffset(14, 8), UDim2.new(1, -28, 0, 22)
 	return f
 end
@@ -95,7 +95,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	bar.Name, bar.BackgroundTransparency, bar.AnchorPoint = "Bar", 1, Vector2.new(1, 1)
 	bar.Position, bar.Size = UDim2.new(1, -16, 1, -44), UDim2.fromOffset(4 * 96 - 6, 40)
 	bar.Parent = gui
-	local specs: { { any } } = { { "Stamps", "STAMP  T", PINK }, { "Say", "SAY  Y", CYAN }, { "People", "PEOPLE  P", AMBER }, { "Map", "MAP  M", Color3.fromRGB(98, 224, 138) } }
+	local specs: { { any } } = { { "Stamps", "STAMP  T", PINK }, { "Say", "SAY  Y", CYAN }, { "People", "PEOPLE  P", AMBER }, { "Map", "MAP  M", Color3.fromRGB(127, 190, 110) } }
 	for i, sp in specs do
 		local b = button(bar, "Open" .. sp[1], sp[2], function() self:toggle(sp[1]) end, PANEL)
 		b.Position, b.Size, b.TextColor3 = UDim2.fromOffset((i - 1) * 96, 0), UDim2.fromOffset(90, 40), sp[3]

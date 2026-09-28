@@ -350,7 +350,7 @@ do
 	local recorder = function(c, _x, _y, w, h, colour, ...)
 		local key = string.format("%d,%d,%d", math.floor(colour.R * 255 + 0.5), math.floor(colour.G * 255 + 0.5), math.floor(colour.B * 255 + 0.5))
 		colours[key] = (colours[key] or 0) + 1
-		if key == "255,181,71" and math.abs(w - 3.4) < 1e-6 and math.abs(h - 2.4) < 1e-6 then frames += 1 end
+		if key == "232,162,74" and math.abs(w - 3.4) < 1e-6 and math.abs(h - 2.4) < 1e-6 then frames += 1 end
 		c.used += 1
 	end
 	local function drawAt(st: any): { [string]: number }
@@ -372,11 +372,11 @@ do
 	local seen = drawAt(stations.Maps)
 	assert(seen[rgb(byId.Undertow.palette.skyStops[1][2])], "the map board shows the leading map's sky")
 	seen = drawAt(stations.Players)
-	assert((seen["98,224,138"] or 0) == 2, `two green lamps (the ready player and the bot), got {seen["98,224,138"] or 0}`)
+	assert((seen["127,190,110"] or 0) == 2, `two green lamps (the ready player and the bot), got {seen["127,190,110"] or 0}`)
 	room.slots[1].ready = true
 	hub:setRoom(room)
 	seen = drawAt(stations.Players)
-	assert((seen["98,224,138"] or 0) == 3, "readying lights your lamp")
+	assert((seen["127,190,110"] or 0) == 3, "readying lights your lamp")
 	frames = 0
 	drawAt(stations.Weapons)
 	assert(frames == 1, `exactly one weapon framed on the rack, got {frames}`)

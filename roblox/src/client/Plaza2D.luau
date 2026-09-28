@@ -37,14 +37,14 @@ local A = PlazaArt.C
 local Plaza2D = {}
 Plaza2D.__index = Plaza2D
 
-local INK = Color3.fromRGB(14, 11, 22)
-local WHITE = Color3.fromRGB(236, 232, 222)
-local AMBER = Color3.fromRGB(255, 181, 71)
-local CYAN = Color3.fromRGB(79, 227, 255)
-local PINK = Color3.fromRGB(255, 79, 163)
-local METAL = Color3.fromRGB(39, 35, 56)
-local STEEL = Color3.fromRGB(74, 78, 99)
-local READY = Color3.fromRGB(98, 224, 138)
+local INK = Color3.fromRGB(15, 18, 24)
+local WHITE = Color3.fromRGB(230, 225, 214)
+local AMBER = Color3.fromRGB(232, 162, 74)
+local CYAN = Color3.fromRGB(127, 168, 184)
+local PINK = Color3.fromRGB(200, 100, 60)
+local METAL = Color3.fromRGB(38, 43, 53)
+local STEEL = Color3.fromRGB(110, 119, 136)
+local READY = Color3.fromRGB(127, 190, 110)
 local TEAM1 = Color3.fromRGB(62, 138, 46)
 local TEAM2 = Color3.fromRGB(222, 98, 28)
 local MANNEQUIN_SECONDS = 4
@@ -140,7 +140,7 @@ function Plaza2D.new(parent: Instance): any
 	character.Name, character.Font, character.TextSize = "CharacterButton", Enum.Font.GothamBold, 15
 	character.AnchorPoint = Vector2.new(1, 0)
 	character.Position, character.Size = UDim2.new(1, -16, 0, 12), UDim2.fromOffset(150, 38)
-	character.BackgroundColor3, character.BorderSizePixel = Color3.fromRGB(28, 60, 78), 0
+	character.BackgroundColor3, character.BorderSizePixel = Color3.fromRGB(38, 43, 53), 0
 	character.TextColor3, character.Text, character.Parent = CYAN, "CHARACTER", gui
 	local round2 = Instance.new("UICorner")
 	round2.CornerRadius, round2.Parent = UDim.new(0, 8), character
@@ -153,7 +153,7 @@ function Plaza2D.new(parent: Instance): any
 	cpu.Name, cpu.Font, cpu.TextSize, cpu.Visible = "CpuButton", Enum.Font.GothamBold, 15, false
 	cpu.AnchorPoint = Vector2.new(0.5, 1)
 	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, -92), UDim2.fromOffset(200, 38)
-	cpu.BackgroundColor3, cpu.BorderSizePixel, cpu.TextColor3, cpu.Text = Color3.fromRGB(90, 30, 64), 0, PINK, "VS CPU  (C)"
+	cpu.BackgroundColor3, cpu.BorderSizePixel, cpu.TextColor3, cpu.Text = Color3.fromRGB(38, 43, 53), 0, AMBER, "VS CPU  (C)"
 	cpu.Parent = gui
 	local round3 = Instance.new("UICorner")
 	round3.CornerRadius, round3.Parent = UDim.new(0, 8), cpu
@@ -505,11 +505,11 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		PlazaArt.draw(c, "billboard", bb, 0, base, k)
 		local sx0, sy0, sw, sh = -16.5 * k, base + 7.5 * k, 33 * k, 10.25 * k
 		local pulse = 0.55 + 0.25 * math.sin(clock * 2.2)
-		Canvas.rect(c, sx0, sy0, sw, sh, PINK, 0.05 + pulse * 0.05)
+		Canvas.rect(c, sx0, sy0, sw, sh, AMBER, 0.03 + pulse * 0.03)
 		for i = 0, 7 do
-			Canvas.rect(c, sx0, sy0 + ((clock * 2 + i * 1.3) % sh), sw, 0.1, CYAN, 0.08)
+			Canvas.rect(c, sx0, sy0 + ((clock * 2 + i * 1.3) % sh), sw, 0.1, CYAN, 0.05)
 		end
-		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, PINK, 520)
+		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520)
 		local n = 1
 		for _ in self.peers do n += 1 end
 		self:placeLabel(c, "billboard2", `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`, 0, sy0 + sh * 0.25, 14, CYAN, 520)

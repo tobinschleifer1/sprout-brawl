@@ -583,6 +583,11 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			add(s.z + 1, function()
 				PlazaArt.draw(c, "mapsign", PlazaArt.get("mapsign", PlazaArt.mapSign), s.x, (s.z + 1) * D)
 			end)
+		elseif s.kind == "Parkour" then
+			add(s.z + 1.6, function()
+				PlazaArt.draw(c, "climbgate", PlazaArt.get("climbgate", PlazaArt.climbGate), s.x, (s.z + 1.6) * D)
+				self:placeLabel(c, "climb", s.name .. "\n" .. s.landmark, s.x, (s.z + 1.6) * D + 20.5, 16, AMBER, 300)
+			end)
 		elseif s.kind == "Format" then
 			add(s.z + 1.8, function()
 				local colour = if s.teamSize == 1 then A.amber elseif s.teamSize == 2 then A.cyan else A.pink
@@ -861,7 +866,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	c:finish()
 	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
 		elseif near then `[E / X]  {if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
-		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade is east, the tailor is west."
+		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade and the climb are east, the tailor is west."
 	self.prompt.Active = not self.blocked and near ~= nil
 	self.gui:SetAttribute("NearbyStation", if near then near.id else "")
 	self.gui:SetAttribute("FighterX", p.x)

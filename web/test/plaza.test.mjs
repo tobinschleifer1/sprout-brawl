@@ -92,7 +92,7 @@ function walkTo(w, tx, tz) {
 // ---- 3. the bridges are the only way across the gaps ----
 {
   const bad = [];
-  const gaps = [[-90, 'tailor/square'], [90, 'square/arcade'], [190, 'arcade/gates']];
+  const gaps = [[-90, 'tailor/square'], [90, 'square/arcade'], [190, 'arcade/gates'], [245, 'gates/climb']];
   for (const [x, name] of gaps) {
     if (!walkable(MARKET, x, 9)) bad.push(`${name}: no bridge at z 9`);
     for (const z of [3, 5, 13, 16]) if (walkable(MARKET, x, z)) bad.push(`${name}: open gap at z ${z}`);
@@ -102,7 +102,7 @@ function walkTo(w, tx, tz) {
   walkTo(w, 70, 3);
   for (let i = 0; i < 300; i++) w.step(frame(1, 0));
   if (w.p.x > 85) bad.push(`walked off the front of Neon Square to x ${w.p.x}`);
-  check('districts join only by their plank bridges', bad.length === 0, bad.length ? bad.join('; ') : 'three gaps, each crossable at the bridge and a sheer drop either side of it');
+  check('districts join only by their plank bridges', bad.length === 0, bad.length ? bad.join('; ') : 'four gaps, each crossable at the bridge and a sheer drop either side of it');
 }
 
 // ---- 4. sliding: running diagonally into a wall keeps moving along it ----

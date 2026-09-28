@@ -33,7 +33,8 @@ const BRIDGE = (x1, x2, z1, z2) => ({ x1, x2, z1, z2, bridge: true });
 
 // ------------------------------------------------------------------------ the market ----
 // West to east: the tailor's roof (the wardrobe), Neon Square (spawn, notice board, roof map), the
-// arcade (numbered cabinets), and the crew gates (team fights). Plank bridges cross the gaps.
+// arcade (numbered cabinets), the crew gates (team fights) and the foot of the Skyline Climb (the
+// parkour course, data/parkour.js). Plank bridges cross the gaps.
 const CABINET_XS = [108, 128, 148, 168];
 const CABINET_ROWS = [6.5, 15.5];
 export const CABINETS = [];
@@ -50,7 +51,7 @@ for (const c of CABINETS) {
 export const MARKET = {
   id: 'NeonRow', name: 'Neon Row', kind: 'plaza',
   spawn: { x: 0, z: 6 },
-  bounds: { x1: -152, x2: 242 },
+  bounds: { x1: -152, x2: 287 },
   floor: [
     R(-150, -95, 2, 16),       // tailor's roof
     BRIDGE(-96, -84, 7, 11),        // plank bridge
@@ -59,6 +60,8 @@ export const MARKET = {
     R(95, 185, 2, 20),         // the arcade
     BRIDGE(184, 196, 7, 11),        // plank bridge
     R(195, 240, 2, 17),        // crew gates
+    BRIDGE(239, 251, 7, 11),        // plank bridge
+    R(250, 285, 2, 16),        // the foot of the climb
   ],
   blocks: [
     R(-4, 4, 12, 16),          // the hologram kiosk in the middle of the square
@@ -69,6 +72,7 @@ export const MARKET = {
     { id: 'square', name: 'NEON SQUARE', x1: -85, x2: 85 },
     { id: 'arcade', name: 'THE ARCADE', x1: 95, x2: 185 },
     { id: 'gates', name: 'CREW GATES', x1: 195, x2: 240 },
+    { id: 'climb', name: 'SKYLINE CLIMB', x1: 250, x2: 285 },
   ],
   stations: [
     { id: 'Wardrobe', name: 'WARDROBE', landmark: 'CHARACTER STUDIO', kind: 'Wardrobe', x: -122, z: 14, rx: 7, rz: 3.5 },
@@ -78,12 +82,14 @@ export const MARKET = {
     { id: 'Duel', name: '1v1', landmark: 'OPEN ROOM', kind: 'Format', teamSize: 1, x: 202, z: 15.5, rx: 5, rz: 3 },
     { id: 'Doubles', name: '2v2', landmark: 'CREW LIFT', kind: 'Format', teamSize: 2, x: 217, z: 15.5, rx: 5, rz: 3 },
     { id: 'Triples', name: '3v3', landmark: 'FREIGHT LIFT', kind: 'Format', teamSize: 3, x: 232, z: 15.5, rx: 5, rz: 3 },
+    { id: 'Climb', name: 'SKYLINE CLIMB', landmark: 'PARKOUR', kind: 'Parkour', x: 268, z: 14.5, rx: 6, rz: 3 },
   ],
   warps: [
     { id: 'tailor', name: "Tailor's Roof", x: -122, z: 8 },
     { id: 'square', name: 'Neon Square', x: 0, z: 6 },
     { id: 'arcade', name: 'The Arcade', x: 138, z: 11 },
     { id: 'gates', name: 'Crew Gates', x: 217, z: 8 },
+    { id: 'climb', name: 'Skyline Climb', x: 262, z: 8 },
   ],
 };
 

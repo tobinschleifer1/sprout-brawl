@@ -57,7 +57,16 @@ function AvatarStore.sanitize(raw: any): any
 	end
 	local active = if type(src.active) == "number" and src.active % 1 == 0 and src.active >= 1 and src.active <= #slots
 		then src.active else 1
-	return { v = AvatarStore.VERSION, slots = slots, active = active }
+	-- Skyline Climb progress rides in the same record (ClimbProgress cleans it field by field when it
+	-- reads it); only plain numbers are carried, so nothing else a record holds can slip through.
+	local climb = nil
+	if type(src.climb) == "table" then
+		climb = {}
+		for _, k in { "best", "summits", "bestFrames" } do
+			if type(src.climb[k]) == "number" then climb[k] = src.climb[k] end
+		end
+	end
+	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb }
 end
 
 function AvatarStore.new(dataStore: any, clock: (() -> number)?): any

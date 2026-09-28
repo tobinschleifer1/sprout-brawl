@@ -248,6 +248,25 @@ function PlazaArt.boutique(): any
 	return b.done()
 end
 
+-- The foot of the Skyline Climb: a scaffold tower with a ladder and a flag at the top.
+function PlazaArt.climbGate(): any
+	local W, H = 96, 150
+	local b = builder(W, H)
+	for _, x in { 4, 44, 88 } do b.r(x, 0, 4, 138, C.steel); b.r(x + 1, 0, 1, 138, C.steelHi) end
+	for i = 0, 5 do
+		local y = 16 + i * 22
+		b.r(4, y, 88, 3, C.steel)
+		b.r(8, y + 3, 32, 2, C.woodDk); b.r(48, y + 3, 40, 2, C.woodDk)          -- deck planks
+		if i % 2 == 0 then b.r(8, y - 18, 3, 18, C.steel, 0.6) else b.r(80, y - 18, 3, 18, C.steel, 0.6) end
+	end
+	b.r(56, 0, 3, 128, C.woodHi); b.r(70, 0, 3, 128, C.woodHi)               -- the ladder
+	for y = 4, 124, 8 do b.r(56, y, 17, 2, C.woodHi) end
+	b.r(44, 138, 3, 12, C.steelHi)
+	b.r(47, 141, 18, 8, C.amber)                                             -- the flag
+	b.r(0, 0, W, 3, C.ink, 0.6)
+	return b.done()
+end
+
 function PlazaArt.couch(colour: string): any
 	local b = builder(56, 22)
 	b.r(0, 0, 56, 12, colour); b.r(0, 12, 56, 8, colour); b.r(0, 12, 4, 10, C.ink, 0.4); b.r(52, 12, 4, 10, C.ink, 0.4)

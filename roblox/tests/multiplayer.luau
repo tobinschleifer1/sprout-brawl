@@ -34,7 +34,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" then return Loader.loadFrom("src/server/", name) end
+	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
@@ -300,5 +300,32 @@ do
 	-- And leaving mid-fight calls it off.
 	players.PlayerRemoving:Fire(people[winner])
 	assert(cabinets(loser)[1].state == "open" and not cabinets(loser)[1].seats.A and not cabinets(loser)[1].seats.B, "a leaver clears the cabinet")
+end
+-- The Skyline Climb: entering takes you off the floor and shows in the member list; a checkpoint
+-- claimed too fast is ignored; leaving puts you back.
+do
+	now += 1
+	send(12,"Climb",{action="enter",from=0})
+	assert(last(12,"ClimbView") and last(12,"ClimbView").start == 0, "entering the climb starts at the bottom")
+	run.Heartbeat:Fire(0.1)
+	for _, peer in last(9,"HubPresence") or {} do assert(peer.userId ~= 12, "a climber is not on the lobby floor") end
+	now += 1
+	send(9,"Members")
+	local where = nil
+	for _, m in last(9,"Members") do if m.userId == 12 then where = m end end
+	assert(where and where.place == "climb" and string.find(where.where, "Skyline Climb"), "the member list says who is climbing")
+	local mark = #messages
+	now += 0.3
+	send(12,"Climb",{action="checkpoint",index=3})
+	for k = mark + 1, #messages do assert(messages[k].name ~= "ClimbView", "a checkpoint claimed in a second is ignored") end
+	now += 30
+	send(12,"Climb",{action="checkpoint",index=3})
+	assert(last(12,"ClimbView").best == 3, "a believable checkpoint is kept")
+	now += 1
+	send(12,"Climb",{action="leave"})
+	run.Heartbeat:Fire(0.1)
+	local back = false
+	for _, peer in last(9,"HubPresence") or {} do if peer.userId == 12 then back = true end end
+	assert(back, "leaving the climb puts you back on the floor")
 end
 print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight, and arcade fights: countdown, spectators, winner stays, vs CPU, leavers")

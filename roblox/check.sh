@@ -56,6 +56,7 @@ node tools/gen-channel-traces.mjs
 node tools/gen-weapon-traces.mjs
 node tools/gen-hud-fixture.mjs
 node tools/gen-plaza-trace.mjs
+node tools/gen-parkour-trace.mjs
 
 rojo sourcemap default.project.json --output sourcemap.json >/dev/null
 echo "== luau-lsp analyze =="
@@ -74,10 +75,13 @@ echo "== the lobby: walking the rooftop market, its stations and its drawing =="
 lune run tests/plaza-view
 lune run tests/social-ui
 lune run tests/plaza-parity
+lune run tests/parkour-parity
+lune run tests/climb-view
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch
 lune run tests/rooms
 lune run tests/cabinets
+lune run tests/climb-progress
 lune run tests/room-ui
 lune run tests/multiplayer
 lune run tests/avatar-store

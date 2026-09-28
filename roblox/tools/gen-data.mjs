@@ -36,6 +36,8 @@ const PLAZA = JSON.parse(JSON.stringify({
   depth: PLAZAMOD.DEPTH, walk: PLAZAMOD.WALK, market: PLAZAMOD.MARKET, rooms: PLAZAMOD.ROOMS,
   cabinets: PLAZAMOD.CABINETS, messages: PLAZAMOD.MESSAGES, stamps: PLAZAMOD.STAMPS,
 }));
+const PARKOURMOD = await import(`${WEB}/parkour.js`);
+const PARKOUR = JSON.parse(JSON.stringify({ course: PARKOURMOD.COURSE, weapon: PARKOURMOD.COURSE_WEAPON }));
 const KITMOD = await import(`${WEB}/avatarKit.js`);
 // The character kit: the part catalogue plus everything the code and the composer need. Presets
 // are emitted as their FULL specs, so the Luau never has to know how a preset is merged.
@@ -162,6 +164,8 @@ assertPlain(TEAMS, 'TEAMS');
 written.push(write('Teams.luau', 'web/src/data/teams.js', `return ${emit(TEAMS, 0, 'TEAMS')}`));
 assertPlain(PLAZA, 'PLAZA');
 written.push(write('Plaza.luau', 'web/src/data/plaza.js', `return ${emit(PLAZA, 0, 'PLAZA')}`));
+assertPlain(PARKOUR, 'PARKOUR');
+written.push(write('Parkour.luau', 'web/src/data/parkour.js', `return ${emit(PARKOUR, 0, 'PARKOUR')}`));
 assertPlain(KIT, 'KIT');
 written.push(write('AvatarKit.luau', 'web/src/data/avatarKit.js and avatarParts.js', `return ${emit(KIT, 0, 'KIT')}`));
 const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
@@ -233,7 +237,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA }));
+  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA, parkour: PARKOUR }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

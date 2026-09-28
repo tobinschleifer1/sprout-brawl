@@ -67,6 +67,8 @@ if RunService:IsServer() then
 		make("RemoteEvent", "Members")              -- both ways: "who is here?" and the answer
 		make("RemoteEvent", "CabinetAction")        -- client -> server, sit / stand / vs CPU / watch
 		make("RemoteEvent", "Cabinets")             -- server -> client, the arcade's seats and streaks
+		make("RemoteEvent", "Climb")                -- client -> server, entering / leaving the Skyline Climb, checkpoints, the Summit
+		make("RemoteEvent", "ClimbView")            -- server -> client, your climb progress
 		folder.Parent = ReplicatedStorage
 	end
 else

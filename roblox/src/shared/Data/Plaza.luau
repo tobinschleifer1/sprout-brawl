@@ -29,7 +29,7 @@ return {
 		},
 		bounds = {
 			x1 = -152,
-			x2 = 242,
+			x2 = 287,
 		},
 		floor = {
 			{
@@ -76,6 +76,19 @@ return {
 				x2 = 240,
 				z1 = 2,
 				z2 = 17,
+			},
+			{
+				x1 = 239,
+				x2 = 251,
+				z1 = 7,
+				z2 = 11,
+				bridge = true,
+			},
+			{
+				x1 = 250,
+				x2 = 285,
+				z1 = 2,
+				z2 = 16,
 			},
 		},
 		blocks = {
@@ -158,6 +171,12 @@ return {
 				name = "CREW GATES",
 				x1 = 195,
 				x2 = 240,
+			},
+			{
+				id = "climb",
+				name = "SKYLINE CLIMB",
+				x1 = 250,
+				x2 = 285,
 			},
 		},
 		stations = {
@@ -416,6 +435,16 @@ return {
 				rx = 5,
 				rz = 3,
 			},
+			{
+				id = "Climb",
+				name = "SKYLINE CLIMB",
+				landmark = "PARKOUR",
+				kind = "Parkour",
+				x = 268,
+				z = 14.5,
+				rx = 6,
+				rz = 3,
+			},
 		},
 		warps = {
 			{
@@ -440,6 +469,12 @@ return {
 				id = "gates",
 				name = "Crew Gates",
 				x = 217,
+				z = 8,
+			},
+			{
+				id = "climb",
+				name = "Skyline Climb",
+				x = 262,
 				z = 8,
 			},
 		},

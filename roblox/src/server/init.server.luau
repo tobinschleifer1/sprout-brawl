@@ -8,6 +8,8 @@ local Plaza = require(Shared.Plaza)
 local Rooms = require(script.Rooms)
 local AvatarStore = require(script.AvatarStore)
 local Cabinets = require(script.Cabinets)
+local ClimbProgress = require(script.ClimbProgress)
+local PARKOUR: any = require(Shared.Data.Parkour)
 local PLAZA = Plaza.DATA
 local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
 local MatchService = require(script.MatchService)
@@ -22,6 +24,7 @@ local okStore, dataStore = pcall(function()
 end)
 local avatars = AvatarStore.new(if okStore then dataStore else nil)
 avatars.wait = function(n: number) task.wait(n) end
+local climbs = ClimbProgress.new(avatars, #PARKOUR.course.checkpoints)
 local services: any = {}
 local poses: any = {}
 local limits: any = {}
@@ -78,6 +81,7 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	if departed[player] then return end      -- left while the DataStore was answering
 	loaded[player.UserId] = player
 	sendAvatars(player)
+	Net.remote("ClimbView"):FireClient(player, climbs:view(player.UserId))
 	local room = rooms:get(player.UserId)
 	if room and services[room.id] and services[room.id]:rejoin(player) then return end
 	local seat = arcade.seatOf[player.UserId]
@@ -230,6 +234,32 @@ Net.remote("CabinetAction").OnServerEvent:Connect(function(player: Player, msg: 
 	publishCabinets()
 end)
 
+-- ---------------------------------------------------------------- the Skyline Climb ----
+-- The climb runs on the client; the server keeps progress and refuses claims no climber could make
+-- (ClimbProgress). A climber is off the lobby floor until they come back.
+Net.remote("Climb").OnServerEvent:Connect(function(player: Player, msg: any)
+	local id = player.UserId
+	if not loaded[id] or type(msg) ~= "table" or not admitted(player, "climb", 0.2) then return end
+	local now = os.clock()
+	if msg.action == "enter" then
+		if rooms:get(id) or arcade.seatOf[id] then return end
+		local start = climbs:enter(id, msg.from, now)
+		local view = climbs:view(id)
+		view.start = start
+		Net.remote("ClimbView"):FireClient(player, view)
+		return
+	elseif msg.action == "leave" then
+		climbs:leave(id)
+	elseif msg.action == "checkpoint" then
+		if not climbs:checkpoint(id, msg.index, now) then return end
+	elseif msg.action == "summit" then
+		if not climbs:summit(id, msg.frames, now) then return end
+	else
+		return
+	end
+	Net.remote("ClimbView"):FireClient(player, climbs:view(id))
+end)
+
 -- Where a player says they are standing. Cosmetic - nothing is decided by it - but everyone else
 -- draws it, so it has to be somewhere a player could be: on the floor of the scene they are in
 -- (Plaza.walkable, the same test their own walking uses). A position off the floor is ignored and
@@ -281,7 +311,10 @@ Net.remote("Members").OnServerEvent:Connect(function(player: Player)
 	for id, other in loaded do
 		local room, pose = rooms:get(id), poses[id]
 		local where, place
-		if room and room.state == "playing" then
+		local climbing = climbs:climbing(id)
+		if climbing then
+			where, place = `Skyline Climb · {PARKOUR.course.checkpoints[climbing.reached + 1].name}`, "climb"
+		elseif room and room.state == "playing" then
 			where, place = `Fighting · {room.format}`, "fight"
 		elseif room then
 			where, place = `{PLAZA.rooms[room.format].name}`, "room"
@@ -338,7 +371,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 				end
 			end
 			-- Mid cabinet-fight or watching one: not on the floor.
-			local busy = (seat and cabinetServices[seat.n]) or arcade.watching[id]
+			local busy = (seat and cabinetServices[seat.n]) or arcade.watching[id] or climbs:climbing(id)
 			if not busy then table.insert(groups[area], entry) end
 		end
 	end
@@ -354,6 +387,7 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	local id = player.UserId
 	loaded[id], poses[id], limits[id], rooms.profiles[id] = nil, nil, nil, nil
 	departed[player] = true
+	climbs:leave(player.UserId)
 	local cab = arcade:leave(player)
 	if cab then
 		local service = cabinetServices[cab.number]

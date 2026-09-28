@@ -43,6 +43,7 @@ local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
 local LobbySocial = require(script.LobbySocial)
+local ParkourView = require(script.ParkourView)
 local Plaza = require(Shared.Plaza)
 local UIS = game:GetService("UserInputService")
 
@@ -145,6 +146,32 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	end,
 })
 hub.social, hub.localId = social, Players.LocalPlayer.UserId
+-- The Skyline Climb. The climb runs here; the server keeps progress (ClimbProgress). Entering asks
+-- the server where to start - the bottom, or the furthest checkpoint reached - and the answer
+-- starts it.
+local climbWanted = false
+local function askClimb(from: any)
+	climbWanted = true
+	Net.remote("Climb"):FireServer({ action = "enter", from = from })
+end
+local parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	send = function(msg: any) Net.remote("Climb"):FireServer(msg) end,
+	restart = function() askClimb(0) end,
+	leave = function()
+		Net.remote("Climb"):FireServer({ action = "leave" })
+		if select_ then hub:show(select_.cfg) end
+	end,
+})
+Net.remote("ClimbView").OnClientEvent:Connect(function(view: any)
+	parkour:setProgress(view)
+	if climbWanted and type(view.start) == "number" and select_ then
+		climbWanted = false
+		hub:hide()
+		social:setEnabled(false)
+		editor.gui.Enabled = false
+		parkour:start(select_.cfg.slots[1].avatarId, view.start)
+	end
+end)
 Net.remote("SocialEvent").OnClientEvent:Connect(function(ev: any) social:onEvent(ev) end)
 -- The arcade: sit, stand, vs CPU, watch. The server decides; the lobby draws what it says.
 hub.onCabinet = function(intent: any) Net.remote("CabinetAction"):FireServer(intent) end
@@ -203,6 +230,8 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 			if not select_.gui.Enabled then
 				if station.kind == "Wardrobe" then
 					openStudio()
+				elseif station.kind == "Parkour" then
+					askClimb(if parkour.progress.best > 0 then "best" else 0)
 				elseif station.kind == "Members" then
 					social:toggle("People")
 				elseif station.kind == "Warp" then
@@ -444,6 +473,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		select_:show("Arena delayed. Rejoining your match…")
 		Net.remote("Hello"):FireServer()
 	end
+	if parkour.active then parkour:step(dt) end
 	if hub.active then
 		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen())
 		if not social.enabled then social:setEnabled(true) end
@@ -477,6 +507,10 @@ end)
 
 RunService.RenderStepped:Connect(function(dt: number)
 	if select_ then select_:drawPreviews() end
+	if parkour.active then
+		parkour:draw(canvas, dt)
+		return
+	end
 	if hub.active then
 		hub:draw(canvas, dt)
 		editor:draw(os.clock())

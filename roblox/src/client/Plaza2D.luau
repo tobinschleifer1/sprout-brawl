@@ -175,6 +175,46 @@ function Plaza2D.placeLabel(self: any, c: any, id: string, value: string, x: num
 	return t
 end
 
+-- A speech bubble: a pooled label styled once, sized to its text.
+function Plaza2D.bubble(self: any, c: any, id: string, value: string, x: number, y: number, alpha: number)
+	local t = self:label(id, value, 14, INK)
+	self.styled = self.styled or {}
+	if not self.styled[id] then
+		self.styled[id] = true
+		t.BackgroundColor3 = Color3.fromRGB(246, 242, 232)
+		t.TextStrokeTransparency = 1
+		local r = Instance.new("UICorner")
+		r.CornerRadius, r.Parent = UDim.new(0, 8), t
+	end
+	local at = c:project(x, y)
+	local w = #value * 8 + 26
+	t.Position, t.Size = UDim2.fromOffset(at.X - w / 2, at.Y - 30), UDim2.fromOffset(w, 28)
+	t.BackgroundTransparency = 1 - 0.95 * alpha
+	t.TextTransparency = 1 - alpha
+end
+
+-- What someone just stamped or said, over their head (LobbySocial keeps who and since when).
+function Plaza2D.drawOverhead(self: any, c: any, userId: number, x: number, headY: number)
+	local social = self.social
+	if not social then return end
+	local o, age, life = social:overhead(userId)
+	if not o then return end
+	local fade = math.clamp((life - age) / 0.4, 0, 1)
+	if o.kind == "stamp" then
+		local stamp
+		for _, st in PLAZA.stamps do if st.id == o.id then stamp = st end end
+		if not stamp then return end
+		local prop = PlazaArt.stamp(stamp)
+		-- A pop: overshoot, settle, and a slow bob while it is up.
+		local pop = if age < 0.18 then 0.5 + age / 0.18 * 0.75 elseif age < 0.32 then 1.25 - (age - 0.18) / 0.14 * 0.25 else 1
+		local k = 0.17 * pop
+		local y = headY + 0.8 + math.sin(age * 5) * 0.12
+		Canvas.sprite(c, "ovh|" .. o.id, prop.rects, x - prop.w * k / 2, y + prop.h * k, k, k, prop.w, prop.h, fade)
+	else
+		self:bubble(c, "bub" .. userId, o.text, x, headY + 2.6, fade)
+	end
+end
+
 function Plaza2D.endLabels(self: any)
 	for id, t in self.pool do
 		if not self.used[id] then t.Visible = false end
@@ -692,7 +732,9 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 				local state = if peer.y > 0.1 then "air" elseif goal.moving then "run" else "idle"
 				local st = posed(peer.char, state, math.floor(clock * 60), peer.x, peer.z, peer.y, goal.facing or 1, if goal.moving then (goal.facing or 1) * 15 else 0)
 				self:drawPerson(c, peer.char, st, peer.z, clock)
-				self:placeLabel(c, "name" .. id, peer.name or "", peer.x, peer.y + peer.z * D + peer.char.height + 1.6, 12, WHITE, 180)
+				local head = peer.y + peer.z * D + peer.char.height
+				self:placeLabel(c, "name" .. id, peer.name or "", peer.x, head + 1.6, 12, WHITE, 180)
+				self:drawOverhead(c, id, peer.x, head + 1.4)
 			end)
 		end
 	end
@@ -700,6 +742,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		add(p.z, function()
 			local st = posed(self.char, p.state, p.sf, p.x, p.z, p.y, p.facing, p.vx)
 			self:drawPerson(c, self.char, st, p.z, clock)
+			if self.localId then self:drawOverhead(c, self.localId, p.x, p.y + p.z * D + self.char.height + 0.2) end
 		end)
 	end
 	table.sort(items, function(a, b2)

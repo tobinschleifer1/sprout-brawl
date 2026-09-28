@@ -259,6 +259,30 @@ function PlazaArt.plant(): any
 	return b.done()
 end
 
+-- A stamp (Data/Plaza stamps) as sprite rectangles: each row cut into runs of one colour. Rows
+-- are already top-down, which is the sprite convention.
+local STAMPS: { [string]: any } = {}
+function PlazaArt.stamp(st: any): any
+	local hit = STAMPS[st.id]
+	if hit then return hit end
+	local rects: { any } = {}
+	local w = 0
+	for r, row in st.rows do
+		w = math.max(w, #row)
+		local c = 1
+		while c <= #row do
+			local ch = string.sub(row, c, c)
+			local run = 1
+			while c + run <= #row and string.sub(row, c + run, c + run) == ch do run += 1 end
+			if ch ~= "." then table.insert(rects, { c - 1, r - 1, run, 1, st.ink[ch], 1 } :: { any }) end
+			c += run
+		end
+	end
+	hit = { rects = rects, w = w, h = #st.rows }
+	STAMPS[st.id] = hit
+	return hit
+end
+
 -- Cached props, keyed by name + arguments.
 local CACHE: { [string]: any } = {}
 function PlazaArt.get(key: string, make: () -> any): any

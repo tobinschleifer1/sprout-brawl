@@ -144,6 +144,62 @@ Net.remote("HubPose").OnServerEvent:Connect(function(player: Player, pose: any)
 		y = if finite(pose.y) then math.clamp(pose.y, 0, 6) else 0, facing = if pose.facing == -1 then -1 else 1,
 		moving = pose.moving == true, at = os.clock() }
 end)
+-- Stamps and quick messages. Both are indices into fixed lists (Data/Plaza), so nothing a player
+-- sends this way is free text and nothing needs filtering; the server checks the index, limits the
+-- rate, and passes it to the people in the same place - the market, or one room - and no one else.
+-- Nobody hears the lobby from inside a fight.
+local PLAZA = Plaza.DATA
+local STAMP_IDS: { [string]: boolean } = {}
+for _, st in PLAZA.stamps do STAMP_IDS[st.id] = true end
+local function areaOf(id: number): number?
+	local room = rooms:get(id)
+	if room and room.state == "playing" then return nil end
+	return if room then room.id else 0
+end
+Net.remote("Social").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or type(msg) ~= "table" then return end
+	local kind = msg.kind
+	local event: any
+	if kind == "stamp" and type(msg.id) == "string" and STAMP_IDS[msg.id] then
+		event = { kind = "stamp", id = msg.id }
+	elseif kind == "say" and type(msg.index) == "number" and msg.index % 1 == 0 and msg.index >= 1 and msg.index <= #PLAZA.messages then
+		event = { kind = "say", index = msg.index }
+	else
+		return
+	end
+	local area = areaOf(player.UserId)
+	if area == nil or not admitted(player, "social", 1.2) then return end
+	event.userId, event.name = player.UserId, player.DisplayName
+	for id, other in loaded do
+		if areaOf(id) == area then Net.remote("SocialEvent"):FireClient(other, event) end
+	end
+end)
+-- Who is in the lobby, and where: for the member list and "warp to a friend".
+Net.remote("Members").OnServerEvent:Connect(function(player: Player)
+	if not loaded[player.UserId] or not admitted(player, "members", 0.5) then return end
+	local list = {}
+	for id, other in loaded do
+		local room, pose = rooms:get(id), poses[id]
+		local where, place
+		if room and room.state == "playing" then
+			where, place = `Fighting · {room.format}`, "fight"
+		elseif room then
+			where, place = `{PLAZA.rooms[room.format].name}`, "room"
+		else
+			local district = nil
+			if pose and pose.area == 0 then
+				for _, d in PLAZA.market.districts do
+					if pose.x >= d.x1 and pose.x <= d.x2 then district = d end
+				end
+			end
+			where, place = if district then district.name else "Neon Row", "market"
+		end
+		table.insert(list, { userId = id, name = other.DisplayName, avatar = rooms:profile(id).avatar, where = where, place = place,
+			x = if pose and place == "market" then pose.x else nil, z = if pose and place == "market" then pose.z else nil })
+	end
+	table.sort(list, function(a, b) return a.name < b.name end)
+	Net.remote("Members"):FireClient(player, list)
+end)
 local elapsed, saveClock = 0, 0
 RunService.Heartbeat:Connect(function(dt: number)
 	elapsed += dt

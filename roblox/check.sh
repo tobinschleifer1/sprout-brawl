@@ -72,6 +72,7 @@ echo "== lobby: opponent controls, bindings and launch recovery =="
 lune run tests/lobby-ui
 echo "== the lobby: walking the rooftop market, its stations and its drawing =="
 lune run tests/plaza-view
+lune run tests/social-ui
 lune run tests/plaza-parity
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch

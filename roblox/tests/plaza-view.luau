@@ -190,6 +190,34 @@ do
 	assert(mannequins >= 2 and changed, "two mannequins in ready-made characters, changing over time")
 end
 
+-- 5b. Overheads: a stamp over the stamper, a bubble over the speaker, nothing over anyone else.
+do
+	local over = { [1] = { kind = "stamp", id = "gg" }, [2] = { kind = "say", text = "GG!" } }
+	hub.social = { overhead = function(_, id) local o = over[id]; if o then return o, 0.5, 2.6 end return nil end }
+	hub.localId = 1
+	hub:setPeers({ { userId = 2, name = "Talker", avatar = KIT.presets[4].code, weapon = "Sword", x = 3, z = 8, y = 0, facing = 1 },
+		{ userId = 3, name = "Quiet", avatar = KIT.presets[6].code, weapon = "Sword", x = -3, z = 8, y = 0, facing = 1 } }, 1)
+	for _, peer in hub.peers do peer.x, peer.z = peer.target.x, peer.target.z end
+	stand({ x = 0, z = 8 })
+	hub.camX = 0
+	local stampAt: any = nil
+	Canvas.sprite = function(c: any, key: string, _list: any, x0: number, y1: number, pw: number, ph: number, cols: number, rows: number, ...: any)
+		if key == "ovh|gg" then stampAt = { x = x0 + cols * pw / 2, y = y1 } end
+		primitive(c, x0, y1)
+	end
+	hub:draw(canvas(1280, 720), 1/60)
+	assert(stampAt and math.abs(stampAt.x - 0) < 0.01 and stampAt.y > 8 * PLAZA.depth + 5, "your stamp over your own head")
+	local bubble = hub.pool["bub2"]
+	assert(bubble and bubble.Visible and bubble.Text == "GG!", "the speaker's bubble shows what they said")
+	assert(not hub.pool["bub3"] or not hub.pool["bub3"].Visible, "no bubble over someone who said nothing")
+	hub.social, hub.localId = nil, nil
+	hub:setPeers({}, 1)
+	Canvas.sprite = function(c: any, key: string, _list: any, ...: any)
+		table.insert(sprites, key)
+		primitive(c, ...)
+	end
+end
+
 -- 6. The CHARACTER button: in the market, not in a lounge, not while a panel is open.
 do
 	local studio = 0

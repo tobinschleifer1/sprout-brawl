@@ -93,6 +93,58 @@ send(3,"Avatar",{action="save",slot=1,code=KNIGHT})
 local after = last(3,"RoomView")
 assert(after.revision==before and after.slots[3].avatar==KNIGHT and after.slots[2].ready, "a character change is not a rules change")
 edit(2,"ready")
+-- Stamps and quick messages reach the people in the same place and no one else; anything not on
+-- the fixed lists, and anything sent too fast, reaches nobody.
+do
+	-- Only what arrives after `mark`: the history is kept, because later steps read the last
+	-- room view from it.
+	local mark = 0
+	local function since(): { any }
+		local out = {}
+		for k = mark + 1, #messages do table.insert(out, messages[k]) end
+		return out
+	end
+	local function heard(kind: string): { [number]: any }
+		local got = {}
+		for _, m in since() do
+			if m.name == "SocialEvent" and m.data.kind == kind then got[m.player.UserId] = m.data end
+		end
+		return got
+	end
+	mark = #messages
+	now += 2
+	send(9,"Social",{kind="stamp",id="gg"})
+	local got = heard("stamp")
+	assert(got[9] and got[7] and got[8] and got[9].userId == 9 and got[9].id == "gg", "the market hears a stamp")
+	for i=1,6 do assert(not got[i], "a lounge must not hear the market") end
+	mark = #messages
+	now += 2
+	send(1,"Social",{kind="say",index=2})
+	got = heard("say")
+	for i=1,6 do assert(got[i] and got[i].index == 2 and got[i].name == "P1", "the room hears its own") end
+	for i=7,9 do assert(not got[i], "the market must not hear a room") end
+	mark = #messages
+	for _, bad in { {kind="stamp",id="nuke"}, {kind="say",index=0}, {kind="say",index=99}, {kind="say",index=1.5}, {kind="say",text="free text"}, "x" } do
+		now += 2
+		send(9,"Social",bad)
+	end
+	assert(next(heard("stamp")) == nil and next(heard("say")) == nil, "nothing off the fixed lists is passed on")
+	now += 2
+	mark = #messages
+	send(9,"Social",{kind="say",index=1}); send(9,"Social",{kind="say",index=3})
+	local count = 0
+	for _, m in since() do if m.name == "SocialEvent" and m.player.UserId == 9 then count += 1 end end
+	assert(count == 1, `two messages 0.1 s apart should be one, got {count}`)
+	-- The member list: everyone, and where.
+	mark = #messages
+	now += 1
+	send(9,"Members")
+	local list = last(9,"Members")
+	assert(list and #list == 9, "the member list names everyone in the lobby")
+	local where = {}
+	for _, m in list do where[m.userId] = m end
+	assert(where[1].place == "room" and where[9].place == "market" and type(where[9].where) == "string", "and says where each is")
+end
 for i=7,8 do send(i,"RoomAction",{action="join",format="Duel"}) end
 for i=1,8 do edit(i,"ready") end
 edit(1,"start")
@@ -102,6 +154,12 @@ local knights = 0
 for _, f in last(1,"Match").fighters do if f.avatar==KNIGHT then knights += 1 end end
 assert(knights==1, "the character a player saved is the one they fight in")
 assert(last(1,"Match").id ~= last(7,"Match").id, "generation globally unique")
+do
+	local mark = #messages
+	now += 2
+	send(1,"Social",{kind="say",index=1})
+	for k = mark + 1, #messages do assert(messages[k].name ~= "SocialEvent", "nobody hears the lobby from inside a fight") end
+end
 assert(not last(9,"Match"), "uninvolved player stays in the hub")
 messages={}
 for _=1,300 do now+=1/60; run.PostSimulation:Fire(1/60) end

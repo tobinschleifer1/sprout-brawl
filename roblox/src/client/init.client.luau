@@ -42,6 +42,8 @@ local Select = require(script.RoomPanel)
 local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
+local LobbySocial = require(script.LobbySocial)
+local Plaza = require(Shared.Plaza)
 local UIS = game:GetService("UserInputService")
 
 local FRAME = Config.FRAME
@@ -123,6 +125,28 @@ local function openStudio()
 	if hub.active and not hub.room and not (select_ and select_.gui.Enabled) then editor:open() end
 end
 hub.onCharacter = openStudio
+-- Stamps, quick messages, who is here, and warps (LobbySocial); the lobby draws what it hears.
+local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	localId = Players.LocalPlayer.UserId,
+	send = function(msg: any) Net.remote("Social"):FireServer(msg) end,
+	requestMembers = function() Net.remote("Members"):FireServer() end,
+	warp = function(id: string): boolean return hub.active and not hub.room and hub:warp(id) end,
+	-- Next to a friend: beside them if there is floor there, on their spot if not.
+	warpTo = function(m: any): boolean
+		if not hub.active or hub.room or type(m.x) ~= "number" or type(m.z) ~= "number" then return false end
+		local scene = hub.model.data
+		for _, dx in { 2.5, -2.5, 0 } do
+			if Plaza.walkable(scene, m.x + dx, m.z) then
+				hub.model:setScene(scene, { x = m.x + dx, z = m.z })
+				return true
+			end
+		end
+		return false
+	end,
+})
+hub.social, hub.localId = social, Players.LocalPlayer.UserId
+Net.remote("SocialEvent").OnClientEvent:Connect(function(ev: any) social:onEvent(ev) end)
+Net.remote("Members").OnClientEvent:Connect(function(list: any) social:setMembers(list) end)
 Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 	editor:setView(view)
 	local worn = view.slots and view.slots[view.active]
@@ -133,6 +157,9 @@ Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 end)
 UIS.InputBegan:Connect(function(input: InputObject)
 	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	if hub.active and not editor:isOpen() and not (select_ and select_.gui.Enabled) and not UIS:GetFocusedTextBox() then
+		social:key(input.KeyCode)
+	end
 	editor:key(input.KeyCode, UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
 		or UIS:IsKeyDown(Enum.KeyCode.LeftMeta) or UIS:IsKeyDown(Enum.KeyCode.RightMeta))
 end)
@@ -159,6 +186,14 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 			if not select_.gui.Enabled then
 				if station.kind == "Wardrobe" then
 					openStudio()
+				elseif station.kind == "Members" then
+					social:toggle("People")
+				elseif station.kind == "Warp" then
+					social:toggle("Map")
+				elseif station.kind == "Cabinet" then
+					-- Until the cabinets run their own fights, a seat is the way into a 1v1 room.
+					select_:waiting("Joining a 1v1…")
+					Net.remote("RoomAction"):FireServer({ action = "join", format = "Duel" })
 				elseif station.kind == "Format" then
 					select_:waiting("Joining " .. station.name .. "…")
 					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
@@ -272,6 +307,7 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(snap: any)
 		launch:ready()
 		if select_ then select_:hide() end
 		hub:hide()
+		social:setEnabled(false)
 	end
 	snap.t = os.clock()
 	table.insert(buffer, snap)
@@ -396,6 +432,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 	if hub.active then
 		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen())
+		if not social.enabled then social:setEnabled(true) end
 		poseElapsed += dt
 		if poseElapsed >= 0.1 then
 			poseElapsed = 0

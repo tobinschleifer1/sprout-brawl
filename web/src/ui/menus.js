@@ -15,8 +15,15 @@ import { BINDINGS_TEXT } from '../engine/input.js';
 import { PLAYER_COLORS, PLAYER_MARKS } from './hud.js';
 import { onBlock } from '../engine/knockback.js';
 import { TITLE, TAGLINE, SUBTITLE, SAVE_KEY } from '../data/branding.js';
+import { KIT_CATEGORIES, KIT_COLOURS, KIT_GROUPS, KIT_PRESETS, DEFAULT_KIT,
+  decodeKit, encodeKit, kitAvatar, presetKit } from '../data/avatarKit.js';
+import { KIT_PARTS } from '../data/avatarKit.js';
+import { drawKitPiece } from '../render2d/kitCanvas.js';
+import { KitDraft, readKitCharacters, writeKitCharacters, registerKitCharacters,
+  saveKitCharacter, deleteKitCharacter, webKitCode, MAX_KIT_CHARACTERS } from './kitCharacters.js';
 
 const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const SLOT_TYPES = [['off', 'Off'], ['kb1', 'Keyboard 1'], ['kb2', 'Keyboard 2'], ['pad0', 'Gamepad 1'], ['pad1', 'Gamepad 2'], ['pad2', 'Gamepad 3'], ['pad3', 'Gamepad 4'], ['bot-easy', 'Bot · Easy'], ['bot-normal', 'Bot · Normal'], ['bot-hard', 'Bot · Hard'], ['bot-elite', 'Bot · Elite'], ['bot-impossible', 'Bot · Impossible'], ['bot-just_dont', 'Bot · Just Don\'t']];
 // Natural disasters (engine/disasters.js): off by default, as in the Roblox rooms.
 const DISASTER_MODES = [['off', 'Off'], ['stage', "This map's own"], ['chaos', 'Chaos']];
@@ -60,6 +67,9 @@ export class Menus {
     this.root = el('div', 'menus');
     root.appendChild(this.root);
     this.h = handlers;
+    this.kitRoster = readKitCharacters();
+    registerKitCharacters(this.kitRoster);
+    this.kitGroup = 'presets'; this.kitCategory = 'build'; this.kitPose = 'idle';
     this.config = this._defaultConfig();
     this.settings = { hitboxes: false, music: 0.6, sfx: 0.8, shake: true };
     try {
@@ -95,20 +105,146 @@ export class Menus {
     this.root.addEventListener('click', (e) => this._click(e));
     this.root.addEventListener('change', (e) => this._change(e));
     this.root.addEventListener('input', (e) => this._change(e));
+    if (typeof window !== 'undefined') window.addEventListener('keydown', (e) => this._kitKey(e));
   }
 
   _defaultConfig() {
     return { mode: 'StockFFA', stocks: 3, time: 180, items: true, disasters: 'off', stageId: 'FoundryFloor', mapSet: 'all',
-      slots: [ { type: 'kb1', weaponId: 'Sword', avatarId: 'Classic', team: 0 },
-               { type: 'off', weaponId: 'Scythe', avatarId: 'Noir', team: 1 },
-               { type: 'off', weaponId: 'Blasters', avatarId: 'Ember', team: 0 },
-               { type: 'off', weaponId: 'Grimoire', avatarId: 'Moss', team: 1 } ] };
+      slots: Array.from({ length: 8 }, (_, i) => ({ type: i ? 'off' : 'kb1',
+        weaponId: ['Sword', 'Scythe', 'Blasters', 'Grimoire'][i % 4],
+        avatarId: ['Classic', 'Noir', 'Ember', 'Moss'][i % 4], team: i % 2 })) };
+  }
+
+  _kitOpen(code = null) {
+    const row = this.kitRoster.characters.find((a) => a.code === code);
+    this.kitDraft = new KitDraft(row?.code || encodeKit(DEFAULT_KIT));
+    this.kitName = row?.name || `Fighter ${this.kitRoster.characters.length + 1}`;
+    this.kitOriginal = row?.code || null;
+    this.kitBaseCode = this.kitDraft.code; this.kitBaseName = this.kitName;
+    this.kitGroup = 'presets'; this.kitCategory = 'build'; this.kitMsg = null;
+    this.kitPose = 'idle'; this.kitZoom = 'body'; this.previewWeapon = this.config.slots[0].weaponId;
+    this.show('kit-edit');
+  }
+
+  _kitStash() {
+    const input = this.root.querySelector('[data-kit-name]');
+    if (input) this.kitName = input.value;
+  }
+
+  _kitLeave() {
+    this._kitStash();
+    if ((this.kitDraft.code !== this.kitBaseCode || this.kitName !== this.kitBaseName) &&
+        typeof window !== 'undefined' && !window.confirm('Discard unsaved character changes?')) return;
+    this.kitDraft = null; this.kitMsg = null; this.show('kit');
+  }
+
+  _kitCommit(roster, removed = null) {
+    this.kitRoster = roster;
+    if (removed) unregisterAvatar(removed);
+    registerKitCharacters(roster);
+    const persisted = writeKitCharacters(roster);
+    this.save();
+    return persisted;
+  }
+
+  _kitSave(asNew = false, wear = false) {
+    this._kitStash();
+    const result = saveKitCharacter(this.kitRoster, this.kitName, this.kitDraft.code, this.kitOriginal, asNew);
+    if (!result.ok) { this.kitMsg = result.reason; this.render(); return; }
+    const old = asNew ? null : this.kitOriginal;
+    if (wear) { result.roster.wearing = result.code; this.config.slots[0].avatarId = result.code; }
+    if (old && old !== result.code) for (const sl of this.config.slots) if (sl.avatarId === old) sl.avatarId = result.code;
+    const persisted = this._kitCommit(result.roster, old && old !== result.code ? old : null);
+    this.kitOriginal = result.code; this.kitBaseCode = result.code; this.kitBaseName = this.kitName;
+    this.kitMsg = persisted
+      ? (wear ? 'Now wearing this character in Player 1.' : 'Character saved.')
+      : 'Saved for this visit, but browser storage is unavailable.';
+    this.render();
+  }
+
+  _kitKey(e) {
+    if (this.screen === 'setup' && e.code === 'Enter' && !this.config.slots.some((s) => s.type === 'kb2') &&
+        (!e.target || e.target === document.body)) {
+      const slot = this.config.slots.findIndex((s) => s.type === 'off');
+      if (slot >= 0) { e.preventDefault(); this.config.slots[slot].type = 'kb2'; this.selectSlot = slot; this.showMoreSlots ||= slot >= 4; this.save(); this.render(); }
+      return;
+    }
+    if (this.screen !== 'kit-edit' || !this.kitDraft || e.altKey || e.metaKey) return;
+    const entry = e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '');
+    if (e.ctrlKey && e.code === 'KeyZ') { e.preventDefault(); this._kitStash(); this.kitDraft.undo(); this.render(); return; }
+    if (e.ctrlKey && e.code === 'KeyY') { e.preventDefault(); this._kitStash(); this.kitDraft.redo(); this.render(); return; }
+    if (e.code === 'Escape') { e.preventDefault(); this._kitLeave(); return; }
+    if (entry) return;
+    if (e.code === 'KeyR') { e.preventDefault(); this.kitDraft.randomise(); this.render(); return; }
+    const groups = KIT_GROUPS.map((g) => g.id);
+    if (e.code === 'KeyQ' || e.code === 'KeyE') {
+      e.preventDefault(); this._kitStash(); this.kitGroup = groups[(groups.indexOf(this.kitGroup) + (e.code === 'KeyQ' ? groups.length - 1 : 1)) % groups.length];
+      this.kitCategory = KIT_GROUPS.find((g) => g.id === this.kitGroup).parts[0] || this.kitCategory;
+      this.render(); return;
+    }
+    const group = KIT_GROUPS.find((g) => g.id === this.kitGroup);
+    if (!group || !group.parts.length) return;
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+      e.preventDefault(); this._kitStash();
+      const i = group.parts.indexOf(this.kitCategory);
+      this.kitCategory = group.parts[(i + (e.code === 'ArrowUp' ? group.parts.length - 1 : 1)) % group.parts.length];
+      this.render(); return;
+    }
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+      e.preventDefault(); this._kitStash();
+      const cat = KIT_CATEGORIES.find((c) => c.id === this.kitCategory);
+      const choices = cat.options.filter((o) => !o.unlock);
+      const current = decodeKit(this.kitDraft.code).parts[cat.id];
+      const i = choices.findIndex((o) => o.id === current);
+      this.kitDraft.part(cat.id, choices[(i + (e.code === 'ArrowLeft' ? choices.length - 1 : 1)) % choices.length].id);
+      this.render();
+    }
   }
 
   save() { try { localStorage.setItem(SAVE_KEY + '-config', JSON.stringify(this.config)); localStorage.setItem(SAVE_KEY + '-settings', JSON.stringify(this.settings)); } catch (e) { /* ignore */ } }
 
-  show(screen) { this.screen = screen; this.root.classList.remove('hidden'); this.render(); }
-  hide() { this.root.classList.add('hidden'); }
+  show(screen) {
+    this.screen = screen; this.root.classList.remove('hidden'); this.root.scrollTop = 0; this.render();
+    if (!this._padTimer && typeof navigator !== 'undefined' && navigator.getGamepads)
+      this._padTimer = setInterval(() => this._pollMenuPads(), 100);
+  }
+  hide() {
+    this.root.classList.add('hidden');
+    if (this._padTimer) clearInterval(this._padTimer); this._padTimer = null;
+    this._tickSelectPreviews(false);
+  }
+
+  _pollMenuPads() {
+    if (document.hidden || this.root.classList.contains('hidden')) return;
+    const pads = navigator.getGamepads() || [];
+    for (let i = 0; i < pads.length; i++) {
+      const pad = pads[i]; if (!pad) continue;
+      const press = [0,1,12,13,14,15].map((n) => !!pad.buttons[n]?.pressed);
+      const prev = this._padPrev?.[i] || [];
+      this._padPrev ||= {}; this._padPrev[i] = press;
+      if (press[0] && !prev[0]) {
+        if (this.screen === 'setup' && !this.config.slots.some((s) => s.type === `pad${i}`)) {
+          const slot = this.config.slots.findIndex((s) => s.type === 'off');
+          if (slot >= 0) { this.config.slots[slot].type = `pad${i}`; this.selectSlot = slot; this.showMoreSlots ||= slot >= 4; this.save(); this.render(); }
+        } else if (this._padFocus?.isConnected) this._padFocus.click();
+      }
+      if (press[1] && !prev[1]) {
+        if (this.screen === 'kit-edit') this._kitLeave();
+        else if (this.screen !== 'title') this.show('title');
+      }
+      const direction = [12,13,14,15].findIndex((_,k) => press[k+2] && !prev[k+2]);
+      if (direction >= 0) this._movePadFocus(direction === 0 || direction === 2 ? -1 : 1);
+    }
+  }
+
+  _movePadFocus(step) {
+    const controls = [...this.root.querySelectorAll('button:not(:disabled),select')].filter((x) => x.getClientRects().length);
+    if (!controls.length) return;
+    const index = controls.indexOf(this._padFocus);
+    this._padFocus?.classList.remove('gamepad-focus');
+    this._padFocus = controls[(index + step + controls.length) % controls.length];
+    this._padFocus.classList.add('gamepad-focus'); this._padFocus.focus();
+  }
 
   render() {
     const s = this.screen;
@@ -118,6 +254,8 @@ export class Menus {
     else if (s === 'settings') this.root.innerHTML = this._settings();
     else if (s === 'roster') this.root.innerHTML = this._roster();
     else if (s === 'chars') this.root.innerHTML = this._chars();
+    else if (s === 'kit') this.root.innerHTML = this._kitScreen();
+    else if (s === 'kit-edit') this.root.innerHTML = this._kitEditor();
     // Previews are real fighters drawn by the real renderer, so they can only be painted once the
     // canvases exist. Everything above is a string; this is the pass that fills them in.
     this._paintPreviews();
@@ -139,14 +277,29 @@ export class Menus {
     // weapon it labels. This one cannot, and a seventh weapon would need no art at all.
     for (const cv of this.root.querySelectorAll('canvas[data-weapon-icon]')) this._paintWeaponIcon(cv);
     this._paintGrid();
+    this._paintKitTiles();
     for (const cv of this.root.querySelectorAll('canvas[data-avatar-preview]')) {
       const av = avatarById(cv.dataset.avatarPreview);
       const editing = this.editing && this.editing.id === av.id ? this.editing : null;
-      this._paintOne(cv, editing || av, cv.dataset.weapon || 'Sword', +(cv.dataset.ppu || 15));
+      this._paintOne(cv, editing || av, cv.dataset.previewWeapon || cv.dataset.weapon || 'Sword', +(cv.dataset.ppu || 15));
     }
     const live = this.root.querySelector('canvas[data-live-preview]');
     if (live && this.editing) this._paintOne(live, this.editing, this.previewWeapon || 'Sword', +(live.dataset.ppu || 26));
-    this._tickPreview(!!live);
+    this._tickPreview(!!live || this.screen === 'kit-edit');
+    this._tickSelectPreviews(this.screen === 'setup');
+  }
+
+  _tickSelectPreviews(want) {
+    if (!want) { if (this._selectTimer) clearInterval(this._selectTimer); this._selectTimer = null; return; }
+    if (this._selectTimer) return;
+    this._selectTimer = setInterval(() => {
+      if (document.hidden || this.screen !== 'setup') return;
+      for (const cv of this.root.querySelectorAll('canvas[data-avatar-preview]')) {
+        const r = cv.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > window.innerHeight) continue;
+        this._paintOne(cv, avatarById(cv.dataset.avatarPreview), cv.dataset.previewWeapon || 'Sword', +(cv.dataset.ppu || 15));
+      }
+    }, 150);
   }
 
   // The big preview PLAYS. A still frame of a move is close to useless for judging a character -
@@ -158,7 +311,10 @@ export class Menus {
     if (this._raf) return;
     const step = () => {
       const live = this.root.querySelector('canvas[data-live-preview]');
-      if (!live || !this.editing) { this._raf = null; return; }
+      const kitLive = this.root.querySelector('canvas[data-kit-live]');
+      if ((!live || !this.editing) && (!kitLive || !this.kitDraft)) { this._raf = null; return; }
+      if (document.hidden) { this._raf = requestAnimationFrame(step); return; }
+      if (kitLive) { this._paintKitLive(kitLive); this._raf = requestAnimationFrame(step); return; }
       const mv = this.previewMove && this.editing ? (WEAPONS.find((w) => w.id === (this.previewWeapon || 'Sword')) || {}).moves : null;
       if (this.previewMove && mv && mv[this.previewMove]) {
         const m = mv[this.previewMove];
@@ -177,8 +333,9 @@ export class Menus {
   _paintOne(cv, avatar, weaponId, ppu) {
     const ctx = cv.getContext('2d');
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = Math.round(cv.clientWidth * dpr) || cv.width;
-    cv.height = Math.round(cv.clientHeight * dpr) || cv.height;
+    const width = Math.round(cv.clientWidth * dpr) || cv.width;
+    const height = Math.round(cv.clientHeight * dpr) || cv.height;
+    if (cv.width !== width || cv.height !== height) { cv.width = width; cv.height = height; }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.imageSmoothingEnabled = false;
@@ -218,6 +375,96 @@ export class Menus {
     ctx.setTransform(ppu, 0, 0, -ppu, cv.width * 0.24, cv.height * 0.78);
     drawWeapon(ctx, id, w.palette, { angle: Math.PI / 4, ox: 0, oy: 0, scale: 1, charge: 0, hide: false });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  _paintKitTiles() {
+    this._kitTileCache ||= new Map();
+    for (const cv of this.root.querySelectorAll('canvas[data-kit-option]')) {
+      const code = cv.dataset.kitOption, view = cv.dataset.view;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const width = Math.max(1, Math.round((cv.clientWidth || 96) * dpr));
+      const height = Math.max(1, Math.round((cv.clientHeight || 90) * dpr));
+      if (cv._painted === code && cv.width === width && cv.height === height) continue;
+      const key = `${code}|${view}|${width}x${height}`;
+      const cached = this._kitTileCache.get(key);
+      if (cached) { cv.width = width; cv.height = height; cv.getContext('2d').drawImage(cached, 0, 0); cv._painted = code; continue; }
+      cv.width = width; cv.height = height; cv._painted = code;
+      if (view !== 'head') this._paintOne(cv, kitAvatar(code), 'Sword', Math.min(width / 5, height / 6));
+      else {
+        const ctx = cv.getContext('2d'), p = KIT_PARTS.head;
+        ctx.clearRect(0, 0, width, height);
+        const pw = Math.min(width / (p.w + 2), height / (p.h + 2));
+        ctx.setTransform(1, 0, 0, -1, width / 2, height / 2 + (p.oy - p.h / 2) * pw);
+        drawKitPiece(ctx, code, 'head', pw, pw);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+      const copy = document.createElement('canvas'); copy.width = cv.width; copy.height = cv.height;
+      copy.getContext('2d').drawImage(cv, 0, 0);
+      this._kitTileCache.set(key, copy);
+      if (this._kitTileCache.size > 150) this._kitTileCache.delete(this._kitTileCache.keys().next().value);
+    }
+  }
+
+  _paintKitLive(cv) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const width = Math.max(1, Math.round((cv.clientWidth || 280) * dpr));
+    const height = Math.max(1, Math.round((cv.clientHeight || 300) * dpr));
+    if (cv.width !== width || cv.height !== height) { cv.width = width; cv.height = height; }
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, width, height);
+    const weapon = this.previewWeapon || 'Sword';
+    const L = buildLoadout(this.kitDraft.code, weapon);
+    const pose = this.kitPose || 'idle';
+    const move = pose === 'attack' ? 'SigSide' : null;
+    const m = move && L.moves[move];
+    const frame = m ? Math.floor(performance.now() / 16) % (m.startup + m.active + m.recovery + 24) : 0;
+    const f = posedFighter(L, m && frame < m.startup + m.active + m.recovery ? move : null, frame,
+      { state: pose === 'jump' ? 'air' : pose, onGround: pose !== 'jump', vx: pose === 'run' ? 12 : 0, frameCount: Math.floor(performance.now() / 16), facing: this.kitFacing || 1 });
+    const ppu = Math.min(width / 6.3, height / (this.kitZoom === 'face' ? 3.3 : 6.5));
+    const ground = this.kitZoom === 'face' ? height * 1.48 : height * 0.88;
+    ctx.fillStyle = '#EFB05A44'; ctx.fillRect(0, height * 0.88, width, Math.max(1, dpr));
+    this._view().drawFighterInto(ctx, f, performance.now() / 1000, { ppu, x: width * 0.38, y: ground });
+  }
+
+  _kitScreen() {
+    const cards = this.kitRoster.characters.map((a, i) => `<button class="kit-card" data-act="kit-edit" data-code="${a.code}" aria-label="Edit ${esc(a.name)}">
+      <canvas data-avatar-preview="${a.code}" data-preview-weapon="${this.config.slots[0].weaponId}" data-ppu="18"></canvas>
+      <span class="kit-card-copy"><strong>${esc(a.name)}</strong><small>${a.code === this.kitRoster.wearing ? 'Wearing · ' : ''}${this.config.slots[0].weaponId}</small></span><span class="kit-card-index">0${i + 1}</span></button>`).join('');
+    return `<div class="screen kit-screen"><div class="kit-heading"><button data-act="title">← Back</button><div><div class="eyebrow">Build your fighter</div><h2>Character studio</h2></div><span>${this.kitRoster.characters.length} / ${MAX_KIT_CHARACTERS} saved</span></div>
+      <p class="sub">Choose a look, then take it into the arena. Your weapon decides how you fight.</p>
+      <div class="kit-roster">${cards}<button class="kit-card kit-new" data-act="kit-new"><b>＋</b><strong>New character</strong><small>Start with the Rookie kit</small></button></div>
+      <div class="kit-legacy"><p>Made a character with the original editor? Those fighters are still here.</p><button data-act="chars">Open original characters</button></div>
+      ${this.kitMsg ? `<p class="warn" role="status">${esc(this.kitMsg)}</p>` : ''}</div>`;
+  }
+
+  _kitEditor() {
+    const spec = decodeKit(this.kitDraft.code);
+    const tabs = KIT_GROUPS.map((g) => `<button class="kit-tab ${this.kitGroup === g.id ? 'sel' : ''}" data-kit-group="${g.id}">${g.name}</button>`).join('');
+    const group = KIT_GROUPS.find((g) => g.id === this.kitGroup) || KIT_GROUPS[0];
+    const cat = KIT_CATEGORIES.find((c) => c.id === (group.parts.includes(this.kitCategory) ? this.kitCategory : group.parts[0])) || KIT_CATEGORIES[0];
+    const parts = group.parts.map((id) => { const c = KIT_CATEGORIES.find((x) => x.id === id); return `<button class="kit-part ${c.id === cat.id ? 'sel' : ''}" data-kit-category="${c.id}">${c.name}${this.kitDraft.locks.has(c.id) ? ' 🔒' : ''}</button>`; }).join('');
+    const options = group.id === 'presets' ? KIT_PRESETS.map((p) => ({ id: p.id, name: p.name, code: encodeKit(presetKit(p)), view: 'body' }))
+      : cat.options.map((o) => ({ ...o, code: encodeKit({ parts: {
+        ...spec.parts, [cat.id]: o.id,
+        ...(group.id === 'hair' ? { headwear: DEFAULT_KIT.parts.headwear } : {}),
+      }, colours: spec.colours }), view: cat.view }));
+    const tiles = options.map((o) => `<button class="kit-option ${group.id !== 'presets' && spec.parts[cat.id] === o.id ? 'sel' : ''}" ${o.unlock ? 'disabled' : ''} ${group.id === 'presets' ? `data-kit-preset="${o.id}"` : `data-kit-choice="${o.id}"`} aria-label="${esc(o.name)}${o.unlock ? ', earned in Blockfall on Roblox' : ''}">
+      <canvas data-kit-option="${o.code}" data-view="${o.view}"></canvas><span>${esc(o.name)}</span>${o.unlock ? '<small>Earned on the Skyline Climb in Blockfall on Roblox</small>' : ''}</button>`).join('');
+    const swatches = group.id === 'presets' ? '' : cat.paint.map((id) => {
+      const slot = KIT_COLOURS.find((x) => x.id === id);
+      return `<div class="kit-swatch-row"><b>${slot.name}</b><div>${slot.list.map((hex, i) => `<button class="kit-swatch ${spec.colours[id] === i ? 'sel' : ''}" data-kit-colour="${id}" data-kit-index="${i}" style="--sw:${hex}" aria-label="${slot.name} ${i + 1}"></button>`).join('')}</div></div>`;
+    }).join('');
+    return `<div class="screen kit-editor"><div class="kit-heading"><button data-act="kit-back">← Characters</button><div><div class="eyebrow">Character studio</div><h2>Make your mark</h2></div><button data-act="kit-close">Close</button></div>
+      <div class="kit-tools"><button data-act="kit-undo" ${this.kitDraft.undoStack.length ? '' : 'disabled'}>↶ Undo</button><button data-act="kit-redo" ${this.kitDraft.redoStack.length ? '' : 'disabled'}>↷ Redo</button><button data-act="kit-random">✦ Randomise</button><span>Arrows: options / parts · Q E: tabs · R: random</span></div>
+      <div class="kit-editor-body"><aside class="kit-preview"><div class="kit-preview-top"><canvas data-kit-live="1"></canvas><div class="kit-preview-controls"><div class="kit-posebar">${['idle','run','jump','attack','victory'].map((p) => `<button data-kit-pose="${p}" class="${this.kitPose === p ? 'sel' : ''}">${p}</button>`).join('')}</div>
+        <div class="kit-posebar"><button data-act="kit-turn">↔ Turn</button><button data-act="kit-zoom">${this.kitZoom === 'face' ? 'Full body' : 'Face zoom'}</button></div></div></div>
+        <label>Name <input data-kit-name maxlength="20" value="${esc(this.kitName || '')}"></label>
+        <label>Weapon <select data-kit-weapon>${WEAPONS.map((w) => `<option value="${w.id}" ${this.previewWeapon === w.id ? 'selected' : ''}>${w.name}</option>`).join('')}</select></label>
+        <div class="kit-save"><button data-act="kit-save" class="primary">Save</button><button data-act="kit-save-new">Save as new</button>${this.kitOriginal ? `<button data-act="kit-wear">Wear</button><button data-act="kit-delete">Delete</button>` : ''}</div>
+        ${this.kitMsg ? `<p class="warn" role="status">${esc(this.kitMsg)}</p>` : ''}</aside>
+      <section class="kit-catalog"><div class="kit-tabs">${tabs}</div>${group.id === 'presets' ? '' : `<div class="kit-parts">${parts}</div><div class="kit-part-tools"><b>${cat.name}</b><button data-act="kit-lock">${this.kitDraft.locks.has(cat.id) ? '🔒 Locked' : '🔓 Lock part'}</button><button data-act="kit-random-part">Random part</button></div>`}
+        ${group.id === 'hair' && spec.parts.headwear !== DEFAULT_KIT.parts.headwear ? '<p class="kit-hint">Headwear is hidden in the option tiles so you can see each style.</p>' : ''}
+        <div class="kit-options">${tiles}</div><div class="kit-swatches">${swatches}</div></section></div></div>`;
   }
 
   _charCard(a) {
@@ -373,7 +620,7 @@ export class Menus {
         <button class="primary big" data-act="quick">Quick play <small>you vs a bot on Foundry Floor</small></button>
         <button class="big" data-act="setup">Set up a match</button>
         <button class="big" data-act="training">Training</button>
-        <button class="big" data-act="chars">Characters</button>
+        <button class="big" data-act="kit">Character studio</button>
         <div class="row"><button data-act="roster">Weapons</button><button data-act="controls">Controls</button><button data-act="settings">Settings</button></div>
       </div>
       <p class="hint">Keyboard 1: WASD move · Space jump · J light · K heavy · L dodge · I guard · U grab</p>
@@ -383,32 +630,31 @@ export class Menus {
   _setup() {
     const c = this.config;
     const teams = c.mode.includes('Teams');
-    const slots = c.slots.map((sl, i) => {
-      const L = buildLoadout(sl.avatarId, sl.weaponId);
-      const w = L.weapon, av = L.avatar;
-      const off = sl.type === 'off';
-      const dots = (n) => '<i class="d on"></i>'.repeat(n) + '<i class="d"></i>'.repeat(3 - n);
-      return `<div class="slot ${off ? 'off' : ''}" style="--pc:${PLAYER_COLORS[i]}">
-        <div class="slot-head"><span class="mark">${PLAYER_MARKS[i]}</span><span>Player ${i + 1}</span>
-          <select data-slot="${i}" data-field="type">${SLOT_TYPES.map(([v, l]) => `<option value="${v}" ${sl.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-          ${teams ? `<select data-slot="${i}" data-field="team"><option value="0" ${sl.team === 0 ? 'selected' : ''}>Green</option><option value="1" ${sl.team === 1 ? 'selected' : ''}>Orange</option></select>` : ''}
-        </div>
-        ${off ? '' : `<div class="wepgrid">${WEAPONS.map((x) => `<button class="weptile ${x.id === sl.weaponId ? 'sel' : ''}" data-slot="${i}" data-weapon="${x.id}" title="${x.name} — ${x.archetype} · ${x.tagline}">
-            <canvas class="wicon" data-weapon-icon="${x.id}" width="38" height="38"></canvas>
-            <span class="wdiff" title="difficulty ${x.difficulty}/3">${dots(x.difficulty)}</span></button>`).join('')}</div>
-        <div class="wepinfo"><b class="wpick">${w.name}</b><span class="wparch">${w.archetype} · ${w.tagline}</span>
-          <span class="mono">Wt ${L.weight} · Run ${L.runSpeed.toFixed(1)} · Air ${L.airSpeed.toFixed(1)} · ${w.mechanic.id} · ${L.recovery.kind}</span></div>
-        <div class="slot-foot">
-          <span class="avlabel">Avatar</span>
-          <span class="avrow">${allAvatars().map((a) => `<button class="avtile ${a.id === sl.avatarId ? 'sel' : ''}" data-slot="${i}" data-avatar="${a.id}" title="${a.name}">
-            <i style="background:${a.palette.primary}"></i><i style="background:${a.palette.secondary}"></i></button>`).join('')}</span>
-          <span class="arche">${av.name}</span></div>`}
+    const active = Math.max(0, Math.min(7, this.selectSlot || 0));
+    const selected = c.slots[active];
+    const allSlots = this.showMoreSlots || active >= 4 || c.slots.slice(4).some((sl) => sl.type !== 'off');
+    const slots = c.slots.slice(0, allSlots ? 8 : 4).map((sl, i) => {
+      const off = sl.type === 'off', avatar = avatarById(sl.avatarId);
+      return `<div class="select-slot ${off ? 'off' : 'ready'} ${active === i ? 'active' : ''}" style="--pc:${PLAYER_COLORS[i]}">
+        <button class="select-slot-main" data-slot-pick="${i}" aria-label="Configure Player ${i + 1}">
+          <span class="select-slot-mark">${PLAYER_MARKS[i]} <b>P${i + 1}</b></span>
+          ${off ? '<span class="join-text">Press a button to join</span>' : `<canvas data-avatar-preview="${sl.avatarId}" data-preview-weapon="${sl.weaponId}" data-ppu="16"></canvas><strong>${esc(avatar.name)}</strong><small>${sl.weaponId}</small>`}
+          <span class="ready-tag">${off ? 'EMPTY' : 'READY'}</span></button>
+        <select aria-label="Player ${i + 1} input" data-slot="${i}" data-field="type">${SLOT_TYPES.map(([v, l]) => `<option value="${v}" ${sl.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        ${teams ? `<select aria-label="Player ${i + 1} team" data-slot="${i}" data-field="team"><option value="0" ${sl.team === 0 ? 'selected' : ''}>Green team</option><option value="1" ${sl.team === 1 ? 'selected' : ''}>Orange team</option></select>` : ''}
       </div>`;
     }).join('');
+    const avatarList = [...AVATARS, ...this.kitRoster.characters.map((row) => avatarById(row.code)), ...readCustom(browserStore())];
+    const avatarCards = avatarList.map((a, i) => `<button class="select-character ${a.id === selected.avatarId ? 'sel' : ''}" data-slot="${active}" data-avatar="${a.id}" aria-label="Choose ${esc(a.name)} for Player ${active + 1}" style="--delay:${Math.min(i, 12) * 25}ms">
+      <canvas data-avatar-preview="${a.id}" data-preview-weapon="${selected.weaponId}" data-ppu="17"></canvas><strong>${esc(a.name)}</strong><small>${selected.weaponId}</small></button>`).join('');
+    const L = buildLoadout(selected.avatarId, selected.weaponId), w = L.weapon;
+    const bars = [['Speed', L.runSpeed, 34], ['Power', w.moves?.HeavyNeutral?.damage || 12, 30], ['Reach', REACH[w.id] || 2.4, 5], ['Weight', L.weight, 140]]
+      .map(([name, value, max]) => `<div class="weapon-stat"><span>${name}</span><i><b style="width:${Math.min(100, Math.round(value / max * 100))}%"></b></i></div>`).join('');
+    const weapons = WEAPONS.map((x) => `<button class="select-weapon ${x.id === selected.weaponId ? 'sel' : ''}" data-slot="${active}" data-weapon="${x.id}" aria-label="Choose ${x.name} for Player ${active + 1}"><canvas data-weapon-icon="${x.id}"></canvas><span>${x.name}</span></button>`).join('');
     const set = c.mapSet || 'all';
-    const stages = `<button class="stagetile random ${c.stageId === 'Random' ? 'sel' : ''}" data-stage="Random">${thumbSVG(randomThumb(160, 90), 160, 90)}<span>Random</span><small>Any map in ${MAP_SETS.find(([id]) => id === set)[1].toLowerCase()}</small></button>` + mapSet(set).map((s) => `<button class="stagetile ${s.id === c.stageId ? 'sel' : ''}" data-stage="${s.id}">${stageSVG(s)}<span>${s.name}${s.ranked ? ' <em>ranked</em>' : ''}</span><small>${s.theme}${s.hazards.length ? ' · ' + s.hazards.map((h) => h.type).join(', ') : ' · no hazards'}</small></button>`).join('');
+    const stages = `<button class="stagetile random ${c.stageId === 'Random' ? 'sel' : ''}" data-stage="Random">${thumbSVG(randomThumb(160, 90), 160, 90)}<span>Random</span><small>Any map in ${MAP_SETS.find(([id]) => id === set)[1].toLowerCase()}</small></button>` + mapSet(set).map((s) => `<button class="stagetile ${s.id === c.stageId ? 'sel' : ''}" data-stage="${s.id}">${stageSVG(s)}<span>${s.name}${s.ranked ? ' <em>ranked</em>' : ''}</span><small>${s.theme} · ${s.hazards.length ? s.hazards.map((h) => h.type).join(', ') : 'no hazards'} · Disaster: ${(s.disasters || []).join(', ') || 'none'}</small></button>`).join('');
     return `<div class="screen setup">
-      <div class="setup-top"><button data-act="title">← Back</button><h2>Set up a match</h2>
+      <div class="setup-top"><button data-act="title">← Back</button><h2>Player select</h2>
         <div class="presets">${RULES.presets.map((p) => `<button class="preset ${presetOf(c) === p.id ? 'sel' : ''}" data-preset="${p.id}" title="${p.hint}">${p.name}</button>`).join('')}</div>
         <div class="opts">
           <label>Mode <select data-field="mode">${MODES.map(([v, l]) => `<option value="${v}" ${c.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -417,7 +663,11 @@ export class Menus {
           <label><input type="checkbox" data-field="items" ${c.items ? 'checked' : ''}> Items</label>
           <label>Disasters <select data-field="disasters">${DISASTER_MODES.map(([v, l]) => `<option value="${v}" ${c.disasters === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </div></div>
-      <div class="slots">${slots}</div>
+      <div class="select-slots">${slots}</div><button class="select-more" data-act="more-slots">${allSlots ? '− Hide players 5–8' : '＋ Add players 5–8'}</button>
+      <div class="select-heading"><div><div class="eyebrow">${PLAYER_MARKS[active]} Player ${active + 1}</div><h3>Choose your fighter</h3></div><button data-act="kit-new">＋ New character</button></div>
+      <div class="select-characters">${avatarCards}</div>
+      <div class="select-heading"><div><div class="eyebrow">Your fighting style</div><h3>Choose a weapon</h3></div><p>${esc(w.archetype)} · ${esc(w.tagline)}</p></div>
+      <div class="select-weapons">${weapons}</div><div class="select-weapon-info"><div><strong>${esc(w.name)}</strong><p>${esc(w.blurb)}</p><small>Signature: ${esc(w.moves[w.signature].label)}</small></div><div class="weapon-stats">${bars}</div></div>
       <h3>Stage</h3><div class="mapsets">${MAP_SETS.map(([id, l]) => `<button class="mapset ${id === set ? 'sel' : ''}" data-mapset="${id}">${l}</button>`).join('')}</div><div class="stages">${stages}</div>
       <div class="setup-bottom"><button class="primary big" data-act="start">Fight</button></div>
     </div>`;
@@ -481,8 +731,19 @@ export class Menus {
   }
 
   _click(e) {
-    const t = e.target.closest('[data-act],[data-weapon],[data-avatar],[data-stage],[data-mapset],[data-preset],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink]');
+    const t = e.target.closest('[data-act],[data-slot-pick],[data-weapon],[data-avatar],[data-stage],[data-mapset],[data-preset],[data-feature],[data-pose],[data-prevwep],[data-drawpart],[data-ink],[data-kit-group],[data-kit-category],[data-kit-choice],[data-kit-preset],[data-kit-colour],[data-kit-pose]');
     if (!t) return;
+    if (t.dataset.slotPick != null) { this.selectSlot = +t.dataset.slotPick; this.render(); return; }
+    if (t.dataset.kitGroup) { this._kitStash(); this.kitGroup = t.dataset.kitGroup; this.kitCategory = KIT_GROUPS.find((g) => g.id === this.kitGroup).parts[0] || this.kitCategory; this.render(); return; }
+    if (t.dataset.kitCategory) { this._kitStash(); this.kitCategory = t.dataset.kitCategory; this.render(); return; }
+    if (t.dataset.kitChoice) { this._kitStash(); this.kitDraft.part(this.kitCategory, t.dataset.kitChoice); this.render(); return; }
+    if (t.dataset.kitPreset) {
+      this._kitStash(); const preset = KIT_PRESETS.find((p) => p.id === t.dataset.kitPreset);
+      if (preset) this.kitDraft.change((s) => { const v = presetKit(preset); s.parts = v.parts; s.colours = v.colours; });
+      this.render(); return;
+    }
+    if (t.dataset.kitColour) { this._kitStash(); this.kitDraft.colour(t.dataset.kitColour, +t.dataset.kitIndex); this.render(); return; }
+    if (t.dataset.kitPose) { this._kitStash(); this.kitPose = t.dataset.kitPose; this.render(); return; }
     // The editor's own controls. `_stash` reads the name box before every re-render, because the
     // screen is rebuilt from a string and an unsaved name would otherwise be thrown away by the
     // first colour the player picked after typing it.
@@ -492,8 +753,8 @@ export class Menus {
     if (t.dataset.prevwep) { this._stash(); this.previewWeapon = t.dataset.prevwep; this.render(); return; }
     if (t.dataset.drawpart) { this._stash(); this.drawPart = t.dataset.drawpart; this.render(); return; }
     if (t.dataset.ink) { this.ink = t.dataset.ink; this.render(); return; }
-    if (t.dataset.weapon) { this.config.slots[+t.dataset.slot].weaponId = t.dataset.weapon; this.save(); this.render(); return; }
-    if (t.dataset.avatar) { this.config.slots[+t.dataset.slot].avatarId = t.dataset.avatar; this.save(); this.render(); return; }
+    if (t.dataset.weapon && t.dataset.slot != null) { this.config.slots[+t.dataset.slot].weaponId = t.dataset.weapon; this.save(); this.render(); return; }
+    if (t.dataset.avatar && t.dataset.slot != null) { this.config.slots[+t.dataset.slot].avatarId = t.dataset.avatar; this.save(); this.render(); return; }
     if (t.dataset.stage) { this.config.stageId = t.dataset.stage; this.save(); this.render(); return; }
     if (t.dataset.preset) { this.config = applyPreset(this.config, t.dataset.preset); this.save(); this.render(); return; }
     if (t.dataset.mapset) {
@@ -503,6 +764,26 @@ export class Menus {
       this.save(); this.render(); return;
     }
     const a = t.dataset.act;
+    if (a === 'more-slots') { this.showMoreSlots = !this.showMoreSlots; if (!this.showMoreSlots) this.selectSlot = 0; this.render(); return; }
+    if (a === 'kit') { this.kitMsg = null; this.show('kit'); return; }
+    if (a === 'kit-new') { this._kitOpen(); return; }
+    if (a === 'kit-edit') { this._kitOpen(t.dataset.code); return; }
+    if (a === 'kit-back' || a === 'kit-close') { this._kitLeave(); return; }
+    if (a === 'kit-undo' || a === 'kit-redo') { this._kitStash(); this.kitDraft[a === 'kit-undo' ? 'undo' : 'redo'](); this.render(); return; }
+    if (a === 'kit-random') { this._kitStash(); this.kitDraft.randomise(); this.render(); return; }
+    if (a === 'kit-random-part') { this._kitStash(); this.kitDraft.randomPart(this.kitCategory); this.render(); return; }
+    if (a === 'kit-lock') { this._kitStash(); const locks = this.kitDraft.locks; locks.has(this.kitCategory) ? locks.delete(this.kitCategory) : locks.add(this.kitCategory); this.render(); return; }
+    if (a === 'kit-turn') { this._kitStash(); this.kitFacing = -(this.kitFacing || 1); this.render(); return; }
+    if (a === 'kit-zoom') { this._kitStash(); this.kitZoom = this.kitZoom === 'face' ? 'body' : 'face'; this.render(); return; }
+    if (a === 'kit-save' || a === 'kit-save-new' || a === 'kit-wear') { this._kitSave(a === 'kit-save-new', a === 'kit-wear'); return; }
+    if (a === 'kit-delete') {
+      if (this.confirmKitDelete !== this.kitOriginal) { this.confirmKitDelete = this.kitOriginal; this.kitMsg = 'Press Delete again to remove this character.'; this.render(); return; }
+      const result = deleteKitCharacter(this.kitRoster, this.kitOriginal);
+      if (!result.ok) { this.kitMsg = result.reason; this.render(); return; }
+      const deleted = this.kitOriginal;
+      for (const sl of this.config.slots) if (sl.avatarId === deleted) sl.avatarId = result.roster.wearing;
+      this._kitCommit(result.roster, deleted); this.kitDraft = null; this.confirmKitDelete = null; this.show('kit'); return;
+    }
     if (a === 'title' || a === 'setup' || a === 'controls' || a === 'settings' || a === 'roster') { this.editing = null; this.charMsg = null; this.show(a); return; }
     if (a === 'chars') { this.editing = null; this.charMsg = null; this.show('chars'); return; }
     if (a === 'char-new') { this._startEdit(blankAvatar(readCustom(browserStore()).length)); return; }
@@ -585,6 +866,8 @@ export class Menus {
 
   _change(e) {
     const t = e.target;
+    if (t.hasAttribute('data-kit-name')) { this.kitName = t.value; return; }
+    if (t.hasAttribute('data-kit-weapon')) { this.previewWeapon = t.value; this._paintKitLive(this.root.querySelector('canvas[data-kit-live]')); return; }
     if (t.dataset.colour && this.editing) {
       this.editing.palette[t.dataset.colour] = t.value;
       // Repaint the preview without rebuilding the screen: a colour input fires `input` on every

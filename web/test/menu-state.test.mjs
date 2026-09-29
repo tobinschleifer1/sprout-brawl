@@ -9,7 +9,7 @@ const build = () => new Menus({ appendChild() {} }, {});
 for (const bad of [null, [], { slots: [] }, { slots: [null] }, { mode: {}, slots: [{ weaponId: 'Sword', type: null }] }]) {
   saved = bad;
   const menu = build();
-  assert.equal(menu.config.slots.length, 4, 'saved state always has four usable slots');
+  assert.equal(menu.config.slots.length, 8, 'saved state always has eight usable slots');
   assert.equal(menu.config.mode, 'StockFFA');
   assert.equal(menu.config.slots[0].type, 'kb1');
   assert.equal(menu.config.slots[1].type, 'off', 'bots must be explicitly enabled');

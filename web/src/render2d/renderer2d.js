@@ -25,6 +25,8 @@ import { drawItem, drawRivet } from './items2d.js';
 import { ITEMS as ITEMS_BY_ID } from '../data/items.js';
 import { featuresOf } from '../data/avatars.js';
 import { drawAmbient } from './ambient2d.js';
+import { KIT_PARTS } from '../data/avatarKit.js';
+import { drawKitPiece, kitHalfDetail } from './kitCanvas.js';
 
 const PI = Math.PI;
 const BH = 270;                       // backbuffer HEIGHT is fixed, so one world pixel is always
@@ -282,6 +284,7 @@ export class Renderer2D {
     // Hand-drawn parts, if this character has any. Each one is optional: a player who drew only a
     // head keeps the built-in body, and every part they DID draw is animated by the same rig.
     const art = (f.char.avatar && f.char.avatar.art) || null;
+    const kitCode = f.char.avatar && f.char.avatar.kit ? f.char.avatar.id : null;
 
     // Smear: two ghosts of the body trailing the direction of travel, drawn before the fighter.
     // Hand-drawn fighting games solve fast motion with smear frames — a limb drawn as a streak
@@ -347,6 +350,9 @@ export class Renderer2D {
 
     const HIP = h * 0.34, SHO = h * 0.70, HEAD = h * 0.78;
     const lw = r * 0.42, ll = HIP;
+    const PW = r * 1.15 / 12;
+    const half = kitCode ? kitHalfDetail(b, PW) : false;
+    const kit = (id, ph, far = false) => drawKitPiece(b, kitCode, id, PW, ph, { far, half });
     b.save();
     b.translate(0, ch.bob);
 
@@ -356,7 +362,8 @@ export class Renderer2D {
     let farLeg = true;
     for (const [rot, dx] of [[ch.legL, -r * 0.30], [ch.legR, r * 0.30]]) {
       b.save(); b.translate(dx, HIP); b.rotate(-rot);
-      if (art && art.leg) drawPixelPart(b, 'leg', art.leg, pal, -lw / 2, -ll, lw, ll, farLeg ? 0.74 : 1);
+      if (kitCode) kit('leg', ll / KIT_PARTS.leg.span, farLeg);
+      else if (art && art.leg) drawPixelPart(b, 'leg', art.leg, pal, -lw / 2, -ll, lw, ll, farLeg ? 0.74 : 1);
       else b.fillRect(-lw / 2, -ll, lw, ll);
       b.fillStyle = pal.tertiary;
       b.restore();
@@ -367,8 +374,8 @@ export class Renderer2D {
     // torso so it covers where they attach. Without it the torso starts AT the hip and goes up,
     // the legs hang from the hip and go down, and the joint is simply open - which is invisible
     // standing still and reads as two detached limbs the moment the body rotates away from them.
-    b.fillStyle = pal.secondary;
-    b.fillRect(-r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10);
+    if (kitCode) { b.save(); b.translate(0, HIP); kit('pelvis', h * 0.10 / KIT_PARTS.pelvis.span); b.restore(); }
+    else { b.fillStyle = pal.secondary; b.fillRect(-r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10); }
 
     // body, leaning
     b.save();
@@ -377,10 +384,12 @@ export class Renderer2D {
     b.scale(ch.sx, ch.sy);
 
     // back arm
-    this._arm(b, pal.secondary, r, SHO - HIP, ch.armL, h, false, art, pal, 0.74);
+    this._arm(b, pal.secondary, r, SHO - HIP, ch.armL, h, false, art, pal, 0.74,
+      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span, true) : null);
 
     // torso, and whatever the character wears on it
-    if (art && art.torso) {
+    if (kitCode) kit('torso', (SHO - HIP) / KIT_PARTS.torso.span);
+    else if (art && art.torso) {
       // A drawn torso owns its own markings - the belt or sash would be painting over the player's
       // work, and they can draw one if they want one.
       drawPixelPart(b, 'torso', art.torso, pal, -r * 0.80, 0, r * 1.60, SHO - HIP);
@@ -396,13 +405,15 @@ export class Renderer2D {
     b.save(); b.translate(0, HEAD - HIP); b.rotate(-ch.head * 0.4);
     // Same rule for the head: a drawn one replaces the face and the headgear too, because the
     // player has just drawn their own.
-    if (art && art.head) drawPixelPart(b, 'head', art.head, pal, -hs / 2, -hs * 0.15, hs, hs);
+    if (kitCode) kit('head', PW);
+    else if (art && art.head) drawPixelPart(b, 'head', art.head, pal, -hs / 2, -hs * 0.15, hs, hs);
     else drawHead(b, pal, hs, feat);
     b.restore();
 
     // front arm: driven by the weapon, so the swing and the limb always agree
     const armAng = wid ? wp.angle : ch.armR.z - PI / 2;
-    this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: ch.armR.x, ext: ch.armR.ext }, h, true, art, pal, 1);
+    this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: ch.armR.x, ext: ch.armR.ext }, h, true, art, pal, 1,
+      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span) : null);
 
     // weapon, at the hand
     let scuff = null;
@@ -473,7 +484,7 @@ export class Renderer2D {
     b.globalAlpha = 1;
   }
 
-  _arm(b, colour, r, len, a, h, front = false, art = null, pal = null, shade = 1) {
+  _arm(b, colour, r, len, a, h, front = false, art = null, pal = null, shade = 1, kit = null) {
     // `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere,
     // and sliding the PROP forward off a fixed-length arm is what put the pike's grip further from
     // the hand than the fighter is tall. Extending the arm moves the hand, so the weapon travels
@@ -491,7 +502,8 @@ export class Renderer2D {
     // nothing read it, so the front arm sat at a constant angle and the run had no arm animation
     // at all. Folded in as a forward/back bias on the same joint.
     b.rotate(a.z + (a.x || 0));
-    if (art && art.arm && pal) {
+    if (kit) kit(L);
+    else if (art && art.arm && pal) {
       // The drawn arm covers the hand too: the grid runs the full length of the limb, so whatever
       // the player put at the far end IS the hand.
       drawPixelPart(b, 'arm', art.arm, pal, -w * 0.7, -L - w * 0.8, w * 1.4, L + w * 0.8, shade);

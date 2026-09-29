@@ -9,9 +9,11 @@
 // The fix is not clever: run the real renderer against a stub canvas, on every stage, at every
 // hazard phase, and fail on any thrown error. A test suite for a game has to draw at least once.
 import { makeMatch, skipCountdown } from './harness.mjs';
+import assert from 'node:assert/strict';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { STAGES } from '../src/data/stages/index.js';
 import { HAZARDS } from '../src/engine/hazards.js';
+import { KIT_PRESETS, encodeKit, presetKit } from '../src/data/avatarKit.js';
 
 // Read the registry rather than a hand-written list, so a hazard added later cannot be silently
 // left out of the only test that draws it.
@@ -53,6 +55,20 @@ globalThis.document = { createElement: () => stubCanvas() };
 globalThis.window = { devicePixelRatio: 1, addEventListener: () => {} };
 
 const { Renderer2D } = await import('../src/render2d/renderer2d.js');
+const kitCode = encodeKit(presetKit(KIT_PRESETS[1]));
+
+// The full stage path must also accept the kit body. A composed sprite's pure tests cannot
+// catch a renderer integration failure in a frame with a stage, camera and fighter effects.
+for (const stage of STAGES) {
+  const view = new Renderer2D(stubCanvas());
+  const m = makeMatch({ stageId: stage.id, loadouts: [[kitCode, 'Sword'], [kitCode, 'Pike']] });
+  view.setStage(m.stage); skipCountdown(m);
+  let sprites = 0;
+  const drawImage = view.b.drawImage;
+  view.b.drawImage = (...args) => { sprites++; drawImage(...args); };
+  assert.doesNotThrow(() => view.frame(m, 1 / 60, 0, true), `${stage.name} renders kit fighters`);
+  assert.ok(sprites >= 14, `${stage.name} drew both complete kit rigs`);
+}
 
 // ---- 1. every stage draws, at every hazard phase, without throwing ----
 for (const data of STAGES) {

@@ -20,6 +20,7 @@ export class Parkour {
     this.deaths = 0;
     this.frames = 0;
     this.done = this.reached === course.checkpoints.length - 1;
+    this.skipped = false;   // a checkpoint was skipped this climb (skipTo): not a clean, timed climb
     this.events = [];
     this.spawn();
   }
@@ -75,7 +76,22 @@ export class Parkour {
     }
   }
 
-  // Events since the last drain: checkpoints, falls, the summit.
+  // A skipped checkpoint (bought, in the Roblox build): stand on its pad as if you had reached it.
+  // It raises no checkpoint or summit event - those mean you CLIMBED there, and they are what the
+  // server counts - but a 'skip' event, and marks the climb skipped, so it is never timed as a
+  // clean one. Skipping to the Summit finishes the climb. Only forward: false if already past it.
+  skipTo(index) {
+    const i = Math.max(0, Math.min(index, this.course.checkpoints.length - 1));
+    if (i <= this.reached) return false;
+    this.reached = i;
+    this.skipped = true;
+    if (i === this.course.checkpoints.length - 1) this.done = true;
+    this.events.push({ type: 'skip', checkpoint: i });
+    this.spawn();
+    return true;
+  }
+
+  // Events since the last drain: checkpoints, falls, skips, the summit.
   drain() {
     const out = this.events;
     this.events = [];

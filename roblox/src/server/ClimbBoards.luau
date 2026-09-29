@@ -48,8 +48,10 @@ function ClimbBoards.submit(self: any, userId: number, view: any)
 	local sent = self.sent[userId] or {}
 	local p = self.pending[userId] or {}
 	if view.bestFrames and (not sent.speed or view.bestFrames < sent.speed) then p.speed = view.bestFrames end
-	if view.best > 0 or view.summits > 0 then
-		local score = ClimbBoards.levelScore(view.best, view.summits)
+	-- HIGHEST ranks what was climbed, never what was bought (ClimbProgress: `climbed`).
+	local climbed = view.climbed or view.best
+	if climbed > 0 or view.summits > 0 then
+		local score = ClimbBoards.levelScore(climbed, view.summits)
 		if not sent.levels or score > sent.levels then p.levels = score end
 	end
 	if p.speed or p.levels then self.pending[userId] = p end

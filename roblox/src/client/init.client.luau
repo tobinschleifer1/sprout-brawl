@@ -48,6 +48,8 @@ local ClimbRecords = require(script.ClimbRecords)
 local Plaza = require(Shared.Plaza)
 local PresenceCodec = require(Shared.PresenceCodec)
 local SnapshotCodec = require(Shared.SnapshotCodec)
+local SkipProducts = require(Shared.SkipProducts)
+local MarketplaceService = game:GetService("MarketplaceService")
 local UIS = game:GetService("UserInputService")
 
 local FRAME = Config.FRAME
@@ -170,9 +172,39 @@ Net.remote("ClimbBoards").OnClientEvent:Connect(function(view: any)
 	hub.recordsLine = if top then `FASTEST  {top.name}  {ClimbRecords.clock(top.frames)}`
 		elseif high then `HIGHEST  {high.name}  ·  {ClimbRecords.reach(high.best, high.summits)}` else nil
 end)
-local parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+-- Paid skips (SkipProducts). The price shown is the product's own once Marketplace answers - it is
+-- what the player is charged - and the configured one until then. While the purchase prompt is up
+-- the climb holds still, so nobody climbs past the checkpoint they are paying to skip.
+local skipPrompt = false
+local skipPrices: { [number]: any } = {}
+local function skipPrice(index: number): number?
+	local id, price = SkipProducts.forCheckpoint(index)
+	if id and skipPrices[index] == nil then
+		skipPrices[index] = false
+		task.spawn(function()
+			local ok, info = pcall(function() return MarketplaceService:GetProductInfo(id, Enum.InfoType.Product) end)
+			if ok and type(info) == "table" and type(info.PriceInRobux) == "number" then skipPrices[index] = info.PriceInRobux end
+		end)
+	end
+	return skipPrices[index] or price
+end
+MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId: number)
+	if userId == Players.LocalPlayer.UserId then skipPrompt = false end
+end)
+local parkour: any
+parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	send = function(msg: any) Net.remote("Climb"):FireServer(msg) end,
 	records = function() records:toggle() end,
+	price = skipPrice,
+	skip = function(index: number)
+		local id = SkipProducts.forCheckpoint(index)
+		if not id then
+			parkour:say("SKIPS ARE NOT ON SALE YET", Color3.fromRGB(138, 148, 166))
+			return
+		end
+		skipPrompt = true
+		MarketplaceService:PromptProductPurchase(Players.LocalPlayer, id)
+	end,
 	restart = function() askClimb(0) end,
 	leave = function()
 		records:close()
@@ -183,6 +215,8 @@ local parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 Net.remote("ClimbView").OnClientEvent:Connect(function(view: any)
 	parkour:setProgress(view)
 	records:setMine(view)
+	-- A bought skip, granted and saved: stand on it now.
+	if type(view.skipTo) == "number" and parkour.active then parkour:skipTo(view.skipTo) end
 	if climbWanted and type(view.start) == "number" and select_ then
 		climbWanted = false
 		hub:hide()
@@ -506,7 +540,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		Net.remote("Hello"):FireServer()
 	end
 	if records:isOpen() then records:tick() end
-	if parkour.active then parkour:step(dt, records:isOpen()) end
+	if parkour.active then parkour:step(dt, records:isOpen() or skipPrompt) end
 	if hub.active then
 		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen() or records:isOpen())
 		if not social.enabled then social:setEnabled(true) end

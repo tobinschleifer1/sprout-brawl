@@ -62,11 +62,21 @@ function AvatarStore.sanitize(raw: any): any
 	local climb = nil
 	if type(src.climb) == "table" then
 		climb = {}
-		for _, k in { "best", "summits", "bestFrames" } do
+		for _, k in { "best", "climbed", "summits", "bestFrames" } do
 			if type(src.climb[k]) == "number" then climb[k] = src.climb[k] end
 		end
 	end
-	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb }
+	-- Purchase ids already delivered (server/Purchases), so a receipt Roblox sends again is not
+	-- granted twice: strings only, the most recent 50.
+	local receipts = nil
+	if type(src.receipts) == "table" then
+		receipts = {}
+		for _, id in src.receipts do
+			if type(id) == "string" and #id <= 100 then table.insert(receipts, id) end
+		end
+		while #receipts > 50 do table.remove(receipts, 1) end
+	end
+	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb, receipts = receipts }
 end
 
 function AvatarStore.new(dataStore: any, clock: (() -> number)?): any

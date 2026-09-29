@@ -11,6 +11,8 @@ local AvatarStore = require(script.AvatarStore)
 local Cabinets = require(script.Cabinets)
 local ClimbProgress = require(script.ClimbProgress)
 local ClimbBoards = require(script.ClimbBoards)
+local Purchases = require(script.Purchases)
+local SkipProducts = require(Shared.SkipProducts)
 local PARKOUR: any = require(Shared.Data.Parkour)
 local PLAZA = Plaza.DATA
 local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
@@ -278,6 +280,37 @@ Net.remote("Climb").OnServerEvent:Connect(function(player: Player, msg: any)
 	boards:submit(id, view)
 	Net.remote("ClimbView"):FireClient(player, view)
 end)
+-- ---------------------------------------------------------------- purchases ----
+-- Paid skips on the climb (SkipProducts): one checkpoint on from where the player is, saved as
+-- where they resume. Purchases applies a receipt once and grants it only once saved. A product id
+-- of 0 is one not created yet in the Creator Dashboard: nothing is registered, nothing sold.
+local purchases = Purchases.new({ store = avatars, player = function(userId: number) return loaded[userId] end })
+for index, productId in SkipProducts.IDS do
+	if productId ~= 0 then
+		purchases:on(productId, function(player: Player, receipt: any): boolean
+			local id = player.UserId
+			local to = climbs:skip(id, os.clock())
+			if not to then
+				-- Already at the Summit (it raced a climb). Paid for and nothing to move; granted,
+				-- since asking Roblox again would not change that.
+				warn(`[Blockfall] {id} bought a skip at the Summit (purchase {receipt.PurchaseId})`)
+				return true
+			end
+			if to ~= index then
+				warn(`[Blockfall] {id} bought the skip into {index} and was moved into {to}: one checkpoint on, always`)
+			end
+			local view = climbs:view(id)
+			if climbs:climbing(id) then view.skipTo = to end
+			Net.remote("ClimbView"):FireClient(player, view)     -- the boards: unchanged, a skip is not climbing
+			return true
+		end)
+	end
+end
+game:GetService("MarketplaceService").ProcessReceipt = function(receipt: any)
+	return if purchases:process(receipt) == "granted"
+		then Enum.ProductPurchaseDecision.PurchaseGranted else Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
 -- Writes go out every half-minute; the boards everyone sees are read on the two-hour marks. Both
 -- yield on DataStores, so one job at a time.
 local boardsBusy = false

@@ -67,11 +67,16 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" then return Loader.loadFrom("src/server/", name) end
+	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
+-- Paid skips as if all eight Developer Products were created (ids 9001-9008), so the server
+-- registers them; ProcessReceipt lands on the MarketplaceService stub (`run`).
+local SkipIds = Loader.load("SkipProducts").IDS
+for i = 1, #SkipIds do SkipIds[i] = 9000 + i end
 local env: any = {
+	Enum = { ProductPurchaseDecision = { PurchaseGranted = "PurchaseGranted", NotProcessedYet = "NotProcessedYet" } },
 	game={GetService=function(_,name)
 		if name == "ReplicatedStorage" then return {Shared=shared} end
 		if name == "Players" then return players end
@@ -386,6 +391,19 @@ do
 	now += 30
 	send(12,"Climb",{action="checkpoint",index=3})
 	assert(last(12,"ClimbView").best == 3, "a believable checkpoint is kept")
+	-- A paid skip: moved one checkpoint on, told to move now, saved as progress but not as climbed.
+	local function buy(purchase: string, product: number, userId: number?): string
+		return run.ProcessReceipt({ PurchaseId = purchase, PlayerId = userId or 12, ProductId = product })
+	end
+	assert(buy("s1", 9004) == "PurchaseGranted", "the skip into checkpoint 4 is granted")
+	local v = last(12,"ClimbView")
+	assert(v.skipTo == 4 and v.best == 4 and v.climbed == 3, "the climber is moved to 4, which is saved but not climbed")
+	local mark2 = #messages
+	assert(buy("s1", 9004) == "PurchaseGranted", "the same receipt again is acknowledged")
+	for k = mark2 + 1, #messages do assert(messages[k].name ~= "ClimbView", "and not applied a second time") end
+	assert(buy("s2", 9008) == "PurchaseGranted" and last(12,"ClimbView").skipTo == 5, "a tampered prompt for the Summit moves one checkpoint on, no more")
+	assert(buy("s3", 9006, 4242) == "NotProcessedYet", "a buyer not in this server waits")
+	assert(buy("s4", 1234) == "NotProcessedYet", "a product that is not a skip is not granted")
 	now += 1
 	send(12,"Climb",{action="leave"})
 	run.Heartbeat:Fire(0.1)

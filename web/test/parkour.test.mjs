@@ -200,6 +200,34 @@ const results = [];
     bad.length ? bad.join('; ') : 'landing, falling, skipping ahead, finishing and resuming all behave');
 }
 
+// ---- 3b. a bought skip ----
+// Forward only; on the pad; a 'skip' event and never a checkpoint or summit event (those mean it was
+// climbed, and the server counts them); the climb marked skipped; the next pad climbed counts as
+// usual; skipping to the Summit finishes and stops the clock without a summit event.
+{
+  const bad = [];
+  const pk = new Parkour(COURSE, CHAR, 2);
+  if (pk.skipped) bad.push('a new climb starts skipped');
+  if (pk.skipTo(1) || pk.skipTo(2) || pk.reached !== 2) bad.push('a skip backwards or to where you are was taken');
+  if (!pk.skipTo(3) || pk.reached !== 3 || pk.fighter.platform !== byId(pk, CHECKPOINTS[3].pad) || !pk.skipped) bad.push('a skip forward did not land you on its pad');
+  let ev = pk.drain().map((e) => `${e.type}:${e.checkpoint}`).join(',');
+  if (ev !== 'skip:3') bad.push(`a skip raised ${ev}, not just skip:3`);
+  const next = byId(pk, CHECKPOINTS[4].pad);
+  Object.assign(pk.fighter, { x: next.cx, y: next.top + 3, onGround: false, platform: null });
+  for (let i = 0; i < 60; i++) pk.step(frame(0));
+  ev = pk.drain().map((e) => `${e.type}:${e.checkpoint}`).join(',');
+  if (ev !== 'checkpoint:4') bad.push(`climbing on after a skip raised ${ev}`);
+  const last = CHECKPOINTS.length - 1;
+  if (!pk.skipTo(last + 5) || pk.reached !== last || !pk.done) bad.push('skipping past the end does not stop at the Summit and finish');
+  ev = pk.drain().map((e) => e.type).join(',');
+  if (ev !== 'skip') bad.push(`skipping to the Summit raised ${ev}`);
+  const clock = pk.frames;
+  for (let i = 0; i < 30; i++) pk.step(frame(0));
+  if (pk.frames !== clock) bad.push('the clock ran after skipping to the Summit');
+  check('a bought skip moves you forward, is marked, and never counts as climbing', bad.length === 0,
+    bad.length ? bad.join('; ') : 'forward only, on the pad, skip events only, the next pad counts, the Summit finishes');
+}
+
 // ---- 4. harmless ----
 {
   const a = new Parkour(COURSE, CHAR), b = new Parkour(COURSE, CHAR);

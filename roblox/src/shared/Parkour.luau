@@ -18,6 +18,7 @@ function Parkour.new(course: any, char: any, from: number?): any
 	self.reached = math.max(0, math.min(from or 0, #course.checkpoints - 1))
 	self.deaths, self.frames = 0, 0
 	self.done = self.reached == #course.checkpoints - 1
+	self.skipped = false   -- a checkpoint was skipped this climb (skipTo): not a clean, timed climb
 	self.events = {}
 	self:spawn()
 	return self
@@ -76,6 +77,19 @@ function Parkour.step(self: any, input: any)
 			end
 		end
 	end
+end
+
+-- A skipped checkpoint (bought): on its pad as if reached, with a 'skip' event and none of the
+-- checkpoint or summit events, which mean it was climbed. Forward only. See parkour.js skipTo.
+function Parkour.skipTo(self: any, index: number): boolean
+	local i = math.max(0, math.min(index, #self.course.checkpoints - 1))
+	if i <= self.reached then return false end
+	self.reached = i
+	self.skipped = true
+	if i == #self.course.checkpoints - 1 then self.done = true end
+	table.insert(self.events, { type = "skip", checkpoint = i })
+	self:spawn()
+	return true
 end
 
 function Parkour.drain(self: any): { any }

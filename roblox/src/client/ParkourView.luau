@@ -38,6 +38,7 @@ local AMBER = Color3.fromRGB(232, 162, 74)
 local TEAL = Color3.fromRGB(127, 168, 184)
 local TEXT = Color3.fromRGB(230, 225, 214)
 local DIM = Color3.fromRGB(138, 148, 166)
+local TOP = 66          -- below Roblox's 58 px top bar
 
 local function hash(a: number, b: number): number
 	return ((a * 73856093 + b * 19349663) % 1000003) / 1000003
@@ -67,7 +68,8 @@ end
 ParkourView.clock = ClimbRecords.clock
 
 -- `opts.send(msg)` goes to the Climb remote; `opts.leave()` puts the player back in the lobby;
--- `opts.records()` opens the leaderboards.
+-- `opts.records()` opens the leaderboards; `opts.skip(index)` asks to buy the skip into checkpoint
+-- `index` and `opts.price(index)` says what it costs in Robux (both nil: no SKIP button).
 function ParkourView.new(parent: Instance, opts: any): any
 	local self: any = setmetatable({ opts = opts, active = false, camX = 0, camY = 6, progress = { best = 0, summits = 0 },
 		labels = {}, bannerAt = -10 }, ParkourView)
@@ -77,36 +79,61 @@ function ParkourView.new(parent: Instance, opts: any): any
 	gui.Parent = parent
 	self.gui = gui
 	local title = text(gui, "Title", "SKYLINE CLIMB", 22, AMBER)
-	title.Position, title.Size = UDim2.fromOffset(16, 10), UDim2.fromOffset(400, 28)
+	-- This ScreenGui ignores the inset (so world labels line up with the canvas), which puts its top
+	-- 58 px under Roblox's own top bar and its top right under the player list: seen in Studio, the
+	-- SKIP button could not be clicked there. So the HUD text starts below the bar, and every button
+	-- lives in a column at the bottom right, where Roblox draws nothing.
+	title.Position, title.Size = UDim2.fromOffset(16, TOP), UDim2.fromOffset(400, 28)
 	self.checkpointLabel = text(gui, "Checkpoint", "", 15)
-	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, 40), UDim2.fromOffset(500, 20)
+	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, TOP + 30), UDim2.fromOffset(500, 20)
 	self.timerLabel = text(gui, "Timer", "0:00.00", 26, TEXT)
-	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, 62), UDim2.fromOffset(300, 30)
+	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(300, 30)
 	self.fallsLabel = text(gui, "Falls", "", 13, DIM)
-	self.fallsLabel.Position, self.fallsLabel.Size = UDim2.fromOffset(16, 94), UDim2.fromOffset(500, 18)
+	self.fallsLabel.Position, self.fallsLabel.Size = UDim2.fromOffset(16, TOP + 84), UDim2.fromOffset(500, 18)
 	self.bestLabel = text(gui, "Best", "", 13, DIM)
-	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, 112), UDim2.fromOffset(500, 18)
+	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 102), UDim2.fromOffset(500, 18)
 	local banner = text(gui, "Banner", "", 34, AMBER)
 	banner.AnchorPoint, banner.TextXAlignment = Vector2.new(0.5, 0), Enum.TextXAlignment.Center
-	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, 120), UDim2.fromOffset(760, 84)
+	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, TOP + 110), UDim2.fromOffset(760, 84)
 	banner.TextTransparency, banner.TextWrapped = 1, true
 	self.banner = banner
 	local hint = text(gui, "Controls", "A / D  run   •   Space  jump (again in the air to double jump)   •   S  drop through a plank", 13, DIM)
 	hint.AnchorPoint, hint.TextXAlignment = Vector2.new(0.5, 1), Enum.TextXAlignment.Center
 	hint.Position, hint.Size = UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(800, 20)
-	local leave = button(gui, "Leave", "BACK TO NEON ROW", function() self:leave() end)
-	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 12), UDim2.fromOffset(190, 38)
+	local leave = button(gui, "Leave", "◂ NEON ROW", function() self:leave() end)
+	self.leaveButton = leave
+	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -126), UDim2.fromOffset(130, 34)
 	local restart = button(gui, "Restart", "RESTART FROM THE BOTTOM", function()
 		if self.opts.restart then self.opts.restart() end
 	end)
-	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 56), UDim2.fromOffset(250, 34)
+	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -86), UDim2.fromOffset(250, 34)
 	self.restartButton = restart
 	local records = button(gui, "Records", "RECORDS", function()
 		if self.opts.records then self.opts.records() end
 	end)
-	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 0), UDim2.new(1, -216, 0, 12), UDim2.fromOffset(110, 38)
+	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 1), UDim2.new(1, -152, 1, -126), UDim2.fromOffset(114, 34)
 	self.recordsButton = records
+	-- SKIP: buy the next checkpoint (SkipProducts). The server moves you once the purchase is
+	-- saved (ClimbView.skipTo -> skipTo), so nothing moves on the click itself.
+	local skip = button(gui, "Skip", "", function()
+		local pk = self.pk
+		if pk and self.opts.skip then self.opts.skip(pk.reached + 1) end       -- hidden at the Summit
+	end)
+	skip.AnchorPoint, skip.Position, skip.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -42), UDim2.fromOffset(250, 38)
+	skip.TextColor3, skip.Visible = TEXT, false
+	self.skipButton = skip
 	return self
+end
+
+-- The server granted a bought skip: stand on that checkpoint now (Parkour.skipTo - no checkpoint
+-- event, so nothing is claimed back to the server as climbed).
+function ParkourView.skipTo(self: any, index: number)
+	local pk = self.pk
+	if not pk or not pk:skipTo(index) then return end
+	local f = pk.fighter
+	self.camX, self.camY = f.x, f.y + 6
+	self:say(if pk.done then "THE SUMMIT  ·  SKIPPED" else `SKIPPED TO  ·  {string.upper(COURSE.checkpoints[index + 1].name)}`, AMBER)
+	self:refreshHud()
 end
 
 -- Begin (or resume) a climb in this character, from checkpoint `from`.
@@ -152,7 +179,20 @@ function ParkourView.refreshHud(self: any)
 		self.checkpointLabel.Text = if pk.done then "THE SUMMIT" else `CHECKPOINT {pk.reached}/{n}  ·  {string.upper(cp.name)}`
 		self.timerLabel.Text = ParkourView.clock(pk.frames)
 		self.timerLabel.TextColor3 = if pk.done then AMBER elseif self.from == 0 then TEXT else DIM
-		self.fallsLabel.Text = `{pk.deaths} {if pk.deaths == 1 then "fall" else "falls"}` .. (if self.from ~= 0 then "  ·  resumed: this run is not timed as a full climb" else "")
+		self.fallsLabel.Text = `{pk.deaths} {if pk.deaths == 1 then "fall" else "falls"}`
+			.. (if pk.skipped then "  ·  skipped: this run is not timed or ranked"
+				elseif self.from ~= 0 then "  ·  resumed: this run is not timed as a full climb" else "")
+	end
+	-- The next skip and its price, while there is one to buy. Written only when it changes: this
+	-- runs every frame.
+	local nextIndex = if pk and not pk.done and self.opts.skip then pk.reached + 1 else nil
+	local price = if nextIndex then self.opts.price and self.opts.price(nextIndex) else nil
+	local skipText = if nextIndex and price
+		then `SKIP ▸ {string.upper(COURSE.checkpoints[nextIndex + 1].name)}  ·  R$ {price}` else nil
+	if skipText ~= self.skipText then
+		self.skipText = skipText
+		self.skipButton.Visible = skipText ~= nil
+		if skipText then self.skipButton.Text = skipText end
 	end
 	local p = self.progress
 	self.bestLabel.Text = `Furthest: {COURSE.checkpoints[p.best + 1].name}` .. (if p.summits > 0 then `  ·  Summits: {p.summits}` else "")

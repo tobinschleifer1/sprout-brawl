@@ -31,6 +31,24 @@ local View = luau.load(fs.readFile("src/client/ParkourView.luau"), { debugName =
 local PARKOUR = Loader.load("Data/Parkour")
 local KIT = Loader.load("Data/AvatarKit")
 local N = #PARKOUR.course.checkpoints
+local COURSE_PADS = {}
+for i, cp in PARKOUR.course.checkpoints do COURSE_PADS[i] = cp.pad end
+
+-- 00. Clear of Roblox's own UI: its top bar is the top 58 px and the player list hangs from the top
+--     right, and this ScreenGui ignores the inset. Seen in Studio: a SKIP button up there could not
+--     be clicked. Every button sits at the bottom; the HUD text starts below the bar.
+do
+	local layout = View.new({}, { input = { sample = function() return {} end, reset = function() end }, send = function() end })
+	for _, name in { "leaveButton", "restartButton", "recordsButton", "skipButton" } do
+		local b = layout[name] or layout.gui
+		assert(layout[name], `no {name}`)
+		assert(b.Position.Y.Scale == 1 and b.AnchorPoint.Y == 1, `{name} is not in the bottom column`)
+	end
+	for _, name in { "checkpointLabel", "timerLabel", "fallsLabel", "bestLabel", "banner" } do
+		local t = layout[name]
+		assert(t.Position.Y.Scale == 0 and t.Position.Y.Offset >= 58, `{name} starts at {t.Position.Y.Offset} px, under Roblox's top bar`)
+	end
+end
 
 -- 0. The clock reads as a player expects.
 assert(View.clock(0) == "0:00.00" and View.clock(4995) == "1:23.25" and View.clock(60 * 600) == "10:00.00", "the timer format")
@@ -39,8 +57,10 @@ local stick = { frame = Input.emptyFrame() }
 stick.sample = function(self) return { self.frame } end
 stick.reset = function() end
 local sent, left, restarts, boards = {}, 0, 0, 0
+local skips: { number } = {}
 local v = View.new({}, { input = stick, send = function(m) table.insert(sent, m) end,
-	leave = function() left += 1 end, restart = function() restarts += 1 end, records = function() boards += 1 end })
+	leave = function() left += 1 end, restart = function() restarts += 1 end, records = function() boards += 1 end,
+	skip = function(index) table.insert(skips, index) end, price = function(index) return index * 7 end })
 local code = KIT.presets[3].code
 
 -- 1. A climb from the bottom.
@@ -120,6 +140,33 @@ for id, t in v.labels do
 end
 assert(amber and math.floor(amber.R * 255 + 0.5) == 232, "a reached checkpoint's flag is amber")
 assert(steel and math.floor(steel.R * 255 + 0.5) == 110, "one not yet reached is steel")
+
+-- 3b. SKIP: the next checkpoint and its price; buying moves you only when the server says so;
+--     a skip is never reported as a checkpoint climbed; none past the Summit; none without a shop.
+v:start(code, 0)
+v:step(1/60)
+assert(v.skipButton.Visible and string.find(v.skipButton.Text, "CHIMNEY STACK", 1, true) and string.find(v.skipButton.Text, "R$ 7", 1, true),
+	`the button offers the next checkpoint at its price: {v.skipButton.Text}`)
+v.skipButton.activate()
+assert(#skips == 1 and skips[1] == 1 and v.pk.reached == 0, "clicking asks to buy the skip into 1, and moves nothing yet")
+local before = #sent
+v:skipTo(1)
+assert(v.pk.reached == 1 and v.pk.fighter.platform.id == COURSE_PADS[2], "granted: standing on checkpoint 1")
+v:step(1/60)
+assert(#sent == before, "a skip is not reported to the server as a checkpoint climbed")
+assert(string.find(v.banner.Text, "SKIPPED TO") and string.find(v.fallsLabel.Text, "skipped"), "the HUD says it was skipped and is not timed")
+assert(string.find(v.skipButton.Text, "R$ 14", 1, true), "the button moves on to the next skip")
+v.banner.Text = "unchanged"
+v:skipTo(1); v:skipTo(0)
+assert(v.pk.reached == 1 and v.banner.Text == "unchanged", "a grant for where you already are, or behind, moves and says nothing")
+v:skipTo(N - 1)
+v:step(1/60)
+assert(v.pk.done and not v.skipButton.Visible and string.find(v.banner.Text, "SUMMIT"), "skipped to the Summit: finished, nothing left to buy")
+assert(#sent == before, "and no Summit is claimed")
+local plain = View.new({}, { input = stick, send = function() end, price = function() return 5 end })
+plain:start(code, 0)
+plain:step(1/60)
+assert(not plain.skipButton.Visible, "no shop, no SKIP button")
 
 -- 4. Resuming: on the checkpoint, and the HUD says it is not a timed full climb.
 v:start(code, 5)

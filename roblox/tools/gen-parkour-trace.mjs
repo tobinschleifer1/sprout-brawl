@@ -28,6 +28,23 @@ for (const from of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {   // 8: on the Summit, finishe
   }
   cases.push({ from, frames });
 }
+// Skips (bought checkpoints): mid-climb, forward by one and by several, backwards (refused), and to
+// the Summit - which finishes the climb and stops its clock with no summit event.
+for (const plan of [{ from: 0, at: 30, to: 1 }, { from: 2, at: 50, to: 5 }, { from: 4, at: 40, to: 2 }, { from: 6, at: 20, to: 8 }]) {
+  const pk = new Parkour(COURSE, char, plan.from);
+  const frames = [];
+  for (let i = 0; i < 200; i++) {
+    const input = { x: i % 50 < 30 ? 1 : 0, y: 0, jump: i % 37 === 5, jumpHeld: i % 37 < 15, downTap: false };
+    const skip = i === plan.at ? plan.to : undefined;
+    if (skip !== undefined) pk.skipTo(skip);
+    pk.step(input);
+    const f = pk.fighter;
+    frames.push({ input, skip, values: FIELDS.map((key) => S(f[key])), reached: pk.reached, deaths: pk.deaths, frames: pk.frames,
+      skipped: pk.skipped, done: pk.done,
+      platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.checkpoint ?? e.frames)).join(',') });
+  }
+  cases.push({ from: plan.from, frames });
+}
 // Set-downs onto every moving foothold, falling as a jump lands, at six points of its cycle. Random
 // climbs almost never land on a slider, and a landing on one was the bug both builds shared: every
 // one was thrown off the side (web/src/engine/stage.js collide). These hold the port to the fix.

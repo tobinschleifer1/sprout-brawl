@@ -26,7 +26,11 @@ for n, case in T.cases do
 		end
 	end
 	for i, f in case.frames do
+		if f.skip ~= nil then pk:skipTo(f.skip) end
 		pk:step(f.input)
+		if f.skipped ~= nil then
+			assert(pk.skipped == f.skipped and pk.done == f.done, `climb {n} frame {i}: skipped/done differ`)
+		end
 		local fighter = pk.fighter
 		for k, field in T.fields do
 			local want, got = f.values[k], fighter[field]

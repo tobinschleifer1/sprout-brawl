@@ -67,6 +67,11 @@ b.sent[6] = nil
 assert(speed.writes + levels.writes == writes, "an equal stored time is left alone")
 speed.data["6"], levels.data["6"] = nil, nil
 
+-- HIGHEST ranks what was climbed, not what was bought: a skipped-to checkpoint does not count.
+b:submit(40, { best = 8, climbed = 3, summits = 0 })
+b:flush()
+assert(levels.data["40"] == ClimbBoards.levelScore(3, 0), "a player who bought their way to the Summit ranks where they climbed to")
+levels.data["40"] = nil
 -- 2. Reading the boards: ranked, decoded, named.
 b:submit(13, { best = 2, summits = 0 })
 b:flush()

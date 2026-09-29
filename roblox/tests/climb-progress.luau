@@ -68,4 +68,50 @@ assert(v.best == N - 1 and v.summits == 3 and v.bestFrames == 78 * 60, "progress
 data.u9 = { v = 1, active = 1, slots = { { name = "x", code = "k1" } }, climb = { best = 99, summits = -4, bestFrames = 0/0 } }
 v = again:view(9)
 assert(v.best == N - 1 and v.summits == 0 and v.bestFrames == nil, "a hostile record is cleaned")
+-- Paid skips: one checkpoint on from where you are; saved to resume from, never counted as climbed.
+do
+	local t = now + 1000
+	assert(climb:enter(20, 0, t) == 0)
+	assert(climb:skip(20, t) == 1, "a skip moves you one checkpoint on")
+	local v20 = climb:view(20)
+	assert(v20.best == 1 and v20.climbed == 0 and climb:climbing(20).reached == 1, "saved to resume from, not as climbed")
+	t += 3
+	assert(climb:checkpoint(20, 2, t), "climbing on from a skipped checkpoint counts")
+	assert(climb:view(20).climbed == 2 and climb:view(20).best == 2, "and what you climb to is climbed")
+	for _ = 3, N - 1 do assert(climb:skip(20, t)) end
+	assert(climb:climbing(20).reached == N - 1 and climb:skip(20, t) == nil, "at the Summit there is nothing left to skip")
+	assert(not climb:summit(20, 90 * 60, t) and climb:view(20).summits == 0, "a Summit reached by a skip is not a Summit")
+	assert(climb:view(20).climbed == 2, "nor is anything skipped past")
+	-- Resuming at a Summit you bought, then claiming it: refused too.
+	climb:leave(20)
+	assert(climb:enter(20, "best", t) == N - 1 and not climb:summit(20, 90 * 60, t), "resuming at the Summit claims nothing")
+	-- Back to the bottom with a bought Summit saved: a skip is one on from where you ARE, and what
+	-- you climb now counts as climbed even below the checkpoint you bought.
+	climb:leave(20)
+	assert(climb:enter(20, 0, t) == 0 and climb:skip(20, t) == 1, "a skip from the bottom is to checkpoint 1, whatever is saved")
+	t += 5
+	assert(climb:checkpoint(20, 3, t) and climb:view(20).climbed == 3 and climb:view(20).best == N - 1,
+		"climbing to 3 counts as climbed, below the Summit you bought")
+	-- A climb with a skip in it that is then climbed to the Summit: the Summit counts, the time does not.
+	t += 100
+	climb:enter(21, 0, t)
+	t += 5
+	climb:skip(21, t)
+	for i = 2, N - 1 do t += 10; assert(climb:checkpoint(21, i, t)) end
+	assert(climb:summit(21, 60 * 60, t) and climb:view(21).summits == 1, "climbed to the Summit after a skip: it counts")
+	assert(climb:view(21).bestFrames == nil, "but a climb with a skip in it sets no best time")
+	-- Not on a climb: the skip moves where you will resume.
+	climb:enter(22, 0, t)
+	t += 20
+	assert(climb:checkpoint(22, 3, t))
+	climb:leave(22)
+	assert(climb:skip(22, t) == 4 and climb:view(22).best == 4 and climb:view(22).climbed == 3, "off the climb, a skip moves your resume point")
+	assert(climb:enter(22, "best", t) == 4, "and you resume there")
+end
+-- Records from before skips: everything in them was climbed. A hostile one cannot claim more
+-- climbed than reached.
+data.u30 = { v = 1, active = 1, slots = { { name = "x", code = "k1" } }, climb = { best = 5, summits = 1 } }
+data.u31 = { v = 1, active = 1, slots = { { name = "x", code = "k1" } }, climb = { best = 2, climbed = 7 } }
+assert(again:view(30).climbed == 5, "an old record's progress was all climbed")
+assert(again:view(31).climbed == 2, "climbed is never more than reached")
 print("PASS climb progress: pace checks, skipping ahead, one Summit per climb, best times only for believable full climbs, saved and cleaned")

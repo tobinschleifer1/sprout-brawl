@@ -84,6 +84,7 @@ lune run tests/rooms
 lune run tests/cabinets
 lune run tests/climb-progress
 lune run tests/climb-boards
+lune run tests/purchases
 lune run tests/room-ui
 lune run tests/multiplayer
 lune run tests/presence-codec

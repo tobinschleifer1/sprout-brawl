@@ -273,6 +273,17 @@ Net.remote("Climb").OnServerEvent:Connect(function(player: Player, msg: any)
 		if not climbs:checkpoint(id, msg.index, now) then return end
 	elseif msg.action == "summit" then
 		if not climbs:summit(id, msg.frames, now) then return end
+	elseif msg.action == "studioSkip" then
+		-- A free skip, for testing the course in Studio before its Developer Products exist. The same
+		-- one-checkpoint skip a purchase makes (so it counts the same: resumed from, never climbed).
+		-- Never on a live server: RunService:IsStudio() is false there, and this does nothing.
+		if not RunService:IsStudio() or not climbs:climbing(id) then return end
+		local to = climbs:skip(id, now)
+		if not to then return end
+		local view = climbs:view(id)
+		view.skipTo = to
+		Net.remote("ClimbView"):FireClient(player, view)
+		return
 	elseif msg.action == "reward" then
 		-- A pickup at the top of the climb: granted only where it lies, to someone who climbed there
 		-- (ClimbProgress.reward). Its avatar part is then theirs to wear - the creator is told.

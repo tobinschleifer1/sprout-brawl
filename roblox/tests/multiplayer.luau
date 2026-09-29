@@ -14,7 +14,8 @@ local function signal(): any
 	end }
 end
 local players: any = { PlayerRemoving = signal() }
-local run: any = { Heartbeat = signal(), PostSimulation = signal() }
+local studio = false          -- RunService:IsStudio(): a live server unless a test says otherwise
+local run: any = { Heartbeat = signal(), PostSimulation = signal(), IsStudio = function() return studio end }
 local remotes, messages = {}, {}
 -- Lobby presence arrives as a position buffer plus, only when it changed, a roster. Each player
 -- keeps the last roster they were sent, as the client does, and the message is recorded decoded -
@@ -404,6 +405,17 @@ do
 	assert(buy("s2", 9000 + #SkipIds) == "PurchaseGranted" and last(12,"ClimbView").skipTo == 5, "a tampered prompt for the Summit moves one checkpoint on, no more")
 	assert(buy("s3", 9006, 4242) == "NotProcessedYet", "a buyer not in this server waits")
 	assert(buy("s4", 1234) == "NotProcessedYet", "a product that is not a skip is not granted")
+	-- The free Studio skip: nothing on a live server; in Studio, one checkpoint on, like a purchase.
+	local markS = #messages
+	now += 1
+	send(12,"Climb",{action="studioSkip"})
+	for k = markS + 1, #messages do assert(messages[k].name ~= "ClimbView", "a free skip on a live server does nothing") end
+	studio = true
+	now += 1
+	send(12,"Climb",{action="studioSkip"})
+	studio = false
+	local sv = last(12,"ClimbView")
+	assert(sv.skipTo == 6 and sv.best == 6 and sv.climbed == 3, "in Studio it moves you one checkpoint on, saved but not climbed")
 	-- A reward at the top: claimed where it lies, by a climber who climbed there; its part unlocks.
 	local PK = Loader.load("Data/Parkour")
 	local crown = PK.course.rewards[1]

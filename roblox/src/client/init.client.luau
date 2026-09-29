@@ -199,6 +199,13 @@ parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	skip = function(index: number)
 		local id = SkipProducts.forCheckpoint(index)
 		if not id then
+			-- In Studio, for testing the course before its products exist: free, and the server moves
+			-- you exactly as a bought skip would. A live server refuses it (init.server "studioSkip").
+			if RunService:IsStudio() then
+				Net.remote("Climb"):FireServer({ action = "studioSkip" })
+				parkour:say("SKIPPING · FREE IN STUDIO", Color3.fromRGB(138, 148, 166))
+				return
+			end
 			parkour:say("SKIPS ARE NOT ON SALE YET", Color3.fromRGB(138, 148, 166))
 			return
 		end

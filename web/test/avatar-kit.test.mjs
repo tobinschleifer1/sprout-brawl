@@ -10,7 +10,8 @@
 //     are few enough of them to draw six fighters;
 //   - a face survives being drawn at half resolution, which is how the game draws it zoomed out.
 import { KIT_PARTS, KIT_ROLES, KIT_CATEGORIES, KIT_COLOURS, KIT_PRESETS, KIT_GROUPS, DEFAULT_KIT, CODE_LENGTH, OUTLINE,
-  encodeKit, decodeKit, canonicalKit, sanitizeKit, isKitCode, kitAvatar, presetKit, partCombinations, colourCombinations } from '../src/data/avatarKit.js';
+  encodeKit, decodeKit, canonicalKit, sanitizeKit, isKitCode, kitAvatar, presetKit, partCombinations, colourCombinations, kitUnlocks } from '../src/data/avatarKit.js';
+import { REWARDS } from '../src/data/parkour.js';
 import { compose, halve, piece, kitSprites, layersOf, resolveRoles, PIECES } from '../src/render2d/avatarCompose.js';
 import { buildLoadout } from '../src/data/loadout.js';
 
@@ -231,6 +232,25 @@ const fingerprint = (g) => PIECES.map((id) => g[id].cells.map((c) => (c ? c.hex 
   const a = kitAvatar(encodeKit(presetKit(KIT_PRESETS.find((p) => p.id === 'punk'))));
   const ok = a && a.kit && ['primary', 'secondary', 'tertiary', 'accent', 'glow'].every((k) => /^#[0-9A-F]{6}$/.test(a.palette[k]));
   check('a kit avatar resolves with a full five-colour palette', !!ok, ok ? `${a.id}: ${Object.values(a.palette).join(' ')}` : JSON.stringify(a));
+}
+
+// ---- earned parts ----
+// Exactly the Skyline Climb's rewards are locked, each unlocked by one of them; nobody starts in one
+// and no preset hands one out; kitUnlocks names what a character needs.
+{
+  const bad = [];
+  const locked = [];
+  for (const c of KIT_CATEGORIES) for (const o of c.options) if (o.unlock) locked.push(`${c.id}:${o.id}:${o.unlock}`);
+  const want = ['headwear:skylineCrown:skylineCrown', 'neck:summitMantle:summitMantle'];
+  if (locked.sort().join() !== want.join()) bad.push(`locked parts are ${locked.join(', ')}`);
+  for (const r of REWARDS) if (!locked.some((l) => l.endsWith(':' + r.unlock))) bad.push(`reward ${r.id} unlocks no part`);
+  if (kitUnlocks(DEFAULT_KIT).length) bad.push('the default character wears an earned part');
+  for (const p of KIT_PRESETS) if (kitUnlocks(presetKit(p)).length) bad.push(`preset ${p.id} hands out an earned part`);
+  const both = sanitizeKit({ parts: { ...DEFAULT_KIT.parts, headwear: 'skylineCrown', neck: 'summitMantle' }, colours: DEFAULT_KIT.colours });
+  if (kitUnlocks(both).sort().join() !== 'skylineCrown,summitMantle') bad.push(`both worn: ${kitUnlocks(both)}`);
+  if (kitUnlocks(decodeKit(encodeKit(both))).length !== 2) bad.push('an earned part does not survive the code');
+  check('earned parts: the two climb rewards, locked, named by kitUnlocks, handed out by nothing', bad.length === 0,
+    bad.length ? bad.join('; ') : `${want.length} earned parts: ${want.map((w) => w.split(':')[1]).join(', ')}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

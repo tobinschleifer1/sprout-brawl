@@ -168,6 +168,56 @@ plain:start(code, 0)
 plain:step(1/60)
 assert(not plain.skipButton.Visible, "no shop, no SKIP button")
 
+-- 3c. Rewards: walked onto by someone who climbed there, it is claimed from the server and
+--     announced; a skipper sees it locked; its owner does not see it at all.
+do
+	local crown = PARKOUR.course.rewards[1]
+	local function walkOnto(view)
+		local pk = view.pk
+		for _ = 1, 400 do
+			if math.abs(pk.fighter.x - crown.x) < 0.3 then break end
+			stick.frame.x = if crown.x > pk.fighter.x then 1 else -1
+			view:step(1/60)
+		end
+		stick.frame.x = 0
+		for _ = 1, 5 do view:step(1/60) end
+	end
+	local function claims(): number
+		local n = 0
+		for _, m in sent do if m.action == "reward" and m.id == crown.id then n += 1 end end
+		return n
+	end
+	local function crownLabel(view): any
+		local c = canvas(5000, 1080)
+		view.camX = crown.x
+		view:draw(c, 1/60)
+		local t = view.labels["reward_" .. crown.id]
+		return if t and t.Visible then t.Text else nil
+	end
+	-- Climbed here before: gold, named, claimed on touch, then gone.
+	v:setProgress({ best = crown.checkpoint, climbed = crown.checkpoint, summits = 0, rewards = {} })
+	v:start(code, crown.checkpoint)
+	assert(crownLabel(v) == string.upper(crown.name), `the crown waits, named: {tostring(crownLabel(v))}`)
+	local before = claims()
+	walkOnto(v)
+	assert(claims() == before + 1, "touching it claims it from the server")
+	assert(string.find(v.banner.Text, "UNLOCKED"), `and says so: {v.banner.Text}`)
+	assert(crownLabel(v) == nil, "then it is gone")
+	-- Skipped here: locked, and touching it claims nothing.
+	v:setProgress({ best = crown.checkpoint, climbed = crown.checkpoint - 1, summits = 0, rewards = {} })
+	v:start(code, crown.checkpoint - 1)
+	v:skipTo(crown.checkpoint)
+	assert(crownLabel(v) == "CLIMB HERE TO CLAIM", "a skipper sees it locked")
+	before = claims()
+	walkOnto(v)
+	assert(claims() == before, "and cannot take it")
+	-- Owned: not there at all.
+	v:setProgress({ best = crown.checkpoint, climbed = crown.checkpoint, summits = 0, rewards = { crown.id } })
+	v:start(code, crown.checkpoint)
+	assert(crownLabel(v) == nil, "its owner does not see it")
+	v:setProgress({ best = 0, summits = 0 })
+end
+
 -- 4. Resuming: on the checkpoint, and the HUD says it is not a timed full climb.
 v:start(code, 5)
 assert(v.pk.fighter.platform.id == PARKOUR.course.checkpoints[6].pad, "resuming starts on that checkpoint")

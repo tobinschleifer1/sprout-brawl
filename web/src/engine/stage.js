@@ -84,24 +84,7 @@ export class StageRuntime {
     // Moving platforms
     for (const p of this.platforms) {
       p.dx = 0; p.dy = 0;
-      if (p.moving) {
-        if (p.moving.x) {
-          const M = p.moving.x;
-          const t = ((this.time / M.period) + M.phase) * Math.PI * 2;
-          const mid = (M.from + M.to) / 2, amp = (M.to - M.from) / 2;
-          const nx = mid + amp * Math.sin(t);
-          p.dx = nx - p.cx;
-          p.cx = nx; p.x1 = nx - p.w / 2; p.x2 = nx + p.w / 2;
-        }
-        if (p.moving.y) {
-          const M = p.moving.y;
-          const t = ((this.time / M.period) + M.phase) * Math.PI * 2;
-          const mid = (M.from + M.to) / 2, amp = (M.to - M.from) / 2;
-          const ny = mid + amp * Math.sin(t);
-          p.dy = ny - p.top;
-          p.top = ny; p.cy = ny; p.bottom = ny - (p.thickness || 1);
-        }
-      }
+      if (p.moving) this.moveTo(p, this.time);
       if (p.sinking) {
         const stood = match.fighters.some((f) => f.alive && f.onGround && f.platform === p);
         if (stood) { p.occupiedFrames++; p.sink = Math.min(4, p.sink + 4 / 60); } else { p.occupiedFrames = 0; p.sink = Math.max(0, p.sink - 4 / 60); }
@@ -125,6 +108,35 @@ export class StageRuntime {
     if (this.director) {
       const view = this.director.step(ctx);
       if (view) this.visual.disaster = view;
+    }
+  }
+
+  // A moving platform put where its clock says it is at `time`, with dx/dy the distance it went.
+  moveTo(p, time) {
+    if (p.moving.x) {
+      const M = p.moving.x;
+      const t = ((time / M.period) + M.phase) * Math.PI * 2;
+      const mid = (M.from + M.to) / 2, amp = (M.to - M.from) / 2;
+      const nx = mid + amp * Math.sin(t);
+      p.dx = nx - p.cx;
+      p.cx = nx; p.x1 = nx - p.w / 2; p.x2 = nx + p.w / 2;
+    }
+    if (p.moving.y) {
+      const M = p.moving.y;
+      const t = ((time / M.period) + M.phase) * Math.PI * 2;
+      const mid = (M.from + M.to) / 2, amp = (M.to - M.from) / 2;
+      const ny = mid + amp * Math.sin(t);
+      p.dy = ny - p.top;
+      p.top = ny; p.cy = ny; p.bottom = ny - (p.thickness || 1);
+    }
+  }
+
+  // Every moving platform where it is NOW, not at the middle of its path where the data puts it:
+  // one with a phase otherwise jumps to its place on the first frame, out from under anyone set on
+  // it. The Skyline Climb calls this; a match never has, and its replays assume it does not.
+  placeMovers() {
+    for (const p of this.platforms) {
+      if (p.moving) { this.moveTo(p, this.time); p.dx = 0; p.dy = 0; }
     }
   }
 

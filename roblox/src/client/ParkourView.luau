@@ -139,7 +139,8 @@ end
 -- Begin (or resume) a climb in this character, from checkpoint `from`.
 function ParkourView.start(self: any, avatarCode: string, from: number)
 	self.char = Loadout.build(avatarCode, PARKOUR.weapon)
-	self.pk = Parkour.new(COURSE, self.char, from)
+	-- What you have climbed to before, and own, decides which rewards you can pick up.
+	self.pk = Parkour.new(COURSE, self.char, from, { climbed = self.progress.climbed or 0, collected = self.progress.rewards or {} })
 	self.from = from
 	self.active, self.gui.Enabled = true, true
 	self.input:reset()
@@ -162,7 +163,8 @@ end
 
 function ParkourView.setProgress(self: any, view: any)
 	if type(view) ~= "table" then return end
-	self.progress = { best = view.best or 0, summits = view.summits or 0, bestFrames = view.bestFrames }
+	self.progress = { best = view.best or 0, summits = view.summits or 0, bestFrames = view.bestFrames,
+		climbed = view.climbed or 0, rewards = if type(view.rewards) == "table" then view.rewards else {} }
 	self:refreshHud()
 end
 
@@ -214,6 +216,12 @@ function ParkourView.step(self: any, dt: number, blocked: boolean?)
 			elseif e.type == "summit" then
 				self:say(`THE SUMMIT\n{ParkourView.clock(e.frames)}  ·  {e.deaths} {if e.deaths == 1 then "fall" else "falls"}`, AMBER)
 				self.opts.send({ action = "summit", frames = e.frames })
+			elseif e.type == "reward" then
+				-- Picked up here; the server grants it (ClimbProgress.reward) and unlocks its part.
+				for _, r in COURSE.rewards do
+					if r.id == e.id then self:say(`{string.upper(r.name)} UNLOCKED\nWear it from the Wardrobe`, AMBER) end
+				end
+				self.opts.send({ action = "reward", id = e.id })
 			elseif e.type == "fall" then
 				self.fell = os.clock()
 			end
@@ -314,6 +322,34 @@ function ParkourView.draw(self: any, c: any, dt: number)
 				Canvas.rect(c, x - 3, pad.top + 5, 6, 6, AMBER, 0.08 + 0.05 * math.sin(clock * 2))
 			end
 			label(self, c, "cp" .. i, string.upper(cp.name), x, pad.top + 8, 14, colour)
+		end
+	end
+	-- The rewards at the top: gold and pulsing for whoever can take one, steel and labelled for a
+	-- climber who skipped there, gone once taken.
+	for _, r in COURSE.rewards or {} do
+		if r.x > left and r.x < right and not pk.collected[r.id] then
+			local open = pk:available(r)
+			local colour = if open then AMBER else STEEL
+			local bob = math.sin(clock * 2.4) * 0.25
+			if open then Canvas.circle(c, r.x, r.y + bob, 2.2 + math.sin(clock * 4) * 0.25, AMBER, 0.18) end
+			local y = r.y + bob
+			if r.id == "summitMantle" then
+				-- A cloak on its clasp: shoulders, a long drape widening to its hem.
+				Canvas.rect(c, r.x - 1.1, y + 0.6, 2.2, 0.5, colour)
+				Canvas.rect(c, r.x - 0.9, y - 1.2, 1.8, 1.8, if open then RUST else SLATE_HI)
+				Canvas.rect(c, r.x - 1.1, y - 1.5, 2.2, 0.3, colour)
+				Canvas.rect(c, r.x - 0.2, y + 0.7, 0.4, 0.4, if open then TEAL else DIM)
+			else
+				-- A crown: a band and three spires, light at their tips.
+				Canvas.rect(c, r.x - 1, y - 0.8, 2, 0.8, colour)
+				for _, dx in { -0.85, -0.15, 0.55 } do
+					Canvas.rect(c, r.x + dx, y, 0.3, 0.8, colour)
+					Canvas.rect(c, r.x + dx, y + 0.8, 0.3, 0.3, if open then TEAL else DIM)
+				end
+			end
+			Canvas.rect(c, r.x - 1.6, r.y - 2.4, 3.2, 0.5, STEEL_HI)                     -- the plinth
+			-- Named beneath, so it never sits on the checkpoint's own name above the flag.
+			label(self, c, "reward_" .. r.id, if open then string.upper(r.name) else "CLIMB HERE TO CLAIM", r.x, r.y - 3.2, 13, colour)
 		end
 	end
 	-- The climber, drawn as they fight (no spawn blink: Parkour clears it).

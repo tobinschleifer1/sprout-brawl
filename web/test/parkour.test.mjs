@@ -18,9 +18,42 @@ const dataOf = (id) => (id === 'main' ? null : COURSE.platforms.find((p) => p.id
 const moves = (id) => { const d = dataOf(id); return !!(d && (d.moving || d.sinking)); };
 const periodOf = (id) => { const d = dataOf(id); return d && d.moving ? (d.moving.x || d.moving.y).period : 0; };
 
+// The checkpoint a climber on foothold `id` last reached: the attempt starts there, so a missed jump
+// ends at that level's fall line, as it would for a player, not after falling to the street.
+const LEVEL_OF = {};
+{
+  let c = 0;
+  for (const id of COURSE.route) {
+    LEVEL_OF[id] = c;
+    if (CHECKPOINTS[c + 1] && CHECKPOINTS[c + 1].pad === id) { c++; LEVEL_OF[id] = c; }
+  }
+}
+
+// The course as one step sees it: the footholds within 60 studs of the jump (movers by their whole
+// path) and the level's checkpoint pad. Nothing further can be reached before an attempt ends, and
+// checking a hundred footholds' collisions every frame made this test take minutes.
+const extent = (d) => {
+  const M = d.moving && d.moving.x;
+  return M ? [Math.min(M.from, M.to) - d.w / 2, Math.max(M.from, M.to) + d.w / 2] : [d.x - d.w / 2, d.x + d.w / 2];
+};
+const LOCAL = {};
+function localCourse(aId, bId) {
+  const key = `${aId}>${bId}`;
+  if (LOCAL[key]) return LOCAL[key];
+  const level = LEVEL_OF[aId];
+  const pad = CHECKPOINTS[level].pad;
+  const ends = [aId, bId].map((id) => (id === 'main' ? [COURSE.main.x1, COURSE.main.x2] : extent(dataOf(id))));
+  const lo = Math.min(ends[0][0], ends[1][0]) - 60, hi = Math.max(ends[0][1], ends[1][1]) + 60;
+  const platforms = COURSE.platforms.filter((d) => { const [a, b] = extent(d); return d.id === pad || (b > lo && a < hi); });
+  const checkpoints = CHECKPOINTS.map((c, i) => (i === level ? c : { ...c, pad }));
+  LOCAL[key] = { course: { ...COURSE, platforms, checkpoints }, level };
+  return LOCAL[key];
+}
+
 // One attempt from A to B. Returns true if it lands on B.
 function attempt(aId, bId, { start, edge, j2, wait, release, hop }) {
-  const pk = new Parkour(COURSE, CHAR);
+  const local = localCourse(aId, bId);
+  const pk = new Parkour(local.course, CHAR, local.level);
   const A = byId(pk, aId), B = byId(pk, bId);
   const f = pk.fighter;
   const dir = Math.sign((B.x1 + B.x2) / 2 - (A.x1 + A.x2) / 2) || 1;
@@ -71,14 +104,17 @@ function step(aId, bId) {
 }
 
 // ---- 1. every step of the route can be made ----
+// Levels 19 and 20 (from Beacon Walk's pad to the Summit) are the hard ones; level 8 (The Needle to
+// The Crest) was the old final exam and has been eased.
 const route = COURSE.route;
-const needleAt = route.indexOf('needle');
+const padAt = (c) => route.indexOf(CHECKPOINTS[c].pad);
+const hardAt = padAt(18);
 const results = [];
 {
   const bad = [];
   for (let i = 0; i < route.length - 1; i++) {
     const r = step(route[i], route[i + 1]);
-    results.push({ from: route[i], to: route[i + 1], ...r, final: i >= needleAt });
+    results.push({ from: route[i], to: route[i + 1], ...r, final: i >= hardAt, at: i });
     if (r.lands === 0) bad.push(`${route[i]} -> ${route[i + 1]} (0 of ${r.tries})`);
   }
   check('every step of the Skyline Climb can be made with the real engine', bad.length === 0,
@@ -87,7 +123,7 @@ const results = [];
   // impossible, a fall that happened to sink less than 0.05 studs on the landing frame still
   // counted, so the Crane Arm passed at a fraction of a percent and nobody could get past it. Every
   // step before the final stretch has to be a fair one, not a fluke.
-  const FAIR = 0.03;
+  const FAIR = 0.03;   // levels 19 and 20 excepted: those are meant to be near impossible
   const flukes = results.filter((r) => !r.final && r.rate < FAIR);
   check('every step before the final stretch lands often enough to be fair', flukes.length === 0,
     flukes.length ? `only by fluke: ${flukes.map((r) => `${r.from}->${r.to} ${(100 * r.rate).toFixed(2)}%`).join(', ')}`
@@ -111,7 +147,9 @@ const results = [];
       const wait = Math.round((k / 30) * M.period * 60);
       for (let i = 0; i < wait; i++) pk.step(frame(0));
       const p = byId(pk, d.id), f = pk.fighter;
-      Object.assign(f, { x: p.cx, y: p.top + 0.3, vx: 0, vy: -30, onGround: false, platform: null });
+      // Just above it, falling as a jump lands, and a frame ahead of it along x: a player leads a
+      // mover, and the fastest - the Summit's cable car - is a stud gone in a frame.
+      Object.assign(f, { x: p.cx + p.dx, y: p.top + 0.3, vx: 0, vy: -30, onGround: false, platform: null });
       let landedOn = null, held = 0;
       for (let i = 0; i < 90 && held < 20; i++) {
         pk.step(frame(0));
@@ -148,6 +186,26 @@ const results = [];
     `pushed ${pushed ? 'yes' : 'no'}, frames spent inside the block ${inside}`);
 }
 
+// ---- 1d. every foothold of a level is above that level's fall line ----
+// A fall is course.fallDepth below the pad of the checkpoint you are on, so every foothold between
+// one checkpoint and the next - at the lowest a lift rides or a plank sinks (4 studs) - has to be
+// above it, or standing on the route would count as falling.
+{
+  const bad = [];
+  for (let c = 1; c < CHECKPOINTS.length; c++) {
+    const pad = COURSE.platforms.find((p) => p.id === CHECKPOINTS[c - 1].pad) || { y: COURSE.main.y };
+    const line = pad.y - COURSE.fallDepth;
+    for (let k = padAt(c - 1) + 1; k <= padAt(c); k++) {
+      const d = COURSE.platforms.find((p) => p.id === route[k]);
+      const M = d.moving && d.moving.y;
+      const low = (M ? Math.min(M.from, M.to) : d.y) - (d.sinking ? 4 : 0);
+      if (low - 1 <= line) bad.push(`${d.id} goes down to ${low}, the fall line of level ${c} is ${line}`);
+    }
+  }
+  check('every foothold is above its level\'s fall line', bad.length === 0,
+    bad.length ? bad.join('; ') : `${CHECKPOINTS.length - 1} levels, fall line ${COURSE.fallDepth} studs below each checkpoint`);
+}
+
 // ---- 2. the last stretch is the hardest, by a long way ----
 {
   const early = results.filter((r) => !r.final), last = results.filter((r) => r.final);
@@ -161,10 +219,14 @@ const results = [];
     sectionRates.push(`${CHECKPOINTS[c].name} ${(100 * mean(rs)).toFixed(0)}%`);
   }
   console.log('      landing rate by section: ' + sectionRates.join(', '));
-  console.log('      final stretch: ' + last.map((r) => `${r.to} ${(100 * r.rate).toFixed(1)}%`).join(', '));
+  console.log('      levels 19-20: ' + last.map((r) => `${r.to} ${(100 * r.rate).toFixed(1)}%`).join(', '));
   console.log('      hardest before it: ' + [...early].sort((a, b) => a.rate - b.rate).slice(0, 5).map((r) => `${r.from}->${r.to} ${(100 * r.rate).toFixed(1)}%`).join(', '));
-  check('the stretch to the Summit is far harder than anything before it', mean(last) < mean(early) * 0.25 && easiestLast <= 0.12,
-    `final stretch lands ${(100 * mean(last)).toFixed(1)}% of attempts (easiest step ${(100 * easiestLast).toFixed(1)}%), the rest ${(100 * mean(early)).toFixed(1)}% (hardest ${(100 * hardestEarly).toFixed(1)}%)`);
+  check('levels 19 and 20 are far harder than anything before them', mean(last) < mean(early) * 0.25 && easiestLast <= 0.1,
+    `levels 19-20 land ${(100 * mean(last)).toFixed(1)}% of attempts (easiest step ${(100 * easiestLast).toFixed(1)}%), the rest ${(100 * mean(early)).toFixed(1)}% (hardest ${(100 * hardestEarly).toFixed(1)}%)`);
+  // Level 8 was the final stretch at 7.5%; it is the middle of the climb now, and eased.
+  const eight = results.filter((r) => r.at >= padAt(7) && r.at < padAt(8));
+  check('level 8 is eased: no longer the final exam', mean(eight) >= 0.15,
+    `The Needle to The Crest lands ${(100 * mean(eight)).toFixed(1)}% of attempts (was 7.5% as the old final stretch)`);
 }
 
 // ---- 3. checkpoints, falls and the clock ----
@@ -226,6 +288,61 @@ const results = [];
   if (pk.frames !== clock) bad.push('the clock ran after skipping to the Summit');
   check('a bought skip moves you forward, is marked, and never counts as climbing', bad.length === 0,
     bad.length ? bad.join('; ') : 'forward only, on the pad, skip events only, the next pad counts, the Summit finishes');
+}
+
+// ---- 3c. the rewards: for climbers ----
+// On the pad of their checkpoint, picked up by touching; only by someone who climbed there (now or
+// before - `opts.climbed`), never by a skip; once; and falls reset at the fall line.
+{
+  const bad = [];
+  if (COURSE.rewards.length !== 2 || COURSE.rewards[0].checkpoint !== 19 || COURSE.rewards[1].checkpoint !== 20) bad.push('a reward at the end of levels 19 and 20');
+  for (const r of COURSE.rewards) {
+    const pad = COURSE.platforms.find((p) => p.id === CHECKPOINTS[r.checkpoint].pad);
+    if (Math.abs(r.x - pad.x) > pad.w / 2 - 1 || r.y < pad.y || r.y > pad.y + 4) bad.push(`${r.id} is not on its pad`);
+    let touchedAt = null;
+    const walkTo = (pk) => {
+      const f = pk.fighter;
+      const got = [];
+      const take = () => { for (const e of pk.drain()) if (e.type === 'reward') { got.push(e.id); touchedAt = Math.abs(f.x - r.x); } };
+      for (let i = 0; i < 400 && Math.abs(f.x - r.x) > 0.3; i++) { pk.step(frame(Math.sign(r.x - f.x))); take(); }
+      for (let i = 0; i < 5; i++) { pk.step(frame(0)); take(); }
+      return got.join(',');
+    };
+    // Climbed to it before (resuming there): walking onto it collects it, once.
+    const pk = new Parkour(COURSE, CHAR, r.checkpoint, { climbed: r.checkpoint });
+    if (walkTo(pk) !== r.id) bad.push(`${r.id}: a climber standing on it did not collect it`);
+    if (!(touchedAt > 1)) bad.push(`${r.id}: collected ${touchedAt} studs from its middle - it should be on touching it`);
+    if (walkTo(pk) !== '') bad.push(`${r.id}: collected twice`);
+    // Skipped to it: nothing, however long they stand there.
+    const skipper = new Parkour(COURSE, CHAR, r.checkpoint - 1, { climbed: r.checkpoint - 1 });
+    skipper.skipTo(r.checkpoint);
+    skipper.drain();
+    if (walkTo(skipper) !== '' || skipper.available(r)) bad.push(`${r.id}: a skipper collected it`);
+    // Already owned: nothing.
+    const owner = new Parkour(COURSE, CHAR, r.checkpoint, { climbed: r.checkpoint, collected: [r.id] });
+    if (walkTo(owner) !== '') bad.push(`${r.id}: collected again by its owner`);
+  }
+  // Climbing to a checkpoint makes its reward available on the same run.
+  const pk = new Parkour(COURSE, CHAR, 18, { climbed: 18 });
+  const perch = byId(pk, CHECKPOINTS[19].pad);
+  if (pk.available(COURSE.rewards[0])) bad.push('the crown was available before climbing to it');
+  Object.assign(pk.fighter, { x: perch.x2 - 1, y: perch.top + 2, onGround: false, platform: null });   // clear of the crown
+  for (let i = 0; i < 30; i++) pk.step(frame(0));
+  if (!pk.available(COURSE.rewards[0]) || pk.reached !== 19) bad.push('climbing to the perch did not open the crown');
+  // And the fall line moved up with it: a fall now resets at the perch's line, promptly.
+  Object.assign(pk.fighter, { x: perch.x2 + 30, y: perch.top - COURSE.fallDepth + 3, vy: 0, onGround: false, platform: null });
+  let late = 0;
+  while (pk.deaths === 0 && late < 60) { pk.step(frame(0)); late++; }
+  if (pk.deaths !== 1 || late > 20 || pk.fighter.platform !== perch) bad.push(`a fall after reaching the perch took ${late} frames to reset`);
+  // A fall is reset at the fall line, not at the street.
+  const high = new Parkour(COURSE, CHAR, 12);
+  const pad = byId(high, CHECKPOINTS[12].pad);
+  Object.assign(high.fighter, { x: pad.x2 + 30, y: pad.top - COURSE.fallDepth + 3, vy: 0, onGround: false, platform: null });
+  let frames = 0;
+  while (high.deaths === 0 && frames < 60) { high.step(frame(0)); frames++; }
+  if (high.deaths !== 1 || high.fighter.platform !== pad) bad.push(`a fall from level 13 took ${frames} frames to reset, or did not`);
+  check('the rewards are for climbers, once; a fall resets at the fall line', bad.length === 0,
+    bad.length ? bad.join('; ') : `two rewards on their pads; climbed-to collects once, skipped-to and owned never; a fall resets in ${frames} frames`);
 }
 
 // ---- 4. harmless ----

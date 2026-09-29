@@ -310,4 +310,40 @@ for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 } } do
 	assert(ed.grid.Size.Y.Offset >= 80, `{size[1]}x{size[2]}: no room for the option grid`)
 	assert(ed.wide == (size[1] >= 760 and size[1] >= size[2] * 1.05), "the wrong arrangement for this shape")
 end
+-- Earned parts: shown behind a lock and not wearable until earned; picking one says where it is
+-- earned; the arrows and Randomise pass over it; earning it (the server's `unlocked`) opens it.
+do
+	ed:setView({ slots = { { name = "Kage 3", code = NINJA } }, active = 1, saving = true, max = 8 })
+	ed:layout(Rbx.Vector2.new(1280, 720))
+	ed:selectGroup("extras")
+	ed:selectCategory("headwear")
+	local tile = assert(ed.tiles.skylineCrown, "the Skyline Crown has a tile")
+	assert(tile.label.Text == "LOCKED · Skyline Crown", `it is shown locked: {tile.label.Text}`)
+	local before = ed:code()
+	click(root, "Option_skylineCrown")
+	assert(ed:code() == before and string.find(ed.status.Text, "Crown Perch", 1, true) and string.find(ed.status.Text, "level 19", 1, true),
+		`picking it changes nothing and says where it is earned: {ed.status.Text}`)
+	-- The arrows skip it: the option before it steps round to the first.
+	local opts = AvatarKit.category("headwear").options
+	ed:pick("headwear", opts[#opts - 1].id)
+	ed:step(1)
+	assert(ed.spec.parts.headwear == opts[1].id, `stepping past the locked crown lands on {ed.spec.parts.headwear}`)
+	-- Randomise never hands one out.
+	local r = rng(11)
+	for _ = 1, 300 do
+		ed:randomize(r)
+		assert(ed.spec.parts.headwear ~= "skylineCrown" and ed.spec.parts.neck ~= "summitMantle", "Randomise gave out an earned part")
+	end
+	ed:selectCategory("neck")
+	for _ = 1, 100 do
+		ed:randomizePart("neck", r)
+		assert(ed.spec.parts.neck ~= "summitMantle", "Random part gave out the mantle")
+	end
+	-- Earned: unlocked, labelled plainly, and wearable.
+	ed:selectCategory("headwear")
+	ed:setView({ slots = { { name = "Kage 3", code = NINJA } }, active = 1, saving = true, max = 8, unlocked = { "skylineCrown" } })
+	assert(ed.tiles.skylineCrown.label.Text == "Skyline Crown", "earned while looking at it, it loses its lock")
+	click(root, "Option_skylineCrown")
+	assert(ed.spec.parts.headwear == "skylineCrown", "and can be worn")
+end
 print("PASS creator: tiles show your character per option and redraw only on change; options, colours, presets, undo/redo; locked Randomise; keyboard; save / save-as-new / delete; unsaved work guarded; saving-off said; real fighter preview in five poses; phone, tablet and desktop layouts")

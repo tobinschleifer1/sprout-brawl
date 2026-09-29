@@ -17,7 +17,7 @@ assert(P[#P] == 600 and math.max(table.unpack(P)) == 600, "600 Robux at most, fo
 for _, price in P do assert(price >= 1 and price % 1 == 0, "Robux prices are whole") end
 -- Ids: 0 is "not created"; a created one is found both ways.
 local saved = table.clone(SkipProducts.IDS)
-SkipProducts.IDS = { 0, 0, 0, 0, 0, 0, 0, 0 }
+SkipProducts.IDS = table.create(#P, 0)
 local id, price = SkipProducts.forCheckpoint(3)
 assert(id == nil and price == P[3], "an uncreated product has a price and no id")
 assert(SkipProducts.checkpointFor(0) == nil, "0 is never a product")

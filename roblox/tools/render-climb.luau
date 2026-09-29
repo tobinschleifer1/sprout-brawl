@@ -51,6 +51,8 @@ local W, H = 1280, 720
 local KIT = Loader.load("Data/AvatarKit")
 local v = View.new({}, { send = function() end })
 local from = tonumber(process.args[2] or "0") or 0
+-- 4th arg: the furthest checkpoint climbed to (default: where you start), for the rewards.
+v:setProgress({ best = from, climbed = tonumber(process.args[4] or "") or from, summits = 0 })
 v:start(KIT.presets[5].code, from)
 local dx = tonumber(process.args[3] or "0") or 0
 v.pk.fighter.x += dx

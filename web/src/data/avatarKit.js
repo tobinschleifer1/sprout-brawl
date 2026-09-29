@@ -103,6 +103,18 @@ export function kitAvatar(code) {
   return { id: canon, name: 'Custom', rig: 'avatar', custom: true, kit, palette: kitPalette(kit) };
 }
 
+// Parts nobody can wear until they have earned them (data/parkour.js REWARDS): the reward each of a
+// character's parts needs, if any. A code wearing one is still a valid character - everyone can SEE
+// it - but the Roblox server only saves it for a player who owns the reward.
+export function kitUnlocks(spec) {
+  const out = [];
+  for (const c of CATEGORIES) {
+    const o = c.options.find((opt) => opt.id === spec.parts[c.id]);
+    if (o && o.unlock) out.push(o.unlock);
+  }
+  return out;
+}
+
 // How many different characters the parts alone make, before a single colour is changed.
 // A preset's full spec: its own choices over the defaults.
 export const presetKit = (p) => sanitizeKit({ parts: { ...DEFAULT_KIT.parts, ...p.parts }, colours: { ...DEFAULT_KIT.colours, ...p.colours } });

@@ -26,6 +26,7 @@ local KitPortrait = require(script.Parent.KitPortrait)
 local PosedFighter = require(script.Parent.PosedFighter)
 
 local KIT: any = AvatarKit.KIT
+local PARKOUR: any = require(Shared.Data.Parkour)
 
 local AvatarEditor = {}
 AvatarEditor.__index = AvatarEditor
@@ -150,6 +151,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.saving = false
 	self.undoStack, self.redoStack = {}, {}
 	self.locks = {}
+	self.owned = {}                    -- earned parts' reward ids (the server's AvatarView.unlocked)
 	self.group, self.category = "body", "build"
 	self.pose, self.facing, self.zoom = "idle", 1, "body"
 	self.tiles, self.chips, self.swatches = {}, {}, {}
@@ -481,8 +483,39 @@ function AvatarEditor.redo(self: any)
 	self:refresh()
 end
 
+-- An earned part (the Skyline Climb's rewards) can be worn once it is earned; anything else always.
+function AvatarEditor.wearable(self: any, catId: string, optionId: string): boolean
+	local need = AvatarKit.unlockOf(catId, optionId)
+	return need == nil or self.owned[need] == true
+end
+
+-- Where a locked part is earned, for the creator to say when it is picked.
+function AvatarEditor.whereEarned(_self: any, catId: string, optionId: string): string
+	local need = AvatarKit.unlockOf(catId, optionId)
+	for _, r in PARKOUR.course.rewards do
+		if r.unlock == need then
+			local cp = PARKOUR.course.checkpoints[r.checkpoint + 1]
+			return `Locked: collect the {r.name} at {cp.name}, level {r.checkpoint} of the Skyline Climb.`
+		end
+	end
+	return "Locked."
+end
+
 function AvatarEditor.pick(self: any, catId: string, optionId: string)
+	if not self:wearable(catId, optionId) then
+		self:say(self:whereEarned(catId, optionId), AMBER)
+		return
+	end
 	self:change(function(s) s.parts[catId] = optionId end)
+end
+
+-- The options of a category a player can put on: randomising never hands out a locked part.
+local function wearableOptions(self: any, c: any): { any }
+	local out = {}
+	for _, o in c.options do
+		if self:wearable(c.id, o.id) then table.insert(out, o) end
+	end
+	return out
 end
 
 function AvatarEditor.paint(self: any, slot: string, index: number)
@@ -523,7 +556,8 @@ function AvatarEditor.randomize(self: any, rng: Random?)
 	self:change(function(s)
 		for _, c in KIT.categories do
 			if not self.locks[c.id] then
-				s.parts[c.id] = c.options[r:NextInteger(1, #c.options)].id
+				local options = wearableOptions(self, c)
+				s.parts[c.id] = options[r:NextInteger(1, #options)].id
 			end
 		end
 		for _, c in KIT.colours do
@@ -541,9 +575,10 @@ function AvatarEditor.randomizePart(self: any, catId: string, rng: Random?)
 	local current = self.spec.parts[catId]
 	self:change(function(s)
 		-- A different option every press, so the button always visibly does something.
+		local options = wearableOptions(self, c)
 		local pickId = current
-		while pickId == current and #c.options > 1 do
-			pickId = c.options[r:NextInteger(1, #c.options)].id
+		while pickId == current and #options > 1 do
+			pickId = options[r:NextInteger(1, #options)].id
 		end
 		s.parts[catId] = pickId
 	end)
@@ -555,7 +590,11 @@ function AvatarEditor.step(self: any, dir: number)
 	local c = AvatarKit.category(self.category)
 	for i, o in c.options do
 		if o.id == self.spec.parts[c.id] then
-			local j = (i - 1 + dir) % #c.options + 1
+			-- Past any part not yet earned: the arrows move between what you can wear.
+			local j = i
+			repeat
+				j = (j - 1 + dir) % #c.options + 1
+			until self:wearable(c.id, c.options[j].id) or j == i
 			self:pick(c.id, c.options[j].id)
 			return
 		end
@@ -622,6 +661,16 @@ function AvatarEditor.setView(self: any, view: any)
 	if type(view) ~= "table" or type(view.slots) ~= "table" then return end
 	local first = #self.slots == 0
 	self.slots, self.active, self.saving, self.note = view.slots, view.active or 1, view.saving == true, view.note
+	local owned, sig = {}, {}
+	for _, id in (if type(view.unlocked) == "table" then view.unlocked else {}) do
+		owned[id] = true
+		table.insert(sig, tostring(id))
+	end
+	table.sort(sig)
+	if table.concat(sig, ",") ~= self.ownedSig then
+		self.owned, self.ownedSig = owned, table.concat(sig, ",")
+		self.tileKey = nil               -- a part was earned: its tile loses its lock
+	end
 	self.max = view.max or 8
 	if first or not self.slots[self.editing] or self.pendingLoad then
 		self.pendingLoad = nil
@@ -640,6 +689,7 @@ function AvatarEditor.setView(self: any, view: any)
 	self.saidSaved = nil
 	self:rebuildChips()
 	self:refreshFooter()
+	if self.tileKey == nil then self:rebuildTiles() end
 end
 
 function AvatarEditor.loadSlot(self: any, i: number)
@@ -788,7 +838,12 @@ function AvatarEditor.rebuildTiles(self: any)
 		if self.group == "presets" then
 			for _, p in KIT.presets do table.insert(entries, { kind = "Preset_", id = p.id, name = p.name }) end
 		else
-			for _, o in AvatarKit.category(self.category).options do table.insert(entries, { kind = "Option_", id = o.id, name = o.name }) end
+			for _, o in AvatarKit.category(self.category).options do
+				-- An earned part not yet earned still shows on your character - it is the reason to go
+				-- and earn it - behind a lock.
+				local locked = not self:wearable(self.category, o.id)
+				table.insert(entries, { kind = "Option_", id = o.id, name = if locked then `LOCKED · {o.name}` else o.name, locked = locked })
+			end
 		end
 		for i, e in entries do
 			local b = button(self.grid, e.kind .. e.id, "", function()
@@ -798,6 +853,7 @@ function AvatarEditor.rebuildTiles(self: any)
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
 			local name = label(b, "Label", e.name, 11, DIM)
+			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
 			local pick = stroke(b, AMBER, 3)

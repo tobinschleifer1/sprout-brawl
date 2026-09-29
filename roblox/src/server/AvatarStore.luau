@@ -76,7 +76,14 @@ function AvatarStore.sanitize(raw: any): any
 		end
 		while #receipts > 50 do table.remove(receipts, 1) end
 	end
-	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb, receipts = receipts }
+	-- Earned rewards (the Skyline Climb's): the avatar parts they unlock. Short strings only.
+	local rewards = {}
+	if type(src.rewards) == "table" then
+		for _, id in src.rewards do
+			if type(id) == "string" and #id <= 40 and not table.find(rewards, id) and #rewards < 32 then table.insert(rewards, id) end
+		end
+	end
+	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb, receipts = receipts, rewards = rewards }
 end
 
 function AvatarStore.new(dataStore: any, clock: (() -> number)?): any
@@ -142,7 +149,7 @@ function AvatarStore.view(self: any, userId: number): any
 		slots[i] = { name = s.name, code = s.code }
 	end
 	return { slots = slots, active = rec.active, max = AvatarStore.MAX_SLOTS,
-		saving = self.loaded[userId] == true, note = self.notes[userId] }
+		saving = self.loaded[userId] == true, note = self.notes[userId], unlocked = table.clone(rec.rewards) }
 end
 
 -- An edit from the creator. Returns ok, error text. `slot` may be one past the end to add a slot.
@@ -162,6 +169,12 @@ function AvatarStore.apply(self: any, userId: number, msg: any): (boolean, strin
 		local code = AvatarKit.canonical(msg.code)
 		if not code then
 			return false, "That is not a character."
+		end
+		-- An earned part is saved only for a player who has earned it (the Skyline Climb's rewards).
+		for _, need in AvatarKit.unlocks(AvatarKit.decode(code) :: any) do
+			if not table.find(rec.rewards, need) then
+				return false, "That part is earned on the Skyline Climb. Collect it first."
+			end
 		end
 		rec.slots[i] = { name = cleanName(msg.name, `Fighter {i}`), code = code }
 		if msg.wear ~= false then
@@ -196,6 +209,15 @@ end
 
 -- Write one player's record now. Only a record that was read successfully is ever written:
 -- writing a default wardrobe over a record we failed to read would delete their characters.
+-- A reward earned: kept in the record, and its part can now be saved. False if already had.
+function AvatarStore.grant(self: any, userId: number, id: string): boolean
+	local rec = self:load(userId)
+	if table.find(rec.rewards, id) then return false end
+	table.insert(rec.rewards, id)
+	self.dirty[userId] = self.dirty[userId] or self.clock()
+	return true
+end
+
 function AvatarStore.flush(self: any, userId: number): boolean
 	if not self.dirty[userId] then
 		return true

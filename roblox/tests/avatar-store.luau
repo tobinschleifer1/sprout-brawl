@@ -103,4 +103,22 @@ for i = 1, 7 do
 		assert(#sl.name <= AvatarStore.MAX_NAME and not string.find(sl.name, "[<>]"), `hostile record {i}: name {sl.name}`)
 	end
 end
+-- Earned parts: saved only once earned; the record keeps what was earned, cleaned when read.
+do
+	local AvatarKit = Loader.load("AvatarKit")
+	local spec = AvatarKit.decode(AvatarKit.defaultCode()) :: any
+	spec.parts.headwear = "skylineCrown"
+	local crowned = AvatarKit.encode(spec)
+	local st = AvatarStore.new(nil, function() return 0 end)
+	local ok, why = st:apply(77, { action = "save", slot = 1, code = crowned })
+	assert(not ok and string.find(why or "", "Skyline Climb"), "an earned part cannot be saved before it is earned")
+	assert(#st:view(77).unlocked == 0, "nothing earned yet")
+	assert(st:grant(77, "skylineCrown") and not st:grant(77, "skylineCrown"), "granted once")
+	assert(st:apply(77, { action = "save", slot = 1, code = crowned }), "and then it can be worn")
+	assert(st:view(77).unlocked[1] == "skylineCrown", "the creator is told it is unlocked")
+	spec.parts.neck = "summitMantle"
+	assert(not st:apply(77, { action = "save", slot = 2, code = AvatarKit.encode(spec) }), "the other one is still locked")
+	local clean = AvatarStore.sanitize({ rewards = { "skylineCrown", 5, "skylineCrown", string.rep("x", 60) } })
+	assert(#clean.rewards == 1 and clean.rewards[1] == "skylineCrown", "a stored list is cleaned: strings, once each, short")
+end
 print("PASS character store: defaults, batched writes that read back, slot rules, retried reads and writes, a failed read never overwrites, hostile records sanitised")

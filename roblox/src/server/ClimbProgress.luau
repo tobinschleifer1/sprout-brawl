@@ -43,7 +43,8 @@ end
 
 function ClimbProgress.view(self: any, userId: number): any
 	local c = self:record(userId)
-	return { best = c.best, climbed = c.climbed, summits = c.summits, bestFrames = c.bestFrames }
+	return { best = c.best, climbed = c.climbed, summits = c.summits, bestFrames = c.bestFrames,
+		rewards = table.clone(self.store:load(userId).rewards) }
 end
 
 -- Starting a climb, from `from` (0, or the furthest checkpoint they have reached). Returns where.
@@ -115,6 +116,23 @@ function ClimbProgress.skip(self: any, userId: number, now: number): number?
 	if to > c.best then c.best = to end
 	dirty(self, userId)
 	return to
+end
+
+-- A reward picked up (data/parkour.js REWARDS): granted to a climber standing at its checkpoint on a
+-- climb now, who has CLIMBED there - not skipped (`climbed`, which a skip never raises). The client
+-- only draws the pickup; this decides. Returns the reward, or nil if refused or already owned.
+function ClimbProgress.reward(self: any, userId: number, id: any, rewards: { any }): any
+	local s = self.sessions[userId]
+	if not s or type(id) ~= "string" then return nil end
+	for _, r in rewards do
+		if r.id == id then
+			local c = self:record(userId)
+			if s.reached ~= r.checkpoint or c.climbed < r.checkpoint then return nil end
+			if not self.store:grant(userId, r.id) then return nil end
+			return r
+		end
+	end
+	return nil
 end
 
 return ClimbProgress

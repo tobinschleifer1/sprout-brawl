@@ -1,6 +1,7 @@
 --!strict
--- The Skyline Climb's paid skips: one Developer Product per checkpoint, its price doubling the
--- deeper you go, to 600 Robux for the last - the jump into the Summit.
+-- The Skyline Climb's paid skips: one Developer Product per checkpoint, its price rising the deeper
+-- you go - gently through the middle, steeply into the last two levels - to 600 Robux for the last,
+-- the jump into the Summit.
 --
 -- ============================== SET THIS UP IN THE CREATOR DASHBOARD ==============================
 -- Robux prices are not set here. Each skip is a Developer Product you create for this experience
@@ -18,11 +19,17 @@
 
 local SkipProducts = {}
 
--- Robux, for the skip INTO checkpoint i (1 = Chimney Stack ... 8 = the Summit).
-SkipProducts.PRICES = { 5, 10, 20, 40, 75, 150, 300, 600 }
+-- Robux, for the skip INTO checkpoint i (1 = Chimney Stack ... 19 = Crown Perch, 20 = the Summit).
+SkipProducts.PRICES = {
+	5, 8, 10, 15, 20,          -- levels 1-5
+	25, 30, 40, 50, 60,        -- levels 6-10
+	75, 90, 110, 130, 150,     -- levels 11-15
+	180, 220, 275,             -- levels 16-18
+	400, 600,                  -- levels 19 and 20
+}
 
 -- Developer Product ids, same positions. 0 = not created yet.
-SkipProducts.IDS = { 0, 0, 0, 0, 0, 0, 0, 0 }
+SkipProducts.IDS = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 
 -- The product and price for skipping into checkpoint `index` (0-based, as the climb counts).
 function SkipProducts.forCheckpoint(index: number): (number?, number?)

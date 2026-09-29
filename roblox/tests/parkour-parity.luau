@@ -12,7 +12,7 @@ local T = serde.decode("json", fs.readFile("tests/parkour-fixture.json"))
 local char = Loadout.build("Classic", T.weapon)
 local checked = 0
 for n, case in T.cases do
-	local pk = Parkour.new(Parkour.DATA.course, char, case.from)
+	local pk = Parkour.new(Parkour.DATA.course, char, case.from, case.opts)
 	if case.drop then
 		-- A set-down onto a moving foothold: wait until that point of its cycle, then fall onto it.
 		local still = { x = 0, y = 0, jump = false, jumpHeld = false, downTap = false }
@@ -41,7 +41,7 @@ for n, case in T.cases do
 		assert(pk.reached == f.reached and pk.deaths == f.deaths and pk.frames == f.frames, `climb {n} frame {i}: progress differs`)
 		assert((if fighter.platform then fighter.platform.id else "") == f.platform, `climb {n} frame {i}: foothold differs`)
 		local evs = {}
-		for _, e in pk:drain() do table.insert(evs, e.type .. ":" .. tostring(e.checkpoint or e.frames)) end
+		for _, e in pk:drain() do table.insert(evs, e.type .. ":" .. tostring(e.id or e.checkpoint or e.frames)) end
 		assert(table.concat(evs, ",") == f.events, `climb {n} frame {i}: events {table.concat(evs, ",")} vs {f.events}`)
 		checked += 4
 	end

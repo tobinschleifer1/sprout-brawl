@@ -273,6 +273,16 @@ Net.remote("Climb").OnServerEvent:Connect(function(player: Player, msg: any)
 		if not climbs:checkpoint(id, msg.index, now) then return end
 	elseif msg.action == "summit" then
 		if not climbs:summit(id, msg.frames, now) then return end
+	elseif msg.action == "reward" then
+		-- A pickup at the top of the climb: granted only where it lies, to someone who climbed there
+		-- (ClimbProgress.reward). Its avatar part is then theirs to wear - the creator is told.
+		local r = climbs:reward(id, msg.id, PARKOUR.course.rewards)
+		if not r then return end
+		local view = climbs:view(id)
+		view.earned = r.id
+		Net.remote("ClimbView"):FireClient(player, view)
+		sendAvatars(player)
+		return
 	else
 		return
 	end

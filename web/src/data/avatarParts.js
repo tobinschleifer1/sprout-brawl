@@ -581,6 +581,19 @@ const NECK = [
   opt('medal', 'Medal', [layer('torso', Z.neck, [whole([
     '.......x....x...', '........x..x....', '.........xx.....', '........gggg....', '........gGGg....', '........gggg....',
   ])])]),
+  // Exclusive: collected at the top of the Skyline Climb (data/parkour.js REWARDS), never on sale.
+  // A mantle over both shoulders, a high collar with a gold clasp, and a drape down the back.
+  opt('summitMantle', 'Summit Mantle', [
+    layer('torso', Z.neck, [whole([
+      '.XXxxxxxxxxxgg..', 'XXXxxxxxxxxgLg..', 'XX.........ggg..', ...rowsOf(12, 'XX..............'),
+      'XX..............', 'XXg.............', 'Xgg.............',
+    ])]),
+    layer('arm', Z.glove - 2, [whole(['.XxxX.', 'XxxxxX', 'XxxxxX', 'XxyxxX', 'XxxxxX', 'XXxxXX', 'gggggg'])]),
+    layer('pelvis', Z.skirt + 1, [whole([
+      'XXx...........', 'XXx...........', 'XXx...........', 'XXx...........', 'XXxx..........',
+      'XXxx..........', 'XXxx..........', 'XXxxx.........', 'XXxxx.........', 'ggggg.........',
+    ])]),
+  ], { unlock: 'summitMantle' }),
 ];
 
 // ---------------------------------------------------------------------------- BOTTOMS -----
@@ -725,6 +738,12 @@ const HEADWEAR = [
     'XxxxX.............', 'XxyxX.............', 'XxxxX.............', '.XXX..............',
   ])),
   withHat('beret', 'Beret', hat(3, ['.......x..........', '...xxxxxxxxx......', '.xxxxxxxxxxxxx....', '..XXXXXXXXXXXXX...'], 6)),
+  // Exclusive: collected at Crown Perch, the end of the Skyline Climb's level 19. Three tall spires
+  // with light at their tips, gems in the accessory colour, wider than the Royal's crown.
+  opt('skylineCrown', 'Skyline Crown', hat(0, [
+    '..L.....L.....L...', '..g.....g.....g...', '..gg...ggg...gg...', '..ggg.ggggg.ggg...', '..gggggggggggggg..',
+    '..gxggLgxgLggxgg..', '..GGGGGGGGGGGGGG..',
+  ]).layers, { unlock: 'skylineCrown' }),
 ];
 
 // ---------------------------------------------------------------------------- catalogue -----

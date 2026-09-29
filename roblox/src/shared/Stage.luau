@@ -186,32 +186,49 @@ function Stage.applyDynamicState(self: Stage, list: { any }?)
 	end
 end
 
+-- A moving platform put where its clock says it is at `time`, dx/dy the distance it went.
+function Stage.moveTo(_self: Stage, p: any, time: number)
+	if p.moving.x then
+		local M = p.moving.x
+		local t = ((time / M.period) + M.phase) * math.pi * 2
+		local mid, amp = (M.from + M.to) / 2, (M.to - M.from) / 2
+		local nx = mid + amp * math.sin(t)
+		p.dx = nx - p.cx
+		p.cx = nx
+		p.x1 = nx - p.w / 2
+		p.x2 = nx + p.w / 2
+	end
+	if p.moving.y then
+		local M = p.moving.y
+		local t = ((time / M.period) + M.phase) * math.pi * 2
+		local mid, amp = (M.from + M.to) / 2, (M.to - M.from) / 2
+		local ny = mid + amp * math.sin(t)
+		p.dy = ny - p.top
+		p.top = ny
+		p.cy = ny
+		p.bottom = ny - (p.thickness or 1)
+	end
+end
+
+-- Every moving platform where it is now, not mid-path where the data puts it (see stage.js
+-- placeMovers): the Skyline Climb calls it; a match never has.
+function Stage.placeMovers(self: Stage)
+	for _, p in self.platforms do
+		if p.moving then
+			Stage.moveTo(self, p, self.time)
+			p.dx = 0
+			p.dy = 0
+		end
+	end
+end
+
 function Stage.step(self: Stage, match: any)
 	self.time += FRAME
 	for _, p in self.platforms do
 		p.dx = 0
 		p.dy = 0
 		if p.moving then
-			if p.moving.x then
-				local M = p.moving.x
-				local t = ((self.time / M.period) + M.phase) * math.pi * 2
-				local mid, amp = (M.from + M.to) / 2, (M.to - M.from) / 2
-				local nx = mid + amp * math.sin(t)
-				p.dx = nx - p.cx
-				p.cx = nx
-				p.x1 = nx - p.w / 2
-				p.x2 = nx + p.w / 2
-			end
-			if p.moving.y then
-				local M = p.moving.y
-				local t = ((self.time / M.period) + M.phase) * math.pi * 2
-				local mid, amp = (M.from + M.to) / 2, (M.to - M.from) / 2
-				local ny = mid + amp * math.sin(t)
-				p.dy = ny - p.top
-				p.top = ny
-				p.cy = ny
-				p.bottom = ny - (p.thickness or 1)
-			end
+			Stage.moveTo(self, p, self.time)
 		end
 		if p.sinking then
 			local stood = false

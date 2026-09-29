@@ -71,7 +71,7 @@ local function module(name: string): any
 	return Loader.load(name)
 end
 local tasks = {}
--- Paid skips as if all eight Developer Products were created (ids 9001-9008), so the server
+-- Paid skips as if every Developer Product were created (ids 9001 on), so the server
 -- registers them; ProcessReceipt lands on the MarketplaceService stub (`run`).
 local SkipIds = Loader.load("SkipProducts").IDS
 for i = 1, #SkipIds do SkipIds[i] = 9000 + i end
@@ -401,9 +401,27 @@ do
 	local mark2 = #messages
 	assert(buy("s1", 9004) == "PurchaseGranted", "the same receipt again is acknowledged")
 	for k = mark2 + 1, #messages do assert(messages[k].name ~= "ClimbView", "and not applied a second time") end
-	assert(buy("s2", 9008) == "PurchaseGranted" and last(12,"ClimbView").skipTo == 5, "a tampered prompt for the Summit moves one checkpoint on, no more")
+	assert(buy("s2", 9000 + #SkipIds) == "PurchaseGranted" and last(12,"ClimbView").skipTo == 5, "a tampered prompt for the Summit moves one checkpoint on, no more")
 	assert(buy("s3", 9006, 4242) == "NotProcessedYet", "a buyer not in this server waits")
 	assert(buy("s4", 1234) == "NotProcessedYet", "a product that is not a skip is not granted")
+	-- A reward at the top: claimed where it lies, by a climber who climbed there; its part unlocks.
+	local PK = Loader.load("Data/Parkour")
+	local crown = PK.course.rewards[1]
+	local mark3 = #messages
+	send(12,"Climb",{action="reward",id=crown.id})
+	for k = mark3 + 1, #messages do assert(messages[k].name ~= "ClimbView", "a reward claimed from checkpoint 5 is ignored") end
+	now += 100
+	send(12,"Climb",{action="checkpoint",index=crown.checkpoint})
+	assert(last(12,"ClimbView").best == crown.checkpoint, "climbed to Crown Perch")
+	now += 1
+	send(12,"Climb",{action="reward",id=crown.id})
+	assert(last(12,"ClimbView").earned == crown.id, "the crown is granted")
+	assert(table.find(last(12,"AvatarView").unlocked, crown.id), "and the creator is told it is unlocked")
+	local mark4 = #messages
+	now += 1
+	send(12,"Climb",{action="reward",id=crown.id})
+	send(12,"Climb",{action="reward",id=PK.course.rewards[2].id})
+	for k = mark4 + 1, #messages do assert(messages[k].name ~= "AvatarView", "no second crown, and no mantle from Crown Perch") end
 	now += 1
 	send(12,"Climb",{action="leave"})
 	run.Heartbeat:Fire(0.1)

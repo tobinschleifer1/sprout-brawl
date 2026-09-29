@@ -10,17 +10,25 @@ import { Fighter } from './fighter.js';
 import { StageRuntime } from './stage.js';
 import { emptyFrame } from './input.js';
 
+// How close to a reward's middle counts as touching it, in studs, across and up and down.
+export const REWARD_REACH = 1.6;
+
 export class Parkour {
-  // `from` is the checkpoint index to start at (a returning climber's furthest).
-  constructor(course, char, from = 0) {
+  // `from` is the checkpoint index to start at (a returning climber's furthest). `opts.climbed` is
+  // the furthest checkpoint they have CLIMBED to before (skips excluded) and `opts.collected` the
+  // rewards they already have: together they decide which rewards can be picked up.
+  constructor(course, char, from = 0, opts = {}) {
     this.course = course;
     this.char = char;
     this.stage = new StageRuntime(course, 1);
+    this.stage.placeMovers();
     this.reached = Math.max(0, Math.min(from, course.checkpoints.length - 1));
     this.deaths = 0;
     this.frames = 0;
     this.done = this.reached === course.checkpoints.length - 1;
     this.skipped = false;   // a checkpoint was skipped this climb (skipTo): not a clean, timed climb
+    this.climbedTo = Math.max(0, opts.climbed || 0);
+    this.collected = new Set(opts.collected || []);
     this.events = [];
     this.spawn();
   }
@@ -40,6 +48,7 @@ export class Parkour {
     f.platform = p;
     f.setState('idle');
     this.fighter = f;
+    this.padTop = p.top;
     this.ctx = { stage: this.stage, fighters: [f], combat: { fighters: [f] } };
   }
 
@@ -59,19 +68,40 @@ export class Parkour {
     f.applyInput(clean);
     f.step(this.ctx);
     if (!this.done) this.frames++;
-    if (f.y < this.course.killY) { this.fall(); return; }
+    // Below the street, or too far below your checkpoint's pad (course.fallDepth): a fall.
+    const floor = this.course.fallDepth != null ? Math.max(this.course.killY, this.padTop - this.course.fallDepth) : this.course.killY;
+    if (f.y < floor) { this.fall(); return; }
     // A checkpoint counts when you land on its pad. Landing on a later one counts it (and the ones
     // before), so a player who skips a pad with a big jump is not punished for it.
     if (f.onGround && f.platform) {
       for (let i = this.reached + 1; i < this.course.checkpoints.length; i++) {
         if (this.course.checkpoints[i].pad === f.platform.id) {
           this.reached = i;
+          this.padTop = f.platform.top;
+          this.climbedTo = Math.max(this.climbedTo, i);
           this.events.push({ type: 'checkpoint', checkpoint: i });
           if (i === this.course.checkpoints.length - 1) {
             this.done = true;
             this.events.push({ type: 'summit', frames: this.frames, deaths: this.deaths });
           }
         }
+      }
+    }
+    this.collect();
+  }
+
+  // A reward can be picked up by whoever climbed to its checkpoint (now or before) and has not got it.
+  available(reward) {
+    return !this.collected.has(reward.id) && this.climbedTo >= reward.checkpoint;
+  }
+
+  // Touching an available reward collects it.
+  collect() {
+    const f = this.fighter;
+    for (const r of this.course.rewards || []) {
+      if (this.available(r) && Math.abs(f.x - r.x) < REWARD_REACH && f.y < r.y + REWARD_REACH && f.y + f.h > r.y - REWARD_REACH) {
+        this.collected.add(r.id);
+        this.events.push({ type: 'reward', id: r.id, checkpoint: r.checkpoint });
       }
     }
   }

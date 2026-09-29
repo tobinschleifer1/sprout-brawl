@@ -11,7 +11,7 @@ const char = buildLoadout('Classic', COURSE_WEAPON);
 let seed = 21;
 const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return Math.floor(seed / 65536) / 32768; };
 const cases = [];
-for (const from of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {   // 8: on the Summit, finished: the clock must not run
+for (let from = 0; from < COURSE.checkpoints.length; from++) {   // the last: on the Summit, finished: the clock must not run
   const pk = new Parkour(COURSE, char, from);
   const frames = [];
   let hold = { x: 1, y: 0 }, jumpAt = 20, held = 0;
@@ -24,9 +24,31 @@ for (const from of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {   // 8: on the Summit, finishe
     pk.step(input);
     const f = pk.fighter;
     frames.push({ input, values: FIELDS.map((k) => S(f[k])), reached: pk.reached, deaths: pk.deaths, frames: pk.frames,
-      platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.checkpoint ?? e.frames)).join(',') });
+      platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.id ?? e.checkpoint ?? e.frames)).join(',') });
   }
   cases.push({ from, frames });
+}
+// The rewards: walking onto each as a climber who climbed there (collects, once), as one who skipped
+// there (never), and as its owner (never); and climbing to the perch from Beacon Walk and on to it.
+for (const r of COURSE.rewards) {
+  for (const who of [{ climbed: r.checkpoint }, { climbed: r.checkpoint - 1, skip: true }, { climbed: r.checkpoint, collected: [r.id] }]) {
+    const opts = { climbed: who.climbed, collected: who.collected || [] };
+    const from = who.skip ? r.checkpoint - 1 : r.checkpoint;
+    const pk = new Parkour(COURSE, char, from, opts);
+    const frames = [];
+    for (let i = 0; i < 240; i++) {
+      const skip = who.skip && i === 0 ? r.checkpoint : undefined;
+      if (skip !== undefined) pk.skipTo(skip);
+      const f0 = pk.fighter;
+      const input = { x: Math.abs(f0.x - r.x) > 0.3 ? Math.sign(r.x - f0.x) : 0, y: 0, jump: i === 120, jumpHeld: i >= 120 && i < 130, downTap: false };
+      pk.step(input);
+      const f = pk.fighter;
+      frames.push({ input, skip, values: FIELDS.map((key) => S(f[key])), reached: pk.reached, deaths: pk.deaths, frames: pk.frames,
+        skipped: pk.skipped, done: pk.done,
+        platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.id ?? e.checkpoint ?? e.frames)).join(',') });
+    }
+    cases.push({ from, opts, frames });
+  }
 }
 // Skips (bought checkpoints): mid-climb, forward by one and by several, backwards (refused), and to
 // the Summit - which finishes the climb and stops its clock with no summit event.
@@ -41,7 +63,7 @@ for (const plan of [{ from: 0, at: 30, to: 1 }, { from: 2, at: 50, to: 5 }, { fr
     const f = pk.fighter;
     frames.push({ input, skip, values: FIELDS.map((key) => S(f[key])), reached: pk.reached, deaths: pk.deaths, frames: pk.frames,
       skipped: pk.skipped, done: pk.done,
-      platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.checkpoint ?? e.frames)).join(',') });
+      platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.id ?? e.checkpoint ?? e.frames)).join(',') });
   }
   cases.push({ from: plan.from, frames });
 }
@@ -64,7 +86,7 @@ for (const d of COURSE.platforms.filter((p) => p.moving)) {
       pk.step(still);
       const f = pk.fighter;
       frames.push({ input: still, values: FIELDS.map((key) => S(f[key])), reached: pk.reached, deaths: pk.deaths, frames: pk.frames,
-        platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.checkpoint ?? e.frames)).join(',') });
+        platform: f.platform ? f.platform.id : '', events: pk.drain().map((e) => e.type + ':' + (e.id ?? e.checkpoint ?? e.frames)).join(',') });
     }
     cases.push({ from: 0, drop, frames });
   }

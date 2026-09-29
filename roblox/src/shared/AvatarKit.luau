@@ -158,6 +158,27 @@ function AvatarKit.colourSlot(id: string): any
 end
 
 -- How many characters the parts alone make. A float: it is past 2^53 and only ever displayed.
+-- The reward a part needs before it can be worn (data/parkour.js REWARDS), or nil for anyone's.
+function AvatarKit.unlockOf(catId: string, optionId: string): string?
+	local c = AvatarKit.category(catId)
+	if not c then return nil end
+	for _, o in c.options do
+		if o.id == optionId then return o.unlock end
+	end
+	return nil
+end
+
+-- Every reward a character's parts need (avatarKit.js kitUnlocks). The server saves a code only for
+-- a player who owns them all; everyone can still see it.
+function AvatarKit.unlocks(spec: Spec): { string }
+	local out = {}
+	for _, c in KIT.categories do
+		local u = AvatarKit.unlockOf(c.id, spec.parts[c.id])
+		if u then table.insert(out, u) end
+	end
+	return out
+end
+
 function AvatarKit.partCombinations(): number
 	local n = 1
 	for _, c in KIT.categories do

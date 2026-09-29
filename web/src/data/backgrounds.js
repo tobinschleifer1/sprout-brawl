@@ -44,13 +44,19 @@ export function backgroundConfig(stageId) {
 // The candidate URLs for a stage, in order. A stage id is matched case-insensitively, so
 // FoundryFloor.png and foundryfloor.png both work - which matters, because the two obvious things
 // to type are the stage id and its lowercase form.
-export function backgroundCandidates(stageId) {
+// A packaged build (tools/export.mjs) knows exactly which images it ships and says so in
+// `globalThis.BLOCKFALL_BACKGROUNDS`, a list of file names: then only those are asked for, and a
+// stage with none costs no request at all - on a game portal, ten failed requests a stage are ten
+// errors in every player's console. Unset (the dev server), every candidate name is tried.
+export function backgroundCandidates(stageId, shipped = globalThis.BLOCKFALL_BACKGROUNDS) {
   const cfg = BACKGROUNDS[stageId] || {};
-  if (cfg.file) return [BG_DIR + cfg.file];
-  const names = [stageId, stageId.toLowerCase()];
   const out = [];
-  for (const n of [...new Set(names)]) for (const ext of BG_EXTENSIONS) out.push(`${BG_DIR}${n}.${ext}`);
-  return out;
+  if (cfg.file) out.push(BG_DIR + cfg.file);
+  else {
+    const names = [stageId, stageId.toLowerCase()];
+    for (const n of [...new Set(names)]) for (const ext of BG_EXTENSIONS) out.push(`${BG_DIR}${n}.${ext}`);
+  }
+  return Array.isArray(shipped) ? out.filter((url) => shipped.includes(url.slice(BG_DIR.length))) : out;
 }
 
 export const STAGE_IDS = STAGES.map((s) => s.id);

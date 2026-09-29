@@ -116,5 +116,15 @@ const named = new Set(Object.values(BACKGROUNDS).map((c) => c && c.file).filter(
         : 'nothing to load yet');
 }
 
+// A packaged build lists what it ships; then nothing else is asked for.
+{
+  const all = backgroundCandidates('FoundryFloor', undefined);
+  const none = backgroundCandidates('FoundryFloor', []);
+  const one = backgroundCandidates('FoundryFloor', ['foundryfloor.webp', 'saltflat.png']);
+  check('a packaged build asks only for the backgrounds it ships', all.length === BG_EXTENSIONS.length * 2 && none.length === 0
+    && one.length === 1 && one[0] === BG_DIR + 'foundryfloor.webp',
+    `unlisted: ${all.length} names tried; an empty list: ${none.length}; a list with one: ${one.join(', ')}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -110,6 +110,8 @@ table.ctl.small{font-size:.78rem}table.ctl.small td,table.ctl.small th{padding:.
 /* ---------- HUD ---------- */
 .hud{position:absolute;inset:0;pointer-events:none;font-family:var(--display)}
 .hud .overlay{pointer-events:auto}
+.hud-home{position:absolute;top:12px;right:12px;pointer-events:auto;padding:.38rem .7rem;font-size:.76rem;background:#1B2531;color:#F2ECDD;border-color:#667488}
+.hud-home.out{background:#DFA463;color:#171B22;border-color:#F3C58D}
 .timer{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:2rem;font-weight:700;color:#fff;text-shadow:0 3px 0 rgba(30,42,27,.6),0 0 12px rgba(0,0,0,.25);font-variant-numeric:tabular-nums}
 .timer.low{color:var(--gold)}
 .tiles{position:absolute;left:0;right:0;bottom:14px;display:flex;justify-content:center;gap:12px;padding:0 12px;flex-wrap:wrap}

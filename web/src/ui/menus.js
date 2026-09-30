@@ -38,6 +38,9 @@ const stageSVG = (s) => thumbSVG(stageThumb(s, 160, 90), 160, 90);
 
 // The maps a Random pick draws from, by map set: everything, or the competitive rotation.
 export const MAP_SETS = [['all', 'All maps'], ['ranked', 'Ranked']];
+// Undertow remains in shared stage data for Roblox replay parity, but the unfinished web map
+// is unavailable in selection, Random and previously saved web configurations.
+const WEB_STAGES = STAGES.filter((s) => s.id !== 'Undertow');
 // Rule presets on a local setup (data/rules.js). The mode keeps the screen's own free-for-all or
 // teams choice; a preset that draws the map at random selects Random, and one that votes keeps
 // the map you picked if it is in the preset's set - there is nobody else here to vote.
@@ -60,7 +63,7 @@ export function presetOf(config) {
   return p ? p.id : null;
 }
 
-export function mapSet(set) { return set === 'ranked' ? STAGES.filter((s) => s.ranked) : STAGES; }
+export function mapSet(set) { return set === 'ranked' ? WEB_STAGES.filter((s) => s.ranked) : WEB_STAGES; }
 
 export function portraitPpu(requested, width, height, fighterHeight) {
   // A fighter needs headroom for a raised weapon as well as room below its feet.
@@ -88,7 +91,7 @@ export class Menus {
       const c = JSON.parse(localStorage.getItem(SAVE_KEY + '-config') || 'null');
       if (c && typeof c === 'object') {
         if (MODES.some(([id]) => id === c.mode)) this.config.mode = c.mode;
-        if (c.stageId === 'Random' || STAGES.some(s => s.id === c.stageId)) this.config.stageId = c.stageId;
+        if (c.stageId === 'Random' || WEB_STAGES.some(s => s.id === c.stageId)) this.config.stageId = c.stageId;
         if (MAP_SETS.some(([id]) => id === c.mapSet)) this.config.mapSet = c.mapSet;
         if (Number.isInteger(c.stocks)) this.config.stocks = Math.max(1, Math.min(5, c.stocks));
         if ([120, 180, 240, 300].includes(c.time)) this.config.time = c.time;

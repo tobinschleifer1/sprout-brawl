@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Menus, mapSet, MAP_SETS, applyPreset, presetOf } from '../src/ui/menus.js';
+import { Menus, mapSet, MAP_SETS, applyPreset, presetOf, portraitPpu } from '../src/ui/menus.js';
 import { RULES } from '../src/data/rules.js';
 import { STAGES } from '../src/data/stages/index.js';
 globalThis.document = { createElement: () => ({ addEventListener() {} }) };
@@ -52,6 +52,13 @@ for (const p of RULES.presets) {
   }
 }
 assert.equal(presetOf({ ...applyPreset(base, 'tournament'), stocks: 5 }), null, 'one changed rule and no preset applies');
+for (const height of [56, 88, 98]) {
+  const scale = portraitPpu(17, 180, height, 5.2);
+  assert.ok(scale < 17, 'short slot portraits reduce the requested scale');
+  assert.ok(height * 0.88 - scale * (5.2 + 1.8) > 0,
+    'the whole fighter and raised-weapon allowance fit above the slot border');
+}
+assert.equal(portraitPpu(15, 300, 142, 5.2), 15, 'a tall portrait keeps its chosen scale');
 for (const [k, v] of [['items', true], ['disasters', 'chaos'], ['time', 300], ['mapSet', 'all']]) {
   assert.equal(presetOf({ ...applyPreset(base, 'tournament'), [k]: v }), null, `changing ${k} leaves the preset`);
 }

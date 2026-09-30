@@ -62,6 +62,11 @@ export function presetOf(config) {
 
 export function mapSet(set) { return set === 'ranked' ? STAGES.filter((s) => s.ranked) : STAGES; }
 
+export function portraitPpu(requested, width, height, fighterHeight) {
+  // A fighter needs headroom for a raised weapon as well as room below its feet.
+  return Math.min(requested, height * 0.82 / (fighterHeight + 1.8), width / 8.5);
+}
+
 export class Menus {
   constructor(root, handlers) {
     this.root = el('div', 'menus');
@@ -349,14 +354,18 @@ export class Menus {
     const acting = !!mv && fr < total;
     const f = posedFighter(L, acting ? this.previewMove : null, acting ? fr : 0,
       { state: acting ? 'attack' : 'idle', onGround: true, frameCount: Math.floor(performance.now() / 16) });
+    // Slot portraits can be much shorter than roster portraits. Fit the full standing rig
+    // inside the actual canvas instead of drawing every fighter at the same world scale.
+    // Leave headroom for idle bob and weapons held above the head.
+    const fittedPpu = portraitPpu(ppu * dpr, cv.width, cv.height, f.h);
     const groundY = cv.height * 0.88;
     ctx.fillStyle = 'rgba(30,42,27,0.13)';
     ctx.fillRect(0, groundY, cv.width, Math.max(1, 2 * dpr));
     ctx.beginPath();                                        // a soft contact shadow
-    ctx.ellipse(cv.width / 2, groundY, ppu * dpr * 1.2, ppu * dpr * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(cv.width / 2, groundY, fittedPpu * 1.2, fittedPpu * 0.28, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(30,42,27,0.12)'; ctx.fill();
     this._view().drawFighterInto(ctx, f, performance.now() / 1000,
-      { ppu: ppu * dpr, x: cv.width / 2, y: groundY });
+      { ppu: fittedPpu, x: cv.width / 2, y: groundY });
   }
 
   _paintWeaponIcon(cv) {

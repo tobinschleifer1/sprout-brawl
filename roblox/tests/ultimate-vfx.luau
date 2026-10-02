@@ -1,8 +1,16 @@
 --!strict
--- Exercise the complete weapon draw at a representative windup, active and recovery frame for
--- all twelve ultimates, then make the VFX-only pass prove it is not merely leaning on the weapon
--- underneath. Canvas2D's primitives are instrumented here: one rect/circle is one pooled Frame and
--- `tri` is the six Frames its real implementation uses.
+-- The weapon half of every ultimate (UltimateVfx), drawn at a windup, active and recovery frame of
+-- all twelve, through Canvas2D's REAL transform arithmetic with the drawing primitives recorded:
+-- one rect/circle/ellipse is one pooled Frame, `tri` is the six its real implementation uses, and a
+-- sprite (an FxArt effect, the weapon itself) is one container Frame.
+--
+-- What it holds:
+--   * every weapon draws an effect of its own in its ultimate, inside a Frame budget;
+--   * nothing is drawn outside the ultimate, and a zero flash draws no muzzle burst;
+--   * the effects are attached to the fighter - mirrored with them, near the hand;
+--   * every spinning effect is drawn from a frame a Frame can represent. The hand's frame carries
+--     the torso's squash and stretch, and a sprite rotated under a non-uniform scale would need a
+--     shear - which a Frame cannot do, so it would be drawn skewed.
 --
 --     lune run tests/ultimate-vfx
 
@@ -18,51 +26,51 @@ local function fail(msg: string): never
 	error(msg, 0)
 end
 
--- Instrument the exact primitive table UltimateVfx and Weapons2D loaded. This avoids inventing a
--- second drawing API in the shipping module while still counting the Frames Canvas2D would claim.
-Canvas2D.save = function(c: any)
-	c.stack += 1
+-- Records every draw with the matrix it was made under. Transforms are Canvas2D's own.
+local calls: { any } = {}
+local function record(c: any, kind: string, frames: number, key: string?)
+	local m = c.m
+	c.used += frames
+	table.insert(calls, { kind = kind, key = key, a = m.a, b = m.b, c = m.c, d = m.d, e = m.e, f = m.f })
 end
-Canvas2D.restore = function(c: any)
-	c.stack -= 1
-	if c.stack < 0 then
-		fail("Canvas2D restore underflow")
+Canvas2D.rect = function(c: any, x: number, y: number, w: number, h: number, _colour: any, _alpha: number?)
+	for _, v in { x, y, w, h } do
+		if v ~= v or math.abs(v) == math.huge then fail("non-finite rect geometry") end
 	end
+	record(c, "rect", 1)
 end
-Canvas2D.translate = function(_c: any, _x: number, _y: number) end
-Canvas2D.rotate = function(_c: any, _angle: number) end
-Canvas2D.scale = function(_c: any, _x: number, _y: number) end
-Canvas2D.rect = function(c: any, _x: number, _y: number, _w: number, _h: number,
+Canvas2D.circle = function(c: any, _x: number, _y: number, _r: number, _colour: any, _alpha: number?) record(c, "circle", 1) end
+Canvas2D.ellipse = function(c: any, _x: number, _y: number, _rx: number, _ry: number, _colour: any, _alpha: number?) record(c, "ellipse", 1) end
+Canvas2D.tri = function(c: any, _x0: number, _y0: number, _x1: number, _y1: number, _x2: number, _y2: number,
 	_colour: any, _alpha: number?)
-	c.used += 1
+	record(c, "tri", 6)
 end
-Canvas2D.circle = function(c: any, _x: number, _y: number, _radius: number,
-	_colour: any, _alpha: number?)
-	c.used += 1
-end
-Canvas2D.ellipse = function(c: any, _x: number, _y: number, _rx: number, _ry: number,
-	_colour: any, _alpha: number?)
-	c.used += 1
-end
-Canvas2D.tri = function(c: any, _x0: number, _y0: number, _x1: number, _y1: number,
-	_x2: number, _y2: number, _colour: any, _alpha: number?)
-	c.used += 6
-end
--- The weapon body: one container Frame moved per frame, its rectangles laid out inside it.
-Canvas2D.sprite = function(c: any, _key: string, rects: { any }, ...: any)
-	if #rects == 0 then
-		fail("a sprite with no rectangles")
-	end
-	c.used += 1
+Canvas2D.sprite = function(c: any, key: string, rects: { any }, x0: number, y1: number, pw: number, ph: number,
+	cols: number, rows: number, _alpha: number?)
+	if #rects == 0 then fail("a sprite with no rectangles") end
+	-- the sprite's centre, in the space the transform maps to
+	local m = c.m
+	local cx, cy = x0 + cols * pw / 2, y1 - rows * ph / 2
+	record(c, "sprite", 1, key)
+	calls[#calls].x = m.a * cx + m.c * cy + m.e
+	calls[#calls].y = m.b * cx + m.d * cy + m.f
 end
 
 local WEAPONS = {
 	"Sword", "Scythe", "Blasters", "Grimoire", "Axe", "Pike",
 	"Gauntlets", "Hammer", "Longbow", "Flail", "Shield", "Daggers",
 }
+-- The most Frames the weapon-side effects may claim on one fighter in one frame. Measured peak is
+-- printed below; this is the ceiling, not the target.
+local VFX_BUDGET = 60
 
-local function canvas(): any
-	return { used = 0, stack = 0, alpha = 1 }
+local function canvas(sx: number?, sy: number?): any
+	local c = { used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 } }
+	setmetatable(c, { __index = Canvas2D })
+	-- the world flips y, as Canvas2D.world does; the fighter's facing and squash on top of it
+	Canvas2D.setTransform(c, 20, 0, 0, -20, 400, 300)
+	Canvas2D.scale(c, sx or 1, sy or 1)
+	return c
 end
 
 local function snapshot(move: any, frame: number): any
@@ -73,84 +81,104 @@ local function snapshot(move: any, frame: number): any
 	}
 end
 
-local checked = 0
-local peakFrames, peakWhere = 0, ""
-local peakVfx, peakVfxWhere = 0, ""
-local effectFrames: { [string]: number } = {}
+local function draw(c: any, weaponId: string, char: any, pose: any)
+	UltimateVfx.drawUltimate(c, weaponId, char.weaponPalette, pose, 1.25)
+	UltimateVfx.drawMuzzle(c, weaponId, char.weaponPalette, pose, 1.25)
+end
 
+local checked, peakVfx, peakWhere = 0, 0, ""
+local drew: { [string]: number } = {}
+local similar = 0
 for _, weaponId in WEAPONS do
 	local char = Loadout.build("Classic", weaponId)
-	local move = char.moves.Ultimate
-	if not move then
-		fail(`{weaponId} has no Ultimate move`)
-	end
-	local phaseFrames = {
-		{ name = "windup", frame = math.max(1, math.floor(move.startup / 2)) },
+	local move = char.moves.Ultimate or fail(`{weaponId} has no Ultimate move`)
+	local frames = {
+		{ name = "windup", frame = math.max(1, math.floor(move.startup * 0.7)) },
 		{ name = "active", frame = move.startup + 1 },
+		{ name = "active", frame = move.startup + math.floor(move.active * 0.6) },
 		{ name = "end", frame = move.startup + move.active + math.max(1, math.floor(move.recovery / 2)) },
 	}
-
-	for _, phase in phaseFrames do
-		local s = snapshot(move, phase.frame)
-		local pose = WeaponPose.For(s, char, move, 1.25)
+	for _, phase in frames do
+		local pose = WeaponPose.For(snapshot(move, phase.frame), char, move, 1.25)
 		if not pose.ult or pose.ult.phase ~= phase.name then
 			fail(`{weaponId}/{phase.name}: WeaponPose produced phase {tostring(pose.ult and pose.ult.phase)}`)
 		end
+		-- Facing right, unsquashed; then facing left; then squashed as a heavy landing squashes.
+		table.clear(calls)
+		local right = canvas()
+		local ok, err = pcall(draw, right, weaponId, char, pose)
+		if not ok then fail(`{weaponId}/{phase.name}: draw errored: {tostring(err)}`) end
+		if #right.stack ~= 0 then fail(`{weaponId}/{phase.name}: transform stack ended at {#right.stack}`) end
+		local rightCalls = table.clone(calls)
+		drew[weaponId] = (drew[weaponId] or 0) + right.used
+		if right.used > VFX_BUDGET then fail(`{weaponId}/{phase.name}: {right.used} Frames, over the {VFX_BUDGET} budget`) end
+		if right.used > peakVfx then peakVfx, peakWhere = right.used, `{weaponId}/{phase.name}@{phase.frame}` end
 
-		-- The same layer order as Fighter2D: effects behind, weapon, muzzle/cast flash in front.
-		local full = canvas()
-		local ok, err = pcall(function()
-			UltimateVfx.drawUltimate(full, weaponId, char.weaponPalette, pose, 1.25)
-			Weapons2D.draw(full, weaponId, char.weaponPalette, pose)
-			UltimateVfx.drawMuzzle(full, weaponId, char.weaponPalette, pose, 1.25)
-		end)
-		if not ok then
-			fail(`{weaponId}/{phase.name}: draw errored: {tostring(err)}`)
-		end
-		if full.stack ~= 0 then
-			fail(`{weaponId}/{phase.name}: transform stack ended at {full.stack}`)
-		end
-		if full.used == 0 then
-			fail(`{weaponId}/{phase.name}: draw claimed no Frames`)
-		end
-		if full.used > peakFrames then
-			peakFrames, peakWhere = full.used, `{weaponId}/{phase.name}`
+		table.clear(calls)
+		local left = canvas(-1, 1)
+		draw(left, weaponId, char, pose)
+		if left.used ~= right.used then fail(`{weaponId}/{phase.name}: facing left drew {left.used} Frames, right {right.used}`) end
+		for i, r in rightCalls do
+			local l = calls[i]
+			if r.kind == "sprite" then
+				-- mirrored about the fighter: x reflects through the origin's screen x, y is unchanged
+				if math.abs((l.x - 400) + (r.x - 400)) > 1e-6 or math.abs(l.y - r.y) > 1e-6 then
+					fail(`{weaponId}/{phase.name}: {r.key} is not mirrored with the fighter ({r.x},{r.y}) vs ({l.x},{l.y})`)
+				end
+				-- attached: within a few weapon-lengths of the hand, not somewhere across the stage
+				if math.sqrt((r.x - 400) ^ 2 + (r.y - 300) ^ 2) > 20 * 16 then
+					fail(`{weaponId}/{phase.name}: {r.key} drawn {r.x},{r.y}, far from the hand`)
+				end
+			end
 		end
 
-		-- Count only the new module as well. Without this, deleting both VFX functions would still
-		-- pass because the ordinary weapon underneath draws Frames of its own.
-		local vfx = canvas()
-		UltimateVfx.drawUltimate(vfx, weaponId, char.weaponPalette, pose, 1.25)
-		UltimateVfx.drawMuzzle(vfx, weaponId, char.weaponPalette, pose, 1.25)
-		if vfx.stack ~= 0 then
-			fail(`{weaponId}/{phase.name}: VFX transform stack ended at {vfx.stack}`)
-		end
-		effectFrames[weaponId] = (effectFrames[weaponId] or 0) + vfx.used
-		if vfx.used > peakVfx then
-			peakVfx, peakVfxWhere = vfx.used, `{weaponId}/{phase.name}`
+		table.clear(calls)
+		local squashed = canvas(1.3, 0.75)
+		draw(squashed, weaponId, char, pose)
+		for _, r in calls do
+			if r.kind == "sprite" and r.key and not string.find(r.key, "^weapon") and (string.find(r.key, "|rune|") or
+				string.find(r.key, "|swirl|") or string.find(r.key, "|pop|") or string.find(r.key, "|xslash|") or string.find(r.key, "|orb|")) then
+				-- a similarity: orthogonal columns of equal length - something a Frame can be
+				local dot = r.a * r.c + r.b * r.d
+				local la, lc = r.a * r.a + r.b * r.b, r.c * r.c + r.d * r.d
+				if math.abs(dot) > 1e-6 * la or math.abs(la - lc) > 1e-6 * la then
+					fail(`{weaponId}/{phase.name}: {r.key} is drawn skewed under the torso's squash`)
+				end
+				similar += 1
+			end
 		end
 		checked += 1
 	end
 end
 
--- These are the weapons for which the JavaScript source paints something outside the weapon body
--- in at least one sampled phase. Longbow enters through generic drawMuzzle; the other five weapon
--- ultimates are deliberately carried by their pose/weapon silhouette in the source of truth.
-for _, weaponId in { "Sword", "Scythe", "Blasters", "Grimoire", "Axe", "Pike", "Longbow" } do
-	if (effectFrames[weaponId] or 0) == 0 then
-		fail(`{weaponId}: the VFX module drew no Frames in any phase`)
+-- Every weapon's ultimate puts effects of its own on the weapon in at least one sampled phase.
+for _, weaponId in WEAPONS do
+	if (drew[weaponId] or 0) == 0 then
+		fail(`{weaponId}: the ultimate drew no weapon effects in any phase`)
 	end
 end
+if similar == 0 then fail("no spinning effect was checked for skew") end
 
--- Zero is falsy in the JavaScript and truthy in Luau. A resting pose must not accidentally emit a
--- full muzzle burst just because the direct translation said `if pose.flash then`.
+-- Zero is falsy in the JavaScript and truthy in Luau. A resting pose must not emit a muzzle burst
+-- because `if pose.flash` was translated literally, and no ultimate means no ultimate effects.
 local quiet = canvas()
 UltimateVfx.drawUltimate(quiet, "Blasters", {}, { ult = nil, flash = 0 }, 0)
 UltimateVfx.drawMuzzle(quiet, "Blasters", {}, { angle = 0, ox = 0, oy = 0, flash = 0 }, 0)
 if quiet.used ~= 0 then
 	fail(`zero flash/no ultimate claimed {quiet.used} Frames`)
 end
+-- and a live flash does draw one
+local flash = canvas()
+UltimateVfx.drawMuzzle(flash, "Blasters", {}, { angle = 0, ox = 0, oy = 0, flash = 1 }, 0)
+if flash.used == 0 then fail("a full muzzle flash drew nothing") end
 
-print(`checked {checked} ultimate phase draws across all twelve weapons`)
-print(`peak complete weapon draw: {peakFrames} Frames at {peakWhere}`)
-print(`peak added ultimate VFX: {peakVfx} Frames at {peakVfxWhere}`)
+-- The weapon itself, awakened, alongside: the full weapon-and-effects draw still balances.
+local full = canvas()
+local char = Loadout.build("Classic", "Sword")
+local pose = WeaponPose.For(snapshot(char.moves.Ultimate, char.moves.Ultimate.startup - 2), char, char.moves.Ultimate, 1)
+UltimateVfx.drawUltimate(full, "Sword", char.weaponPalette, pose, 1)
+Weapons2D.draw(full, "Sword", char.weaponPalette, pose)
+if #full.stack ~= 0 then fail("the full sword draw left the stack unbalanced") end
+
+print(`checked {checked} ultimate draws across all twelve weapons, facing both ways and squashed`)
+print(`{similar} spinning effects drawn without skew; peak weapon-side effects: {peakVfx} Frames at {peakWhere} (budget {VFX_BUDGET})`)

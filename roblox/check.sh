@@ -102,6 +102,8 @@ echo "== parity: the HUD's damage ramp vs web/src/ui/hud.js =="
 lune run tests/hud-parity
 echo "== the ultimate VFX draw, every weapon and phase =="
 lune run tests/ultimate-vfx
+echo "== the ultimates' pixel-art effects, played in real matches =="
+lune run tests/ult-fx
 echo "== what a client is allowed to ask the server for =="
 lune run tests/match-config
 echo "== prediction: rollback and replay against a straight simulation =="

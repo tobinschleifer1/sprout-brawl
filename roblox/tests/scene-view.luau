@@ -23,6 +23,11 @@ end
 Canvas.rect = primitive
 Canvas.circle = primitive
 Canvas.ellipse = primitive
+-- A sprite is one container Frame moved per draw (an ultimate's projectile, a burst's ring).
+Canvas.sprite = function(c: any, _key: string, rects: any, x0: number, y1: number, pw: number, ph: number)
+	assert(#rects > 0, "a sprite with no rectangles")
+	primitive(c, x0, y1, pw, ph)
+end
 local function canvas(): any
 	return { used = 0, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 }, stack = {}, alpha = 1, alphaStack = {}, gui = { AbsoluteSize = { X = 1280, Y = 720 } } }
 end

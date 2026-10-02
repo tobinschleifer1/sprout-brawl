@@ -106,7 +106,32 @@ Real.finish(c)
 assert(not sp.frame.Visible, "a sprite nobody drew stayed on screen")
 for _ = 1, 601 do Real.finish(c) end
 assert(next(c.sprites) == nil, "sprites nobody draws are never destroyed")
-print(`PASS sprite: {cases} cells land where their rectangles would, through rotation and both facings; redraws create nothing; alpha reaches the children; unused sprites hide, then go`)
+-- Effects (deferrable) build at most BUILD_PER_FRAME children a frame; the rest wait a frame and are
+-- then built. Body parts and weapons are never deferred.
+do
+	local big = {}
+	for i = 1, 100 do big[i] = { i % COLS, 0, 1, 1, "#FFFFFF", 1 } end
+	local cap = Real.BUILD_PER_FRAME
+	local want = math.ceil(cap / 100) + 2
+	local function built(): number
+		local k = 0
+		for _ in c.sprites do k += 1 end
+		return k
+	end
+	Real.finish(c)
+	for _ = 1, 602 do Real.finish(c) end
+	for i = 1, want do Real.sprite(c, "fx|" .. i, big, X0, Y1, PW, PH, COLS, ROWS, 1, true) end
+	local first = built()
+	assert(first == math.ceil(cap / 100), `one frame built {first} effects of 100 cells, cap {cap}`)
+	Real.sprite(c, "hero|body", big, X0, Y1, PW, PH, COLS, ROWS)
+	assert(built() == first + 1, "a body part was deferred behind the effects")
+	Real.finish(c)
+	for i = 1, want do Real.sprite(c, "fx|" .. i, big, X0, Y1, PW, PH, COLS, ROWS, 1, true) end
+	assert(built() == want + 1, `the deferred effects were not built the next frame ({built()})`)
+	Real.finish(c)
+	for _ = 1, 602 do Real.finish(c) end
+end
+print(`PASS sprite: {cases} cells land where their rectangles would, through rotation and both facings; redraws create nothing; alpha reaches the children; unused sprites hide, then go; effects build {Real.BUILD_PER_FRAME} cells a frame at most`)
 
 -- ---------------------------------------------------------------- 2. the fighter ----
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")

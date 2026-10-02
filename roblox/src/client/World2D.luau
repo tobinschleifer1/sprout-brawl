@@ -3,6 +3,8 @@
 -- distinct silhouettes, visible warning phases, and no client simulation of hazard positions.
 local Canvas = require(script.Parent.Canvas2D)
 local Effects = require(script.Parent.Effects)
+local UltWorld = require(script.Parent.UltWorld)
+local FxArt = require(script.Parent.FxArt)
 local Items = require(game:GetService("ReplicatedStorage").Shared.Data.Items)
 local WHITE = Color3.new(1, 1, 1)
 local DARK = Color3.fromRGB(18, 25, 34)
@@ -87,7 +89,9 @@ function World2D.entities(c: any, scene: any, chars: any, states: any, t: number
 	end
 	for _, p in scene.projectiles or {} do
 		local col = glow(chars, p.owner)
-		if p.item then
+		if UltWorld.projectile(c, p, states, chars, t) then
+			-- an ultimate's own projectile, drawn as what it is (UltWorld)
+		elseif p.item then
 			World2D.item(c, p.item, p.x, p.y - 0.5, t, p)
 		elseif p.shape == "orb" then
 			-- a pulsing core, as renderer2d.js draws it, trailing sparks
@@ -105,8 +109,12 @@ function World2D.entities(c: any, scene: any, chars: any, states: any, t: number
 			rect(c, p.x - p.w / 2, p.y - p.h / 2, p.w, p.h, WHITE)
 		end
 	end
+	-- A burst is a live circle of damage for a few frames: a pixel shockwave the size of it,
+	-- rather than a flat white disc over whoever is standing in it.
 	for _, b in scene.bursts or {} do
-		Canvas.circle(c, b.x, b.y, b.radius, WHITE, math.clamp(b.frames / 3, 0, 1) * 0.65)
+		local k = math.clamp(b.frames / 3, 0, 1)
+		local art = FxArt.get("ring", math.floor((1 - k) * 4), "wind")
+		FxArt.draw(c, art, b.x, b.y, b.radius * 2.3 * art.ppu / art.cols, 0, 0.5 + k * 0.5)
 	end
 end
 

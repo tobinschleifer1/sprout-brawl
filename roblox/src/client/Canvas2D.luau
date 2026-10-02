@@ -236,6 +236,7 @@ function Canvas2D.finish(self: any, purge: boolean?)
 		end
 		table.clear(self.spriteUse)
 		self.frameNo += 1
+		self.built = 0
 	end
 end
 
@@ -351,8 +352,15 @@ function Canvas2D.eachSpriteRect(rects: { any }, x0: number, y1: number, pw: num
 	end
 end
 
+-- BUILDING is the expensive part: measured in Studio, about 10 microseconds a child, so a 200-cell
+-- explosion costs 2ms the first time it is seen, and an impact that starts four effects at once
+-- could spend 5ms in one frame. A `deferrable` sprite (an effect, never a body part or a weapon) is
+-- therefore built only while this frame has built fewer than BUILD_PER_FRAME children; past that it
+-- waits a frame. An effect a frame late is invisible; a hitch is not.
+Canvas2D.BUILD_PER_FRAME = 360
+
 function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1: number, pw: number, ph: number,
-	cols: number, rows: number, alpha: number?)
+	cols: number, rows: number, alpha: number?, deferrable: boolean?)
 	local m = self.m
 	local w, h = cols * pw, rows * ph
 	local cx, cy = x0 + w / 2, y1 - h / 2
@@ -374,6 +382,9 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 	end
 	local slot = key .. "#" .. n
 	local sp = self.sprites[slot]
+	if deferrable and (not sp or sp.rects ~= rects) and (self.built or 0) >= Canvas2D.BUILD_PER_FRAME then
+		return
+	end
 	if not sp then
 		local f = Instance.new("Frame")
 		f.Name = "Sprite"
@@ -389,6 +400,7 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 			child:Destroy()
 		end
 		table.clear(sp.children)
+		self.built = (self.built or 0) + #rects
 		for i, r in rects do
 			local child = Instance.new("Frame")
 			child.BorderSizePixel = 0

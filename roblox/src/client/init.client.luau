@@ -26,10 +26,9 @@ local Stage = require(Shared.Stage)
 local InputClient = require(script.InputClient)
 local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
-local Stage2D = require(script.Stage2D)
-local DisasterShapes = require(script.DisasterShapes)
 local UltCinematic = require(script.UltCinematic)
-local UltBanner = require(script.UltBanner)
+local FightScene = require(script.FightScene)
+local FxPlayer = require(script.FxPlayer)
 local Effects = require(script.Effects)
 local HudColors = require(script.HudColors)
 local Callouts = require(Shared.Data.Callouts)
@@ -93,6 +92,8 @@ local ult: any = nil
 -- session, cleared at each match; the fighter and world painters add their per-frame dirt and orb
 -- sparks to it too.
 local fx = Effects.new()
+-- The ultimates' timed pixel-art effects - explosions, shockwaves, pillars, impact stars (FxPlayer).
+local fxPlayer = FxPlayer.new()
 Fighter2D.effects = fx
 World2D.effects = fx
 -- Events wait here until the drawn picture reaches the frame they happened on: the world is drawn a
@@ -357,6 +358,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	scenes = {}
 	ult = nil
 	fx.parts, fx.rings, fx.shake, fx.shields = {}, {}, 0, {}
+	FxPlayer.clear(fxPlayer)
 	pendingFx = {}
 	roster = cfg.fighters
 	chars = {}
@@ -657,59 +659,23 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if cine.active and caster and casterChar then
 		view = UltCinematic.punch(cam2d.x, cam2d.y, cam2d.ppu, caster.x, caster.y + casterChar.height * 0.5, cine.zoom)
 	end
-	Stage2D.sky(canvas, stageView or { data = {} }, view.x)
-	canvas:world(view.x, view.y, view.ppu, cam2d.shakeX, cam2d.shakeY)
-	if stageView then
-		-- The view-only Stage is never stepped; the server sends what it cannot derive. `moving` is
-		-- a function of stage time and `sinking` is a function of who is standing on it, and only
-		-- the server knows the second.
-		Stage.applyDynamicState(stageView, interpBase and interpBase.platforms)
-		Stage2D.draw(canvas, stageView)
-	end
 	local scene = scenes[1]
 	for _, candidate in scenes do
 		if interpBase and candidate.frame <= interpBase.frame then scene = candidate end
 	end
-	-- Natural disasters, behind the fighters as on the web, from the shape list both builds share
-	-- (DisasterShapes). The server's view rides in the scene stream with the hazard visuals.
-	local disaster = if scene and scene.hazards then scene.hazards.disaster else nil
-	if disaster and stageView then
-		for _, sh in DisasterShapes.shapes(disaster, stageView) do
-			local colour = Canvas2D.hex(sh[6], Color3.new(1, 1, 1))
-			if sh[1] == "r" then
-				Canvas2D.rect(canvas, sh[2], sh[3], sh[4], sh[5], colour, sh[7])
-			else
-				Canvas2D.ellipse(canvas, sh[2], sh[3], sh[4], sh[5], colour, sh[7])
-			end
-		end
-	end
-	if hud then hud.disasterView = disaster end
-	for _, st in states do
-		local char = chars[st.index + 1]
-		if char and not (cine.active and st == caster) then
-			local ok, err = pcall(function()
-				local surface = if stageView then Stage.surfaceUnder(stageView, st.x, st.y + 0.1) else nil
-				Fighter2D.draw(canvas, st, char, drawAt, if surface then surface.top else nil)
-			end)
-			if not ok and not posedWarned[st.index] then
-				posedWarned[st.index] = true
-				warn(`[Blockfall] fighter {st.index} failed to draw, and will not be reported again: {err}`)
-			end
-		end
-	end
-	if scene and stageView then
-		World2D.hazards(canvas, scene.hazards or {}, stageView, scene.frame * FRAME)
-		World2D.entities(canvas, scene, chars, states, scene.frame * FRAME)
-	end
-	-- Sparks and rings, from the shape list both builds draw.
+	-- Events wait until the drawn picture reaches the frame they happened on, then set off their
+	-- sparks (Effects) and their drawn moments (FxPlayer), and the words that go with them.
 	-- (Released anyway past 64 waiting, so a stalled clock can never make them pile up.)
 	while pendingFx[1] and (pendingFx[1].frame <= drawnFrame + 0.5 or #pendingFx > 64) do
 		local item = table.remove(pendingFx, 1) :: any
 		local e = item.e
-		if not (predictor and LOCAL_FX[e.type] and e.fighter == localIndex) then
-			Effects.spawn(fx, e, glowOf, math.random, heightOf)
+		local sparks = not (predictor and LOCAL_FX[e.type] and e.fighter == localIndex)
+		local ok, err = pcall(FightScene.spawn :: any, fx, fxPlayer, e, states, chars, glowOf, math.random, heightOf, sparks)
+		if not ok and not posedWarned[-4] then
+			posedWarned[-4] = true
+			warn(`[Blockfall] an ultimate effect failed to start, and will not be reported again: {err}`)
 		end
-		-- and the words that go with it, on the same frame (web/src/main.js does the same)
+		-- (web/src/main.js puts the words up on the same frame)
 		if hud then
 			if e.type == "ko" then
 				local entry = roster[(e.fighter or 0) + 1]
@@ -719,54 +685,23 @@ RunService.RenderStepped:Connect(function(dt: number)
 			end
 		end
 	end
-	local fxOk, fxErr = pcall(function()
 	Effects.step(fx, dt)
-	for _, sh in Effects.shapes(fx) do
-		if sh[1] == "r" then
-			Canvas2D.rect(canvas, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], Color3.new(1, 1, 1)), sh[7])
-		else
-			local dx, dy = sh[4] - sh[2], sh[5] - sh[3]
-			Canvas2D.save(canvas)
-			Canvas2D.translate(canvas, sh[2], sh[3])
-			Canvas2D.rotate(canvas, math.atan2(dy, dx))
-			Canvas2D.rect(canvas, 0, -sh[6] / 2, math.sqrt(dx * dx + dy * dy), sh[6], Canvas2D.hex(sh[7], Color3.new(1, 1, 1)), sh[8])
-			Canvas2D.restore(canvas)
-		end
+	FxPlayer.step(fxPlayer, dt)
+	if hud then
+		hud.disasterView = if scene and scene.hazards then scene.hazards.disaster else nil
 	end
-	end)
-	if not fxOk and not posedWarned[-2] then
-		posedWarned[-2] = true
-		fx.parts, fx.rings = {}, {}
-		warn(`[Blockfall] effects failed to draw, and will not be reported again: {fxErr}`)
-	end
-	-- Everything but the caster falls into shadow; the caster stands in gold for exactly the frames
-	-- they cannot be hit, then is drawn on top of it all, then the banner crosses the screen.
-	local banner = nil
-	if caster and casterChar and (cine.active or cine.glow) then
-		local ok, err = pcall(function()
-			if cine.dim > 0 then
-				local vp = canvas:viewport()
-				Canvas2D.screen(canvas)
-				Canvas2D.rect(canvas, 0, 0, vp.X, vp.Y, Color3.fromRGB(5, 6, 10), cine.dim)
-				canvas:world(view.x, view.y, view.ppu, cam2d.shakeX, cam2d.shakeY)
-			end
-			for _, sh in UltCinematic.glowShapes(cine, caster.x, caster.y, casterChar.height) do
-				Canvas2D.ellipse(canvas, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], Color3.new(1, 1, 1)), sh[7])
-			end
-			if cine.active then
-				local surface = if stageView then Stage.surfaceUnder(stageView, caster.x, caster.y + 0.1) else nil
-				Fighter2D.draw(canvas, caster, casterChar, drawAt, if surface then surface.top else nil)
-				local vp = canvas:viewport()
-				banner = UltCinematic.bannerLayout(cine, vp.X, vp.Y)
-				if banner then UltBanner.paint(canvas, banner, ult.colour, ult.weapon, caster, casterChar, drawAt) end
-			end
-		end)
-		if not ok and not posedWarned[-1] then
-			posedWarned[-1] = true
-			warn(`[Blockfall] the ultimate cutscene failed to draw, and will not be reported again: {err}`)
-		end
-		canvas:world(view.x, view.y, view.ppu, cam2d.shakeX, cam2d.shakeY)
-	end
+	local banner = FightScene.draw(canvas, {
+		view = view, shakeX = cam2d.shakeX, shakeY = cam2d.shakeY,
+		stage = stageView, platforms = interpBase and interpBase.platforms,
+		scene = scene, states = states, chars = chars, t = drawAt, fx = fx, player = fxPlayer,
+		cine = cine, caster = caster, casterChar = casterChar, ult = ult,
+		report = function(key: number, err: string)
+			if posedWarned[key] then return end
+			posedWarned[key] = true
+			if key == -2 then fx.parts, fx.rings = {}, {} end
+			warn(`[Blockfall] {err}, and will not be reported again`)
+		end,
+	})
 	if hud then hud:ultBanner(banner, ult) end
 	canvas:finish()
 	if hud then

@@ -332,7 +332,13 @@ do
 		seen[hub.banner.Text] = true
 		assert(hub.gui.attributes.District == w.id, `warped to {w.id}, in district {hub.gui.attributes.District}`)
 	end
-	for _, d in PLAZA.market.districts do assert(seen[d.name], `no banner for {d.name}`) end
+	-- in the Skyhold Bazaar's own names (Realms.PLACES), one per district, never the web's
+	local RealmsMod = Loader.load("Realms")
+	for _, d in PLAZA.market.districts do
+		local name = string.upper(RealmsMod.place(d.id, d.name))
+		assert(name ~= d.name, `{d.id} has no bazaar name`)
+		assert(seen[name], `no banner for {name}`)
+	end
 end
 
 -- 8. The lounges: every station reachable and drawn with the room's state on it.

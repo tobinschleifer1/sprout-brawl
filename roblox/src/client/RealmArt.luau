@@ -136,6 +136,7 @@ end
 -- at full density, where the grass, sand or planks are, so the edge a player lands on stays crisp.
 -- Both are anchored at the left end of the walking surface.
 local BODY_PPU = 2
+RealmArt.BODY_PPU = BODY_PPU
 function RealmArt.island(realm: any, width: number, thick: number, seed: number): (Art, Art)
 	local key = `realm|{realm.id}|island|{width}|{thick}|{seed}`
 	local hit, hitTop = cache[key], cache[key .. "|top"]
@@ -182,7 +183,9 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 			put(g, x + margin, y, if glowing then GLOW else R[1])
 			if not glowing then put(g, x + margin, y - 1, R[4]) end
 			y += 1
-			x = math.clamp(x + (if hash(x, y, seed) > 0.5 then 1 else -1), 1, W - 2)
+			local jog = hash(x, y, seed)
+			if jog > 0.82 then x += 1 elseif jog < 0.18 then x -= 1 end
+			x = math.clamp(x, 1, W - 2)
 		end
 	end
 	-- a few lit stones
@@ -252,6 +255,41 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 	end
 	PixelGrid.rim(g, O)
 	return compile(key, g, list, margin, top)
+end
+
+-- A paved plaza `width` x `depth` studs seen from above at the lobby's angle: rows of flagstones in
+-- staggered courses with darker joints and the odd lighter stone, a grass verge along the back.
+-- Half density. Anchored at its front-left corner (the bottom-left of the grid).
+function RealmArt.paving(realm: any, width: number, depth: number, seed: number): Art
+	local key = `realm|{realm.id}|paving|{width}|{depth}|{seed}`
+	local hit = cache[key]
+	if hit then return hit end
+	local P = BODY_PPU
+	local ink, list = inks()
+	local base, light, joint = ink(mix(realm.rock[4], "#E8DCC4", 0.5)), ink(mix(realm.rock[5], "#FFF4DC", 0.45)),
+		ink(mix(realm.rock[4], "#E8DCC4", 0.25))
+	local grass, grassL = ink(realm.top[2]), ink(realm.top[3])
+	local W, H = math.floor(width * P + 0.5), math.floor(depth * P + 0.5)
+	local g = PixelGrid.new(W, H)
+	-- broad, low-contrast flagstones: wide stones in deep courses read as a floor seen from above,
+	-- where narrow ones in shallow courses read as a wall facing the camera
+	local course = 5
+	for y = 0, H - 1 do
+		local row = y // course
+		local off = math.floor(hash(row, 2, seed) * 12)
+		for x = 0, W - 1 do
+			local stone = (x + off) // 14
+			local v = base
+			if y % course == course - 1 or (x + off) % 14 == 13 then v = joint
+			elseif hash(stone, row, seed) > 0.75 then v = light end
+			put(g, x, y, v)
+		end
+	end
+	for x = 0, W - 1 do
+		put(g, x, 0, grassL); put(g, x, 1, grass)
+		if hash(x, 1, seed) > 0.6 then put(g, x, 2, grass) end
+	end
+	return compile(key, g, list, 0, H)
 end
 
 -- ------------------------------------------------------------------ platforms ----

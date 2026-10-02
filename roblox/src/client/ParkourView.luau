@@ -15,7 +15,8 @@ local Snapshot = require(Shared.Snapshot)
 local Config = require(Shared.Config)
 local InputClient = require(script.Parent.InputClient)
 local Canvas = require(script.Parent.Canvas2D)
-local Backdrop = require(script.Parent.BackdropArt)
+local RealmArt = require(script.Parent.RealmArt)
+local Realms = require(Shared.Realms)
 local Fighter2D = require(script.Parent.Fighter2D)
 local ClimbRecords = require(script.Parent.ClimbRecords)
 
@@ -100,7 +101,7 @@ function ParkourView.new(parent: Instance, opts: any): any
 	local hint = text(gui, "Controls", "A / D  run   •   Space  jump (again in the air to double jump)   •   S  drop through a plank", 13, DIM)
 	hint.AnchorPoint, hint.TextXAlignment = Vector2.new(0.5, 1), Enum.TextXAlignment.Center
 	hint.Position, hint.Size = UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(800, 20)
-	local leave = button(gui, "Leave", "◂ NEON ROW", function() self:leave() end)
+	local leave = button(gui, "Leave", "◂ " .. string.upper(Realms.LOBBY.name), function() self:leave() end)
 	self.leaveButton = leave
 	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -126), UDim2.fromOffset(130, 34)
 	local restart = button(gui, "Restart", "RESTART FROM THE BOTTOM", function()
@@ -271,7 +272,7 @@ function ParkourView.draw(self: any, c: any, dt: number)
 	local ppu = math.clamp(vp.Y / 46, 6, 22)
 	self.camX += (f.x + f.facing * 5 - self.camX) * math.min(1, dt * 5)
 	self.camY += (f.y + 6 - self.camY) * math.min(1, dt * 4)
-	Backdrop.sky(c, "Rooftops", self.camX * 0.6)
+	RealmArt.sky(c, Realms.LOBBY, self.camX * 0.6, os.clock())
 	c:world(self.camX, self.camY, ppu, 0, 0)
 	local half = vp.X / ppu / 2 + 4
 	local left, right = self.camX - half, self.camX + half

@@ -100,10 +100,12 @@ local function primitive(c: any, ...: any)
 	end
 	c.used += 1
 end
-local sprites, weapons = 0, 0
+local sprites, weapons, sky = 0, 0, 0
 Canvas.rect, Canvas.circle, Canvas.ellipse = primitive, primitive, primitive
 Canvas.sprite = function(c: any, key: string, ...: any)
-	if string.sub(key, 1, 7) == "weapon|" then weapons += 1 else sprites += 1 end
+	if string.sub(key, 1, 7) == "weapon|" then weapons += 1
+	elseif string.find(key, "^realm|Lobby|sky|") then sky += 1     -- the bazaar's sky behind the course
+	else sprites += 1 end
 	c.used += 1
 end
 local function canvas(w: number, h: number): any
@@ -118,13 +120,14 @@ for _, size in { { 390, 844 }, { 1280, 720 }, { 1920, 1080 } } do
 			if p.id == cp.pad then v.pk.fighter.x, v.pk.fighter.y = p.cx, p.top end
 		end
 		v.camX, v.camY = v.pk.fighter.x, v.pk.fighter.y
-		sprites, weapons = 0, 0
+		sprites, weapons, sky = 0, 0, 0
 		local c = canvas(size[1], size[2])
 		v:draw(c, 1/60)
 		assert(c.drawn > 10 and c.drawn < 700, `{cp.id} at {size[1]}x{size[2]}: {c.drawn} primitives`)
 		assert(#c.stack == 0, "the climb leaves no transforms behind")
 		assert(sprites == 7, `the climber is the seven pieces of their character, drew {sprites}`)
 		assert(weapons == 1, `and holds the course's weapon, one sprite, drew {weapons}`)
+		assert(sky >= 3, `the sky behind the course is drawn ({sky} layer tiles)`)
 		peak = math.max(peak, c.drawn)
 	end
 end

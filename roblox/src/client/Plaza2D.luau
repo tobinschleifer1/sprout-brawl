@@ -1,9 +1,10 @@
 --!strict
--- The lobby: Neon Row, a rooftop night market walked beat-'em-up style (Plaza.luau is the walking,
--- Data/Plaza the map), and the private rooftop lounges fights are prepared in.
+-- The lobby: the Skyhold Bazaar, a market on floating islands walked beat-'em-up style (Plaza.luau
+-- is the walking, Data/Plaza the map), and the private lounges fights are prepared in. In Roblox it
+-- is drawn as a realm (Realms.LOBBY) to match the arenas; the web's Neon Row data is its map.
 --
--- Drawing, back to front: the Rooftops arena's night sky and skyline; every roof (its lit facade
--- dropping away below it, its tar top, its parapet) and the plank bridges between; then every prop
+-- Drawing, back to front: the realm's sky; every plaza (the island it stands on hanging below its
+-- front edge, its paving, its low back wall) and the plank bridges between; then every prop
 -- and person SORTED BY DEPTH, so a player walking behind a cabinet is hidden by it and one walking
 -- in front covers it; then the front railings. A point at depth z is lifted z * DEPTH on screen,
 -- which is the whole of the perspective: characters keep their side-on art and are never scaled.
@@ -23,12 +24,12 @@ local Stages = require(Shared.Data.Stages)
 local KIT: any = require(Shared.Data.AvatarKit)
 local InputClient = require(script.Parent.InputClient)
 local Canvas = require(script.Parent.Canvas2D)
-local Backdrop = require(script.Parent.BackdropArt)
 local Fighter2D = require(script.Parent.Fighter2D)
 local WeaponArt = require(script.Parent.Weapons2D)
 local StageThumb = require(script.Parent.StageThumb)
 local Realms = require(Shared.Realms)
 local PlazaArt = require(script.Parent.PlazaArt)
+local RealmArt = require(script.Parent.RealmArt)
 local PosedFighter = require(script.Parent.PosedFighter)
 
 local PLAZA: any = Plaza.DATA
@@ -45,6 +46,8 @@ local CYAN = Color3.fromRGB(127, 168, 184)
 local PINK = Color3.fromRGB(200, 100, 60)
 local METAL = Color3.fromRGB(38, 43, 53)
 local STEEL = Color3.fromRGB(110, 119, 136)
+local FENCE = Color3.fromHex(A.woodDk)
+local FENCE_HI = Color3.fromHex(A.woodHi)
 local READY = Color3.fromRGB(127, 190, 110)
 local TEAM1 = Color3.fromRGB(62, 138, 46)
 local TEAM2 = Color3.fromRGB(222, 98, 28)
@@ -107,7 +110,7 @@ function Plaza2D.new(parent: Instance): any
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
 	gui.DisplayOrder, gui.Enabled, gui.Parent = 12, false, parent
 	self.gui = gui
-	local title = text(gui, "Title", "NEON ROW", 22)
+	local title = text(gui, "Title", string.upper(Realms.LOBBY.name), 22)
 	title.Position, title.Size = UDim2.fromOffset(16, 12), UDim2.new(1, -200, 0, 30)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.TextColor3 = PINK
@@ -288,11 +291,11 @@ function Plaza2D.setRoom(self: any, room: any)
 			elseif nextRoom.mapChoice == "vote" then (if shown then `Vote: {Realms.name(shown)} leads` else "Vote for a map")
 			else (if shown then Realms.name(shown) else "Random map")
 		local rules = if nextRoom.mode == "timed" then `Timed {(nextRoom.time or 180) // 60} min` else `{nextRoom.stocks or 3} lives`
-		self.title.Text = string.upper(self.model.data.name)
+		self.title.Text = string.upper(Realms.place("lounge", self.model.data.name))
 		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} CPUs · {map} · {rules} · the stairs on the left go back down`
 	else
-		self.title.Text = "NEON ROW"
-		self.directions.Text = "Arcade cabinets for 1v1  ·  crew lifts for 2v2 and 3v3  ·  the tailor's roof makes your character"
+		self.title.Text = string.upper(Realms.LOBBY.name)
+		self.directions.Text = "Arcade cabinets for 1v1  ·  fighters' gates for 2v2 and 3v3  ·  the tailor's terrace makes your character"
 	end
 end
 
@@ -397,47 +400,20 @@ function Plaza2D.step(self: any, dt: number, blocked: boolean)
 end
 
 -- ------------------------------------------------------------------ drawing: the ground ----
-local function facade(c: any, id: string, r: any)
-	-- The building under a roof, dropping out of sight: storeys of paired windows between
-	-- pilasters, a few lit (at random, but never changing), fading into the dark below. Built once.
-	local w = r.x2 - r.x1
-	local key = `facade|{id}|{r.x1}`
-	local prop = PlazaArt.get(key, function()
-		local W, H = math.floor(w * 8), 14 * 8
-		local rects: { any } = { { 0, 0, W, H, A.night, 1 } :: { any }, { 0, 0, W, 2, A.slateHi, 1 } :: { any }, { 0, 2, W, 2, A.ink, 0.6 } :: { any } }
-		local bays = math.floor(w / 5)
-		for i = 0, bays - 1 do
-			local bx = i * 40
-			table.insert(rects, { bx, 4, 3, H - 4, A.slate, 0.8 } :: { any })           -- pilaster
-			for j = 0, 3 do
-				local ry = 12 + j * 24
-				table.insert(rects, { bx + 6, ry - 3, 30, 2, A.slate, 0.9 } :: { any })   -- storey ledge
-				for k = 0, 1 do
-					local v = hash(i * 2 + k + math.floor(r.x1), j)
-					local lit = v < 0.22
-					local col = if not lit then A.ink elseif v < 0.12 then A.amber elseif v < 0.18 then A.lanternHi else A.cyan
-					local wx = bx + 9 + k * 13
-					if lit then table.insert(rects, { wx - 1, ry - 1, 10, 12, col, 0.18 } :: { any }) end
-					table.insert(rects, { wx, ry, 8, 10, col, if lit then 0.85 else 1 } :: { any })
-					table.insert(rects, { wx + 3, ry, 1, 10, A.night, 0.8 } :: { any })     -- mullion
-				end
-			end
-		end
-		for f = 0, 5 do                                                         -- the drop into the dark
-			table.insert(rects, { 0, H - 16 - f * 10, W, 16 + f * 10, A.ink, 0.16 } :: { any })
-		end
-		return { rects = rects, w = W, h = H }
-	end)
-	Canvas.sprite(c, key, prop.rects, r.x1, r.z1 * D, PlazaArt.CELL, PlazaArt.CELL, prop.w, prop.h)
+-- Under each roof of the bazaar, the floating island it stands on: the same RealmArt body the arenas
+-- use, hanging from the roof's front edge. Built once.
+local function underside(c: any, r: any, i: number)
+	local body = RealmArt.island(Realms.LOBBY, r.x2 - r.x1, 6, 20 + i)
+	RealmArt.draw(c, body, r.x1, r.z1 * D, 1 / RealmArt.BODY_PPU)
 end
 
 function Plaza2D.drawGround(self: any, c: any, scene: any, left: number, right: number)
-	for _, r in scene.floor do
+	for i, r in scene.floor do
 		if r.x2 < left or r.x1 > right then continue end
 		local bridge = r.bridge == true
 		local y1, y2 = r.z1 * D, r.z2 * D
 		if bridge then
-			-- Planks over the drop, with a rope rail either side.
+			-- Planks across the sky between two islands, with a rope rail either side.
 			Canvas.rect(c, r.x1, y1, r.x2 - r.x1, y2 - y1, Canvas.hex(A.woodDk, INK))
 			for x = r.x1 + 0.2, r.x2 - 0.6, 1.1 do
 				Canvas.rect(c, x, y1 + 0.05, 0.9, y2 - y1 - 0.1, Canvas.hex(A.wood, INK))
@@ -445,13 +421,12 @@ function Plaza2D.drawGround(self: any, c: any, scene: any, left: number, right: 
 			Canvas.rect(c, r.x1, y2 + 1.1, r.x2 - r.x1, 0.12, Canvas.hex(A.paper, WHITE), 0.6)
 			Canvas.rect(c, r.x1, y1 - 0.4, r.x2 - r.x1, 0.3, Canvas.hex(A.woodDk, INK))
 		else
-			facade(c, scene.id, r)
-			Canvas.rect(c, r.x1, y1, r.x2 - r.x1, y2 - y1, Canvas.hex(A.tar, INK))
-			for z = r.z1 + 2, r.z2 - 0.5, 2.5 do                            -- seams across the roof
-				Canvas.rect(c, r.x1, z * D, r.x2 - r.x1, 0.06, Canvas.hex(A.tarHi, INK))
-			end
-			Canvas.rect(c, r.x1, y1 - 0.2, r.x2 - r.x1, 0.35, Canvas.hex(A.slateHi, INK))   -- the roof's front lip
-			Canvas.rect(c, r.x1, y2, r.x2 - r.x1, 1.4, Canvas.hex(A.slate, INK))              -- parapet
+			underside(c, r, i)
+			-- the paving, as one sprite: a plaza of flagstones is hundreds of joints
+			local paving = RealmArt.paving(Realms.LOBBY, r.x2 - r.x1, y2 - y1, i)
+			RealmArt.draw(c, paving, r.x1, y1, 1 / RealmArt.BODY_PPU)
+			Canvas.rect(c, r.x1, y1 - 0.2, r.x2 - r.x1, 0.35, Canvas.hex(Realms.LOBBY.top[2], INK))  -- the grass lip
+			Canvas.rect(c, r.x1, y2, r.x2 - r.x1, 1.4, Canvas.hex(A.slate, INK))                     -- the low wall
 			Canvas.rect(c, r.x1, y2 + 1.4, r.x2 - r.x1, 0.3, Canvas.hex(A.slateHi, INK))
 		end
 	end
@@ -462,9 +437,11 @@ function Plaza2D.drawRails(self: any, c: any, scene: any, left: number, right: n
 	for _, r in scene.floor do
 		if r.bridge or r.x2 < left or r.x1 > right then continue end
 		local y = r.z1 * D - 0.2
-		Canvas.rect(c, r.x1, y + 1.3, r.x2 - r.x1, 0.18, STEEL, 0.9)
+		-- a timber fence: a rail on posts
+		Canvas.rect(c, r.x1, y + 1.2, r.x2 - r.x1, 0.26, FENCE)
+		Canvas.rect(c, r.x1, y + 1.2, r.x2 - r.x1, 0.08, FENCE_HI)
 		for x = math.ceil(r.x1 / 4) * 4, r.x2, 4 do
-			Canvas.rect(c, x - 0.08, y, 0.16, 1.4, STEEL, 0.9)
+			Canvas.rect(c, x - 0.12, y, 0.24, 1.6, FENCE)
 		end
 	end
 end
@@ -805,8 +782,8 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		target = (b.x1 + b.x2) / 2
 	end
 	self.camX += (target - self.camX) * math.min(1, dt * 6)
-	Backdrop.sky(c, "Rooftops", self.camX)
-	-- Framed on the roof, not the building under it: the facade is a strip at the bottom.
+	RealmArt.sky(c, Realms.LOBBY, self.camX, clock)
+	-- Framed on the plaza, not the island under it: the underside is a strip at the bottom.
 	c:world(self.camX, 12.5 + p.z * D * 0.3, ppu, 0, 0)
 	local left, right = self.camX - half - 12, self.camX + half + 12
 	self:drawGround(c, scene, left, right)
@@ -854,7 +831,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	local d = model:district()
 	if d and d.id ~= self.district then
 		self.district = d.id
-		self.banner.Text = d.name
+		self.banner.Text = string.upper(Realms.place(d.id, d.name))
 		self.bannerAt = clock
 	end
 	local age = clock - self.bannerAt

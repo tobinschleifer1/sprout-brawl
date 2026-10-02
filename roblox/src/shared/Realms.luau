@@ -138,6 +138,33 @@ local LIST: { Realm } = {
 	},
 }
 
+-- The lobby is a realm too: a bazaar on floating islands under a midday sky, in sight of the great
+-- hall the champions fight for. Not a stage - nothing looks it up by a stage id.
+Realms.LOBBY = {
+	id = "Lobby", name = "Skyhold Bazaar", tagline = "Pick your fight.",
+	sky = { "#3C8BE0", "#6FB5F2", "#BFE3FA", "#FCE6B8" },
+	sun = { x = 0.22, y = 0.2, r = 16, colour = "#FFF6D6", glow = "#FFE7A3" },
+	cloud = { "#C9D9F0", "#F2F7FF", "#FFFFFF" }, far = "#7DA9D8", near = "#5C8FC4",
+	-- no landmark: the bazaar's own stalls stand where one would, and a hall cut off behind them
+	-- reads as clutter
+	landmark = "none",
+	rock = { "#3A3346", "#5B5266", "#7D7488", "#A39AAE", "#C9C1D2" },
+	top = { "#2F7D32", "#52B347", "#8CE06A" }, material = "grass",
+	shelf = "wood", shelfRamp = { "#6B3F22", "#A2683A", "#D49A5C" },
+	hang = "roots", hangRamp = { "#3E2A1C", "#6B4A2E" },
+	accent = "#D93B3B", glow = "#FFD45A",
+} :: Realm
+
+-- The lobby's districts and rooms, by the ids web/src/data/plaza.js gives them, as Roblox names
+-- them. The data's own names are the web's and stay there.
+Realms.PLACES = {
+	tailor = "Tailor's Terrace", square = "Champions' Square", arcade = "The Arcade Grove",
+	gates = "Fighters' Gates", climb = "Sky Climb", lounge = "The War Room",
+}
+function Realms.place(id: string?, fallback: string): string
+	return (if id then Realms.PLACES[id] else nil) or fallback
+end
+
 local BY_ID: { [string]: Realm } = {}
 for _, r in LIST do BY_ID[r.id] = r end
 Realms.LIST = LIST

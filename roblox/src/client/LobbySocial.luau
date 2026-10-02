@@ -1,6 +1,6 @@
 --!strict
 -- Talking in the lobby: stamps over your head, quick messages in bubbles, a chat log, the member
--- list and the warp menu - after the DBFZ and P4A lobbies, in Neon Row's colours.
+-- list and the warp menu - after the DBFZ and P4A lobbies, in the Skyhold Bazaar's colours.
 --
 -- Everything sent is an index into a fixed list (Data/Plaza stamps and messages), so nothing here
 -- is free text and nothing needs filtering; the server checks it and passes it to the people in the
@@ -15,6 +15,7 @@ local PLAZA: any = require(Shared.Data.Plaza)
 local Canvas2D = require(script.Parent.Canvas2D)
 local KitPortrait = require(script.Parent.KitPortrait)
 local PlazaArt = require(script.Parent.PlazaArt)
+local Realms = require(Shared.Realms)
 
 local LobbySocial = {}
 LobbySocial.__index = LobbySocial
@@ -142,9 +143,9 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.peoplePanel, self.peopleList = people, list
 
 	-- The roof map.
-	local map = panel(gui, "Map", "ROOF MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8)
+	local map = panel(gui, "Map", "BAZAAR MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8)
 	for i, w in PLAZA.market.warps do
-		local b = button(map, "Warp_" .. w.id, `{i}  {w.name}`, function() self:warp(w.id) end, PANEL2)
+		local b = button(map, "Warp_" .. w.id, `{i}  {Realms.place(w.id, w.name)}`, function() self:warp(w.id) end, PANEL2)
 		b.TextXAlignment = Enum.TextXAlignment.Left
 		b.Position, b.Size = UDim2.fromOffset(10, 36 + (i - 1) * 44), UDim2.new(1, -20, 0, 38)
 	end

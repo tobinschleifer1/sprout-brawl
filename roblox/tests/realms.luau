@@ -176,5 +176,29 @@ do
 	if not (far > 0 and near > far) then fail(`parallax: far moved {far}, clouds {near}`) end
 end
 
+-- The lobby is a realm too: its sky draws (no landmark: three layers), and its paving lies on the
+-- plaza it is given - front edge on the front, back edge `depth` behind.
+do
+	local lobby = Realms.LOBBY
+	table.clear(sprites)
+	RealmArt.sky(canvas(), lobby, 0, 0)
+	local layers: { [string]: boolean } = {}
+	for _, sp in sprites do layers[sp.key] = true end
+	local n = 0
+	for _ in layers do n += 1 end
+	if n ~= 3 then fail(`the lobby sky drew {n} layers, want 3`) end
+	table.clear(sprites)
+	local art = RealmArt.paving(lobby, 40, 10, 1)
+	RealmArt.draw(canvas(), art, -20, 2, 1 / RealmArt.BODY_PPU)
+	local s = sprites[1]
+	local front = s.y1 - s.rows * s.ph
+	if math.abs(front - 2) > 1e-9 or math.abs(s.y1 - 12) > 1e-9 or math.abs(s.x0 + 20) > 1e-9 then
+		fail(`the paving spans y {front}..{s.y1} from x {s.x0}; the plaza is 2..12 from -20`)
+	end
+	for _, place in { "tailor", "square", "arcade", "gates", "climb", "lounge" } do
+		if Realms.place(place, "?") == "?" then fail(`no bazaar name for {place}`) end
+	end
+end
+
 print(`PASS realms: nine stages each in a realm of its own name, paint only; {placed} islands and platforms drawn exactly on their geometry`)
 print(`  skies cover every width in four parallax layers; most expensive stage {worstStage} rectangles ({worstStageWhere}), sky {worstSky} ({worstSkyWhere})`)

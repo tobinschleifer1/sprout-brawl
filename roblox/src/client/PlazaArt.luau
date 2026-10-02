@@ -1,13 +1,12 @@
 --!strict
--- The rooftop night market's props, as pixel art: built once in eighth-of-a-stud cells and drawn
+-- The Skyhold Bazaar's props, as pixel art: built once in eighth-of-a-stud cells and drawn
 -- as sprites (Canvas2D.sprite), so a stall of two hundred rectangles costs one Frame a frame.
 --
 -- Each builder draws in the prop's own cell space, y UP from the prop's base, x from its left edge,
 -- with `r(x, y, w, h, hex, alpha)`; `done()` converts to the sprite convention (rows down from the
 -- top). A prop is { rects, w, h } in cells; PlazaArt.draw places its base-centre at a world point.
 --
--- Palette: the arenas' steel greys and warm lantern light; the accents are rust, amber and a
--- muted teal (named pink and cyan below for where they sit, not what they are).
+-- Palette: daylight in the Skyhold Bazaar - see C below.
 
 local Canvas2D = require(script.Parent.Canvas2D)
 
@@ -15,12 +14,13 @@ local PlazaArt = {}
 PlazaArt.CELL = 1 / 8
 
 local C: { [string]: string } = {
-	-- The arenas' steels (Data/Stages palettes: #3E4450, #6E7788, #8A94A6) with their one warm accent,
-	-- rather than neon: the lobby should look like it belongs to the same game as the maps.
-	ink = "#0F1218", night = "#1A1E26", slate = "#262B35", slateHi = "#3E4450", tar = "#20242C", tarHi = "#2C313B",
-	steel = "#6E7788", steelHi = "#8A94A6", rust = "#7A4432", wood = "#6B4A36", woodHi = "#8C6448", woodDk = "#463126",
-	pink = "#C8643C", pinkDk = "#6E3524", cyan = "#7FA8B8", cyanDk = "#3E5A66", amber = "#E8A24A", amberDk = "#9A6424",
-	lantern = "#D07040", lanternHi = "#EDB27A", paper = "#D9CDB2", glass = "#1E2733", white = "#E6E1D6", green = "#7FA06A",
+	-- Daylight in the Skyhold Bazaar (Realms.LOBBY): warm timber, sun-bleached stone, bright
+	-- awnings in the realms' reds, blues and golds. The names are where each colour sits, not what
+	-- it is - `night` is a sign board's face, `tar` the paving, `pink` the red awning stripe.
+	ink = "#120E16", night = "#2C3A58", slate = "#8C7B66", slateHi = "#B8A68A", tar = "#A89A86", tarHi = "#C4B8A2",
+	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
+	pink = "#E04848", pinkDk = "#8E2424", cyan = "#3A8AD8", cyanDk = "#1E4A8A", amber = "#FFC83A", amberDk = "#C47A1A",
+	lantern = "#FF7A3A", lanternHi = "#FFD27A", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
 PlazaArt.C = C
 

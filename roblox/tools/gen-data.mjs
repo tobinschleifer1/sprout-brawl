@@ -25,7 +25,7 @@ const { STAGES } = await import(`${WEB}/stages/index.js`);
 const { ITEM_LIST } = await import(`${WEB}/items.js`);
 const { buildLoadout } = await import(`${WEB}/loadout.js`);
 const { SCENES } = await import(`${WEB}/art.js`);
-const { WEAPON_SPRITES } = await import(`${WEB}/weaponArt.js`);
+const { WEAPON_SPRITES, AWAKENED_SPRITES } = await import(`${WEB}/weaponArt.js`);
 const { RULES } = await import(`${WEB}/rules.js`);
 const { CALLOUTS } = await import(`${WEB}/callouts.js`);
 const { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } = await import(`${WEB}/teams.js`);
@@ -168,7 +168,7 @@ assertPlain(PARKOUR, 'PARKOUR');
 written.push(write('Parkour.luau', 'web/src/data/parkour.js', `return ${emit(PARKOUR, 0, 'PARKOUR')}`));
 assertPlain(KIT, 'KIT');
 written.push(write('AvatarKit.luau', 'web/src/data/avatarKit.js and avatarParts.js', `return ${emit(KIT, 0, 'KIT')}`));
-const ART = { scenes: SCENES, sprites: WEAPON_SPRITES };
+const ART = { scenes: SCENES, sprites: WEAPON_SPRITES, awakened: AWAKENED_SPRITES };
 assertPlain(ART, 'ART');
 written.push(write('Art.luau', 'web/src/data/art.js', `return ${emit(ART, 0, 'ART')}`));
 

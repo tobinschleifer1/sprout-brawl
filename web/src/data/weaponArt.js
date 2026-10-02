@@ -24,232 +24,241 @@ export const PX = 1 / 8;
 const G = (ox, oy, rows, ink = {}) => ({ ox, oy, rows, ink });
 
 export const GRIDS = {
-  // OATHBLADE. A foundry falchion: a clipped chopping tip, a sawtoothed spine near the hilt, and a
-  // groove down the blade that glows with Momentum. Oxblood grip, cracked iron guard.
+  // OATHBLADE. A knightly broadsword: a bevelled blade with a fuller that carries the glow, a gilt
+  // crossguard set with a gem, an oxblood-wrapped grip and a gilt pommel stone.
   Sword: G(6, 5, [
-    '......S..................',
-    '.....SS..................',
-    '.....SSA.A.A.............',
-    '.hh..SSPPPPPPPPPPPPPPP...',
-    'hTThhSSlmmmmmmmmmmmmmPPP.',
-    'hTThhSSPPPPPPPPPPPPPPPPPP',
-    '.hh..SSddddddddddddPPPPP.',
-    '.....SS..........dddd....',
-    '.....SS..................',
-    '......S..................',
-  ], { h: '#5A2E2E', l: '#FFE7B0', m: '#FFB347', d: '#5F6B7C' }),
+    '.....UUUU................',
+    '......uu.................',
+    '......uuTT...............',
+    '......uuSTAAAAAAAAAAAA...',
+    'UUjhjhzuSTPPPPPPPPPPPPA..',
+    'GuhjhjGGSTGGGGGGGGGGggPAA',
+    'yyjhjhuzSTPPPPPPPPPPPPS..',
+    '......uuSTSSSSSSSSSSSS...',
+    '......uuTT...............',
+    '......uu.................',
+    '.....UyyU................',
+  ], { h: '#5A2E2E', j: '#8E4A3E', u: '#C9A24A', U: '#FFE08A', y: '#7A5A24', z: '#FFFFFF', g: '#E9FBFF' }),
 
-  // GRAVE BLOOM. A long bone-white snath with a crescent of violet soul-glass hanging from an iron
-  // socket and a short forward spur. The glass carries the Bloom glow along its edge.
+  // GRAVE BLOOM. A long bone-white snath bound at the grip, an iron socket holding a soul gem, and a
+  // crescent of violet soul-glass whose cutting edge runs bright with the Bloom glow.
   Scythe: G(6, 2, [
-    '...........................SSSS........',
-    'TTTbbbbbbbbTTbbbbbbbbbbbbbbSSSSAAA.....',
-    'TTTbbbbbbbbTTbbbbbbbbbbbbbbSSSSAAAAA...',
-    '...........................SSSPP.......',
-    '..........................SPPPPPP......',
-    '..........................PPPPPPPP.....',
-    '.........................GPPPPPPPP.....',
-    '........................GPPPPPPPP......',
-    '......................AGPPPPPPPP.......',
-    '....................AAGPPPPPPP........',
-    '.................AAAGPPPPPP............',
-    '.............AAAAGGPPPP................',
-    '.........AAAAGGGPPP....................',
-    '......AAAAPPPPP........................',
-    '....AAA................................',
-  ], { b: '#E8E0CC' }),
+    '..........................AAAAAA.......',
+    'BBnnBBBBBBBBBBBBBBBBBBBnnBSSGSSSSAAAA..',
+    'nnnnnnnnnnnnnnnnnnnnnnnnnnSSGSSAAAAA...',
+    '..........................TTTAGPP......',
+    '............................AGggPPP....',
+    '...........................AGPgPPPPP...',
+    '..........................AGPPPPPPPP...',
+    '........................AGPPPPPPPPPQ...',
+    '......................AGPPPPPPPPPPQ....',
+    '....................AGPPPPPPPPPPQQ.....',
+    '.................AGPPPPPPPPPPPQQ.......',
+    '..............AGPPPPPPPPPPPQQQ.........',
+    '...........AGPPPPPPPPPPQQQQ............',
+    '........AGPPPPPPPPQQQQQ................',
+    '.....AGPPPPQQQQQQQ.....................',
+    '...AGQQQQQQ............................',
+  ], { b: '#E8E0CC', B: '#FFF8E8', n: '#A89C84', Q: '#241C30', g: '#F2DCFF' }),
 
-  // TWIN RIVETS. Foundry rivet guns: a boxy housing, a fat nozzle, a brass grip, and the six-round
-  // magazine shown as six pips along the side - the ammo count reads off the weapon itself.
+  // TWIN RIVETS. Foundry rivet guns: a bevelled housing, a fat nozzle, a brass grip, and the
+  // magazine shown as glowing pips along the side - the ammo count reads off the weapon itself.
   Blasters: G(3, 4, [
     '..SS.......',
-    'PPPPPPPP...',
-    'PAAAAAAPSSS',
-    'PPPPPPPPSSn',
-    'PGkGkGkP...',
-    '.TTPPT.....',
-    '..HHH......',
-    '..HHH......',
-    '...HH......',
-  ], { k: '#1A2230', n: '#FFF3D0' }),
+    'AAAAAAAA...',
+    'PkPkPkPPSAT',
+    'PGPGPGPPSSn',
+    'SSSSSSSS...',
+    '.TTTTkT....',
+    '..jHHk.....',
+    '..HjH......',
+    '..HHT......',
+  ], { k: '#1A2230', n: '#FFF3D0', j: '#F0D29A' }),
 
-  // STARBOUND CODEX. An iron-bound ledger with a gear-shaped clasp that glows, corner plates, and
-  // the page block showing along the fore-edge.
+  // STARBOUND CODEX. An iron-bound ledger with gilt corner plates, a glowing ringed star on the
+  // cover, a clasp across the fore-edge and the page block showing behind it.
   Grimoire: G(6, 6, [
-    'TTPPPPPPPPPP.',
-    'TAAAAAAAAAAWW',
-    'TPPPPPPPPPPWW',
-    'TPSPPPPPPSPWW',
-    'TPPPPGGGPPPWW',
-    'TPPPGGwGGPPWW',
-    'TPPPGwwwGPSWW',
-    'TPPPGGwGGPPWW',
-    'TPPPPGGGPPPWW',
-    'TPSPPPPPPSPWW',
-    'TPPPPPPPPPPWW',
-    'TTPPPPPPPPPP.',
-  ], { W: '#F0E7D2', w: '#FFFFFF' }),
+    'mmSSSSSSSSmm.',
+    'mmPPPPPPPPmmW',
+    'PPPPPPPPPPPWp',
+    'PPPPGGGPPPPWW',
+    'PPPGPAPGPPPWp',
+    'PPPGAwAGPmmmG',
+    'PPPGPAPGPmmmp',
+    'PPPPGGGPPPPWW',
+    'PPPPPPPPPPPWp',
+    'PPPPPPPPPPPWW',
+    'PPPPPPPPPPPWp',
+    'mmPPPPPPPPmmW',
+    'mTTTTTTTTTTm.',
+  ], { W: '#F0E7D2', w: '#FFFFFF', m: '#C9A24A', p: '#BFB49C' }),
 
-  // HEADSMAN. A bearded executioner's axe: a haft you can see the weight on, a crescent bit edged
-  // in rust-red that heats with Momentum, and a reverse spike.
+  // HEADSMAN. A bearded executioner's axe: a banded haft, a crescent bit with a bright edge over
+  // rust-red, a rune on the cheek that glows, and a reverse spike.
   Axe: G(8, 10, [
     '....................................',
     '....................................',
-    '........................TPr.........',
-    '........................TPPr........',
-    '........................TPPPr.......',
-    '.......................TTPPPPr......',
-    '.......................TTPPPPPr.....',
-    '.................S.....TTPPPPPPr....',
-    'SS...............SS...TTPPPPPPPr....',
-    'SHHHHHHHSSSHHHHHHHHHHHHPPPPPPPPr....',
-    'SHHHHHHHSSSHHHHHHHHHHHHPPPPPPPPPr...',
-    'SS...............SS...TTPPPPPPPPr...',
-    '.................S.....TTPPPPPPPPPr.',
-    '......................TTPPPPPPPPPr..',
-    '......................TTPPPPPPPPPPr.',
-    '......................TPPPPPPPPPPPr.',
-    '.....................TPPPPPPPPPrrr..',
-    '....................TPPPPPPrrr......',
-    '...................TPrrrr...........',
-  ], { r: '#B4462E' }),
+    '........................AAe.........',
+    '........................PPPe........',
+    '........................PPPre.......',
+    '.......................APPPPre......',
+    '.......................PPPPPPre.....',
+    '.......................PPPPPPPre....',
+    '.SS......SS......S....SSPPPPPPre....',
+    'hSShhhhhhSShhhhhhASSSSSSPPGPPPPre...',
+    'dSSddddddSSddddddSSSSSSSPPGGPPPre...',
+    '.SS......SS......S....SSPPPGPPPre...',
+    '.......................PPPPPPPPPre..',
+    '......................APPPPPPPPPre..',
+    '......................PPPPPPPPPPPre.',
+    '.....................APPPPPPPPPPTre.',
+    '....................APPPPPPPPTre....',
+    '...................APPPPTTTTe.......',
+    '...................TTTTe............',
+  ], { h: '#7A5E42', d: '#3A2A1A', e: '#F4F6FA', r: '#B4462E' }),
 
-  // TOLLGATE. Almost all haft, three iron bands, a leaf point, and a crimson swallowtail pennant
-  // under the head - it shows which way you face and roughly how far you reach, even zoomed out.
+  // TOLLGATE. Almost all haft, wrapped at the grip and banded twice, a leaf point with a glowing
+  // fuller, and a crimson swallowtail pennant under the head - it shows which way you face and
+  // roughly how far you reach, even zoomed out.
   Pike: G(13, 3, [
-    '.........................................................G...',
-    '.............................................SS.......AAAAA..',
-    'SSPPPPPPPPPPPTTTTTTTTPPPPPPTPPPPPPPPPPTPPPPPPSSSSAAAAAAAAAAAA',
-    'SSPPPPPPPPPPPTTTTTTTTPPPPPPTPPPPPPPPPPTPPPPPPSSSSAAAAAAAAAAA.',
-    '.............................................SS.cccc..AAAA...',
-    '................................................ccccccc......',
-    '................................................cccccc.......',
-    '................................................ccccccc......',
-    '................................................cc..ccc......',
-    '................................................c....cc......',
-  ], { c: '#A8322E' }),
+    '.....................................................AAA.G...',
+    '.............................................ASSS..AAAAAAA...',
+    'aaaaaaaaaaaaaTjTjTjTjaaaaaaSaaaaaaaaaaSaaaaaaSSSSAGGGGGGGGGAA',
+    'dddddddddddddjTjTjTjTddddddSddddddddddSddddddSSSSAwwwwwwwAAA.',
+    '.............................................SSScccccAAAA....',
+    '...............................................Skkkkkkk......',
+    '...............................................SYYcccc.......',
+    '...............................................Scccccccc.....',
+    '...............................................Scc..cccc.....',
+    '...............................................Sc.....cc.....',
+  ], { a: '#E8D4A0', d: '#8A7048', j: '#5A4028', w: '#FFFFFF', c: '#A8322E', k: '#D84A3E', Y: '#F2C94A' }),
 
-  // OVERDRIVE KNUCKLES. A hydraulic fist: a riveted bracer, twin pistons on the back of the hand,
-  // exhaust vents, and three glowing knuckle plates that flare in Overdrive.
+  // OVERDRIVE KNUCKLES. A hydraulic fist: a bracer with a vent, twin pistons on the back of the
+  // hand, and glowing knuckle plates that flare in Overdrive.
   Gauntlets: G(4, 4, [
     '....ii.ii...',
-    '...SSSSSSS..',
-    'TTTSPPPPPPG.',
-    'TvTSPPPPPPPG',
-    'TvTSkkkkkPPG',
-    'TTTSPPPPPPG.',
+    '...AAAAAAA..',
+    'iTTPPPPPPPG.',
+    'TvTPPPPPPPvA',
+    'TvTPkkkkkkPG',
+    'TvTPPPPPPPvS',
+    'iTTPPPPPPPG.',
     '...SSSSSSS..',
     '....ii.ii...',
   ], { v: '#FF9A4A', k: '#5A2018', i: '#C8CED8' }),
 
-  // GROUNDBREAKER. A forge sledge: a stone head bound by two iron bands, a glowing crack through
-  // its core that widens with Momentum, and a squared spike on the reverse.
+  // GROUNDBREAKER. A forge sledge: a stone head bound by two riveted iron bands and a collar, a
+  // glowing crack through its core, on a wrapped haft.
   Hammer: G(10, 9, [
+    '.............................sAAAAAAAAAA',
     '.............................sPPPPPPPPPs',
-    '.............................sPPPPPPPPPs',
-    '.............................IIIIIIIIIII',
-    '.............................sPPPGPPPPPs',
-    '.......................SSSSSSsPPPPGPPPPs',
-    '.......................SSSSSSsPPPPPGPPPs',
-    'SS...........................PPPPGPPPPs',
-    'SHHHHHHHHHHHHHHHHHHHHHHHHHHHHPPPPGGPPPs',
-    'SHHHHHHHHHHHHHHHHHHHHHHHHHHHHPPPPPGPPPs',
-    'SS...........................PPPPPGPPPs',
-    '.......................SSSSSSsPPPPGPPPPs',
-    '.......................SSSSSSsPPPPGPPPPs',
+    '.............................sIRIIRIIRII',
     '.............................sPPPPGPPPPs',
-    '.............................IIIIIIIIIII',
+    '.............................sPPPPGPPPPs',
+    '.......................AAAAAAsPPPPPGPPPs',
+    '.......................SSSSSSsPPPPGPPPPs',
+    'A......................SSSSSSsPPPPGPPPPs',
+    'SAHAHAHhhhhhhhhhhhhhhhhSSSSSSsPPPPPGgPPs',
+    'SHIHIHIddddddddddddddddSSSSSSsPPPgPGPPPs',
+    'I......................SSSSSSsPPPPGPPPPs',
+    '.......................SSSSSSsPPPPGPPPPs',
+    '.......................IIIIIIsPPPPPGPPPs',
+    '.............................sPPPPGPPPPs',
+    '.............................sIRIIRIIRII',
     '.............................sPPPPPPPPPs',
-    '.............................sPPPPPPPPPs',
-  ], { s: '#5A5048', I: '#2A2420' }),
+    '.............................sssssssssss',
+  ], { s: '#5A5048', I: '#2A2420', h: '#9A7A52', d: '#4A3420', R: '#D8DCE2', g: '#FFE08A' }),
 
-  // HEARTSTRING. A recurve in green-bronze: limbs that sweep forward and flick back at the tips, a
-  // wrapped grip, and a straight string - the one straight line on the weapon, and the read.
+  // HEARTSTRING. A recurve in green-bronze with pale-edged limbs and glowing tips, a wrapped grip
+  // with an arrow rest, and a straight string - the one straight line on the weapon, and the read.
   Longbow: G(0, 12, [
-    'aP.......',
-    'a.PP.....',
-    'a..PP....',
-    'a...PP...',
-    'a....PP..',
-    'a....PP..',
-    'a.....PP.',
-    'a.....PP.',
-    'a......PP',
-    'a......PP',
+    'aL.......',
+    'aALP.....',
+    'a..LP....',
+    'a...LP...',
+    'a....LP..',
+    'a....LP..',
+    'a.....LP.',
+    'a.....LP.',
+    'a......LP',
+    'a......LP',
+    'a.....SwS',
+    'a.....SSG',
+    'a.....SwG',
     'a.....SSS',
-    'a.....SSS',
-    'a.....SSS',
-    'a.....SSS',
-    'a......PP',
-    'a......PP',
-    'a.....PP.',
-    'a.....PP.',
-    'a....PP..',
-    'a....PP..',
-    'a...PP...',
-    'a..PP....',
-    'a.PP.....',
-    'aP.......',
-  ], { a: '#F0E2C0' }),
+    'a......LP',
+    'a......LP',
+    'a.....LP.',
+    'a.....LP.',
+    'a....LP..',
+    'a....LP..',
+    'a...LP...',
+    'a..LP....',
+    'aALP.....',
+    'aL.......',
+  ], { a: '#F0E2C0', L: '#E8F4C8', w: '#3A2A1A' }),
 
-  // WRECKING CHAIN. A riveted wrecking ball on a chain drawn link by link (the number of links IS
-  // the reach), four heavy spikes, and a riveted band that catches the Snare glow.
+  // WRECKING CHAIN. A spiked wrecking ball on a chain drawn link by link (the number of links IS
+  // the reach), a band round its middle that catches the Snare glow, on a wrapped haft.
   Flail: G(9, 7, [
-    '......................................P.......',
     '......................................A.......',
-    '....................................PPPPP.....',
-    '..................................PPPPPPPPP...',
-    '..................................PkPPPPPPP...',
-    'SS...............................PPPPPPPPPPP..',
-    'SHHHHHHHHHHSS.oo.oo.oo.oo.oo.oooPPPPPPPPPPPAA.',
-    'SHHHHHHHHHHSS.oo.oo.oo.oo.oo.oooPGiGiGiGiGPAA.',
-    'SS...............................PPPPPPPPPPP..',
-    '..................................PPPPPPPPP...',
-    '..................................PdddddddP...',
-    '....................................PPPPP.....',
     '......................................A.......',
-    '......................................P.......',
-  ], { o: '#6E7684', k: '#C8CED8', i: '#FFFFFF', d: '#4A505C' }),
+    '....................................AAAAA.....',
+    '.................................AAAPPPPPAAA..',
+    '.................................APkkPPPPPPA..',
+    'S..........SS....................APkPPPPPPPT..',
+    'ShShShShShhSS.oO.oO.oO.oO.oO.oO.APPPPPPPPPPPA.',
+    'SdSdSdSdSddSS.Oo.Oo.Oo.Oo.Oo.Oo.AGiGGiGGiGGiTA',
+    'S..........SS...................APPPPPPPPPPPT.',
+    '.................................APPPPPPPPPT..',
+    '.................................APPPPPPPPPT..',
+    '.................................AATPPPPPTTA..',
+    '....................................ATTTT.....',
+    '......................................A.......',
+    '......................................A.......',
+  ], { o: '#6E7684', O: '#9AA2B0', k: '#E8ECF2', i: '#FFFFFF', h: '#9A7A52', d: '#4A3420' }),
 
-  // BASTION. A salvaged blast door carried as a tower shield: a riveted slab, a viewport slit that
-  // shimmers gold in Counterguard's window, and hazard stripes along the bottom edge.
+  // BASTION. A salvaged blast door carried as a tower shield: a gilt-rimmed riveted slab, a
+  // viewport slit that shimmers in Counterguard's window, and hazard stripes along the bottom edge.
   Shield: G(3, 12, [
     'bbbbbbbbb',
-    'bPPPPPPPb',
-    'bPrPPPrPb',
-    'bPPPPPPPb',
-    'bPSSSSSPb',
-    'bPPPPPPPb',
-    'bPPPPPPPb',
-    'bPPPPPPPb',
-    'bPrPPPrPb',
-    'bPPPPPPPb',
-    'bPkkkkkPb',
-    'bPkGGGkPb',
-    'bPkkkkkPb',
-    'bPPPPPPPb',
-    'bPrPPPrPb',
-    'bPPPPPPPb',
-    'bPPPPPPPb',
-    'bPSSSSSPb',
-    'bPPPPPPPb',
-    'bPrPPPrPb',
+    'bBPPPPPPb',
+    'bBrPPPrPb',
+    'bBPPPPPPb',
+    'bBPPPPPPb',
+    'bBSSSSSPb',
+    'bBPPPPPPb',
+    'bBPPPPPPb',
+    'bBrPPPrPb',
+    'bBPPPPPPb',
+    'bBkkkkkPb',
+    'bBkGwGkPb',
+    'bBkkkkkPb',
+    'bBPPPPPPb',
+    'bBrPPPrPb',
+    'bBPPPPPPb',
+    'bBPPPPPPb',
+    'bBSSSSSPb',
+    'bBPPPPPPb',
+    'bBrPPPrPb',
     'byzyzyzyb',
     'bzyzyzyzb',
+    'bBPPPPPPb',
     'bbbbbbbbb',
     '.TTTTTTT.',
-  ], { b: '#B08A4A', r: '#8A6E4A', k: '#1A2230', y: '#E8B04A', z: '#2A303C' }),
+  ], { b: '#B08A4A', B: '#E8C47A', r: '#8A6E4A', k: '#1A2230', y: '#E8B04A', z: '#2A303C', w: '#FFFFFF' }),
 
   // TWINFANG. Two curved daggers with crimson crystal edges: the front blade curls up at the tip,
   // the reverse one trails behind the hand. The silhouette says "a pair" in any single frame.
   Daggers: G(10, 3, [
-    '....................cc',
-    '..................ccPP',
-    'ee..........SSPPPPPPP.',
-    'eePPPPPPPTTSSPPPPPPP..',
-    '.ccccccTTTTSS.........',
+    '....................AC',
+    '...........SS.....AAPq',
+    'ee.........SS.ACCCcPS.',
+    'ePPPPPPTjTjGGASSSSSS..',
+    '.qqqqqqqqqqSS.........',
     '...........SS.........',
-  ], { c: '#FF4A6A', e: '#A0ACBE' }),
+    '......................',
+  ], { c: '#FF4A6A', C: '#FFB0BE', q: '#8A1A30', e: '#A0ACBE', j: '#4A3A5A' }),
 
   // DUELIST (new, not yet in the engine). A slim silver blade, a gold basket hilt and a blue plume.
   Rapier: G(5, 4, [
@@ -336,7 +345,10 @@ function greedy(cell, w, h, ox, oy, alphaOf) {
 // Neither wins everywhere: painter's helps a weapon with one dominant material and costs one whose
 // details cut the base into bands. Rectangles are Frames in Roblox, so the cheaper one is taken.
 export function merge({ cell, halo, w, h, ox, oy }) {
-  const outline = greedy(halo, w, h, ox, oy, () => 0.9);
+  return [...greedy(halo, w, h, ox, oy, () => 0.9), ...body(cell, w, h, ox, oy)];
+}
+
+function body(cell, w, h, ox, oy) {
   const inPlace = greedy(cell, w, h, ox, oy, () => 1);
   const count = new Map();
   for (const row of cell) for (const c of row) if (c) count.set(c, (count.get(c) || 0) + 1);
@@ -345,7 +357,7 @@ export function merge({ cell, halo, w, h, ox, oy }) {
     ...greedy(cell.map((row) => row.map((c) => (c ? base : null))), w, h, ox, oy, () => 1),
     ...greedy(cell.map((row) => row.map((c) => (c && c !== base ? c : null))), w, h, ox, oy, () => 1),
   ];
-  return [...outline, ...(painter.length < inPlace.length ? painter : inPlace)];
+  return painter.length < inPlace.length ? painter : inPlace;
 }
 
 export function compile(grid, palette) { return merge(paint(grid, palette)); }
@@ -359,9 +371,44 @@ export function forwardExtent(grid) {
   return (last - grid.ox) * PX;
 }
 
+// THE AWAKENED FORM. While its ultimate runs, a weapon is drawn ablaze: the dark outline becomes a
+// line of its own glow colour, a softer aura burns one pixel beyond that, and every glowing inlay
+// runs white-hot. Same grid, same grip, same reach - light is only ever ADDED round the outside - so
+// a hitbox drawn to the everyday weapon is still drawn to this one. Hand-drawn fighters do exactly
+// this for a super: the prop does not change shape, it lights up. Roblox draws it (Weapons2D).
+export const AURA_ALPHA = 0.45;
+export function paintAwakened(grid, palette) {
+  const p = paint(grid, palette);
+  const glow = palette.glow || palette.accent;
+  const w = p.w + 2, h = p.h + 2;
+  const blank = () => Array.from({ length: h }, () => Array(w).fill(null));
+  const cell = blank(), ring = blank(), aura = blank();
+  p.cell.forEach((row, r) => row.forEach((c, k) => { if (c) cell[r + 1][k + 1] = c.toUpperCase() === glow.toUpperCase() ? '#FFFFFF' : c; }));
+  const near = (g, r, c) => [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dr, dc]) => g[r + dr]?.[c + dc]);
+  for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (!cell[r][c] && near(cell, r, c)) ring[r][c] = glow;
+  for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (!cell[r][c] && !ring[r][c] && near(ring, r, c)) aura[r][c] = glow;
+  return { cell, ring, aura, w, h, ox: p.ox + 1, oy: p.oy + 1 };
+}
+// Painted back to front as SOLID shapes - the aura's whole extent, then the ring's, then the weapon
+// over both - the same trick as the outline halo: drawn as rings alone they shatter into a
+// rectangle per pixel along every diagonal.
+export function compileAwakened(grid, palette) {
+  const a = paintAwakened(grid, palette);
+  const glow = palette.glow || palette.accent;
+  const upTo = (...layers) => a.cell.map((row, r) => row.map((_, c) => (layers.some((g) => g[r][c]) ? glow : null)));
+  return [
+    ...greedy(upTo(a.cell, a.ring, a.aura), a.w, a.h, a.ox, a.oy, () => AURA_ALPHA),
+    ...greedy(upTo(a.cell, a.ring), a.w, a.h, a.ox, a.oy, () => 1),
+    ...body(a.cell, a.w, a.h, a.ox, a.oy),
+  ];
+}
+
 // The twelve weapons in the game, compiled against their own palettes. Rapier and Chakram have
 // grids above but no weapon data yet, so they are not here until the engine has them.
 import { WEAPONS } from './weapons/index.js';
 export const WEAPON_SPRITES = Object.fromEntries(
   WEAPONS.filter((w) => GRIDS[w.id]).map((w) => [w.id, compile(GRIDS[w.id], w.palette)]),
+);
+export const AWAKENED_SPRITES = Object.fromEntries(
+  WEAPONS.filter((w) => GRIDS[w.id]).map((w) => [w.id, compileAwakened(GRIDS[w.id], w.palette)]),
 );

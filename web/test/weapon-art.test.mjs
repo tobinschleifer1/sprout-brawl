@@ -1,7 +1,7 @@
 // The pixel-art weapons: that each one exists, reaches as far as it hits, compiles to exactly the
 // picture its grid describes, and stays inside the Frame budget Roblox draws it with.
 import assert from 'node:assert/strict';
-import { GRIDS, WEAPON_SPRITES, OUTLINE, PX, paint, compile, forwardExtent } from '../src/data/weaponArt.js';
+import { GRIDS, WEAPON_SPRITES, AWAKENED_SPRITES, AURA_ALPHA, OUTLINE, PX, paint, paintAwakened, compile, forwardExtent } from '../src/data/weaponArt.js';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { drawSprite, drawWeapon } from '../src/render2d/weapons2d.js';
 
@@ -10,9 +10,14 @@ import { drawSprite, drawWeapon } from '../src/render2d/weapons2d.js';
 // judge reach by eye, so the new art has to land within one pixel of the old.
 const OLD_REACH = { Sword: 2.35, Scythe: 3.84, Blasters: 0.92, Grimoire: 0.78, Axe: 3.4, Pike: 5.95,
   Gauntlets: 0.94, Hammer: 3.72, Longbow: 1.02, Flail: 4.56, Shield: 0.72, Daggers: 1.5 };
-// Rectangles are Frames in Roblox. The polygon renderer spent 12-20 a weapon plus a full contour
-// copy; this is the ceiling the merged art must stay under.
-const FRAME_BUDGET = 80;
+// Rectangles are Frames in Roblox. The ceiling was 80 while Roblox re-placed every rectangle of
+// every weapon every frame. Since the lobby lag work, a weapon is ONE sprite there - a container
+// Frame moved per frame, its rectangles built once - so detail now costs memory and a one-off build,
+// not per-frame work, and the shaded redraw (bevels, wraps, gems) is allowed half as much again.
+// The web draws each rectangle with fillRect, and 120 a weapon is nothing to a canvas.
+const FRAME_BUDGET = 120;
+// The awakened form adds a glowing ring and an aura round the same weapon.
+const AWAKENED_BUDGET = 140;
 
 assert.deepEqual(Object.keys(WEAPON_SPRITES).sort(), WEAPONS.map((w) => w.id).sort(), 'every weapon in the game has art');
 
@@ -66,6 +71,41 @@ for (const w of WEAPONS) {
   }
 }
 
+// THE AWAKENED FORMS. Light is only ever added round the outside: the weapon's own pixels are
+// untouched (save glow inlays, which run white-hot), so reach and grip are the everyday weapon's.
+for (const w of WEAPONS) {
+  const rects = AWAKENED_SPRITES[w.id];
+  assert(rects && rects.length <= AWAKENED_BUDGET, `${w.id}: awakened art missing or ${rects?.length} rectangles, over ${AWAKENED_BUDGET}`);
+  const a = paintAwakened(GRIDS[w.id], w.palette);
+  const p = paint(GRIDS[w.id], w.palette);
+  const glow = (w.palette.glow || w.palette.accent).toUpperCase();
+  for (let r = 0; r < p.h; r++) for (let c = 0; c < p.w; c++) {
+    const was = p.cell[r][c], now = a.cell[r + 1][c + 1];
+    assert.equal(now, was && was.toUpperCase() === glow ? '#FFFFFF' : was, `${w.id}: awakened body pixel (${c},${r}) moved or changed`);
+  }
+  assert.equal(a.ox, p.ox + 1); assert.equal(a.oy, p.oy + 1);
+  // The ring hugs the silhouette and the aura hugs the ring: every ring pixel touches the body,
+  // every aura pixel touches the ring and not the body.
+  const touches = (g, r, c) => [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dr, dc]) => g[r + dr]?.[c + dc]);
+  let rings = 0;
+  for (let r = 0; r < a.h; r++) for (let c = 0; c < a.w; c++) {
+    if (a.ring[r][c]) { rings++; assert(!a.cell[r][c] && touches(a.cell, r, c), `${w.id}: ring pixel off the silhouette`); }
+    if (a.aura[r][c]) assert(!a.cell[r][c] && !a.ring[r][c] && touches(a.ring, r, c) && !touches(a.cell, r, c), `${w.id}: aura pixel misplaced`);
+    if (!a.cell[r][c] && touches(a.cell, r, c)) assert(a.ring[r][c], `${w.id}: a gap in the glowing outline at (${c},${r})`);
+  }
+  assert(rings > 0);
+  // Replayed in order, the rectangles reproduce aura, ring and body exactly, at their own alphas.
+  const got = Array.from({ length: a.h }, () => Array(a.w).fill(null));
+  for (const [x, y, rw, rh, colour, alpha] of rects) {
+    const c0 = Math.round(x / PX) + a.ox, r0 = Math.round(y / PX) + a.oy;
+    for (let r = r0; r < r0 + Math.round(rh / PX); r++) for (let c = c0; c < c0 + Math.round(rw / PX); c++) got[r][c] = colour + '@' + alpha;
+  }
+  for (let r = 0; r < a.h; r++) for (let c = 0; c < a.w; c++) {
+    const want = a.cell[r][c] ? a.cell[r][c] + '@1' : a.ring[r][c] ? a.ring[r][c] + '@1' : a.aura[r][c] ? a.aura[r][c] + '@' + AURA_ALPHA : null;
+    assert.equal(got[r][c], want, `${w.id}: awakened pixel (${c},${r}) reproduced wrongly`);
+  }
+}
+
 // The draw path: exactly one fillRect per rectangle, and the caller's alpha restored afterwards.
 const ctx = { calls: 0, globalAlpha: 0.5, fillStyle: null, stack: 0, fillRect() { this.calls++; },
   save() { this.stack++; }, restore() { this.stack--; }, rotate() {}, translate() {}, scale() {} };
@@ -85,4 +125,4 @@ assert.equal(ctx.stack, 0);
 // Deterministic: compiling twice gives identical rectangles, so the generated Luau is stable.
 assert.deepEqual(compile(GRIDS.Flail, WEAPONS.find((w) => w.id === 'Flail').palette), WEAPON_SPRITES.Flail);
 
-console.log(`PASS weapon art: 12 weapons within one pixel of their reach, pixel-exact merges, ${total} rectangles (${(total / 12).toFixed(1)} a weapon, budget ${FRAME_BUDGET})`);
+console.log(`PASS weapon art: 12 weapons within one pixel of their reach, pixel-exact merges, ${total} rectangles (${(total / 12).toFixed(1)} a weapon, budget ${FRAME_BUDGET}); awakened forms add light only, pixel-exact`);

@@ -43,14 +43,19 @@ Weapons2D.drawSprite = function(c: any, weaponId: string, alpha: number?): boole
 	return true
 end
 
--- The weapon's drawn extent in its own frame (outline included), in studs.
+-- The weapon's drawn extent in its own frame (outline included), in studs. `awake` measures its
+-- awakened form (Art.awakened), which is the same weapon with light added round it.
 local boundsCache: { [string]: { number } } = {}
-function Weapons2D.bounds(weaponId: string): { number }?
-	local cached = boundsCache[weaponId]
+local function artOf(weaponId: string, awake: boolean?): { any }?
+	return if awake then Art.awakened[weaponId] else Art.sprites[weaponId]
+end
+function Weapons2D.bounds(weaponId: string, awake: boolean?): { number }?
+	local key = if awake then "+" .. weaponId else weaponId
+	local cached = boundsCache[key]
 	if cached then
 		return cached
 	end
-	local rects = Art.sprites[weaponId]
+	local rects = artOf(weaponId, awake)
 	if not rects then
 		return nil
 	end
@@ -59,8 +64,8 @@ function Weapons2D.bounds(weaponId: string): { number }?
 		x0, y0 = math.min(x0, r[1]), math.min(y0, r[2])
 		x1, y1 = math.max(x1, r[1] + r[3]), math.max(y1, r[2] + r[4])
 	end
-	boundsCache[weaponId] = { x0, y0, x1, y1 }
-	return boundsCache[weaponId]
+	boundsCache[key] = { x0, y0, x1, y1 }
+	return boundsCache[key]
 end
 
 -- How to frame a weapon, lying flat, in a w x h pixel tile: the camera centre and a scale.
@@ -84,13 +89,14 @@ end
 -- and Canvas2D.eachSpriteRect maps them back to the art's own rectangles unchanged.
 local CELL = 1 / 8
 local spriteCache: { [string]: any } = {}
-function Weapons2D.sprite(weaponId: string): any
-	local cached = spriteCache[weaponId]
+function Weapons2D.sprite(weaponId: string, awake: boolean?): any
+	local key = if awake then "+" .. weaponId else weaponId
+	local cached = spriteCache[key]
 	if cached then
 		return cached
 	end
-	local rects = Art.sprites[weaponId]
-	local b = Weapons2D.bounds(weaponId)
+	local rects = artOf(weaponId, awake)
+	local b = Weapons2D.bounds(weaponId, awake)
 	if not rects or not b then
 		return nil
 	end
@@ -102,8 +108,14 @@ function Weapons2D.sprite(weaponId: string): any
 		list[i] = { cells(r[1] - b[1]), cells(b[4] - (r[2] + r[4])), cells(r[3]), cells(r[4]), r[5], r[6] }
 	end
 	cached = { rects = list, x0 = b[1], y1 = b[4], cols = cells(b[3] - b[1]), rows = cells(b[4] - b[2]) }
-	spriteCache[weaponId] = cached
+	spriteCache[key] = cached
 	return cached
+end
+
+-- Whether a pose shows the weapon awakened: through the wind-up and the active frames of its
+-- ultimate, settling back to the everyday weapon as the recovery starts.
+function Weapons2D.awake(pose: any): boolean
+	return pose.ult ~= nil and pose.ult.phase ~= "end"
 end
 
 -- ---------------------------------------------------------------- draw ----
@@ -124,8 +136,11 @@ function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	if pose.scale ~= 1 then
 		Canvas2D.scale(c, pose.scale, pose.scale)   -- Colossus doubles the blade
 	end
-	local sp = Weapons2D.sprite(weaponId)
-	Canvas2D.sprite(c, "weapon|" .. weaponId, sp.rects, sp.x0, sp.y1, CELL, CELL, sp.cols, sp.rows)
+	-- In its ultimate the weapon is drawn awakened - its outline burning in its own glow - when
+	-- that art exists; the everyday weapon otherwise.
+	local awake = Weapons2D.awake(pose) and Art.awakened ~= nil and Art.awakened[weaponId] ~= nil
+	local sp = Weapons2D.sprite(weaponId, awake)
+	Canvas2D.sprite(c, (if awake then "weapon+|" else "weapon|") .. weaponId, sp.rects, sp.x0, sp.y1, CELL, CELL, sp.cols, sp.rows)
 
 	if pose.charge > 0 then                          -- charging glows along the weapon
 		local glow = Canvas2D.hex(palette.glow, WHITE)

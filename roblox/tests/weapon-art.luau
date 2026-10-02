@@ -11,7 +11,8 @@ local Art = Loader.load("Data/Art")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
 
-local FRAME_BUDGET = 80
+-- Matches web/test/weapon-art.test.mjs, which says why it is 120 now that a weapon is one sprite.
+local FRAME_BUDGET = 120
 local drawn: { any } = {}
 local sprites = 0
 Canvas.rect = function(_c: any, x: number, y: number, w: number, h: number, colour: any, alpha: number?)
@@ -61,6 +62,29 @@ for _, w in Weapons.LIST do
 	end
 	total += #rects
 end
+
+-- In its ultimate a weapon is drawn awakened, and exactly as Art.awakened holds it; out of it, the
+-- everyday art. The ultimate's last phase settles back to the everyday weapon.
+local awakened = 0
+for _, w in Weapons.LIST do
+	local rects = Art.awakened[w.id]
+	assert(rects, `{w.id} has no awakened art`)
+	for _, phase in { "windup", "active", "end" } do
+		table.clear(drawn)
+		Weapons2D.draw(canvas(), w.id, w.palette, { angle = 0, ox = 0, oy = 0, scale = 1, charge = 0, hide = false,
+			ult = { phase = phase, k = 0.5 } })
+		local want = if phase == "end" then Art.sprites[w.id] else rects
+		assert(#drawn == #want, `{w.id} {phase}: drew {#drawn} rectangles, wanted {#want}`)
+		for i, r in want do
+			for k = 1, 4 do
+				assert(math.abs(drawn[i][k] - r[k]) < 1e-9, `{w.id} {phase} rectangle {i} field {k}: drew {drawn[i][k]}, art says {r[k]}`)
+			end
+			assert(drawn[i][6] == r[6], `{w.id} {phase} rectangle {i}: alpha {drawn[i][6]}, art says {r[6]}`)
+		end
+		awakened += 1
+	end
+end
+print(`checked the awakened and everyday art across {awakened} ultimate phases`)
 
 -- A hidden weapon and an unknown one draw nothing at all.
 table.clear(drawn)

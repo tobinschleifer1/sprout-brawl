@@ -48,6 +48,8 @@ local side = if process.args[8] == "left" then -1 else 1
 local noUlt = process.args[9] == "calm" or process.args[9] == "wide"
 -- "wide": a fixed camera on the whole stage instead of the fight camera
 local wide = process.args[9] == "wide"
+-- a disaster to force, from 0.1 s into the fight (frames then count from the fight's start)
+local disaster = process.args[10]
 
 local avatar = avatarArg
 for _, p in KIT.presets do if p.id == avatarArg then avatar = p.code end end
@@ -66,7 +68,8 @@ local foeLooks = { "Noir", "Classic", "Noir" }
 for i = 1, enemyCount do
 	table.insert(fighters, { char = Loadout.build(foeLooks[i], foes[i]), source = "e" .. i, team = i })
 end
-local match = Match.new({ mode = "Training", stage = stageData, seed = 1, items = false, input = inputs, fighters = fighters })
+local match = Match.new({ mode = "Training", stage = stageData, seed = 1, items = false, input = inputs, fighters = fighters,
+	disasters = if disaster then "chaos" else nil, forceDisaster = disaster, disasterFirstAt = if disaster then 0.1 else nil })
 match.state = "fight"
 local caster = match.fighters[1]
 caster:reset(-5 * side, match.stage.main.top, { state = "idle", invincible = 0 })

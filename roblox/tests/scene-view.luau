@@ -11,6 +11,8 @@ local Scene = Loader.load("SceneSnapshot")
 local Input = Loader.load("Input")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local World = Loader.loadFrom("src/client/", "World2D")
+local HazardArt = Loader.loadFrom("src/client/", "HazardArt")
+local Realms = Loader.load("Realms")
 local Stage2D = Loader.loadFrom("src/client/", "Stage2D")
 local StageMod = Loader.load("Stage")
 local primitive = function(c: any, ...: any)
@@ -53,7 +55,7 @@ for _, stage in Stages.LIST do
 			assert(packet.hazards == m.stage.visual, "authoritative hazard visual must reach the packet")
 			for name, v in packet.hazards do
 				local c = canvas()
-				World.hazards(c, { [name] = v }, m.stage, frame / 60)
+				HazardArt.draw(c, { [name] = v }, m.stage, Realms.of(stage.id), frame / 60)
 				if c.used > 0 then checked[name] = true end
 				assert(#c.stack == 0, name .. " leaked a transform")
 			end

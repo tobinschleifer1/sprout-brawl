@@ -149,6 +149,8 @@ echo "== parity: Ai vs web/src/engine/ai.js =="
 lune run tests/ai-parity
 echo "== parity: Channels vs web/src/render2d/channels.js =="
 lune run tests/channel-parity
+echo "== disasters, hazards and weather in the realms' pixel art, played in real matches =="
+lune run tests/disaster-art
 echo "== the realms: every stage as a floating island, drawn on its geometry =="
 lune run tests/realms
 echo "== stage art: a ledge marker only where there is a ledge =="

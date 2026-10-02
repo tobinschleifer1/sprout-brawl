@@ -13,7 +13,10 @@ local Stage = require(Shared.Stage)
 local FRAME = require(Shared.Config).FRAME
 local Canvas2D = require(script.Parent.Canvas2D)
 local Stage2D = require(script.Parent.Stage2D)
-local DisasterShapes = require(script.Parent.DisasterShapes)
+local DisasterArt = require(script.Parent.DisasterArt)
+local HazardArt = require(script.Parent.HazardArt)
+local RealmArt = require(script.Parent.RealmArt)
+local Realms = require(Shared.Realms)
 local UltCinematic = require(script.Parent.UltCinematic)
 local UltBanner = require(script.Parent.UltBanner)
 local Effects = require(script.Parent.Effects)
@@ -67,18 +70,21 @@ function FightScene.draw(c: any, S: any): any
 		Stage.applyDynamicState(S.stage, S.platforms)
 		Stage2D.draw(c, S.stage)
 	end
-	-- Natural disasters, behind the fighters as on the web, from the shape list both builds share.
+	-- Natural disasters, in the realm's pixel art (DisasterArt): the body behind the fighters, the
+	-- bolts and the falling rocks over them. The view is the server's, through the scene stream.
 	local scene = S.scene
 	local disaster = if scene and scene.hazards then scene.hazards.disaster else nil
+	local realm = if S.stage then (Realms.of(S.stage.data and S.stage.data.id) or Realms.LIST[1]) else nil
 	if disaster and S.stage then
-		for _, sh in DisasterShapes.shapes(disaster, S.stage) do
-			local colour = Canvas2D.hex(sh[6], WHITE)
-			if sh[1] == "r" then
-				Canvas2D.rect(c, sh[2], sh[3], sh[4], sh[5], colour, sh[7])
-			else
-				Canvas2D.ellipse(c, sh[2], sh[3], sh[4], sh[5], colour, sh[7])
-			end
-		end
+		guard(-5, "the disaster failed to draw", function()
+			DisasterArt.back(c, disaster, S.stage, realm, S.t, S.player, view.x)
+			if S.fx then S.fx.shake = math.max(S.fx.shake, DisasterArt.shake(disaster)) end
+		end)
+	end
+	-- the realm's weather, in the air behind the fighters
+	if realm then
+		local vp = c:viewport()
+		RealmArt.weather(c, realm, view.x, view.y, vp.X / view.ppu, vp.Y / view.ppu, S.t)
 	end
 	local cine, caster = S.cine, S.caster
 	-- The ultimates' ground layer - rune circles, cracks, the sky going dark - sits behind bodies.
@@ -95,8 +101,15 @@ function FightScene.draw(c: any, S: any): any
 		end
 	end
 	if scene and S.stage then
-		World2D.hazards(c, scene.hazards or {}, S.stage, scene.frame * FRAME)
+		guard(-6, "the hazards failed to draw", function()
+			HazardArt.draw(c, scene.hazards or {}, S.stage, realm, scene.frame * FRAME)
+		end)
 		World2D.entities(c, scene, S.chars, S.states, scene.frame * FRAME)
+	end
+	if disaster and S.stage then
+		guard(-5, "the disaster failed to draw", function()
+			DisasterArt.front(c, disaster, S.stage, realm, S.t, S.player)
+		end)
 	end
 	guard(-3, "the ultimates' world layer failed to draw", function()
 		UltWorld.over(c, S.states, S.chars, scene, S.stage, S.t)

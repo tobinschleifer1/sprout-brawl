@@ -655,6 +655,16 @@ local function layer(realm: any, which: string): Art
 		farIsland(g, 30, 64, 30, body, lit, topC, 1)
 		farIsland(g, 205, 52, 24, body, lit, topC, 2)
 		farIsland(g, 150, 88, 18, body, lit, topC, 3)
+	elseif which == "storm" then
+		-- a lid of storm cloud across the top of the sky: the realm's own cloud colours, darkened,
+		-- for a disaster that comes from above (DisasterArt)
+		local C = { ink(mix(realm.cloud[1], "#14141E", 0.65)), ink(mix(realm.cloud[1], "#24243A", 0.45)),
+			ink(mix(realm.cloud[2], "#3A3A54", 0.45)) }
+		for x = 0, SW - 1 do
+			local y = math.floor(ridge(x, 41, 26, 6))
+			for yy = 0, y do put(g, x, yy, if yy >= y - 1 then C[3] elseif yy > y - 5 then C[2] else C[1]) end
+		end
+		for k = 0, 7 do cloud(g, 15 + k * 30, 30 + (k % 3) * 4, 6 + (k % 2) * 2, C, 30 + k) end
 	elseif which == "clouds" then
 		local C = { ink(realm.cloud[1]), ink(realm.cloud[2]), ink(realm.cloud[3]) }
 		cloud(g, 40, 40, 9, C, 1)
@@ -667,7 +677,23 @@ end
 RealmArt.layer = layer
 
 -- name, parallax (backbuffer units per stud of camera), drift (units a second)
+local tiles: (any, Art, number, number) -> ()
 local LAYERS: { { any } } = { { "far", 0.03, 0 }, { "landmark", 0.06, 0 }, { "near", 0.1, 0.6 }, { "clouds", 0.15, 2.4 } }
+
+-- One sky layer tiled across the screen, shifted `shift` backbuffer units, in backbuffer units with
+-- y up from the bottom of the screen.
+tiles = function(c: any, art: Art, shift: number, alpha: number)
+	if #art.rects == 0 or alpha <= 0 then return end
+	local vp = Canvas2D.viewport(c)
+	local s = vp.Y / TILE_H
+	local width = vp.X / s
+	Canvas2D.setTransform(c, s, 0, 0, -s, 0, vp.Y)
+	local x = math.floor(shift / TILE_W) * TILE_W - shift
+	while x < width do
+		Canvas2D.sprite(c, art.key, art.rects, x, TILE_H, SKY_PX, SKY_PX, art.cols, art.rows, alpha)
+		x += TILE_W
+	end
+end
 
 -- The realm's sky, behind everything: the gradient and the sun in screen space, then the tiled
 -- layers, each parallaxed to the camera (and the clouds drifting on their own).
@@ -692,19 +718,55 @@ function RealmArt.sky(c: any, realm: any, camX: number, t: number?)
 	Canvas2D.ellipse(c, sx, sy, sun.r * 2.4 * s, sun.r * 2.4 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), 0.22)
 	Canvas2D.ellipse(c, sx, sy, sun.r * 1.5 * s, sun.r * 1.5 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), 0.35)
 	Canvas2D.ellipse(c, sx, sy, sun.r * s, sun.r * s, Canvas2D.hex(sun.colour, Color3.new(1, 1, 1)), 1)
-	-- the tiles, in backbuffer units with y up from the bottom of the screen
-	Canvas2D.setTransform(c, s, 0, 0, -s, 0, vp.Y)
 	for _, L in LAYERS do
-		local art = layer(realm, L[1])
-		if #art.rects == 0 then continue end
-		local shift = -camX * L[2] - now * L[3]
-		local x = math.floor(-shift / TILE_W) * TILE_W + shift
-		while x < width do
-			Canvas2D.sprite(c, art.key, art.rects, x, TILE_H, SKY_PX, SKY_PX, art.cols, art.rows)
-			x += TILE_W
-		end
+		tiles(c, layer(realm, L[1]), camX * L[2] + now * L[3], 1)
 	end
 	Canvas2D.screen(c)
+end
+
+-- A sky layer over the scene, faded in by `alpha`: a disaster's storm lid. Leaves the screen
+-- transform installed; the caller restores its own.
+function RealmArt.overlay(c: any, realm: any, which: string, camX: number, t: number, alpha: number)
+	if Canvas2D.viewport(c).Y <= 0 then return end
+	tiles(c, layer(realm, which), camX * 0.12 + t * 1.5, alpha)
+	Canvas2D.screen(c)
+end
+
+-- ------------------------------------------------------------------ weather ----
+-- Each realm's air: a few dozen particles drifting through the fight, anchored to the world (they
+-- wrap round a box about the camera, so the density never changes and nothing is stuck to the
+-- screen). The web build's stages name an ambient kind; Roblox never drew one until the realms.
+--   colours, count, velocity (studs/s), size, sway, twinkle
+local AIR: { [string]: any } = {
+	FoundryFloor = { colours = { "#FFE07A", "#FFF4C4" }, n = 22, vx = 0.6, vy = 1.2, w = 0.25, h = 0.25, sway = 0.6, twinkle = true },
+	TheSpan = { colours = { "#FF5A5A", "#FFE45A", "#5AE08A", "#4AB4FF", "#9A6AFF", "#FFFFFF" }, n = 24, vx = 3, vy = 0.3,
+		w = 0.3, h = 0.3, sway = 0.4, twinkle = true },
+	Smeltworks = { colours = { "#FFB43C", "#FF7A3C", "#FFE89A" }, n = 26, vx = 0.8, vy = 3, w = 0.22, h = 0.3, sway = 0.8 },
+	Rooftops = { colours = { "#F29AB8", "#FFD2E0", "#E87AA0" }, n = 22, vx = 2.2, vy = -1.6, w = 0.4, h = 0.24, sway = 1.2 },
+	Saltflat = { colours = { "#E8C877", "#D2A04E", "#FFE8AA" }, n = 30, vx = 9, vy = -0.3, w = 0.7, h = 0.12, sway = 0.2 },
+	Undertow = { colours = { "#FFFFFF", "#D8F0FA" }, n = 22, vx = 1.6, vy = 0.5, w = 0.2, h = 0.2, sway = 0.5, twinkle = true },
+	FreightLift = { colours = { "#3AE8C8", "#9A6AFF", "#C8FAFF" }, n = 22, vx = 0.3, vy = 0.5, w = 0.25, h = 0.25, sway = 0.3, twinkle = true },
+	Faultline = { colours = { "#B46E46", "#D89466", "#8A4E32" }, n = 26, vx = 7, vy = -0.4, w = 0.6, h = 0.14, sway = 0.3 },
+	AshfallSummit = { colours = { "#8A7670", "#5E4E4A", "#FF9A3A" }, n = 30, vx = 0.9, vy = -1.4, w = 0.3, h = 0.3, sway = 0.8 },
+}
+RealmArt.AIR = AIR
+
+-- Draws the realm's weather in world space round (cx, cy), over a view `w` x `h` studs.
+function RealmArt.weather(c: any, realm: any, cx: number, cy: number, w: number, h: number, t: number)
+	local air = AIR[realm.id]
+	if not air then return end
+	local W, H = w + 6, h + 6
+	local x0, y0 = cx - W / 2, cy - H / 2
+	for i = 0, air.n - 1 do
+		local u, v = hash(i, 1, 11), hash(i, 2, 11)
+		local speed = 0.6 + hash(i, 3, 11) * 0.8
+		local x = x0 + (((u * W + air.vx * speed * t - x0) % W) + W) % W
+		local y = y0 + (((v * H + air.vy * speed * t - y0) % H) + H) % H
+		x += math.sin(t * 1.3 + i) * air.sway
+		local alpha = if air.twinkle then 0.35 + 0.65 * math.max(0, math.sin(t * 2.5 + i * 1.7)) else 0.85
+		local col = Canvas2D.hex(air.colours[(i % #air.colours) + 1], Color3.new(1, 1, 1))
+		Canvas2D.rect(c, x, y, air.w, air.h, col, alpha)
+	end
 end
 
 -- Builds every sprite a realm's stage will draw, so the first frame of a match does not pay for it.

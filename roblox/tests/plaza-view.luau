@@ -374,7 +374,10 @@ do
 		return string.format("%d,%d,%d", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
 	end
 	local seen = drawAt(stations.Maps)
-	assert(seen[rgb(byId.Undertow.palette.skyStops[1][2])], "the map board shows the leading map's sky")
+	-- in its realm's colours (Realms.dress): Roblox draws every stage in its realm
+	local Realms = Loader.load("Realms")
+	assert(seen[rgb(Realms.dress(byId.Undertow).palette.skyStops[1][2])], "the map board shows the leading map's sky")
+	assert(not seen[rgb(Realms.dress(byId.FoundryFloor).palette.skyStops[1][2])], "the map board shows a map that is not leading")
 	seen = drawAt(stations.Players)
 	assert((seen["127,190,110"] or 0) == 2, `two green lamps (the ready player and the bot), got {seen["127,190,110"] or 0}`)
 	room.slots[1].ready = true

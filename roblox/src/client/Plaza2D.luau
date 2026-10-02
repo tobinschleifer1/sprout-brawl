@@ -27,6 +27,7 @@ local Backdrop = require(script.Parent.BackdropArt)
 local Fighter2D = require(script.Parent.Fighter2D)
 local WeaponArt = require(script.Parent.Weapons2D)
 local StageThumb = require(script.Parent.StageThumb)
+local Realms = require(Shared.Realms)
 local PlazaArt = require(script.Parent.PlazaArt)
 local PosedFighter = require(script.Parent.PosedFighter)
 
@@ -284,8 +285,8 @@ function Plaza2D.setRoom(self: any, room: any)
 		end
 		local shown = shownMap(nextRoom)
 		local map = if nextRoom.mapChoice == "random" then "Random map"
-			elseif nextRoom.mapChoice == "vote" then (if shown then `Vote: {shown.name} leads` else "Vote for a map")
-			else (if shown then shown.name else "Random map")
+			elseif nextRoom.mapChoice == "vote" then (if shown then `Vote: {Realms.name(shown)} leads` else "Vote for a map")
+			else (if shown then Realms.name(shown) else "Random map")
 		local rules = if nextRoom.mode == "timed" then `Timed {(nextRoom.time or 180) // 60} min` else `{nextRoom.stocks or 3} lives`
 		self.title.Text = string.upper(self.model.data.name)
 		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} CPUs · {map} · {rules} · the stairs on the left go back down`
@@ -678,7 +679,7 @@ local function stationArt(c: any, s: any, active: boolean, room: any, weaponId: 
 	elseif s.kind == "Maps" then
 		Canvas.rect(c, x - 5.6, 5.3, 11.2, 7.6, INK)
 		local stage = shownMap(room)
-		boardThumb(c, if stage then StageThumb.shapes(stage, 100, 64) else StageThumb.random(100, 64), x - 5, 5.7, 10, 6.4, 10)
+		boardThumb(c, if stage then StageThumb.shapes(Realms.dress(stage), 100, 64) else StageThumb.random(100, 64), x - 5, 5.7, 10, 6.4, 10)
 	elseif s.kind == "Players" then
 		Canvas.rect(c, x - 6, 5.3, 12, 4, INK)
 		local slots = if room then room.slots else {}

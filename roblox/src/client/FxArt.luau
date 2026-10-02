@@ -20,6 +20,7 @@
 -- the children a handful of times rather than every frame.
 
 local Canvas2D = require(script.Parent.Canvas2D)
+local PixelGrid = require(script.Parent.PixelGrid)
 
 local FxArt = {}
 
@@ -126,119 +127,20 @@ function FxArt.rampOf(name: string?): { string }
 	return FxArt.ramp(name)
 end
 
--- ------------------------------------------------------------------ noise ----
--- Deterministic, so a drawing is the same every time it is generated and its cache key is honest.
-local P = 2147483647
-local function hash(a: number, b: number, s: number): number
-	local h = (math.floor(a) * 7919 + math.floor(b) * 104729 + math.floor(s) * 15485863 + 1013904223) % P
-	if h <= 0 then h += P - 1 end
-	h = (h * 48271) % P
-	h = bit32.bxor(h, bit32.rshift(h, 13))
-	h = (h * 48271) % P
-	h = bit32.bxor(h, bit32.rshift(h, 11))
-	h = (h * 48271) % P
-	return h / P
-end
-FxArt.hash = hash
-
-local function noise1(x: number, s: number): number
-	local i = math.floor(x)
-	local f = x - i
-	local u = f * f * (3 - 2 * f)
-	return hash(i, 0, s) * (1 - u) + hash(i + 1, 0, s) * u
-end
-
 -- ------------------------------------------------------------------ grids ----
--- A grid is w x h tones, row 0 at the TOP. Tone 0 is empty. 1-5 index the primary ramp, 6-10 a
--- second ramp (rock under glowing cracks), 11-15 the primary ramp at half opacity (soft glow).
-type Grid = { w: number, h: number, cells: { number } }
-
-local function grid(w: number, h: number): Grid
-	return { w = w, h = h, cells = table.create(w * h, 0) }
-end
-
-local function put(g: Grid, x: number, y: number, tone: number)
-	x, y = math.floor(x), math.floor(y)
-	if x < 0 or y < 0 or x >= g.w or y >= g.h then return end
-	g.cells[y * g.w + x + 1] = tone
-end
-
-local function get(g: Grid, x: number, y: number): number
-	if x < 0 or y < 0 or x >= g.w or y >= g.h then return 0 end
-	return g.cells[y * g.w + x + 1]
-end
-
--- Only ever brightens: lets overlapping strokes keep their hottest pixel.
-local function lift(g: Grid, x: number, y: number, tone: number)
-	x, y = math.floor(x), math.floor(y)
-	local cur = get(g, x, y)
-	if cur == 0 or (tone <= 5 and cur <= 5 and tone > cur) then put(g, x, y, tone) end
-end
-
-local function line(g: Grid, x0: number, y0: number, x1: number, y1: number, tone: number, brighten: boolean?)
-	local n = math.max(math.abs(x1 - x0), math.abs(y1 - y0), 1)
-	for i = 0, math.ceil(n) do
-		local u = i / math.ceil(n)
-		local x, y = x0 + (x1 - x0) * u, y0 + (y1 - y0) * u
-		if brighten then lift(g, x, y, tone) else put(g, x, y, tone) end
-	end
-end
-
--- An outline of tone `edge` around everything drawn, on empty cells only: the dark rim that keeps
--- a bright effect legible against a bright sky, as the weapons' baked outline does.
-local function rim(g: Grid, edge: number)
-	local add = {}
-	for y = 0, g.h - 1 do
-		for x = 0, g.w - 1 do
-			if get(g, x, y) == 0 then
-				if (get(g, x - 1, y) ~= 0 and get(g, x - 1, y) ~= edge) or (get(g, x + 1, y) ~= 0 and get(g, x + 1, y) ~= edge)
-					or (get(g, x, y - 1) ~= 0 and get(g, x, y - 1) ~= edge) or (get(g, x, y + 1) ~= 0 and get(g, x, y + 1) ~= edge) then
-					table.insert(add, { x, y })
-				end
-			end
-		end
-	end
-	for _, p in add do put(g, p[1], p[2], edge) end
-end
-
--- Greedy merge into rectangles: runs along each row, extended down while the rows below repeat
--- them. The same idea as weaponArt.js `merge`, on tones instead of colours.
-local function merge(g: Grid): { { number } }
-	local used = table.create(g.w * g.h, false)
-	local out = {}
-	for y = 0, g.h - 1 do
-		local x = 0
-		while x < g.w do
-			local i = y * g.w + x + 1
-			local t = g.cells[i]
-			if t == 0 or used[i] then
-				x += 1
-				continue
-			end
-			local w = 1
-			while x + w < g.w and g.cells[i + w] == t and not used[i + w] do w += 1 end
-			local h = 1
-			while y + h < g.h do
-				local ok = true
-				for k = 0, w - 1 do
-					local j = (y + h) * g.w + x + k + 1
-					if g.cells[j] ~= t or used[j] then
-						ok = false
-						break
-					end
-				end
-				if not ok then break end
-				h += 1
-			end
-			for yy = y, y + h - 1 do
-				for k = 0, w - 1 do used[yy * g.w + x + k + 1] = true end
-			end
-			table.insert(out, { x, y, w, h, t })
-			x += w
-		end
-	end
-	return out
-end
+-- PixelGrid holds the machinery. Here a cell is a TONE: 1-5 index the primary ramp, 6-10 a second
+-- ramp (rock under glowing cracks), 11-15 the primary ramp at half opacity (soft glow).
+type Grid = PixelGrid.Grid
+local hash = PixelGrid.hash
+FxArt.hash = hash
+local noise1 = PixelGrid.noise
+local grid = PixelGrid.new
+local put = PixelGrid.put
+local get = PixelGrid.get
+local lift = PixelGrid.lift
+local line = PixelGrid.line
+local rim = PixelGrid.rim
+local merge = PixelGrid.merge
 FxArt.merge = merge
 
 -- ------------------------------------------------------------------ the drawings ----

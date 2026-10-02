@@ -6,6 +6,7 @@ local Stages = require(Shared.Data.Stages)
 local Canvas = require(script.Parent.Canvas2D)
 local Art = require(script.Parent.Weapons2D)
 local StageThumb = require(script.Parent.StageThumb)
+local Realms = require(Shared.Realms)
 local Rules = require(game:GetService("ReplicatedStorage").Shared.Data.Rules)
 local RoomPanel = {}
 RoomPanel.__index = RoomPanel
@@ -159,7 +160,7 @@ function RoomPanel.render(self: any)
 			local frame = Instance.new("Frame")
 			frame.Name, frame.BackgroundTransparency, frame.ClipsDescendants = "StageImage", 1, true
 			frame.Position, frame.Size, frame.Parent = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 0, 76), b
-			local name = label(b, (if picked then "✓ " else "") .. stage.name, 26)
+			local name = label(b, (if picked then "✓ " else "") .. Realms.name(stage), 26)
 			name.Name, name.Position = "MapName", UDim2.new(0, 0, 0, 82)
 			if picked then name.TextColor3 = INK end
 			if choice == "vote" and votes[stage.id] then
@@ -248,7 +249,7 @@ function RoomPanel.drawPreviews(self: any)
 			local c = preview.canvas
 			c:clear()
 			if preview.stage then
-				RoomPanel.drawThumb(c, StageThumb.shapes(preview.stage, size.X, size.Y))
+				RoomPanel.drawThumb(c, StageThumb.shapes(Realms.dress(preview.stage), size.X, size.Y))
 			elseif preview.random then
 				RoomPanel.drawThumb(c, StageThumb.random(size.X, size.Y))
 			else

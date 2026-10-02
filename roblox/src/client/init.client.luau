@@ -23,6 +23,7 @@ local Snapshot = require(Shared.Snapshot)
 local Loadout = require(Shared.Loadout)
 local Stages = require(Shared.Data.Stages)
 local Stage = require(Shared.Stage)
+local Realms = require(Shared.Realms)
 local InputClient = require(script.InputClient)
 local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
@@ -384,7 +385,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	end
 	hud.gui.Enabled = true
 	hud:clearResults()
-	if stageView then hud:announce("stage", stageView.data.name) end
+	if stageView then hud:announce("stage", Realms.name(stageView.data)) end
 	-- In a team match every fighter stands in their team's colour.
 	Fighter2D.teamColours = nil
 	if string.find(cfg.mode or "", "Teams", 1, true) then

@@ -58,7 +58,7 @@ function FightScene.draw(c: any, S: any): any
 			if S.report then S.report(key, `{what}: {err}`) else error(err, 0) end
 		end
 	end
-	Stage2D.sky(c, S.stage or { data = {} }, view.x)
+	Stage2D.sky(c, S.stage or { data = {} }, view.x, S.t)
 	c:world(view.x, view.y, view.ppu, S.shakeX, S.shakeY)
 	if S.stage then
 		-- The view-only Stage is never stepped; the server sends what it cannot derive. `moving` is

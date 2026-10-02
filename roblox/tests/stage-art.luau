@@ -9,11 +9,14 @@ local Stage = Loader.load("Stage")
 local Stages = Loader.load("Data/Stages")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local Stage2D = Loader.loadFrom("src/client/", "Stage2D")
+local Realms = Loader.load("Realms")
 
 local drawn: { any } = {}
 Canvas.rect = function(_c: any, x: number, y: number, w: number, h: number, colour: any, alpha: number?)
 	table.insert(drawn, { x = x, y = y, w = w, h = h, colour = colour })
 end
+-- islands and platforms are sprites; they are counted by tests/realms.luau
+Canvas.sprite = function() end
 local function canvas(): any
 	return { m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 }, stack = {}, alpha = 1, alphaStack = {} }
 end
@@ -21,12 +24,15 @@ end
 local checked = 0
 for _, data in Stages.LIST do
 	local stage = Stage.new(data, 1)
-	local accent = Canvas.hex(data.palette.accent, {} :: any)   -- every stage declares an accent
+	-- Roblox draws every stage in its realm (Realms.luau), so the banners are in the realm's accent
+	local realm = Realms.of(data.id)
+	assert(realm, `{data.id} has no realm`)
+	local accent = Canvas.hex(realm.accent, {} :: any)
 	table.clear(drawn)
 	Stage2D.draw(canvas(), stage)
 	local markers = {}
 	for _, r in drawn do
-		if r.colour == accent and math.abs(r.w - 0.7) < 1e-9 and math.abs(r.h - 2.0) < 1e-9 then
+		if r.colour == accent and math.abs(r.w - Stage2D.LEDGE_W) < 1e-9 and math.abs(r.h - Stage2D.LEDGE_H) < 1e-9 then
 			table.insert(markers, r)
 		end
 	end

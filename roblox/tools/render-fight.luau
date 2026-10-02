@@ -68,6 +68,10 @@ local enemyCount = tonumber(process.args[6] or "2") or 2
 local gap = tonumber(process.args[7] or "7") or 7
 -- "left": the caster starts on the right and faces left, so the mirrored drawing is seen too
 local side = if process.args[8] == "left" then -1 else 1
+-- "calm": nobody presses anything - for looking at a stage
+local noUlt = process.args[9] == "calm" or process.args[9] == "wide"
+-- "wide": a fixed camera on the whole stage instead of the fight camera
+local wide = process.args[9] == "wide"
 
 local avatar = avatarArg
 for _, p in KIT.presets do if p.id == avatarArg then avatar = p.code end end
@@ -109,7 +113,7 @@ local ultFrame = nil
 local rand = (function() local s = 7; return function() s = (s * 48271) % 2147483647; return s / 2147483647 end end)()
 for frame = 0, last do
 	caster.ultCharge = if frame == 0 then 100 else caster.ultCharge
-	held.p1 = frame == 0 or (frame % 20 == 0 and frame < 140)
+	held.p1 = not noUlt and (frame == 0 or (frame % 20 == 0 and frame < 140))
 	match:step()
 	local states = {}
 	for _, f in match.fighters do table.insert(states, Snapshot.decode(Snapshot.encode(f))) end
@@ -130,6 +134,7 @@ for frame = 0, last do
 		local cam = Camera2D.new()
 		Camera2D.snapTo(cam, bodies, { X = W, Y = H })
 		local ppu = cam.ppu
+		if wide then cam.x, cam.y, ppu = 0, 8, H / 52 end
 		local cine = UltCinematic.at(if ultFrame then frame - ultFrame else -1)
 		local casterState = if ultFrame then states[1] else nil
 		local view = { x = cam.x, y = cam.y, ppu = ppu }

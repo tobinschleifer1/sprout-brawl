@@ -50,6 +50,7 @@ local Panel = luau.load(fs.readFile("src/client/RoomPanel.luau"), {environment={
   if name=="Canvas2D" then return Canvas end
   if name=="Weapons2D" or name=="StageThumb" then return Loader.loadFrom("src/client/",name) end
   if name=="Rules" then return Loader.load("Data/Rules") end
+  if name=="Realms" then return Loader.load("Realms") end
   return Loader.load("Data/"..name)
  end,
  Enum={Font=codes,AutomaticSize=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},

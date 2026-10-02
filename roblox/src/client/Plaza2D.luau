@@ -95,12 +95,6 @@ local function shownMap(room: any): any
 end
 Plaza2D.shownMap = shownMap
 
--- A deterministic hash for scenery that should look random but never flicker.
-local function hash(a: number, b: number): number
-	local h = (a * 73856093 + b * 19349663) % 1000003
-	return h / 1000003
-end
-
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
 	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},

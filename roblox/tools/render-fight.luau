@@ -13,7 +13,6 @@
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 local serde = require("@lune/serde")
-local Color3 = require("@lune/roblox").Color3
 local Loader = require("../tests/loader")
 local Match = Loader.load("Match")
 local Loadout = Loader.load("Loadout")
@@ -33,31 +32,8 @@ local Stage = Loader.load("Stage")
 local Camera2D = Loader.loadFrom("src/client/", "Camera2D")
 
 local W, H = 960, 540
-local shapes = {}
-local function hex(c: any): string
-	return string.format("#%02x%02x%02x", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
-end
-Canvas.rect = function(c: any, x: number, y: number, w: number, h: number, colour: any, alpha: number?)
-	local m = c.m
-	local function P(u: number, v: number) return { m.a * u + m.c * v + m.e, m.b * u + m.d * v + m.f } end
-	table.insert(shapes, { "p", P(x, y), P(x + w, y), P(x + w, y + h), P(x, y + h), hex(colour), (alpha or 1) * c.alpha })
-end
-Canvas.ellipse = function(c: any, x: number, y: number, rx: number, ry: number, colour: any, alpha: number?)
-	-- an ellipse under a rotation is still drawn axis-aligned on screen; good enough for a preview
-	local m = c.m
-	local cx, cy = m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f
-	local sx = math.sqrt(m.a * m.a + m.b * m.b)
-	local sy = math.sqrt(m.c * m.c + m.d * m.d)
-	table.insert(shapes, { "e", cx, cy, math.abs(rx * sx), math.abs(ry * sy), hex(colour), (alpha or 1) * c.alpha })
-end
-Canvas.circle = function(c: any, x: number, y: number, r: number, colour: any, alpha: number?)
-	Canvas.ellipse(c, x, y, r, r, colour, alpha)
-end
-Canvas.sprite = function(c: any, _key: string, rects: any, x0: number, y1: number, pw: number, ph: number, _cols, _rows, alpha: number?)
-	Canvas.eachSpriteRect(rects, x0, y1, pw, ph, function(x, y, w, h, hx, a)
-		Canvas.rect(c, x, y, w, h, Color3.fromHex(hx), a * (alpha or 1))
-	end)
-end
+local Recorder = require("./recorder")
+local shapes = Recorder.install(Canvas)
 
 local out, weapon = process.args[1], process.args[2]
 local wanted = {}
@@ -141,8 +117,7 @@ for frame = 0, last do
 		if cine.active and casterState then
 			view = UltCinematic.punch(view.x, view.y, ppu, casterState.x, casterState.y + chars[1].height * 0.5, cine.zoom)
 		end
-		local c = setmetatable({ used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 },
-			gui = { AbsoluteSize = { X = W, Y = H } } }, { __index = Canvas })
+		local c = Recorder.canvas(Canvas, W, H)
 		local stageView = Stage.new(stageData, 1)
 		FightScene.draw(c, { view = view, shakeX = 0, shakeY = 0, stage = stageView, platforms = nil, scene = scene,
 			states = states, chars = chars, t = frame / 60, fx = fx, player = player,

@@ -36,8 +36,7 @@ end
 UltWorld.phase = phase
 
 local function glowOf(char: any): string
-	local pal = char and (char.weaponPalette or char.palette)
-	return pal and (pal.glow or pal.accent) or "#FFFFFF"
+	return FxArt.glowOf(char) or "#FFFFFF"
 end
 
 local function floorUnder(stage: any, x: number, y: number): number
@@ -54,9 +53,7 @@ local function find(states: { any }, index: number?): any
 	return nil
 end
 
-local function sized(art: any, width: number): number
-	return width * art.ppu / art.cols
-end
+local sized = FxArt.sized
 
 -- How present the caster's ultimate glow is: in over the first frames, out over the recovery.
 local function presence(name: string, k: number, mf: number): number

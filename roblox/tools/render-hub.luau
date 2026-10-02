@@ -14,15 +14,8 @@ local Input = Loader.load("Input")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local codes = setmetatable({}, { __index = function(_, key) return key end })
 local shared = setmetatable({ Data = setmetatable({}, { __index = function(_, k) return "Data/" .. k end }) }, { __index = function(_, key) return key end })
-local labels = {}
-local function instance(): any
-	local obj: any = { attributes = {}, Visible = true }
-	table.insert(labels, obj)
-	obj.Destroy = function() obj.destroyed = true end
-	obj.Activated = { Connect = function(_, fn) obj.activate = fn end }
-	obj.SetAttribute = function(_, key, value) obj.attributes[key] = value end
-	return obj
-end
+local Recorder = require("./recorder")
+local instance, labels = Recorder.instances()
 local Hub = luau.load(fs.readFile("src/client/Plaza2D.luau"), { environment = {
 	game = { GetService = function(_, name)
 		if name == "ReplicatedStorage" then return { Shared = shared } end
@@ -41,30 +34,7 @@ local Hub = luau.load(fs.readFile("src/client/Plaza2D.luau"), { environment = {
 	Enum = setmetatable({}, { __index = function() return codes end }), Instance = { new = instance },
 }, injectGlobals = true })()
 
-local shapes = {}
-local function hex(c: any): string
-	return string.format("#%02x%02x%02x", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
-end
-Canvas.rect = function(c: any, x: number, y: number, w: number, h: number, colour: any, alpha: number?)
-	local m = c.m
-	local function P(u: number, v: number) return { m.a * u + m.c * v + m.e, m.b * u + m.d * v + m.f } end
-	table.insert(shapes, { "p", P(x, y), P(x + w, y), P(x + w, y + h), P(x, y + h), hex(colour), (alpha or 1) * c.alpha })
-end
-Canvas.ellipse = function(c: any, x: number, y: number, rx: number, ry: number, colour: any, alpha: number?)
-	local m = c.m
-	local cx, cy = m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f
-	table.insert(shapes, { "e", cx, cy, math.abs(rx * m.a), math.abs(ry * m.d), hex(colour), (alpha or 1) * c.alpha })
-end
-Canvas.circle = function(c: any, x: number, y: number, r: number, colour: any, alpha: number?)
-	Canvas.ellipse(c, x, y, r, r, colour, alpha)
-end
--- A sprite is its rectangles, recorded one by one in the sprite's transform.
-Canvas.sprite = function(c: any, _key: string, rects: any, x0: number, y1: number, pw: number, ph: number)
-	Canvas.eachSpriteRect(rects, x0, y1, pw, ph, function(x, y, w, h, hex, alpha)
-		Canvas.rect(c, x, y, w, h, Rbx.Color3.fromHex(hex), alpha)
-	end)
-end
-
+local shapes = Recorder.install(Canvas)
 local W, H = 1280, 720
 local scene = process.args[2] or "market"
 local at = tonumber(process.args[3] or "0") or 0
@@ -99,21 +69,8 @@ if crowd > 0 then
 	hub:setPeers(list, 1)
 	for id, peer in hub.peers do peer.x, peer.z = peer.target.x, peer.target.z end
 end
-local c = setmetatable({ used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 },
-	gui = { AbsoluteSize = { X = W, Y = H } }, finish = function() end }, { __index = Canvas })
+local c = Recorder.canvas(Canvas, W, H)
 for _ = 1, 30 do table.clear(shapes); hub:step(1/60, false); hub:draw(c, 1/60) end
-local texts = {}
-for _, t in labels do
-	if t.Text and t.Text ~= "" and t.Visible ~= false and not t.destroyed and t.Position then
-		local p, s = t.Position, t.Size
-		local x = p.X.Scale * W + p.X.Offset
-		local y = p.Y.Scale * H + p.Y.Offset
-		local w = (s and (s.X.Scale * W + s.X.Offset)) or 200
-		local h = (s and (s.Y.Scale * H + s.Y.Offset)) or 20
-		if t.AnchorPoint then x -= t.AnchorPoint.X * w; y -= t.AnchorPoint.Y * h end
-		table.insert(texts, { x, y, w, h, t.Text, if t.TextColor3 then hex(t.TextColor3) else "#e7e3d1", t.TextSize or 14,
-			t.BackgroundTransparency ~= nil and t.BackgroundTransparency < 1 and hex(t.BackgroundColor3) or nil })
-	end
-end
+local texts = Recorder.texts(labels, W, H)
 fs.writeFile(process.args[1], require("@lune/serde").encode("json", { w = W, h = H, shapes = shapes, texts = texts }))
 print(`{scene} at x={at}: {#shapes} shapes, {#texts} labels`)

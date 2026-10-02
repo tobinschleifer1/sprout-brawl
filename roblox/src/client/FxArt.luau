@@ -811,6 +811,20 @@ function FxArt.kinds(): { string }
 	return out
 end
 
+-- The scale FxArt.draw needs for `art` to be `width` studs across.
+function FxArt.sized(art: Art, width: number): number
+	return width * art.ppu / art.cols
+end
+
+-- A palette's glow colour (its accent if it has none), and a character's weapon glow: the colour an
+-- ultimate's effects are drawn in. Nil when there is none, so the caller picks the fallback.
+function FxArt.glow(palette: any): string?
+	return if palette then (palette.glow or palette.accent) else nil
+end
+function FxArt.glowOf(char: any): string?
+	return FxArt.glow(char and (char.weaponPalette or char.palette))
+end
+
 -- Opacity in sixths: a sprite rewrites every child when its alpha changes, so a fade is a few
 -- steps rather than sixty. Pixel art fades in steps anyway.
 local function quantise(a: number): number

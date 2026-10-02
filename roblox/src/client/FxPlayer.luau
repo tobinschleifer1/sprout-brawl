@@ -90,10 +90,7 @@ function FxPlayer.casterOf(kind: string, states: { any }, chars: { any }, x: num
 	return best, bestChar
 end
 
-local function glowOf(char: any): string?
-	local pal = char and (char.weaponPalette or char.palette)
-	return pal and (pal.glow or pal.accent) or nil
-end
+local glowOf = FxArt.glowOf
 
 local function stateOf(states: { any }, index: number?): any
 	if index == nil then return nil end
@@ -258,7 +255,7 @@ function FxPlayer.draw(P: any, c: any)
 		local u = it.age / it.dur
 		local n = FxArt.FRAMES[it.kind] or 1
 		local art = FxArt.get(it.kind, math.floor(u * n), it.ramp, it.b, it.seed)
-		local scale = it.size * art.ppu / art.cols
+		local scale = FxArt.sized(art, it.size)
 		local alpha = 1
 		if it.fadeAt and u > it.fadeAt then alpha = 1 - (u - it.fadeAt) / (1 - it.fadeAt) end
 		FxArt.draw(c, art, it.x, it.y, scale, it.rot, alpha, it.sy)

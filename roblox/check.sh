@@ -69,8 +69,8 @@ lune run tests/codec
 echo "== runtime input: focus, packet ordering, rematches and disconnects =="
 lune run tests/runtime-input
 lune run tests/abilities
-echo "== lobby: opponent controls, bindings and launch recovery =="
-lune run tests/lobby-ui
+echo "== launch: the lobby's wait for a match, timeout and retry =="
+lune run tests/launch-state
 echo "== the lobby: walking the rooftop market, its stations and its drawing =="
 lune run tests/plaza-view
 lune run tests/social-ui

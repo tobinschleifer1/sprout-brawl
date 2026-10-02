@@ -33,15 +33,17 @@ Nothing here is required to play the web build.
 | `src/client/*` | 60Hz input sampling, snapshot interpolation, the 2D canvas, camera and stage |
 | `src/client/Channels.luau` | ported - the whole pose system, 30 states and all twelve ultimate bodies |
 | `src/client/WeaponPose.luau` | ported - every swing arc, the aimed weapons, and all twelve ultimate poses |
-| `src/client/Weapons2D.luau` | the twelve weapon shapes, as hybrid rect-and-tip silhouettes (see below) |
+| `src/client/Weapons2D.luau` | the twelve weapons as the shared pixel art (web/src/data/weaponArt.js), each one sprite; awakened forms during ultimates |
 | `src/client/Predictor.luau` | client-side prediction: rollback and replay for the local fighter |
 | `src/client/Hud.luau` | percent, stocks, ultimate meter, timer, callouts and the scoreboard |
 | `src/client/HudColors.luau` | the damage ramp and player palette, held to the JavaScript |
 | `src/client/Avatar2D.luau` | head shapes, faces, headgear and chest marks |
-| `src/client/UltimateVfx.luau` | twelve ultimate effects, phase/draw-count tested |
-| `src/client/Select.luau` | responsive character, weapon, stage and match configuration; rematch choices validated |
+| `src/client/UltimateVfx.luau`, `UltWorld.luau`, `FxPlayer.luau`, `FxArt.luau` | the ultimates in pixel art: weapon-side effects, the world layer (chains, barriers, sights, fissures), timed bursts, and the generated effect flipbooks they draw |
+| `src/client/FightScene.luau` | one frame of a fight, drawn - the client's draw, also run by `tools/render-fight.luau` |
+| `src/client/Camera2D.luau` | the fight camera: Brawlhalla-close framing in screen pixels at every resolution |
+| `src/client/RoomPanel.luau` | the room panel: weapon, map choice and voting, rules, bots, ready |
 | `src/shared/SceneSnapshot.luau`, `src/client/World2D.luau` | live world objects and all ten hazard families, with simplified pooled art |
-| `src/client/BackdropArt.luau` | shared dark industrial pixel scenery and weapon details, generated from web art data |
+| `src/shared/Realms.luau`, `src/client/RealmArt.luau` | Roblox-only: every stage (and the lobby) re-themed as a floating-island realm with its own name, sky and materials; paint only |
 | Audio, durable persistence, matchmaking | not started |
 
 The simulation is verified against JavaScript by replay. Client transport, prediction, rematches,

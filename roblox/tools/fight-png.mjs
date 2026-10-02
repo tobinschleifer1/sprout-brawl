@@ -1,7 +1,7 @@
 // Development tool: paints tools/render-fight.luau's JSON as a PNG, its frames tiled in a grid.
 //   node tools/fight-png.mjs in.json out.png [columns] [scale]
 import fs from 'node:fs';
-import zlib from 'node:zlib';
+import { writePng } from './png.mjs';
 const [,, input, output, colsArg = '2', scaleArg = '0.5'] = process.argv;
 const d = JSON.parse(fs.readFileSync(input, 'utf8'));
 const cols = Number(colsArg), K = Number(scaleArg);
@@ -46,11 +46,5 @@ d.frames.forEach((fr, n) => {
     }
   }
 });
-const crcT = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
-const crc = (b) => { let c = -1; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; };
-const chunk = (t, dd) => { const l = Buffer.alloc(4); l.writeUInt32BE(dd.length); const td = Buffer.concat([Buffer.from(t), dd]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
-const raw = Buffer.alloc((W * 3 + 1) * H);
-for (let y = 0; y < H; y++) for (let x = 0; x < W * 3; x++) raw[y * (W * 3 + 1) + 1 + x] = Math.round(Math.max(0, Math.min(1, img[y * W * 3 + x])) * 255);
-const ih = Buffer.alloc(13); ih.writeUInt32BE(W, 0); ih.writeUInt32BE(H, 4); ih[8] = 8; ih[9] = 2;
-fs.writeFileSync(output, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
+writePng(output, W, H, (x, y) => [0, 1, 2].map((k) => Math.round(Math.max(0, Math.min(1, img[(y * W + x) * 3 + k])) * 255)));
 console.log(`wrote ${output} ${W}x${H}`);

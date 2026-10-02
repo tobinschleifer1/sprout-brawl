@@ -231,5 +231,5 @@ callbacks.input({ UserId = 7 }, { Codec.packFrame(right) }, 42, 1)
 check(service.input:get("p7").x == 1, "current rejoin epoch accepts input")
 callbacks.leave({ UserId = 7 })
 check(service.input:get("p7").x == 0, "disconnected fighters stop repeating their last movement")
--- Real rematch button callbacks and layout are now exercised by lobby-ui.luau.
+-- The room panel's real buttons and layout are exercised by room-ui.luau.
 print("PASS runtime input: packet bounds, D-pad order, chat focus, combat bindings, reliable transport and disconnects")

@@ -13,17 +13,15 @@
 
 local Canvas2D = require(script.Parent.Canvas2D)
 local FxArt = require(script.Parent.FxArt)
+local Weapons2D = require(script.Parent.Weapons2D)
 
 local UltimateVfx = {}
 
 local WHITE = Color3.new(1, 1, 1)
 local GRIT = Color3.fromRGB(107, 90, 68)
 
-local REACH: { [string]: number } = {
-	Sword = 2.6, Scythe = 3.4, Blasters = 1.1, Grimoire = 0.9, Axe = 3.2, Pike = 5.9,
-	Gauntlets = 1.0, Hammer = 3.7, Longbow = 1.2, Flail = 4.2, Shield = 1.3, Daggers = 1.7,
-}
-UltimateVfx.REACH = REACH
+-- How far each blade reaches from the grip: one table, Weapons2D's (the JavaScript's REACH).
+local REACH = Weapons2D.REACH
 
 local function nonzero(v: any): boolean
 	-- JavaScript branches on truthiness. Zero is truthy in Luau, so `if v` is not the same test.
@@ -35,12 +33,10 @@ local function colour(palette: any, key: string, fallback: Color3): Color3
 end
 
 local function glowHex(palette: any): string
-	return if palette and palette.glow then palette.glow elseif palette and palette.accent then palette.accent else "#FFFFFF"
+	return FxArt.glow(palette) or "#FFFFFF"
 end
 
-local function sized(art: any, width: number): number
-	return width * art.ppu / art.cols
-end
+local sized = FxArt.sized
 
 local function line(c: any, x1: number, y1: number, x2: number, y2: number, width: number, value: Color3, alpha: number)
 	Canvas2D.line(c, x1, y1, x2, y2, width, value, alpha)

@@ -11,7 +11,8 @@ local Scene = Loader.load("SceneSnapshot")
 local Input = Loader.load("Input")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local World = Loader.loadFrom("src/client/", "World2D")
-local Backdrop = Loader.loadFrom("src/client/", "BackdropArt")
+local Stage2D = Loader.loadFrom("src/client/", "Stage2D")
+local StageMod = Loader.load("Stage")
 local primitive = function(c: any, ...: any)
 	local args = { ... }
 	for i = 1, 4 do
@@ -38,9 +39,12 @@ for _, stage in Stages.LIST do
 	local m = Match.new({ mode = "Training", stage = stage, seed = 1, items = false,
 		input = { poll = function() end, get = function() return Input.emptyFrame() end },
 		fighters = { { char = chars[1], source = "p1", team = 0 }, { char = chars[2], source = "p2", team = 1 } } })
+	-- the realm's sky behind it: a gradient, a sun and four parallax layers (tests/realms.luau
+	-- holds the layers to the screen; here, that every stage's sky draws, and draws a bounded amount)
 	local background = canvas()
-	assert(Backdrop.sky(background, stage.id, -100), "background must exist")
-	assert(background.used > 60 and background.used < 420, "background draw must be substantial and bounded")
+	Stage2D.sky(background, StageMod.new(stage, 1), -100, 0)
+	-- 30 gradient strips, the sun's three discs, and at least one tile of each of four layers
+	assert(background.used >= 37 and background.used < 120, `background draw must be substantial and bounded ({background.used})`)
 	assert(#background.stack == 0, "background stack balance")
 	for frame = 1, 2600 do
 		m:step()

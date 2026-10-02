@@ -30,6 +30,7 @@ local UltCinematic = Loader.loadFrom("src/client/", "UltCinematic")
 local Fighter2D = Loader.loadFrom("src/client/", "Fighter2D")
 local World2D = Loader.loadFrom("src/client/", "World2D")
 local Stage = Loader.load("Stage")
+local Camera2D = Loader.loadFrom("src/client/", "Camera2D")
 
 local W, H = 960, 540
 local shapes = {}
@@ -123,14 +124,15 @@ for frame = 0, last do
 	FxPlayer.step(player, 1 / 60)
 	if wanted[frame] then
 		table.clear(shapes)
-		-- frame the caster and the first enemy, as the follow camera would
-		local x0, x1 = math.huge, -math.huge
-		for _, s in states do if s.alive then x0, x1 = math.min(x0, s.x), math.max(x1, s.x) end end
-		local cx = (x0 + x1) / 2
-		local ppu = math.min(30, W / ((x1 - x0) + 26))
+		-- framed by the game's own fight camera
+		local bodies = {}
+		for i, st in states do table.insert(bodies, { x = st.x, y = st.y, h = chars[i].height, alive = st.alive }) end
+		local cam = Camera2D.new()
+		Camera2D.snapTo(cam, bodies, { X = W, Y = H })
+		local ppu = cam.ppu
 		local cine = UltCinematic.at(if ultFrame then frame - ultFrame else -1)
 		local casterState = if ultFrame then states[1] else nil
-		local view = { x = cx, y = match.stage.main.top + 6, ppu = ppu }
+		local view = { x = cam.x, y = cam.y, ppu = ppu }
 		if cine.active and casterState then
 			view = UltCinematic.punch(view.x, view.y, ppu, casterState.x, casterState.y + chars[1].height * 0.5, cine.zoom)
 		end

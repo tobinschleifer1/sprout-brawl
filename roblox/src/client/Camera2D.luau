@@ -1,27 +1,35 @@
 --!strict
 -- The locked-plane camera, ported from web/src/render2d/renderer2d.js `_camera`.
 --
--- The camera is pixels-per-unit against a fixed 270-pixel backbuffer, which is what it is in the
--- JavaScript too. It briefly had to fake that with a perspective camera pushed far enough back that
--- the world height matched; drawing to a canvas instead means ppu means exactly what it says again,
--- and this file is now a straight port with no conversion in it at all.
+-- The framing works in pixels-per-unit against the JavaScript's fixed 270-pixel backbuffer, and
+-- keeps the two fixes in it that are not obvious: a low zoom floor (at 2.4 a chase to opposite
+-- blast zones no longer fit once the blast boxes were widened) and the HUD band along the bottom
+-- is subtracted from the usable height and half-added back to the centre, so fighters on the floor
+-- are not pushed behind the HUD when somebody is launched high.
 --
--- Everything the original does about framing carries over unchanged, including the two fixes that
--- are not obvious: the zoom floor is 2.0 (at 2.4 a chase to opposite blast zones no longer fits
--- since the blast boxes were widened) and the HUD band along the bottom is subtracted from the
--- usable height and half-added back to the centre, so fighters on the floor are not pushed behind
--- the HUD when somebody is launched high.
-
-local BH = 270                -- the web backbuffer height, in "pixels". The unit ppu is measured in.
-local ZOOM_MIN, ZOOM_MAX = 2.0, 7.2
-local PAD = 20
+-- THE UNIT, and the bug it was. The framing below works in the web's 270-pixel backbuffer, but the
+-- canvas draws in SCREEN pixels, and for a long time the backbuffer ppu went to the canvas as if it
+-- were screen pixels: at 1080p a fight showed ~150 studs top to bottom instead of ~37, and a fighter
+-- stood 3% of the screen tall. `ppu` is now screen pixels a stud: the backbuffer framing scaled by
+-- viewport height / 270, so the framing is the same picture at every resolution.
+--
+-- THE FRAMING is Roblox's own, closer than the web's: Brawlhalla holds two fighters in a scrap at
+-- around a fifth of the screen's height and only pulls out as they separate. ZOOM_MAX 11.5 with
+-- tighter padding puts a fighter at ~22% when the fight is close (the web's 7.2 is 14%). The floor
+-- is 1.6, not the web's 2.0: Roblox also runs in 4:3 windows and on tablets, where 2.0 lost a
+-- fighter off the edge in a chase 95 studs out either side (tests/camera.luau).
+local BH = 270                -- the web backbuffer height: the unit the framing is worked out in
+local ZOOM_MIN, ZOOM_MAX = 1.6, 11.5
+local PAD = 12                -- studs kept clear either side of the outermost fighters
+local MIN_W, MIN_H = 30, 21   -- the least world the camera will show, in studs
 
 local Camera2D = {}
 Camera2D.__index = Camera2D
+Camera2D.ZOOM_MIN, Camera2D.ZOOM_MAX, Camera2D.BH = ZOOM_MIN, ZOOM_MAX, BH
 
 function Camera2D.new(): any
 	local self = setmetatable({}, Camera2D)
-	self.x, self.y, self.ppu = 0, 10, 4
+	self.x, self.y, self.ppu = 0, 10, 16
 	self.safeBottom = 0        -- backbuffer pixels the HUD covers, set by the HUD
 	self.shake = 0
 	self.shakeX, self.shakeY = 0, 0
@@ -54,14 +62,15 @@ function Camera2D.update(self: any, bodies: { any }, dt: number, viewport: Vecto
 	-- frame an ultrawide monitor as if it were 16:9 and zoom out for room it already had.
 	local BW = BH * (if viewport.Y > 0 then viewport.X / viewport.Y else 16 / 9)
 
-	local w = math.max(42, x1 - x0 + PAD * 2)
+	local w = math.max(MIN_W, x1 - x0 + PAD * 2)
 	local band = math.clamp(self.safeBottom, 0, BH * 0.45)
 	local usable = BH - band
-	local hgt = math.max(28, y1 - y0 + PAD)
+	local hgt = math.max(MIN_H, y1 - y0 + PAD)
 	local ppu = math.clamp(math.min(BW / w, usable / hgt), ZOOM_MIN, ZOOM_MAX)
 
 	local tx = (x0 + x1) / 2
 	local ty = (y0 + y1) / 2 + 2 - band / (2 * ppu)
+	ppu *= (if viewport.Y > 0 then viewport.Y else BH) / BH     -- backbuffer -> screen pixels
 	-- Frame-rate independent smoothing: the same 0.0025-per-second constant the web build uses, so
 	-- the camera has the same weight at 60 and at 144.
 	local k = if instant then 1 else 1 - 0.0025 ^ dt

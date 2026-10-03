@@ -244,4 +244,43 @@ assert(#sprites == 0, "a preset character drew body sprites")
 assert(weapons == 1, "a preset character's sword is one sprite as well")
 assert(blockHeads == 2, "a preset character stopped drawing its head and chest mark")
 assert(blocks - kitBlocks >= 7, `the kit fighter drew the block body as well ({kitBlocks} rectangles against the preset's {blocks})`)
-print(`PASS kit fighter: seven sprites on the rig's joints (neck at the head, feet where the block legs end), far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; presets unchanged`)
+-- The hit flash on a kit fighter is the fighter: every piece drawn again over itself in the flash
+-- colour, the same shape (a silhouette, not a box), and the same silhouette table every frame -
+-- a sprite's identity is its rects table, so a fresh one each frame would rebuild the image.
+local flashes, flashBlocks = {}, 0
+Canvas.rect = function() flashBlocks += 1 end
+Canvas.sprite = function(_: any, key: string, list: any, _x0: number, _y1: number, _pw: number, _ph: number, _c: number, _r: number, alpha: number?)
+	if string.sub(key, 1, 7) == "weapon|" then return end
+	table.insert(flashes, { key = key, list = list, alpha = alpha })
+end
+local chilled = table.clone(s)
+chilled.chillStacks = 2
+local want = "#A9D8F0"
+local function flashDraw(): { any }
+	table.clear(flashes)
+	Fighter2D.draw(canvas(24), chilled, char, 0, 2)
+	local tinted = {}
+	for _, sp in flashes do if string.find(sp.key, "|" .. want, 1, true) then table.insert(tinted, sp) end end
+	return tinted
+end
+local tinted = flashDraw()
+assert(#tinted == 7, `a flashing kit fighter drew {#tinted} flash pieces, want one per piece (7)`)
+for _, sp in tinted do
+	local base
+	for _, other in flashes do if other.key .. "|" .. want == sp.key then base = other end end
+	assert(base, `{sp.key}: a flash with no piece under it`)
+	assert(#sp.list == #base.list, `{sp.key}: the flash is not the piece's shape`)
+	for i, r in sp.list do
+		local b = base.list[i]
+		assert(r[1] == b[1] and r[2] == b[2] and r[3] == b[3] and r[4] == b[4] and r[6] == b[6], `{sp.key}: flash rectangle {i} differs from the piece`)
+		assert(r[5] == want, `{sp.key}: flash drawn {r[5]}, want {want}`)
+	end
+	assert(sp.alpha and sp.alpha > 0 and sp.alpha < 1, `{sp.key}: the flash hides the piece under it (alpha {sp.alpha})`)
+end
+local again = flashDraw()
+for i, sp in again do assert(sp.list == tinted[i].list, "the flash silhouette was rebuilt on the next frame") end
+-- a fighter not flashing draws no flash
+chilled.chillStacks = 0
+assert(#flashDraw() == 0, "a fighter with no flash drew flash pieces")
+
+print(`PASS kit fighter: seven sprites on the rig's joints (neck at the head, feet where the block legs end), far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; presets unchanged; hit flash a silhouette of each piece`)

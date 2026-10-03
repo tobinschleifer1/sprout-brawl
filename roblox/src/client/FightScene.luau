@@ -16,6 +16,8 @@ local Stage2D = require(script.Parent.Stage2D)
 local DisasterArt = require(script.Parent.DisasterArt)
 local HazardArt = require(script.Parent.HazardArt)
 local RealmArt = require(script.Parent.RealmArt)
+local HitReact = require(script.Parent.HitReact)
+local ShieldArt = require(script.Parent.ShieldArt)
 local Realms = require(Shared.Realms)
 local UltCinematic = require(script.Parent.UltCinematic)
 local UltBanner = require(script.Parent.UltBanner)
@@ -24,6 +26,11 @@ local World2D = require(script.Parent.World2D)
 local Fighter2D = require(script.Parent.Fighter2D)
 local UltWorld = require(script.Parent.UltWorld)
 local FxPlayer = require(script.Parent.FxPlayer)
+
+-- a shield shatters in its owner's colour (FxPlayer reads this for `shieldbreak`)
+FxPlayer.shieldColour = function(index: number?): string
+	return ShieldArt.colourOf(index, Fighter2D.teamColours)
+end
 
 local FightScene = {}
 
@@ -90,6 +97,10 @@ function FightScene.draw(c: any, S: any): any
 	-- The ultimates' ground layer - rune circles, cracks, the sky going dark - sits behind bodies.
 	guard(-3, "the ultimates' world layer failed to draw", function()
 		UltWorld.under(c, S.states, S.chars, scene, S.stage, S.t)
+	end)
+	-- the hard-hit: speed lines and smoke trails behind anyone launched
+	guard(-7, "the hit reactions failed to draw", function()
+		HitReact.draw(c, S.states, S.chars, S.t)
 	end)
 	for _, st in S.states do
 		local char = S.chars[st.index + 1]

@@ -294,7 +294,14 @@ do
 	local fx4, player4 = Effects.new(), FxPlayer.new()
 	FightScene.spawn(fx4, player4, { type = "hit", attacker = 0, x = 1, y = 2, heavy = true }, states, chars, glowOf, rand,
 		function() return 5.2 end, false)
-	if #fx4.parts ~= 0 or #player4.items ~= 1 then fail("a hit from an ultimate should pop without sparks when sparks are off") end
+	-- the greatsword's impact (FxPlayer.hit: a heavy blade hit is a cut, a spark and a cross-cut), and no
+	-- Effects sparks on top of it
+	local cut: { [string]: boolean } = {}
+	for _, it in player4.items do cut[it.kind] = true end
+	if #fx4.parts ~= 0 then fail("a predicted hit drew Effects' sparks when sparks are off") end
+	if not (cut.crescent and cut.spark and cut.xslash) or #player4.items ~= 3 then
+		fail("a heavy greatsword hit should draw its cut, spark and cross-cut when sparks are off")
+	end
 	-- The cap holds: a pile-up drops the oldest.
 	for _ = 1, FxPlayer.MAX + 10 do FxPlayer.add(player4, "pop", 0, 0, 1, 1, nil) end
 	if #player4.items ~= FxPlayer.MAX then fail(`FxPlayer holds {#player4.items}, cap is {FxPlayer.MAX}`) end

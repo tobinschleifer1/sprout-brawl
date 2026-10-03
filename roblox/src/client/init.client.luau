@@ -29,6 +29,7 @@ local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
 local UltCinematic = require(script.UltCinematic)
 local FightScene = require(script.FightScene)
+local RealmArt = require(script.RealmArt)
 local FxPlayer = require(script.FxPlayer)
 local Effects = require(script.Effects)
 local HudColors = require(script.HudColors)
@@ -396,6 +397,11 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	hud.gui.Enabled = true
 	hud:clearResults()
 	if stageView then hud:announce("stage", Realms.name(stageView.data)) end
+	-- build the realm's art now, during the countdown, not on the fight's first frame
+	if stageView then
+		local realm = Realms.of(stageView.data.id)
+		if realm then RealmArt.warm(realm, stageView) end
+	end
 	-- In a team match every fighter stands in their team's colour.
 	Fighter2D.teamColours = nil
 	if string.find(cfg.mode or "", "Teams", 1, true) then

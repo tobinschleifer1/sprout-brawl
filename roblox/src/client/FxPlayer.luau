@@ -17,6 +17,8 @@ local FxPlayer = {}
 -- Never more than this many effects alive. A four-player match of overlapping ultimates peaks
 -- around twenty; the cap only bites on a pile-up, and drops the oldest, which have mostly played.
 FxPlayer.MAX = 40
+-- The colour a fighter's shield shatters in, by fighter index; set by FightScene (ShieldArt).
+FxPlayer.shieldColour = nil :: ((number?) -> string)?
 
 export type Item = {
 	kind: string, x: number, y: number, age: number, dur: number, size: number,
@@ -100,6 +102,60 @@ local function stateOf(states: { any }, index: number?): any
 	return nil
 end
 
+-- ------------------------------------------------------------------ hits ----
+-- How each weapon's hits look: blades cut, heavy things crunch, points pierce, magic bursts.
+FxPlayer.CLASS = {
+	Sword = "slash", Axe = "slash", Scythe = "slash", Daggers = "slash",
+	Hammer = "blunt", Gauntlets = "blunt", Flail = "blunt", Shield = "blunt",
+	Pike = "pierce", Longbow = "pierce", Blasters = "pierce",
+	Grimoire = "magic",
+}
+
+-- Every landed hit, in the attacker's weapon colour and style, sized by its damage and aimed along
+-- the knockback: a crescent cut across the line of the blow, a crunch star, a streak driven
+-- through, a burst of starlight. Heavy hits on a grounded victim kick up dust under them. An
+-- ultimate's hits are bigger again. Effects still throws the sparks; its rings are dropped.
+-- Hits use one variation of each drawing: they already differ by the angle they are aimed along,
+-- and every variation is a sprite built the first time it is seen (ult-fx holds the budget).
+local ONE = { seed = 0 }
+
+function FxPlayer.hit(P: any, e: any, states: { any }, chars: { any }): boolean
+	local s = stateOf(states, e.attacker)
+	local char = if s then chars[s.index + 1] else nil
+	if not s or not char then return false end
+	local glow = glowOf(char)
+	local class = FxPlayer.CLASS[char.weapon and char.weapon.id or ""] or "blunt"
+	local ult = inUltimate(s, char) ~= nil
+	local size = math.clamp(1.6 + (e.damage or 4) * 0.12, 1.8, 4) * (if e.heavy then 1.25 else 1) * (if ult then 1.25 else 1)
+	-- the direction the victim is sent
+	local a = math.rad(e.angle or 45)
+	local dir = math.atan2(math.sin(a), math.cos(a) * (e.facing or 1))
+	local dur = if e.heavy then 0.24 else 0.18
+	if class == "slash" then
+		add(P, "crescent", e.x, e.y, size * 1.5, dur, glow, { rot = dir + math.pi / 2, seed = 0 })
+		add(P, "spark", e.x, e.y, size * 0.6, 0.16, glow, ONE)
+		if e.heavy then add(P, "xslash", e.x, e.y, size * 1.2, dur, glow, ONE) end
+	elseif class == "pierce" then
+		add(P, "lance", e.x - math.cos(dir) * size, e.y - math.sin(dir) * size, size * 2.2, 0.14, glow, { rot = dir, sy = 0.5, seed = 0 })
+		add(P, "pop", e.x, e.y, size * 0.9, dur, glow, { rot = dir, seed = 0 })
+	elseif class == "magic" then
+		add(P, "star", e.x, e.y, size * 1.3, dur, glow, ONE)
+		add(P, "pop", e.x, e.y, size, dur, "star", ONE)
+	else
+		add(P, "pop", e.x, e.y, size * 1.15, dur, glow, { rot = (P.seed % 8) * 0.39, seed = 0 })
+		if e.heavy then add(P, "ring", e.x, e.y, size * 1.8, dur, glow, ONE) end
+	end
+	if e.heavy then
+		local v = stateOf(states, e.victim)
+		if v and v.onGround then
+			local vc = chars[v.index + 1]
+			add(P, "burst", v.x, v.y + 0.4, 3.2, 0.5, "smoke", { delay = 0.03, fadeAt = 0.5, seed = 0 })
+			if vc then add(P, "ring", v.x, v.y + 0.1, vc.radius * 5, 0.3, "#D9D2C2", { sy = 0.28, seed = 0 }) end
+		end
+	end
+	return true
+end
+
 -- Bolts thrown out radially from (x, y): a discharge.
 local function radialBolts(P: any, x: number, y: number, n: number, length: number, ramp: string?)
 	for i = 0, n - 1 do
@@ -125,12 +181,20 @@ function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolea
 		return true
 	end
 	if t == "hit" then
-		-- Every hit an ultimate lands gets an impact star in the caster's colour, over the sparks.
-		local s = stateOf(states, e.attacker)
+		return FxPlayer.hit(P, e, states, chars)
+	end
+	if t == "shieldbreak" then
+		-- the shell shatters: a burst in its colour and shards flung out of it
+		local s = stateOf(states, e.fighter)
 		local char = if s then chars[s.index + 1] else nil
-		if not s or not inUltimate(s, char) then return false end
-		local size = if e.heavy then 3.6 else 2.4
-		add(P, "pop", e.x, e.y, size, 0.2, glowOf(char), { rot = (P.seed % 8) * 0.39 })
+		local x, y = e.x or (s and s.x) or 0, e.y or (if s and char then s.y + char.height * 0.5 else 0)
+		local col = FxPlayer.shieldColour and FxPlayer.shieldColour(e.fighter) or "#4FC8FF"
+		add(P, "burst", x, y, 7, 0.4, col)
+		add(P, "ring", x, y, 9, 0.32, col)
+		for k = 0, 7 do
+			local a = k / 8 * math.pi * 2 + 0.3
+			add(P, "spark", x + math.cos(a) * 2.6, y + math.sin(a) * 2.6, 1.4, 0.3, col, { delay = k * 0.015 })
+		end
 		return true
 	end
 	if t == "explosion" then

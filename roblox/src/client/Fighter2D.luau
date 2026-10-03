@@ -21,10 +21,9 @@ local AvatarCompose = require(script.Parent.AvatarCompose)
 local KIT_PARTS = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit).parts
 
 local BLACK = Color3.new(0, 0, 0)
-local SHIELD = Color3.fromRGB(159, 209, 232)
 
 local Effects = require(script.Parent.Effects)
-local Shield = require(script.Parent.Shield)
+local ShieldArt = require(script.Parent.ShieldArt)
 local Fighter2D = {}
 -- Screen pixels per kit cell below which a kit character is drawn at half resolution.
 Fighter2D.KIT_LOD_PX = 1.3
@@ -146,8 +145,13 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local art = (kitArt :: any)[id]
 		local list = if far then (if half then art.farHalf else art.farFull) else (if half then art.half else art.full)
 		local k = if half then 2 else 1
-		Canvas2D.sprite(c, `{kitCode}|{id}|{if far then "f" else ""}{if half then "h" else ""}`, list,
-			-P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
+		local key = `{kitCode}|{id}|{if far then "f" else ""}{if half then "h" else ""}`
+		Canvas2D.sprite(c, key, list, -P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
+		if ch.tint then
+			-- the hit flash: the same piece, in the flash colour, over itself
+			Canvas2D.sprite(c, key .. "|" .. ch.tint, Canvas2D.tinted(list, ch.tint), -P.ox * PW, P.oy * ph, PW * k, ph * k,
+				math.ceil(P.w / k), math.ceil(P.h / k), 0.6)
+		end
 	end
 	-- Every alpha passed to a primitive below is RELATIVE - Canvas2D multiplies it by c.alpha
 	-- itself. Passing c.alpha through as well squares the opacity, which is invisible at full
@@ -306,19 +310,15 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local top = s.y + h + M.above
 		Canvas2D.tri(c, s.x, top, s.x - M.w / 2, top + M.h, s.x + M.w / 2, top + M.h, markerTeam, M.alpha)
 	end
-	-- The shield is an energy shell (Shield, held to web/src/render2d/shield.js), flaring where it
-	-- was last struck.
+	-- The shield: a pixel-art shell in the fighter's colour (ShieldArt), sized, flickering and
+	-- flaring by the rule Shield.luau holds to the web.
 	if ch.bubble > 0 then
 		local hit = if Fighter2D.effects then Effects.shieldHit(Fighter2D.effects, s.index) else nil
-		for _, sh in Shield.shapes(s.x, s.y + h * 0.5, h, ch.bubble, math.floor(t * 60), hit) do
-			if sh[1] == "e" then
-				Canvas2D.ellipse(c, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], SHIELD), sh[7])
-			else
-				Canvas2D.line(c, sh[2], sh[3], sh[4], sh[5], sh[6], Canvas2D.hex(sh[7], SHIELD), sh[8])
-			end
-		end
+		ShieldArt.draw(c, s.x, s.y + h * 0.5, h, ch.bubble, math.floor(t * 60), hit, ShieldArt.colourOf(s.index, Fighter2D.teamColours))
 	end
-	if ch.tint then
+	-- The hit flash. A kit character flashes as itself - each piece is drawn again in the flash
+	-- colour over the top (see kitPiece) - so only the block rig still gets the box.
+	if ch.tint and not kitArt then
 		Canvas2D.rect(c, s.x - r, s.y, r * 2, h, Canvas2D.hex(ch.tint, BLACK), 0.5)
 	end
 	c.alpha = 1

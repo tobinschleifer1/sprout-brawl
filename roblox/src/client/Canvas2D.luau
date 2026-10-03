@@ -448,6 +448,24 @@ local function imageFor(rects: { any }, cols: number, rows: number, flip: boolea
 	return entry[side] or nil
 end
 
+-- `rects` with every colour replaced by `hex` and every alpha kept: a silhouette, for a hit flash
+-- drawn over a sprite. Cached, so the same table comes back (the sprite's identity).
+local tints: { [any]: { [string]: { any } } } = setmetatable({}, { __mode = "k" }) :: any
+function Canvas2D.tinted(rects: { any }, hex: string): { any }
+	local byHex: { [string]: { any } } = tints[rects] or {}
+	tints[rects] = byHex
+	local cached = byHex[hex]
+	if cached then return cached end
+	local out: { any } = {}
+	for i, r in rects do
+		local row: { any } = { r[1], r[2], r[3], r[4] }
+		row[5], row[6] = hex, r[6]
+		out[i] = row
+	end
+	byHex[hex] = out
+	return out
+end
+
 function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1: number, pw: number, ph: number,
 	cols: number, rows: number, alpha: number?, deferrable: boolean?)
 	local m = self.m

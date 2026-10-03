@@ -45,7 +45,9 @@ local gap = tonumber(process.args[7] or "7") or 7
 -- "left": the caster starts on the right and faces left, so the mirrored drawing is seen too
 local side = if process.args[8] == "left" then -1 else 1
 -- "calm": nobody presses anything - for looking at a stage
-local noUlt = process.args[9] == "calm" or process.args[9] == "wide"
+local noUlt = process.args[9] == "calm" or process.args[9] == "wide" or process.args[9] == "brawl"
+-- "brawl": every fighter is a hard bot, to see ordinary hits, shields and launches
+local brawl = process.args[9] == "brawl"
 -- "wide": a fixed camera on the whole stage instead of the fight camera
 local wide = process.args[9] == "wide"
 -- a disaster to force, from 0.1 s into the fight (frames then count from the fight's start)
@@ -81,6 +83,9 @@ for i = 2, #match.fighters do
 end
 local chars = {}
 for i, f in match.fighters do chars[i] = f.char end
+if brawl then
+	for _, f in match.fighters do f.isBot = true; f.botLevel = "hard" end
+end
 Fighter2D.effects = nil
 
 local fx, player = Effects.new(), FxPlayer.new()

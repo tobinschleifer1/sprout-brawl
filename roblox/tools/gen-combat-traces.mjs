@@ -34,7 +34,9 @@ const I = (o = {}) => Object.assign(emptyFrame(), o);
 const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'sf', 'onGround', 'percent', 'hitstun', 'hitlag',
   'shield', 'blockstun', 'tumbling', 'moveId', 'mf', 'moveLanded', 'ultCharge', 'armorUsed',
   'invincible', 'alive', 'stocks', 'bonusDamage', 'launchMul',
-  'jumpsLeft', 'carryX', 'ultActive', 'ultShots', 'recoveryUsed'];
+  'jumpsLeft', 'carryX', 'ultActive', 'ultShots', 'recoveryUsed',
+  // combos (COMBO in config.js)
+  'comboHits', 'comboKey', 'perfectStreak', 'linkPerfect', 'breakCooldown'];
 
 // The numeric payload of every event kind Phase 3a can emit. Listing them rather than dumping the
 // object keeps the comparison numeric instead of a string compare, which would skip the tolerance
@@ -42,7 +44,7 @@ const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'sf', 'onGround', 'percent',
 // x and y are in here deliberately. Without them the trace compared only event COUNTS, and a
 // projectile spawned at the wrong height - the volley's whole spread pattern - passed unnoticed.
 const EVENT_NUMS = ['damage', 'launch', 'angle', 'facing', 'attacker', 'victim', 'marks', 'stored',
-  'back', 'x', 'y', 'radius'];
+  'back', 'x', 'y', 'radius', 'combo'];
 
 function snapEvents(evts) {
   return evts.map((e) => {
@@ -139,6 +141,32 @@ S.push({ name: 'light string into signature', stage: 'FoundryFloor', who: SWORDS
   segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(9, {}),
     hold(1, { light: true, anyPress: true }), hold(9, {}),
     hold(1, { heavy: true, x: 1, anyPress: true }), hold(70, {})] });
+
+// A string timed all the way - Light, Light, Light, Heavy, each pressed on the previous strike -
+// so every link is perfect (faster, harder, more meter), and the third and fourth hits land scaled
+// down (COMBO in config.js) while their knockback is not.
+// Presses at given frames: [frame, attacker input, victim input].
+const pressesAt = (total, presses, set) => {
+  const segs = [];
+  let at = 0;
+  for (const [frame, a, b] of presses) {
+    if (frame > at) segs.push(hold(frame - at, {}));
+    segs.push(hold(1, a || {}, b || {}));
+    at = frame + 1;
+  }
+  segs.push(hold(total - at, {}));
+  if (set) segs[0] = { ...segs[0], set };
+  return segs;
+};
+const L = { light: true, anyPress: true }, H = { heavy: true, heavyHeld: true, anyPress: true };
+const TIMED = [[4, L], [11, L], [19, L], [29, H]];
+const timedString = (extra = []) => pressesAt(110, [...TIMED, ...extra].sort((p, q) => p[0] - q[0]), { 1: { percent: 150 } });
+S.push({ name: 'timed string, scaled', stage: 'FoundryFloor', pin: true, who: SWORDS, at: [-1.2, 1.2],
+  segments: timedString() });
+// ...and the victim breaks out with a Dodge in the fourth hit's freeze: the launch never happens,
+// the attacker is shoved away, and the cooldown starts.
+S.push({ name: 'timed string, broken', stage: 'FoundryFloor', pin: true, who: SWORDS, at: [-1.2, 1.2],
+  segments: timedString([[53, {}, { dodge: true, anyPress: true }]]) });
 
 // blocked, perfect-blocked, and shield broken by repeated heavies
 S.push({ name: 'blocking', stage: 'FoundryFloor', who: SWORDS, at: [-1.2, 1.2],

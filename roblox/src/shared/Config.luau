@@ -82,6 +82,23 @@ Config.ITEMS = { spawnEvery = 14, despawnAfter = 22, knockOutDamage = 12 }
 Config.SUDDEN_DEATH = { percent = 300, shrinkEvery = 10, shrinkFactor = 0.8 }
 Config.INPUT_BUFFER = 6
 
+-- Combos that reward timing: see web/src/config.js COMBO and docs/briefs/combo-system-plan.md.
+-- A follow-up pressed during the previous move's strike (first active frame to `perfectLate` after
+-- its last), with no press of that button in the wind-up, is a timed link. Damage scales down from
+-- the `scaleFrom`th hit of a combo (knockback does not); from the `breakFrom`th the victim can break
+-- out with a Dodge during that hit's freeze.
+Config.COMBO = {
+	perfectLate = 4, perfectStartupCut = 2, perfectMinStartup = 2, perfectDamage = 1, perfectCharge = 1.25,
+	scaleFrom = 3, scaleStep = 0.08, scaleFloor = 0.5,
+	breakFrom = 4, breakFrames = 16, breakInv = 20, breakPush = 30, breakCooldown = 360,
+}
+-- The share of a hit's damage that lands as the `hits`th hit of a combo.
+function Config.comboScale(hits: number): number
+	local C = Config.COMBO
+	if hits < C.scaleFrom then return 1 end
+	return math.max(C.scaleFloor, 1 - C.scaleStep * (hits - C.scaleFrom + 1))
+end
+
 -- Ultimates. Charge by landing hits; spend the whole meter in one activation. The meter is wiped
 -- when you lose a stock, so an ultimate is a reward for a run of pressure, not a consolation prize
 -- for dying. invincibleFrames is 22, not 30, because the activation freeze does not tick timers:

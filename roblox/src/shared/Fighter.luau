@@ -36,6 +36,7 @@ local KNOCKDOWN = Config.KNOCKDOWN
 local TAUNT_FRAMES = Config.TAUNT_FRAMES
 local RESPAWN = Config.RESPAWN
 local INPUT_BUFFER = Config.INPUT_BUFFER
+local COMBO = Config.COMBO
 local ULTIMATE = Config.ULTIMATE
 
 -- JavaScript's local helper: sign(0) is +1, NOT 0. math.sign would change facing on a neutral stick.
@@ -61,6 +62,9 @@ local NO_GRAVITY_STATES = {
 	tether = true, ko = true, respawn = true, ledgeaction = true,
 }
 local FREE_STATES = { idle = true, run = true, air = true }
+-- The states a fighter cannot act out of. While they are in one of these, the hits they take are
+-- one combo (Config.COMBO); the first frame they are in anything else, the combo is over.
+local COMBO_HELD = { hitstun = true, knockdown = true, grabbed = true, frozen = true }
 local BUFFER_KEYS = { "jump", "light", "heavy", "dodge", "guard", "grab", "taunt", "ult", "pickup" }
 
 local methods = {}
@@ -125,6 +129,8 @@ function Fighter.new(opts: any): any
 	self.input = Input.emptyFrame()
 	self.buffer = { jump = 0, light = 0, heavy = 0, dodge = 0, guard = 0, grab = 0, taunt = 0, ult = 0, pickup = 0 }
 	self.frameCount = 0
+	-- Counts every move started, so combat can tell two hits of one swing from two swings.
+	self.moveSerial = 0
 	self.item = nil
 	self.effects = {
 		chill = { stacks = 0, timer = 0 }, tangle = { stacks = 0, timer = 0 },
@@ -187,6 +193,10 @@ function methods.reset(self, x: number, y: number, opts: any?)
 	self.reflecting = nil   -- Aegis window
 	self.marking = nil      -- Exsanguinate window
 	self.lastHitBy = nil; self.lastHitFrame = -9999
+	-- Combos (see fighter.js): the attacker's timing and string, the victim's count and break.
+	self.perfectPress = { light = false, heavy = false }; self.mashed = { light = false, heavy = false }
+	self.linkPerfect = false; self.perfectStreak = 0; self.chainDepth = 0
+	self.comboHits = 0; self.comboKey = -1; self.breakLocked = false; self.breakPress = false; self.breakCooldown = 0
 	self.inWater = false
 	-- What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run,
 	-- written by hazards, read by _physics and _friction.
@@ -278,6 +288,24 @@ function methods.applyInput(self, frame: any)
 	if frame.guard then
 		self.techPress = TECH.window
 	end
+	-- Was this press timed? Judged against the move being performed when it went down (Config.COMBO).
+	-- During a hit's freeze `mf` holds on the active frame that connected, so a press during the
+	-- freeze is in the window.
+	for _, b in { "light", "heavy" } do
+		if not frame[b] then continue end
+		local m = if self.state == "attack" then self.move else nil
+		if m and self.mf < self.startupEff then self.mashed[b] = true end
+		self.perfectPress[b] = m ~= nil and self.mf >= self.startupEff and self.mf < self.startupEff + m.active + COMBO.perfectLate
+	end
+	-- The combo break: Dodge during the freeze of the breakFrom-th hit or later. Any other Dodge
+	-- while held in a combo locks the break for the rest of it.
+	if frame.dodge and self.comboHits > 0 and self.state == "hitstun" then
+		if self.hitlag > 0 and self.comboHits >= COMBO.breakFrom and self.breakCooldown == 0 and not self.breakLocked then
+			self.breakPress = true
+		else
+			self.breakLocked = true
+		end
+	end
 end
 
 -- ---------------------------------------------------------------- main step ----
@@ -287,6 +315,13 @@ function methods.step(self, ctx: any)
 	-- that bends the launch angle. See _applyLaunch.
 	self.di = { x = self.input.x, y = self.input.y }
 	if not self.alive then
+		return
+	end
+	if self.comboHits > 0 and not COMBO_HELD[self.state] then
+		self.comboHits = 0; self.comboKey = -1; self.breakLocked = false; self.breakPress = false
+	end
+	if self.breakPress then
+		methods._breakOut(self)
 		return
 	end
 	if self.hitlag > 0 then
@@ -318,6 +353,7 @@ end
 
 function methods._tickTimers(self)
 	if self.invincible > 0 then self.invincible -= 1 end
+	if self.breakCooldown > 0 then self.breakCooldown -= 1 end
 	if self.ledgeCooldown > 0 then self.ledgeCooldown -= 1 end
 	if self.dropTimer > 0 then self.dropTimer -= 1 end
 	local e = self.effects
@@ -394,6 +430,11 @@ function methods._stepState(self, ctx)
 		if self.sf > KNOCKDOWN.frames then methods.setState(self, "idle") end
 		return
 	elseif s == "tech" then return methods._stepTech(self)
+	elseif s == "breakout" then
+		self.noGravityFrame = self.sf <= 8
+		methods._friction(self)
+		if self.sf > COMBO.breakFrames then methods.setState(self, if self.onGround then "idle" else "air") end
+		return
 	elseif s == "ledge" then return methods._stepLedge(self, ctx)
 	elseif s == "ledgeaction" then return methods._stepLedgeAction(self, ctx)
 	elseif s == "grab" then return methods._stepGrab(self, ctx)
@@ -778,6 +819,14 @@ function methods.startMove(self, moveOrId: any, opts: any?)
 	end
 	self.move = move; self.moveId = move.id; self.mf = 0
 	self.moveLanded = false; self.hitVictims = {}
+	self.moveSerial += 1
+	-- A string: `link` is a chained follow-up, `perfect` a timed one. Anything else starts afresh.
+	local o = opts or {}
+	local perfect = not not (o.link and o.perfect)
+	self.chainDepth = if o.link then self.chainDepth + 1 else 0
+	self.perfectStreak = if perfect then self.perfectStreak + 1 else 0
+	self.linkPerfect = perfect
+	self.mashed.light = false; self.mashed.heavy = false
 	self.charge = 0; self.armorUsed = false; self.volleyCount = 0; self.spawnedActive = false
 	-- per-ultimate scratch: who the sniper painted, who the vortex is holding, shots left
 	self.ultTarget = nil; self.ultHeld = {}; self.ultShots = 0; self.ultCooldown = 0; self.ultEndAt = 0
@@ -826,9 +875,17 @@ function methods.startMove(self, moveOrId: any, opts: any?)
 		self.startupEff = math.max(4, move.startup - M.windupPerSegment * self.mech.segments)
 		self.mech.segments = 0
 	end
+	-- The reward for a timed link, after the mechanics so it stacks with Surge's startup cut.
+	if perfect then
+		self.startupEff = math.max(math.min(COMBO.perfectMinStartup, self.startupEff), self.startupEff - COMBO.perfectStartupCut)
+		self.bonusDamage += COMBO.perfectDamage
+	end
 	self.startupShift = move.startup - self.startupEff
 	methods.setState(self, "attack")
 	methods.emit(self, { type = "movestart", move = move.id, heavy = not not move.heavy })
+	if perfect then
+		methods.emit(self, { type = "perfectlink", move = move.id, streak = self.perfectStreak, finisher = not not move.finisher })
+	end
 end
 
 function methods._stepAttack(self, ctx)
@@ -895,6 +952,7 @@ function methods._stepAttack(self, ctx)
 		self.vy = math.min(self.vy, -self.char.fallSpeed * MOVE.fastFallMul)
 	end
 	if methods._chainInto(self, m, inp) then return end
+	if methods._cancel(self, m, inp) then return end
 	if self.mf == self.startupEff + 1 and not self.spawnedActive then
 		self.spawnedActive = true
 		ctx.combat:onMoveActive(self, m)
@@ -905,7 +963,8 @@ end
 
 -- Combo strings. Once a move has connected and its active frames are done, the follow-up is chosen
 -- by the direction held: `chains` keyed by up/side/down/neutral, with `chainsTo` as the fallback.
--- `chainsHeavy` lets a light string cash out into a signature.
+-- `chainsHeavy` lets a light string cash out into a signature. `finishers` (same keys) only opens
+-- at the end of a string linked perfectly all the way - see fighter.js.
 function methods._chainInto(self, m, inp): boolean
 	if not self.moveLanded or self.mf < self.startupEff + m.active then
 		return false
@@ -914,13 +973,17 @@ function methods._chainInto(self, m, inp): boolean
 		elseif inp.y < -0.5 then "down"
 		elseif math.abs(inp.x) > 0.5 then "side"
 		else "neutral"
+	local function timed(buf: string): boolean
+		return self.perfectPress[buf] and not self.mashed[buf]
+	end
 	local function go(id: any, buf: string): boolean
 		if not id or not self.char.moves[id] then
 			return false
 		end
+		local perfect = timed(buf)
 		self.buffer[buf] = 0
 		if dir == "side" then self.facing = sign(inp.x) end
-		methods.startMove(self, id)
+		methods.startMove(self, id, { link = true, perfect = perfect })
 		return true
 	end
 	if self.buffer.heavy > 0 and m.chainsHeavy then
@@ -928,8 +991,45 @@ function methods._chainInto(self, m, inp): boolean
 		if go(id, "heavy") then return true end
 	end
 	if self.buffer.light > 0 then
+		local fin = if m.finishers then m.finishers[dir] else nil
+		if fin and timed("light") and self.perfectStreak == self.chainDepth and go(fin, "light") then return true end
 		local id = (if m.chains then m.chains[dir] else nil) or m.chainsTo
 		if go(id, "light") then return true end
+	end
+	return false
+end
+
+-- Cancels: a move that declares `cancels` can be cut short once it has CONNECTED and its active
+-- frames are over - Jump into a jump or double jump, Dodge into a dash or air dodge. A whiff keeps
+-- its whole recovery. Both spend what they would normally spend.
+function methods._cancel(self, m, inp): boolean
+	local c = m.cancels
+	if not c or not self.moveLanded or self.mf <= self.startupEff + m.active then
+		return false
+	end
+	if c.jump and self.buffer.jump > 0 and (self.onGround or self.jumpsLeft > 0) then
+		self.buffer.jump = 0
+		methods.endMove(self)
+		if self.onGround then
+			methods.setState(self, "jumpsquat")
+		else
+			self.jumpsLeft -= 1; self.vy = self.char.jumpVelocity * methods.jumpMul(self); self.fastFalling = false
+			if math.abs(inp.x) > 0.5 then self.facing = sign(inp.x) end
+			methods.emit(self, { type = "doublejump" })
+		end
+		methods.emit(self, { type = "cancel", kind = "jump" })
+		return true
+	end
+	if c.dodge and self.buffer.dodge > 0 and (self.onGround or not self.airDodgeUsed) then
+		self.buffer.dodge = 0
+		methods.endMove(self)
+		if self.onGround then
+			methods._startDash(self, if math.abs(inp.x) > 0.5 then sign(inp.x) else self.facing)
+		else
+			methods._startAirDodge(self, inp)
+		end
+		methods.emit(self, { type = "cancel", kind = "dodge" })
+		return true
 	end
 	return false
 end
@@ -1048,6 +1148,23 @@ function methods.applyHit(self, hit: any)
 	self.tumbling = stun >= TUMBLE_THRESHOLD
 	self.fastFalling = false
 	methods.setState(self, "hitstun")
+end
+
+-- The combo break (Config.COMBO). The freeze ends now and the launch never happens: the victim
+-- bursts free, briefly invincible, and whoever was hitting them is shoved away.
+function methods._breakOut(self)
+	self.breakPress = false; self.breakLocked = true
+	self.hitlag = 0; self.pendingLaunch = nil; self.hitstun = 0; self.tumbling = false; self.fastFalling = false
+	self.buffer.dodge = 0
+	self.vx = 0; self.vy = if self.onGround then 0 else 6
+	self.invincible = math.max(self.invincible, COMBO.breakInv)
+	self.breakCooldown = COMBO.breakCooldown
+	local a = self.lastHitBy
+	if a and a.alive then
+		a.vx = sign(a.x - self.x) * COMBO.breakPush; a.hitlag = 0
+	end
+	methods.setState(self, "breakout")
+	methods.emit(self, { type = "combobreak", attacker = if a then a.index else -1 })
 end
 
 function methods._applyEffects(self, applies: any)
@@ -1605,6 +1722,10 @@ local SCALARS = {
 	"armorUsed", "bonusDamage", "launchMul", "rangeMul", "noGravityFrame", "frameCount",
 	"volleyCount", "inWater", "lastHitFrame", "skin", "team", "index", "r", "h", "weight",
 	"pendingLaunchFrame",
+	-- Combos: the string the attacker is in and the combo the victim is held in. A rollback that
+	-- dropped these would forget a timed streak, or a combo count, mid-string.
+	"moveSerial", "linkPerfect", "perfectStreak", "chainDepth", "comboHits", "comboKey",
+	"breakLocked", "breakPress", "breakCooldown",
 	-- Identity rather than simulation state: these never change during a match, so restoring them
 	-- is a no-op. They are here because a snapshot that cannot rebuild the whole fighter is a
 	-- snapshot somebody will eventually use for something else and be wrong about.
@@ -1632,6 +1753,8 @@ function methods.snapshot(self): any
 		s[k] = self[k]
 	end
 	s.buffer = table.clone(self.buffer)
+	s.perfectPress = table.clone(self.perfectPress)
+	s.mashed = table.clone(self.mashed)
 	s.di = table.clone(self.di)
 	s.env = table.clone(self.env)
 	s.input = table.clone(self.input)
@@ -1673,6 +1796,8 @@ function methods.restore(self, s: any)
 		self[k] = s[k]
 	end
 	self.buffer = table.clone(s.buffer)
+	self.perfectPress = table.clone(s.perfectPress)
+	self.mashed = table.clone(s.mashed)
 	self.di = table.clone(s.di)
 	self.env = table.clone(s.env)
 	self.input = table.clone(s.input)

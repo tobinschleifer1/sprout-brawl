@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG } from '../config.js';
+import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO } from '../config.js';
 import { launchSpeed, stunSpeed, hitlag as hitlagFor } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
@@ -189,6 +189,15 @@ export class Combat {
       this.emit({ type: 'chip', x: cx, y: cy, damage });
       return true;
     }
+    // One more hit in this combo - once per swing, so a multi-hit move counts as the one attack it
+    // is - and the damage it lands scaled by how deep into the combo it is. The launch below is
+    // worked out from the UNSCALED damage: scaling stops a long string from piling on percent, it
+    // does not change how hard any one hit sends.
+    if (direct || opts.projectile) {
+      const key = attacker.index * 1000000 + attacker.moveSerial;
+      if (victim.comboKey !== key) { victim.comboKey = key; victim.comboHits++; }
+    }
+    const dealt = victim.comboHits >= COMBO.scaleFrom ? Math.max(1, Math.floor(damage * comboScale(victim.comboHits) + 0.5)) : damage;
     const angle = hb && hb.angle != null ? hb.angle : move.angle;
     const after = victim.percent + damage;
     const own = direct ? (attacker.launchMul || 1) : 1;
@@ -209,8 +218,8 @@ export class Combat {
     // executing the move that fired it. Without this a ranged light can never open a combo string,
     // because moveLanded (which gates chaining) was set by melee contact alone.
     else if (opts.projectile && attacker.move === move) attacker.moveLanded = true;
-    attacker.stats.damageDealt += damage;
-    victim.applyHit({ damage, launch, stun, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip });
+    attacker.stats.damageDealt += dealt;
+    victim.applyHit({ damage: dealt, launch, stun, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip });
     if (direct && move.onHit) {
       if (move.onHit.bounce && !attacker.onGround) { attacker.vy = move.onHit.bounce; attacker.fastFalling = false; }
       if (move.onHit.regainJump) attacker.jumpsLeft = Math.max(attacker.jumpsLeft, 1);
@@ -219,14 +228,15 @@ export class Combat {
     if (direct && move.dragVictim && hb && hb.rehitEvery && victim.pendingLaunch) victim.pendingLaunch = { vx: attacker.vx * 0.95, vy: 6 };
     this.onHitLanded(attacker, victim, move, isMelee);
     if (victim.item && damage >= ITEM_CFG.knockOutDamage) this.dropItem(victim, true);
-    this.emit({ type: 'hit', x: cx, y: cy, damage, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing });
+    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits });
     return true;
   }
 
   onHitLanded(attacker, victim, move, isMelee) {
     // One landed hit, one point of ultimate charge - regardless of how much damage it did, so a
     // fast light string charges as fast as a signature and pressure is what fills the bar.
-    if (attacker.chargeUltimate && move.id !== 'Ultimate') attacker.chargeUltimate(1);
+    // A timed link is worth a little more (COMBO.perfectCharge): the meter rewards skill, not just volume.
+    if (attacker.chargeUltimate && move.id !== 'Ultimate') attacker.chargeUltimate(attacker.linkPerfect && attacker.move === move ? COMBO.perfectCharge : 1);
     // A mark, not a launch. While Exsanguinate is live every connection stacks on the victim and
     // the knockback is held back until the window closes - see the `bleed` branch.
     if (attacker.marking) {

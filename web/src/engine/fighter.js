@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE } from '../config.js';
+import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO } from '../config.js';
 import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockstunFor } from './knockback.js';
 import { emptyFrame } from './input.js';
 
@@ -22,6 +22,10 @@ const sign = (v) => (v < 0 ? -1 : 1);
 const ENV_MAX = 260;
 const clampEnv = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
+// The states a fighter cannot act out of. While they are in one of these, the hits they take are
+// one combo (COMBO in config.js); the first frame they are in anything else, the combo is over.
+const COMBO_HELD = new Set(['hitstun', 'knockdown', 'grabbed', 'frozen']);
+
 const NO_GRAVITY_STATES = new Set(['ledge', 'grabbed', 'holding', 'frozen', 'tether', 'ko', 'respawn', 'ledgeaction']);
 
 export class Fighter {
@@ -44,6 +48,8 @@ export class Fighter {
     this.input = emptyFrame();
     this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0, ult: 0, pickup: 0 };
     this.frameCount = 0;
+    // Counts every move started, so combat can tell two hits of one swing from two swings.
+    this.moveSerial = 0;
     this.item = null;
     this.effects = { chill: { stacks: 0, timer: 0 }, tangle: { stacks: 0, timer: 0 }, grit: { hide: 0, slow: 0 }, slow: 0, frozenBonus: false };
     this.mech = this._initMechanic();
@@ -94,6 +100,13 @@ export class Fighter {
     this.reflecting = null;   // Aegis window
     this.marking = null;      // Exsanguinate window
     this.lastHitBy = null; this.lastHitFrame = -9999;
+    // Combos. The attacker's side: whether the press for each button was timed (perfectPress) or
+    // came in during the wind-up (mashed), whether the current move was linked perfectly, how many
+    // perfect links in a row, and how deep into a string. The victim's side: hits taken in this
+    // combo, the swing that dealt the last one, the break and its cooldown.
+    this.perfectPress = { light: false, heavy: false }; this.mashed = { light: false, heavy: false };
+    this.linkPerfect = false; this.perfectStreak = 0; this.chainDepth = 0;
+    this.comboHits = 0; this.comboKey = -1; this.breakLocked = false; this.breakPress = false; this.breakCooldown = 0;
     this.inWater = false;
     // What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run
     // (see StageRuntime.step), written by hazards.js, read by _physics and _friction. Keeping it
@@ -166,6 +179,21 @@ export class Fighter {
     // Teching has its own window (TECH.window = 8) which is wider than INPUT_BUFFER, so it cannot
     // be expressed as a guard-buffer threshold.
     if (frame.guard) this.techPress = TECH.window;
+    // Was this press timed? Judged against the move being performed when it went down (see COMBO).
+    // During the freeze of a hit `mf` holds on the active frame that connected, so a press during
+    // the freeze is in the window - the freeze is the beat a player times to.
+    for (const b of ['light', 'heavy']) {
+      if (!frame[b]) continue;
+      const m = this.state === 'attack' ? this.move : null;
+      if (m && this.mf < this.startupEff) this.mashed[b] = true;
+      this.perfectPress[b] = !!m && this.mf >= this.startupEff && this.mf < this.startupEff + m.active + COMBO.perfectLate;
+    }
+    // The combo break: Dodge during the freeze of the breakFrom-th hit or later. Any other Dodge
+    // while held in a combo - too early, or a second press - locks the break for the rest of it.
+    if (frame.dodge && this.comboHits > 0 && this.state === 'hitstun') {
+      if (this.hitlag > 0 && this.comboHits >= COMBO.breakFrom && this.breakCooldown === 0 && !this.breakLocked) this.breakPress = true;
+      else this.breakLocked = true;
+    }
   }
 
   // ---------- main step ----------
@@ -175,6 +203,8 @@ export class Fighter {
     // one that bends the launch angle. See _applyLaunch.
     this.di = { x: this.input.x, y: this.input.y };
     if (!this.alive) return;
+    if (this.comboHits > 0 && !COMBO_HELD.has(this.state)) { this.comboHits = 0; this.comboKey = -1; this.breakLocked = false; this.breakPress = false; }
+    if (this.breakPress) { this._breakOut(); return; }
     if (this.hitlag > 0) {
       // Buffers deliberately do NOT tick here. Hitlag runs up to HITLAG_CAP (12) frames, longer
       // than INPUT_BUFFER (6), so ticking during the freeze silently ate every escape input.
@@ -197,6 +227,7 @@ export class Fighter {
 
   _tickTimers() {
     if (this.invincible > 0) this.invincible--;
+    if (this.breakCooldown > 0) this.breakCooldown--;
     if (this.ledgeCooldown > 0) this.ledgeCooldown--;
     if (this.dropTimer > 0) this.dropTimer--;
     const e = this.effects;
@@ -242,6 +273,7 @@ export class Fighter {
       case 'hitstun': return this._stepHitstun();
       case 'knockdown': this._friction(); if (this.sf > KNOCKDOWN.frames) this.setState('idle'); return;
       case 'tech': return this._stepTech();
+      case 'breakout': this.noGravityFrame = this.sf <= 8; this._friction(); if (this.sf > COMBO.breakFrames) this.setState(this.onGround ? 'idle' : 'air'); return;
       case 'ledge': return this._stepLedge(ctx);
       case 'ledgeaction': return this._stepLedgeAction(ctx);
       case 'grab': return this._stepGrab(ctx);
@@ -511,6 +543,13 @@ export class Fighter {
       this.mech.spines -= move.ammo;
     }
     this.move = move; this.moveId = move.id; this.mf = 0; this.moveLanded = false; this.hitVictims = new Map();
+    this.moveSerial++;
+    // A string: `link` is a chained follow-up, `perfect` a timed one. Anything else starts afresh.
+    const perfect = !!(opts.link && opts.perfect);
+    this.chainDepth = opts.link ? this.chainDepth + 1 : 0;
+    this.perfectStreak = perfect ? this.perfectStreak + 1 : 0;
+    this.linkPerfect = perfect;
+    this.mashed.light = false; this.mashed.heavy = false;
     this.charge = 0; this.armorUsed = false; this.volleyCount = 0; this.spawnedActive = false;
     // per-ultimate scratch: who the sniper painted, who the vortex is holding, shots left
     this.ultTarget = null; this.ultHeld = []; this.ultShots = 0; this.ultCooldown = 0; this.ultEndAt = 0;
@@ -534,9 +573,15 @@ export class Fighter {
     else if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; }   // spent by signatures only; a light does not burn it
     if (this.mech.id === 'Bloom' && this.mech.bloomed && move.heavy) { this.bonusDamage += M.bonusDamage; this.rangeMul = M.rangeMul; this.mech.bloomed = false; this.mech.cooldown = M.cooldownFrames; this.emit({ type: 'bloomspend' }); }
     if (this.mech.id === 'Light' && move.kind === 'beam' && this.mech.segments > 0) { this.startupEff = Math.max(4, move.startup - M.windupPerSegment * this.mech.segments); this.mech.segments = 0; }
+    // The reward for a timed link, after the mechanics so it stacks with Surge's startup cut.
+    if (perfect) {
+      this.startupEff = Math.max(Math.min(COMBO.perfectMinStartup, this.startupEff), this.startupEff - COMBO.perfectStartupCut);
+      this.bonusDamage += COMBO.perfectDamage;
+    }
     this.startupShift = move.startup - this.startupEff;
     this.setState('attack');
     this.emit({ type: 'movestart', move: move.id, heavy: !!move.heavy });
+    if (perfect) this.emit({ type: 'perfectlink', move: move.id, streak: this.perfectStreak, finisher: !!move.finisher });
   }
 
   get moveActive() {
@@ -612,6 +657,7 @@ export class Fighter {
     }
     if (m.fastFallActive && active && !this.onGround) this.vy = Math.min(this.vy, -this.char.fallSpeed * MOVE.fastFallMul);
     if (this._chainInto(m, inp)) return;
+    if (this._cancel(m, inp)) return;
     if (this.mf === this.startupEff + 1 && !this.spawnedActive) { this.spawnedActive = true; ctx.combat.onMoveActive(this, m); }
     if (active) ctx.combat.onMoveActiveFrame(this, m);
     if (this.mf > total) this.endMove();
@@ -621,14 +667,20 @@ export class Fighter {
   // chosen by the direction held: `chains` keyed by up/side/down/neutral, with `chainsTo` as the
   // fallback so single-branch strings still read as before. `chainsHeavy` lets a light string
   // cash out into a signature, which is what makes a weapon's combo tree worth learning.
+  //
+  // `finishers` (same keys) is a branch that only opens at the end of a string linked perfectly
+  // all the way: every link so far timed, and this press timed too. Mash the same string and the
+  // finisher is not there.
   _chainInto(m, inp) {
     if (!this.moveLanded || this.mf < this.startupEff + m.active) return false;
     const dir = inp.y > 0.5 ? 'up' : inp.y < -0.5 ? 'down' : Math.abs(inp.x) > 0.5 ? 'side' : 'neutral';
+    const timed = (buf) => this.perfectPress[buf] && !this.mashed[buf];
     const go = (id, buf) => {
       if (!id || !this.char.moves[id]) return false;
+      const perfect = timed(buf);
       this.buffer[buf] = 0;
       if (dir === 'side') this.facing = sign(inp.x);
-      this.startMove(id);
+      this.startMove(id, { link: true, perfect });
       return true;
     };
     if (this.buffer.heavy > 0 && m.chainsHeavy) {
@@ -636,8 +688,40 @@ export class Fighter {
       if (go(id, 'heavy')) return true;
     }
     if (this.buffer.light > 0) {
+      const fin = m.finishers && m.finishers[dir];
+      if (fin && timed('light') && this.perfectStreak === this.chainDepth && go(fin, 'light')) return true;
       const id = (m.chains && m.chains[dir]) || m.chainsTo;
       if (go(id, 'light')) return true;
+    }
+    return false;
+  }
+
+  // Cancels: a move that declares `cancels` can be cut short once it has CONNECTED and its active
+  // frames are over - by Jump into a jump (on the ground) or a double jump (in the air), or by
+  // Dodge into a dash (ground) or an air dodge (air). A whiff keeps its whole recovery, which is
+  // where the risk of the move lives. Both spend what they would normally spend.
+  _cancel(m, inp) {
+    const c = m.cancels;
+    if (!c || !this.moveLanded || this.mf <= this.startupEff + m.active) return false;
+    if (c.jump && this.buffer.jump > 0 && (this.onGround || this.jumpsLeft > 0)) {
+      this.buffer.jump = 0;
+      this.endMove();
+      if (this.onGround) this.setState('jumpsquat');
+      else {
+        this.jumpsLeft--; this.vy = this.char.jumpVelocity * this.jumpMul(); this.fastFalling = false;
+        if (Math.abs(inp.x) > 0.5) this.facing = sign(inp.x);
+        this.emit({ type: 'doublejump' });
+      }
+      this.emit({ type: 'cancel', kind: 'jump' });
+      return true;
+    }
+    if (c.dodge && this.buffer.dodge > 0 && (this.onGround || !this.airDodgeUsed)) {
+      this.buffer.dodge = 0;
+      this.endMove();
+      if (this.onGround) this._startDash(Math.abs(inp.x) > 0.5 ? sign(inp.x) : this.facing);
+      else this._startAirDodge(inp);
+      this.emit({ type: 'cancel', kind: 'dodge' });
+      return true;
     }
     return false;
   }
@@ -734,6 +818,21 @@ export class Fighter {
     this.tumbling = stun >= TUMBLE_THRESHOLD;
     this.fastFalling = false;
     this.setState('hitstun');
+  }
+
+  // The combo break (COMBO in config.js). The freeze ends now and the launch never happens: the
+  // victim bursts free, briefly invincible, and whoever was hitting them is shoved away.
+  _breakOut() {
+    this.breakPress = false; this.breakLocked = true;
+    this.hitlag = 0; this.pendingLaunch = null; this.hitstun = 0; this.tumbling = false; this.fastFalling = false;
+    this.buffer.dodge = 0;
+    this.vx = 0; this.vy = this.onGround ? 0 : 6;
+    this.invincible = Math.max(this.invincible, COMBO.breakInv);
+    this.breakCooldown = COMBO.breakCooldown;
+    const a = this.lastHitBy;
+    if (a && a.alive) { a.vx = sign(a.x - this.x) * COMBO.breakPush; a.hitlag = 0; }
+    this.setState('breakout');
+    this.emit({ type: 'combobreak', attacker: a ? a.index : -1 });
   }
 
   _applyEffects(applies) {

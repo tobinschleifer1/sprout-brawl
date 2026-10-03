@@ -177,8 +177,12 @@ function confirmsAtInner(weaponId, fromId, dir, toId, percent, opts, impacts) {
   let opened = false, chained = false, chainedAt = -1, startPct = percent, dodged = false;
   for (let i = 0; i < 200; i++) {
     if (!opened && v.percent > startPct) opened = true;          // the opener connected
-    // hold the follow-up input from the moment the opener lands until the chain fires
-    if (opened && !chained && a.moveId === fromId) {
+    // The follow-up input, held until the chain fires. `timing` is how it is pressed (COMBO in
+    // config.js): 'mash' presses every frame from the opener's first frame, which is an ordinary
+    // link - exactly what every chain was before timed links existed, so the weapons' header
+    // tables measure the same; 'perfect' starts pressing the frame the opener lands, a timed link.
+    const timing = opts.timing || 'mash';
+    if ((opened || timing === 'mash') && !chained && a.moveId === fromId) {
       press(Object.assign({}, stick, heavy ? { heavy: true, heavyHeld: true } : { light: true }));
     } else m._input.clear('p0');
     // Once hit, the victim escapes the instant they are actionable again. Spot dodge is invincible

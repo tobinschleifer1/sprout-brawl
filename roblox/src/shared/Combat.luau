@@ -323,6 +323,18 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		return true
 	end
 
+	-- One more hit in this combo - once per swing, so a multi-hit move counts as the one attack it
+	-- is - and the damage it lands scaled by how deep into the combo it is. The launch below uses
+	-- the UNSCALED damage: scaling stops a long string piling on percent, not any one hit sending.
+	if direct or opts.projectile then
+		local key = attacker.index * 1000000 + attacker.moveSerial
+		if victim.comboKey ~= key then
+			victim.comboKey = key
+			victim.comboHits += 1
+		end
+	end
+	local dealt = if victim.comboHits >= Config.COMBO.scaleFrom
+		then math.max(1, math.floor(damage * Config.comboScale(victim.comboHits) + 0.5)) else damage
 	local angle = if hb and hb.angle ~= nil then hb.angle else move.angle
 	local after = victim.percent + damage
 	local own = if direct then (attacker.launchMul or 1) else 1
@@ -351,8 +363,8 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		-- still executing the move that fired it.
 		attacker.moveLanded = true
 	end
-	attacker.stats.damageDealt += damage
-	victim:applyHit({ damage = damage, launch = launch, stun = stun, angle = angle, facing = facing,
+	attacker.stats.damageDealt += dealt
+	victim:applyHit({ damage = dealt, launch = launch, stun = stun, angle = angle, facing = facing,
 		attacker = attacker, hitlag = if opts.summon then math.min(hl, 4) else hl,
 		extraHitstun = move.extraHitstun or 0, applies = move.applies, pull = move.pullVictim,
 		attackerX = attacker.x, trip = move.trip })
@@ -375,17 +387,18 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	if victim.item and damage >= ITEM_CFG.knockOutDamage then
 		Combat.dropItem(self, victim, true)
 	end
-	Combat.emit(self, { type = "hit", x = cx, y = cy, damage = damage, launch = launch,
+	Combat.emit(self, { type = "hit", x = cx, y = cy, damage = dealt, launch = launch,
 		heavy = not not move.heavy, weight = victim.weight, attacker = attacker.index,
-		victim = victim.index, angle = angle, facing = facing })
+		victim = victim.index, angle = angle, facing = facing, combo = victim.comboHits })
 	return true
 end
 
 function Combat.onHitLanded(self, attacker: any, victim: any, move: any, isMelee: boolean)
 	-- One landed hit, one point of ultimate charge - regardless of damage, so a fast light string
 	-- charges as fast as a signature and pressure is what fills the bar.
+	-- A timed link is worth a little more (COMBO.perfectCharge): the meter rewards skill, not volume.
 	if attacker.chargeUltimate and move.id ~= "Ultimate" then
-		attacker:chargeUltimate(1)
+		attacker:chargeUltimate(if attacker.linkPerfect and attacker.move == move then Config.COMBO.perfectCharge else 1)
 	end
 	-- A mark, not a launch. While Exsanguinate is live every connection stacks on the victim and
 	-- the knockback is held back until the window closes.

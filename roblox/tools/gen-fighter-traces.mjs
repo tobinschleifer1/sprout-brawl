@@ -55,7 +55,10 @@ const FIELDS = ['x', 'y', 'prevX', 'prevY', 'vx', 'vy', 'facing', 'state', 'sf',
   'moveId', 'mf', 'startupEff', 'startupShift', 'moveLanded', 'charge', 'percent', 'carryX',
   'snaredBy', 'reeling', 'techPress', 'techRoll', 'ultCharge', 'ultActive', 'frozenFrames',
   'lag', 'alive', 'stocks', 'spawnedActive', 'armorUsed', 'bonusDamage', 'launchMul', 'rangeMul',
-  'noGravityFrame', 'frameCount'];
+  'noGravityFrame', 'frameCount',
+  // combos (COMBO in config.js): the attacker's string and the victim's combo
+  'moveSerial', 'linkPerfect', 'perfectStreak', 'chainDepth', 'comboHits', 'comboKey', 'breakLocked',
+  'breakPress', 'breakCooldown'];
 const BUFFERS = ['jump', 'light', 'heavy', 'dodge', 'guard', 'grab', 'taunt', 'ult', 'pickup'];
 
 function snap(f) {
@@ -96,10 +99,20 @@ function snap(f) {
 
 const I = (o = {}) => Object.assign(emptyFrame(), o);
 
+// A scenario can change the character's moves - a move copied `from` another with fields `set` on
+// it - so engine features no weapon uses yet (finishers, cancels) are still replayed. Data, so the
+// Luau applies exactly the same change.
+function patched(char, patch) {
+  if (!patch) return char;
+  const moves = { ...char.moves };
+  for (const p of patch) moves[p.id] = { ...moves[p.from || p.id], ...p.set, id: p.id };
+  return { ...char, moves };
+}
+
 function run(spec) {
   const data = STAGES.find((s) => s.id === spec.stage);
   const stage = new StageRuntime({ ...data, hazards: [] });
-  const char = buildLoadout(spec.avatar, spec.weapon);
+  const char = patched(buildLoadout(spec.avatar, spec.weapon), spec.patch);
   const f = new Fighter({ index: 0, char, x: spec.x, y: spec.y, stocks: 3, name: 'P' });
   // Start from a settled state rather than mid-respawn, unless the scenario is about respawning.
   if (!spec.keepRespawn) { f.setState('air'); f.invincible = 0; }
@@ -114,6 +127,7 @@ function run(spec) {
     for (let i = 0; i < seg.frames; i++, frame++) {
       const ev = events.get(frame);
       if (ev) {
+        if (ev.kind === 'hit' && ev.combo != null) f.comboHits = ev.combo;
         if (ev.kind === 'hit') f.applyHit({ damage: ev.damage, launch: ev.launch, stun: ev.stun,
           angle: ev.angle, facing: ev.facing, attacker: null, hitlag: ev.hitlag,
           extraHitstun: ev.extraHitstun || 0 });
@@ -179,6 +193,56 @@ S.push({ name: 'light chain', stage: 'FoundryFloor', avatar: 'Classic', weapon: 
     hold(1, { light: true, anyPress: true }), hold(12, {}),
     hold(1, { light: true, anyPress: true }), hold(60, {})],
   events: [{ frame: 8, kind: 'landed' }, { frame: 18, kind: 'landed' }] });
+
+// Timed links (COMBO): a press on the strike (timed: faster, harder), a press in the wind-up
+// (ordinary), and a late heavy (ordinary, into a signature).
+S.push({ name: 'timed links', stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 0, y: 0.5,
+  segments: [hold(6, {}), hold(1, { light: true, anyPress: true }), hold(5, {}),
+    hold(1, { light: true, anyPress: true }), hold(1, {}), hold(1, { light: true, anyPress: true }),
+    hold(17, {}), hold(1, { heavy: true, heavyHeld: true, anyPress: true }), hold(70, {})],
+  events: [{ frame: 12, kind: 'landed' }, { frame: 16, kind: 'landed' }, { frame: 24, kind: 'landed' }] });
+
+// The window's last frame (timed) and the frame after it (ordinary), on LightNeutral1.
+for (const [name, wait] of [['window, last frame', 10], ['window, one frame past', 11]]) {
+  S.push({ name, stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 0, y: 0.5,
+    segments: [hold(6, {}), hold(1, { light: true, anyPress: true }), hold(wait, {}),
+      hold(1, { light: true, anyPress: true }), hold(50, {})],
+    events: [{ frame: 12, kind: 'landed' }] });
+}
+
+// A finisher, reached by two timed links.
+S.push({ name: 'finisher', stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 0, y: 0.5,
+  patch: [{ id: 'Finisher', from: 'LightNeutral3', set: { label: 'Test Finisher', finisher: true } },
+    { id: 'LightNeutral2', set: { finishers: { neutral: 'Finisher' } } }],
+  segments: [hold(6, {}), hold(1, { light: true, anyPress: true }), hold(5, {}),
+    hold(1, { light: true, anyPress: true }), hold(3, {}), hold(1, { light: true, anyPress: true }), hold(70, {})],
+  events: [{ frame: 12, kind: 'landed' }, { frame: 16, kind: 'landed' }] });
+
+// Cancels: a landed light jump-cancelled, an aerial dodge-cancelled into an air dodge, then a
+// whiffed light that cannot be cancelled.
+S.push({ name: 'cancels', stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 0, y: 0.5,
+  patch: [{ id: 'LightNeutral1', set: { cancels: { jump: true } } }, { id: 'AirNeutral', set: { cancels: { dodge: true } } }],
+  segments: [hold(6, {}), hold(1, { light: true, anyPress: true }), hold(7, {}),
+    hold(1, { jump: true, jumpHeld: true, anyPress: true }), hold(5, { jumpHeld: true }),
+    hold(1, { light: true, anyPress: true }), hold(19, {}), hold(1, { dodge: true, x: 1, anyPress: true }),
+    hold(80, {}), hold(1, { light: true, anyPress: true }), hold(9, {}),
+    hold(1, { jump: true, anyPress: true }), hold(40, {})],
+  events: [{ frame: 12, kind: 'landed' }, { frame: 30, kind: 'landed' }] });
+
+// The combo break: an early Dodge (third hit) locks it; a fresh combo broken in the fourth hit's
+// freeze; then a fifth-hit Dodge inside the cooldown does nothing.
+const comboHit = (frame, combo) => ({ frame, kind: 'hit', combo, damage: 4, launch: 12, stun: 12, angle: 60, facing: 1, hitlag: 6 });
+S.push({ name: 'combo break', stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 0, y: 0.5,
+  segments: [hold(20, {}), hold(3, {}), hold(1, { dodge: true, anyPress: true }), hold(4, {}),
+    hold(2, {}), hold(1, { dodge: true, anyPress: true }), hold(88, {}),
+    hold(2, {}), hold(1, { dodge: true, anyPress: true }), hold(60, {}),
+    hold(2, {}), hold(1, { dodge: true, anyPress: true }), hold(60, {})],
+  events: [comboHit(20, 3), comboHit(28, 4), comboHit(119, 4), comboHit(182, 5)] });
+
+// A fourth-hit Dodge pressed just after the freeze, still in hitstun: no break, and locked.
+S.push({ name: 'break after the freeze', stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 0, y: 0.5,
+  segments: [hold(27, {}), hold(1, { dodge: true, anyPress: true }), hold(40, {})],
+  events: [comboHit(20, 4)] });
 
 // a heavy signature with a lunge, thrown near the ledge
 S.push({ name: 'lunge at the ledge', stage: 'FoundryFloor', avatar: 'Classic', weapon: 'Sword', x: 33, y: 0.5,

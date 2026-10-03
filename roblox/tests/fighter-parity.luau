@@ -85,6 +85,22 @@ local function firstDifference(a: any, b: any, path: string): string?
 end
 
 -- The stub, matching tools/gen-fighter-traces.mjs exactly - including what it logs.
+-- A scenario can change the character's moves (gen-fighter-traces.mjs `patched`): a move copied
+-- `from` another with fields `set` on it, so engine features no weapon uses yet are replayed too.
+local function patched(char: any, patch: any): any
+	if not patch then return char end
+	local moves = table.clone(char.moves)
+	for _, p in patch do
+		local m = table.clone(moves[p.from or p.id])
+		for k, v in p.set or {} do m[k] = v end
+		m.id = p.id
+		moves[p.id] = m
+	end
+	local out = table.clone(char)
+	out.moves = moves
+	return out
+end
+
 local function stubCombat(fighters: any): any
 	local log: { string } = {}
 	local function rec(name: string, extra: any?)
@@ -199,7 +215,7 @@ for _, spec in T.scenarios do
 	local data = table.clone(StageData.BY_ID[spec.stage])
 	data.hazards = {}
 	local stage = Stage.new(data)
-	local char = Loadout.build(spec.avatar, spec.weapon)
+	local char = patched(Loadout.build(spec.avatar, spec.weapon), spec.patch)
 	local f = Fighter.new({ index = 0, char = char, x = tonumber(spec.x), y = tonumber(spec.y),
 		stocks = 3, name = "P" })
 	if not spec.keepRespawn then
@@ -221,6 +237,7 @@ for _, spec in T.scenarios do
 			local ev = events[frame]
 			if ev then
 				local k = ev.kind
+				if k == "hit" and ev.combo ~= nil then f.comboHits = tonumber(ev.combo) end
 				if k == "hit" then
 					f:applyHit({ damage = tonumber(ev.damage), launch = tonumber(ev.launch),
 						stun = tonumber(ev.stun), angle = tonumber(ev.angle),
@@ -300,7 +317,7 @@ for _, spec in T.scenarios do
 		local data = table.clone(StageData.BY_ID[spec.stage])
 		data.hazards = {}
 		local stage = Stage.new(data)
-		local char = Loadout.build(spec.avatar, spec.weapon)
+		local char = patched(Loadout.build(spec.avatar, spec.weapon), spec.patch)
 		local f = Fighter.new({ index = 0, char = char, x = tonumber(spec.x), y = tonumber(spec.y),
 			stocks = 3, name = "P" })
 		if not spec.keepRespawn then
@@ -324,6 +341,7 @@ for _, spec in T.scenarios do
 			local ev = events[i - 1]
 			if ev then
 				local k = ev.kind
+				if k == "hit" and ev.combo ~= nil then f.comboHits = tonumber(ev.combo) end
 				if k == "hit" then
 					f:applyHit({ damage = tonumber(ev.damage), launch = tonumber(ev.launch),
 						stun = tonumber(ev.stun), angle = tonumber(ev.angle),

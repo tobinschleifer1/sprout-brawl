@@ -84,6 +84,27 @@ export const ITEMS = { spawnEvery: 14, despawnAfter: 22, knockOutDamage: 12 };
 export const SUDDEN_DEATH = { percent: 300, shrinkEvery: 10, shrinkFactor: 0.8 };
 export const INPUT_BUFFER = 6;
 
+// Combos that reward timing. docs/briefs/combo-system-plan.md has the design; fighter.js and
+// combat.js implement it.
+//
+// A follow-up is PERFECT when its button went down during the previous move's strike - from its
+// first active frame to `perfectLate` frames after its last - and no press of that button came in
+// during the wind-up. Measured on the attacker's own move, which the client draws from prediction
+// with no lag, so the window is the same at any ping. A press in the wind-up still chains: it is
+// an ordinary link, which is what mashing gets.
+//
+// Damage scales down through a long combo from the `scaleFrom`th hit; knockback does not, so kill
+// percents stay where the balance tables put them. From the `breakFrom`th hit the victim can break
+// out with a Dodge pressed during that hit's freeze; an early or mashed Dodge locks the break out
+// for the rest of the combo.
+export const COMBO = {
+  perfectLate: 4, perfectStartupCut: 2, perfectMinStartup: 2, perfectDamage: 1, perfectCharge: 1.25,
+  scaleFrom: 3, scaleStep: 0.08, scaleFloor: 0.5,
+  breakFrom: 4, breakFrames: 16, breakInv: 20, breakPush: 30, breakCooldown: 360,
+};
+// The share of a hit's damage that lands as the `hits`th hit of a combo.
+export const comboScale = (hits) => (hits < COMBO.scaleFrom ? 1 : Math.max(COMBO.scaleFloor, 1 - COMBO.scaleStep * (hits - COMBO.scaleFrom + 1)));
+
 // Ultimates. Charge by landing hits; spend the whole meter in one activation. The meter is wiped
 // when you lose a stock, so an ultimate is a reward for a run of pressure, not a consolation prize
 // for dying. Chip damage (node ticks, cloud ticks) does not count - only real connections do.

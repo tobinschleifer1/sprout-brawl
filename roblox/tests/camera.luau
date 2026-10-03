@@ -3,8 +3,8 @@
 --
 -- It holds: a close fight fills the screen the same way at every resolution (the camera's ppu is
 -- SCREEN pixels - it was the 270-pixel backbuffer's for a long time, which at 1080p showed a fight
--- from four times too far away); a close fight is Brawlhalla-close, a fighter about a fifth of the
--- screen tall; fighters who separate, even to opposite blast zones or one launched high, all stay on
+-- from four times too far away); a close fight frames a fighter at about a sixth of the screen
+-- (22% was tried and played too tight; the web's 14% too far); fighters who separate, even to opposite blast zones or one launched high, all stay on
 -- screen; and the camera never zooms past its limit.
 --
 --     lune run tests/camera
@@ -37,9 +37,10 @@ for _, size in { { 1920, 1080 }, { 1280, 720 }, { 2560, 1080 }, { 812, 375 }, { 
 	local cam = frame(close, w, h)
 	local frac = H * cam.ppu / h
 	table.insert(fractions, string.format("%dx%d %.0f%%", w, h, frac * 100))
-	-- close: Brawlhalla-close, a fighter about a fifth of the screen tall
-	if frac < 0.18 or frac > 0.30 then
-		fail(`{w}x{h}: a close fight shows a fighter {string.format("%.1f", frac * 100)}% of the screen tall, want 18-30%`)
+	-- close: a fighter about a sixth of the screen tall - near enough to read, far enough to see
+	-- the stage round the fight
+	if frac < 0.145 or frac > 0.19 then
+		fail(`{w}x{h}: a close fight shows a fighter {string.format("%.1f", frac * 100)}% of the screen tall, want 14.5-19%`)
 	end
 	if cam.ppu / h * Camera2D.BH > Camera2D.ZOOM_MAX + 1e-9 then fail(`{w}x{h}: zoomed past the limit`) end
 	-- separated, launched, and at opposite blast zones: everybody stays on screen

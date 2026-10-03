@@ -13,15 +13,16 @@
 -- stood 3% of the screen tall. `ppu` is now screen pixels a stud: the backbuffer framing scaled by
 -- viewport height / 270, so the framing is the same picture at every resolution.
 --
--- THE FRAMING is Roblox's own, closer than the web's: Brawlhalla holds two fighters in a scrap at
--- around a fifth of the screen's height and only pulls out as they separate. ZOOM_MAX 11.5 with
--- tighter padding puts a fighter at ~22% when the fight is close (the web's 7.2 is 14%). The floor
+-- THE FRAMING is Roblox's own, a little closer than the web's: ZOOM_MAX 8.5 puts a fighter at ~16%
+-- of the screen's height when the fight is close (the web's 7.2 is 14%). 11.5 (22%) was tried first
+-- and played too tight - "it needs to zoom out more when fighting" - with too little stage around
+-- the fight to see what was coming. The camera still pulls out as fighters separate. The floor
 -- is 1.6, not the web's 2.0: Roblox also runs in 4:3 windows and on tablets, where 2.0 lost a
 -- fighter off the edge in a chase 95 studs out either side (tests/camera.luau).
 local BH = 270                -- the web backbuffer height: the unit the framing is worked out in
-local ZOOM_MIN, ZOOM_MAX = 1.6, 11.5
-local PAD = 12                -- studs kept clear either side of the outermost fighters
-local MIN_W, MIN_H = 30, 21   -- the least world the camera will show, in studs
+local ZOOM_MIN, ZOOM_MAX = 1.6, 8.5
+local PAD = 16                -- studs kept clear either side of the outermost fighters
+local MIN_W, MIN_H = 38, 26   -- the least world the camera will show, in studs
 
 local Camera2D = {}
 Camera2D.__index = Camera2D

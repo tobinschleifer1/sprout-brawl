@@ -58,7 +58,7 @@ const FIELDS = ['x', 'y', 'prevX', 'prevY', 'vx', 'vy', 'facing', 'state', 'sf',
   'noGravityFrame', 'frameCount',
   // combos (COMBO in config.js): the attacker's string and the victim's combo
   'moveSerial', 'linkPerfect', 'perfectStreak', 'chainDepth', 'comboHits', 'comboKey', 'breakLocked',
-  'breakPress', 'breakCooldown'];
+  'breakPress', 'breakCooldown', 'chase', 'breakable', 'cancelUsed'];
 const BUFFERS = ['jump', 'light', 'heavy', 'dodge', 'guard', 'grab', 'taunt', 'ult', 'pickup'];
 
 function snap(f) {

@@ -1,6 +1,6 @@
 # Combo system plan: skill through timing, air strings and finishers
 
-Status: plan, not started. Branch: `revamp/sprites-disasters`.
+Status: phases 1 and 2 done (engine, weapon data); phase 3 next. Branch: `revamp/sprites-disasters`.
 
 The decisions behind it:
 
@@ -238,6 +238,36 @@ The names are working titles.
 Zoners and superheavies get shorter strings and fewer cancels. Combo weapons get the longest.
 This keeps the roster's identities, and every weapon's header comment gets the measured
 CONFIRM/trap table it already has for its signatures.
+
+## What phase 2 changed (measured, then decided)
+
+Measuring each route through the engine (`routeAt` in `web/test/balance.mjs`) changed four things
+in this design.
+
+- **The chase.** Every hit sends its victim away, so no chained aerial ever reached the next one.
+  Fixing that in data would have meant weakening every aerial in normal play.
+  - The fix: a timed air link, or the first aerial within 24 frames of a cancel, carries the
+    attacker toward the fighter just hit (`COMBO.chaseFrames`, `chaseSpeed` 48 studs/s).
+  - It is aimed so the new move's hitbox meets where the victim will be.
+  - Mashed links do not chase, so mashed air strings fall apart. `combo.test.mjs` asserts both
+    halves.
+- **Finishers cannot be broken.** The ground finisher is the 4th hit of its route, and the break
+  opens on the 4th hit. So a defender who knew the freeze would have broken every finisher. The
+  break is now for the long combos (launcher, cancel, air string) that reach hit 4 before their
+  finisher does.
+- **One cancel per combo.** A greedy attacker found a 14-hit Longbow loop: Bowstave dodge-cancelled
+  into a dash, re-opened with Pierce, then the string run back to Bowstave and cancelled again.
+  Now, once a fighter has cancelled, they cannot cancel again until their victim is out of the
+  combo. No weapon holds anyone past 6 hits in the loop check, whose limit is 8.
+- **Route shapes that measurement moved:**
+  - Axe and Flail finish off LightNeutral2: neither one's full light string is a true combo.
+  - Scythe's air string starts from Long Reap: Whirl's 12 active frames lose the victim before the
+    chain opens.
+  - Shield's cancel is on its counter burst (`counter.cancels`).
+
+The `pose` fields moved to phase 4, where they are first read, so no data sits unused in between.
+Each weapon's header now quotes its timed routes (`ROUTE ... CONFIRM`), checked against the
+measurement the same way the signature tables are.
 
 ## Implementation order
 

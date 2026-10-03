@@ -197,6 +197,9 @@ function methods.reset(self, x: number, y: number, opts: any?)
 	self.perfectPress = { light = false, heavy = false }; self.mashed = { light = false, heavy = false }
 	self.linkPerfect = false; self.perfectStreak = 0; self.chainDepth = 0
 	self.comboHits = 0; self.comboKey = -1; self.breakLocked = false; self.breakPress = false; self.breakCooldown = 0
+	self.comboTarget = nil; self.chase = 0   -- who this fighter last hit, and the chase window a cancel opens
+	self.breakable = true                    -- false while frozen by a finisher, which cannot be broken
+	self.cancelUsed = false                  -- one cancel per combo: see _cancel
 	self.inWater = false
 	-- What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run,
 	-- written by hazards, read by _physics and _friction.
@@ -300,7 +303,7 @@ function methods.applyInput(self, frame: any)
 	-- The combo break: Dodge during the freeze of the breakFrom-th hit or later. Any other Dodge
 	-- while held in a combo locks the break for the rest of it.
 	if frame.dodge and self.comboHits > 0 and self.state == "hitstun" then
-		if self.hitlag > 0 and self.comboHits >= COMBO.breakFrom and self.breakCooldown == 0 and not self.breakLocked then
+		if self.hitlag > 0 and self.breakable and self.comboHits >= COMBO.breakFrom and self.breakCooldown == 0 and not self.breakLocked then
 			self.breakPress = true
 		else
 			self.breakLocked = true
@@ -323,6 +326,9 @@ function methods.step(self, ctx: any)
 	if self.breakPress then
 		methods._breakOut(self)
 		return
+	end
+	if self.cancelUsed and not (self.comboTarget and self.comboTarget.comboHits > 0) then
+		self.cancelUsed = false
 	end
 	if self.hitlag > 0 then
 		-- Buffers deliberately do NOT tick here. Hitlag runs up to HITLAG_CAP (12) frames, longer
@@ -354,6 +360,7 @@ end
 function methods._tickTimers(self)
 	if self.invincible > 0 then self.invincible -= 1 end
 	if self.breakCooldown > 0 then self.breakCooldown -= 1 end
+	if self.chase > 0 then self.chase -= 1 end
 	if self.ledgeCooldown > 0 then self.ledgeCooldown -= 1 end
 	if self.dropTimer > 0 then self.dropTimer -= 1 end
 	local e = self.effects
@@ -880,6 +887,10 @@ function methods.startMove(self, moveOrId: any, opts: any?)
 		self.startupEff = math.max(math.min(COMBO.perfectMinStartup, self.startupEff), self.startupEff - COMBO.perfectStartupCut)
 		self.bonusDamage += COMBO.perfectDamage
 	end
+	if move.grounded == false and not self.onGround and (perfect or self.chase > 0) then
+		methods._chase(self, move)
+	end
+	self.chase = 0
 	self.startupShift = move.startup - self.startupEff
 	methods.setState(self, "attack")
 	methods.emit(self, { type = "movestart", move = move.id, heavy = not not move.heavy })
@@ -1001,10 +1012,11 @@ end
 
 -- Cancels: a move that declares `cancels` can be cut short once it has CONNECTED and its active
 -- frames are over - Jump into a jump or double jump, Dodge into a dash or air dodge. A whiff keeps
--- its whole recovery. Both spend what they would normally spend.
+-- its whole recovery. Both spend what they would normally spend. One per combo (cancelUsed):
+-- cancels start combos, they do not loop them - see fighter.js.
 function methods._cancel(self, m, inp): boolean
 	local c = m.cancels
-	if not c or not self.moveLanded or self.mf <= self.startupEff + m.active then
+	if not c or self.cancelUsed or not self.moveLanded or self.mf <= self.startupEff + m.active then
 		return false
 	end
 	if c.jump and self.buffer.jump > 0 and (self.onGround or self.jumpsLeft > 0) then
@@ -1017,6 +1029,7 @@ function methods._cancel(self, m, inp): boolean
 			if math.abs(inp.x) > 0.5 then self.facing = sign(inp.x) end
 			methods.emit(self, { type = "doublejump" })
 		end
+		self.chase = COMBO.chaseFrames; self.cancelUsed = true
 		methods.emit(self, { type = "cancel", kind = "jump" })
 		return true
 	end
@@ -1028,10 +1041,34 @@ function methods._cancel(self, m, inp): boolean
 		else
 			methods._startAirDodge(self, inp)
 		end
+		self.chase = COMBO.chaseFrames; self.cancelUsed = true
 		methods.emit(self, { type = "cancel", kind = "dodge" })
 		return true
 	end
 	return false
+end
+
+-- The chase (Config.COMBO): set off toward the fighter just hit, so that `move`'s first hitbox is
+-- centred on where they will be on its first active frame, at no more than chaseSpeed. See fighter.js.
+function methods._chase(self, move: any)
+	local v = self.comboTarget
+	if not v or not v.alive then return end
+	local t = (self.startupEff + 1) * FRAME
+	local hb = if move.hitboxes then move.hitboxes[1] else nil
+	local ox = if hb then hb.offset[1] else 0
+	local oy = if hb then hb.offset[2] else self.h / 2
+	self.facing = if v.x >= self.x then 1 else -1
+	local px = v.x + v.vx * t
+	local py = v.y + v.vy * t - 0.5 * GRAVITY * t * t
+	local vx = (px - self.facing * ox - self.x) / t
+	local vy = (py + v.h / 2 - oy - self.y) / t + 0.5 * GRAVITY * t
+	local speed = hypot(vx, vy)
+	if speed > COMBO.chaseSpeed then
+		vx *= COMBO.chaseSpeed / speed
+		vy *= COMBO.chaseSpeed / speed
+	end
+	self.vx = vx; self.vy = vy; self.fastFalling = false
+	methods.emit(self, { type = "chase", victim = v.index })
 end
 
 function methods.endMove(self)
@@ -1056,6 +1093,7 @@ function methods.triggerCounter(self, incomingDamage: number)
 		id = "CounterBurst", label = "Spine Burst", startup = 0, active = c.burstFrames,
 		recovery = c.burstRecovery, damage = dmg, base = m.base, growth = m.growth, angle = m.angle,
 		heavy = true, kind = "melee", total = c.burstFrames + c.burstRecovery,
+		cancels = c.cancels,
 		hitboxes = { { frames = { 1, c.burstFrames }, offset = c.hitbox.offset, size = c.hitbox.size } },
 	}
 	methods.startMove(self, burst)
@@ -1104,6 +1142,8 @@ function methods.applyHit(self, hit: any)
 	self.lastHitBy = hit.attacker or nil
 	self.lastHitFrame = self.frameCount
 	self.hitlag = hit.hitlag
+	-- A finisher cannot be broken: an attacker who linked a whole string perfectly gets its end.
+	self.breakable = not hit.finisher
 	if hit.applies then methods._applyEffects(self, hit.applies) end
 	local id = self.mech.id
 	if id == "Light" then self.mech.segments = math.max(0, self.mech.segments - 1) end
@@ -1725,7 +1765,7 @@ local SCALARS = {
 	-- Combos: the string the attacker is in and the combo the victim is held in. A rollback that
 	-- dropped these would forget a timed streak, or a combo count, mid-string.
 	"moveSerial", "linkPerfect", "perfectStreak", "chainDepth", "comboHits", "comboKey",
-	"breakLocked", "breakPress", "breakCooldown",
+	"breakLocked", "breakPress", "breakCooldown", "chase", "breakable", "cancelUsed",
 	-- Identity rather than simulation state: these never change during a match, so restoring them
 	-- is a no-op. They are here because a snapshot that cannot rebuild the whole fighter is a
 	-- snapshot somebody will eventually use for something else and be wrong about.
@@ -1736,6 +1776,7 @@ local SCALARS = {
 }
 -- Kept by reference; see above.
 local REFS = { "platform", "ledge", "move", "holder", "lastHitBy", "char", "reflecting", "marking",
+	"comboTarget",
 	"ultTarget", "ultAnchor", "chargeMods", "item",
 	-- The match this fighter belongs to. A reference, never copied.
 	"_match" }

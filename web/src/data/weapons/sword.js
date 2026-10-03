@@ -23,6 +23,15 @@
 // Momentum: 60 frames of running buys +1 damage and x1.01 launch on the next SIGNATURE, worth about
 // 16 points of kill percent. A light does not burn it, so it can ride a cash-out.
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Slash > Backslash > Cross Cut > Judgement   CONFIRM 0-260%   kills 202%
+//   ROUTE  Spin Cut > Arc Slash > Falling Star         CONFIRM 80-140%   spike
+//   ROUTE  Riposte, dodge > Dash Slash                 CONFIRM 140-260%
+//   ROUTE  Rising Cut, jump > Overhead                 CONFIRM 200-260%
 export default {
   id: 'Sword', name: 'Sword', archetype: 'All-rounder', tagline: 'Clean combos, no excuses',
   blurb: 'Mid range, mid speed, mid weight. The sword rewards knowing your string better than the other player knows theirs.',
@@ -43,6 +52,7 @@ export default {
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [5, 6], offset: [2.3, 2.6], size: [2.8, 2.2] }] },
     LightNeutral3: { label: 'Cross Cut', startup: 6, active: 3, recovery: 16, damage: 5, base: 16, growth: 1.6, angle: 45, grounded: true, lunge: 2, extraHitstun: 7,
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { neutral: 'SigNeutral', side: 'SigSide', down: 'SigDown' },
       hitboxes: [{ frames: [7, 9], offset: [2.8, 2.5], size: [3.4, 2.6] }] },
 
@@ -50,10 +60,12 @@ export default {
       chains: { side: 'LightSide2', neutral: 'LightSide2', up: 'LightUp' },
       hitboxes: [{ frames: [9, 11], offset: [3.4, 2.5], size: [4.0, 2.2] }] },
     LightSide2: { label: 'Riposte', startup: 6, active: 3, recovery: 18, damage: 6, base: 19, growth: 2.3, angle: 40, grounded: true, lunge: 2, extraHitstun: 4,
+      cancels: { dodge: true },
       chainsHeavy: 'SigSide',
       hitboxes: [{ frames: [7, 9], offset: [3.6, 2.5], size: [4.2, 2.4] }] },
 
     LightUp: { label: 'Rising Cut', startup: 7, active: 3, recovery: 14, damage: 5, base: 15, growth: 1.7, angle: 80, grounded: true, extraHitstun: 5,
+      cancels: { jump: true },
       chainsHeavy: 'SigNeutral',
       hitboxes: [{ frames: [8, 10], offset: [1.6, 3.8], size: [3.0, 4.0] }] },
     LightDown: { label: 'Low Sweep', startup: 8, active: 4, recovery: 16, damage: 5, base: 13, growth: 1.5, angle: 20, grounded: true, trip: 60, extraHitstun: 7,
@@ -62,8 +74,10 @@ export default {
 
     // ---- aerials ----
     AirNeutral: { label: 'Spin Cut', startup: 8, active: 10, recovery: 14, landingLag: 8, damage: 7, base: 16, growth: 2.0, angle: 50, grounded: false,
+      chains: { neutral: 'AirForward', side: 'AirForward' },
       hitboxes: [{ frames: [9, 18], offset: [0, 2.6], size: [4.8, 4.8] }] },
     AirForward: { label: 'Arc Slash', startup: 10, active: 4, recovery: 15, landingLag: 10, damage: 8, base: 20, growth: 2.4, angle: 35, grounded: false, onHit: { bounce: 10 },
+      chains: { down: 'AirDown' }, finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [11, 14], offset: [3.4, 2.6], size: [4.4, 3.0] }] },
     AirUp: { label: 'Overhead', startup: 9, active: 4, recovery: 14, landingLag: 8, damage: 7, base: 18, growth: 2.6, angle: 88, grounded: false, onHit: { regainJump: true },
       hitboxes: [{ frames: [10, 13], offset: [0.4, 5.0], size: [3.6, 4.0] }] },
@@ -72,6 +86,12 @@ export default {
         { frames: [14, 15], offset: [0.5, -0.6], size: [1.8, 2.2], angle: 275 },   // sweetspot: spike
         { frames: [14, 18], offset: [0.5, 1.0], size: [2.2, 3.2] },                // late: sends up-forward
       ] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Judgement', startup: 8, active: 4, recovery: 24, damage: 8, base: 28, growth: 9.3, angle: 70, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [9, 12], offset: [3.6, 2.5], size: [5.7, 3.1] }] },
+    AirFinisher: { label: 'Falling Star', startup: 12, active: 5, recovery: 21, landingLag: 14, damage: 11, base: 26, growth: 3.4, angle: 290, grounded: false, finisher: true,
+      hitboxes: [{ frames: [13, 17], offset: [3.4, 2.6], size: [5.3, 3.6] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Crescent Rush', startup: 21, active: 4, recovery: 30, damage: 14, base: 32, growth: 5.0, angle: 40, grounded: true, heavy: true, lunge: 8,

@@ -105,7 +105,7 @@ export function moveKeys(move, moveId) {
 }
 
 export const MOVE_ORDER = ['LightNeutral1', 'LightNeutral2', 'LightNeutral3', 'LightSide1', 'LightSide2', 'LightUp',
-  'LightDown', 'AirNeutral', 'AirForward', 'AirUp', 'AirDown', 'SigSide', 'SigDown', 'SigNeutral', 'Ultimate'];
+  'LightDown', 'AirNeutral', 'AirForward', 'AirUp', 'AirDown', 'Finisher', 'AirFinisher', 'SigSide', 'SigDown', 'SigNeutral', 'Ultimate'];
 
 // ------------------------------------------------------------------------ shared animations ----
 // Drawn once, shared by every weapon, tinted per avatar. `sample` is the fighter state each key

@@ -25,6 +25,16 @@
 //   Twin Strike   +Heavy+Side -> Execution     CONFIRM   80-260%   trap    0-60%   kills  227%
 //   Sweep         +Heavy      -> Bloodrush     trap only     0-40%                 kills  205%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Slash > Cross Slash > Twin Strike > Thousand Cuts   CONFIRM 0-260%   kills 236%
+//   ROUTE  Blade Spin > Leaping Cut > Skyward Blades > Carve   CONFIRM 0-260%   spike
+//   ROUTE  Twin Strike, jump > Skyward Blades                  CONFIRM 220-260%
+//   ROUTE  Backstab, jump > Skyward Blades                     CONFIRM 180-260%
+//   ROUTE  Rising Blades, jump > Skyward Blades                CONFIRM 120-260%
 export default {
   id: 'Daggers', name: 'Dual Daggers', archetype: 'Combo monster', tagline: 'Glass cannon',
   blurb: 'The fastest hands and the lightest body in the game. Nine hits in a row is where the damage lives, and a single whiff throws all of it away.',
@@ -43,39 +53,56 @@ export default {
     // The longest light string in the game: four links rather than three, because the weapon is
     // paid in hit count rather than in damage per hit.
     LightNeutral1: { label: 'Slash', startup: 3, active: 2, recovery: 6, damage: 2, base: 7, growth: 0.45, angle: 44, grounded: true,
+      cancels: { jump: true, dodge: true },
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [4, 5], offset: [1.9, 2.8], size: [2.4, 1.8] }] },
     LightNeutral2: { label: 'Cross Slash', startup: 3, active: 2, recovery: 7, damage: 2, base: 8, growth: 0.5, angle: 44, grounded: true,
+      cancels: { jump: true, dodge: true },
       chains: { neutral: 'LightNeutral3', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [4, 5], offset: [2.0, 2.8], size: [2.4, 1.8] }] },
     LightNeutral3: { label: 'Twin Strike', startup: 4, active: 3, recovery: 11, damage: 4, base: 13, growth: 1.2, angle: 50, grounded: true, extraHitstun: 1,
+      cancels: { jump: true, dodge: true },
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { side: 'SigSide' },
       hitboxes: [{ frames: [5, 7], offset: [2.1, 2.8], size: [2.8, 2.4] }] },
 
     LightSide1: { label: 'Dash Cut', startup: 4, active: 2, recovery: 9, damage: 3, base: 9, growth: 0.7, angle: 36, grounded: true, lunge: 2.5,
+      cancels: { jump: true, dodge: true },
       chains: { side: 'LightSide2', neutral: 'LightNeutral3', up: 'LightUp' },
       hitboxes: [{ frames: [5, 6], offset: [2.3, 2.8], size: [2.8, 1.8] }] },
     // Backstab: the damage is on the other side of them, so the move rewards crossing up.
     LightSide2: { label: 'Backstab', startup: 5, active: 3, recovery: 12, damage: 5, base: 15, growth: 1.5, angle: 38, grounded: true, lunge: 4, extraHitstun: 10,
+      cancels: { jump: true, dodge: true },
       hitboxes: [{ frames: [6, 8], offset: [2.6, 2.8], size: [3.2, 2.0] }] },
 
     LightUp: { label: 'Rising Blades', startup: 4, active: 3, recovery: 12, damage: 3, base: 12, growth: 1.4, angle: 86, grounded: true,
+      cancels: { jump: true, dodge: true },
       chainsHeavy: { neutral: 'SigNeutral', up: 'SigNeutral' },
       hitboxes: [{ frames: [5, 7], offset: [1.4, 3.6], size: [2.4, 3.8] }] },
     LightDown: { label: 'Sweep', startup: 5, active: 3, recovery: 13, damage: 3, base: 10, growth: 0.9, angle: 16, grounded: true, trip: 52,
+      cancels: { jump: true, dodge: true },
       chainsHeavy: { down: 'SigDown', neutral: 'SigDown' },
       hitboxes: [{ frames: [6, 8], offset: [2.2, 0.8], size: [3.4, 1.4] }] },
 
     // ---- aerials ----
     AirNeutral: { label: 'Blade Spin', startup: 4, active: 6, recovery: 10, landingLag: 5, damage: 3, base: 11, growth: 1.1, angle: 46, grounded: false,
+      chains: { neutral: 'AirForward', side: 'AirForward', up: 'AirUp' },
       hitboxes: [{ frames: [5, 10], offset: [0, 2.8], size: [4.0, 3.4] }] },
     AirForward: { label: 'Leaping Cut', startup: 5, active: 3, recovery: 11, landingLag: 6, damage: 4, base: 14, growth: 1.6, angle: 40, grounded: false,
+      chains: { up: 'AirUp', down: 'AirDown' },
       hitboxes: [{ frames: [6, 8], offset: [2.2, 2.8], size: [2.8, 2.2] }] },
     AirUp: { label: 'Skyward Blades', startup: 4, active: 3, recovery: 10, landingLag: 5, damage: 4, base: 12, growth: 1.4, angle: 88, grounded: false,
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [5, 7], offset: [0.6, 4.2], size: [2.4, 3.4] }] },
     AirDown: { label: 'Falling Fang', startup: 7, active: 4, recovery: 12, landingLag: 8, damage: 5, base: 14, growth: 1.8, angle: 272, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [8, 11], offset: [0.7, -0.8], size: [2.0, 3.0] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Thousand Cuts', startup: 6, active: 4, recovery: 19, damage: 7, base: 23, growth: 9.9, angle: 45, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [7, 10], offset: [2.9, 2.8], size: [5, 2.9] }] },
+    AirFinisher: { label: 'Carve', startup: 6, active: 4, recovery: 16, landingLag: 9, damage: 7, base: 18, growth: 2.2, angle: 285, grounded: false, finisher: true,
+      hitboxes: [{ frames: [7, 10], offset: [0.6, 4.2], size: [2.9, 4.1] }] },
 
     // ---- signatures ----
     // Every signature here is small: the weapon's kill power is the counter, not the numbers.

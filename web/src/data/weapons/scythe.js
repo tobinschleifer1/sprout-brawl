@@ -22,6 +22,15 @@
 //
 // Recovery is a tether, not a jump: it grabs a ledge from 22 studs out, or fails outright.
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Reap > Backreap > Hook > Grim Spiral   CONFIRM 0-240%   kills 220%
+//   ROUTE  Long Reap > Skyhook > Reaper's Fall    CONFIRM 0-200%   spike
+//   ROUTE  Crossreap, dodge > Wide Swing          CONFIRM 80-260%
+//   ROUTE  Uproot, jump > Skyhook                 CONFIRM 200-260%
 export default {
   id: 'Scythe', name: 'Scythe', archetype: 'Reach / combo', tagline: 'Nothing is out of range',
   blurb: 'Enormous horizontal reach and hits that drag opponents back to you. Slow enough that a whiff is a free punish for them.',
@@ -41,6 +50,8 @@ export default {
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [6, 7], offset: [3.0, 2.6], size: [3.8, 2.2] }] },
     LightNeutral3: { label: 'Hook', startup: 7, active: 3, recovery: 17, damage: 5, base: 15, growth: 1.5, angle: 50, grounded: true, pullVictim: 2.5, extraHitstun: 9,
+      cancels: { jump: true, dodge: true },
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { neutral: 'SigNeutral', side: 'SigSide', down: 'SigDown' },
       hitboxes: [{ frames: [8, 10], offset: [3.6, 2.5], size: [4.4, 2.6] }] },
 
@@ -48,10 +59,12 @@ export default {
       chains: { side: 'LightSide2', neutral: 'LightSide2', up: 'LightUp' },
       hitboxes: [{ frames: [10, 12], offset: [5.0, 2.6], size: [5.6, 2.2] }] },
     LightSide2: { label: 'Crossreap', startup: 7, active: 3, recovery: 19, damage: 6, base: 18, growth: 2.2, angle: 40, grounded: true, pullVictim: 1.5, extraHitstun: 5,
+      cancels: { jump: true, dodge: true },
       chainsHeavy: 'SigSide',
       hitboxes: [{ frames: [8, 10], offset: [5.2, 2.6], size: [5.8, 2.4] }] },
 
     LightUp: { label: 'Uproot', startup: 8, active: 3, recovery: 15, damage: 5, base: 15, growth: 1.7, angle: 82, grounded: true, extraHitstun: 5,
+      cancels: { jump: true, dodge: true },
       chainsHeavy: 'SigNeutral',
       hitboxes: [{ frames: [9, 11], offset: [1.8, 4.0], size: [3.4, 4.4] }] },
     LightDown: { label: 'Ankle Hook', startup: 9, active: 4, recovery: 18, damage: 5, base: 12, growth: 1.4, angle: 15, grounded: true, trip: 70, pullVictim: 2, extraHitstun: 9,
@@ -61,14 +74,22 @@ export default {
     AirNeutral: { label: 'Whirl', startup: 9, active: 12, recovery: 15, landingLag: 9, damage: 7, base: 16, growth: 2.0, angle: 50, grounded: false,
       hitboxes: [{ frames: [10, 21], offset: [0, 2.6], size: [5.6, 5.2] }] },
     AirForward: { label: 'Long Reap', startup: 11, active: 4, recovery: 16, landingLag: 11, damage: 8, base: 20, growth: 2.4, angle: 32, grounded: false, pullVictim: 1.5,
+      chains: { up: 'AirUp', down: 'AirDown' },
       hitboxes: [{ frames: [12, 15], offset: [5.0, 2.6], size: [7.2, 2.8] }] },
     AirUp: { label: 'Skyhook', startup: 10, active: 4, recovery: 16, landingLag: 10, damage: 7, base: 17, growth: 2.4, angle: 86, grounded: false, pullVictim: 1.2,
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [11, 14], offset: [0.6, 5.4], size: [4.2, 5.2] }] },
     AirDown: { label: 'Grave Drop', startup: 14, active: 5, recovery: 20, landingLag: 14, damage: 10, base: 22, growth: 3.0, angle: 60, grounded: false, pullVictim: 2,
       hitboxes: [
         { frames: [15, 16], offset: [0.6, -0.8], size: [2.2, 2.6], angle: 275 },
         { frames: [15, 19], offset: [0.6, 1.0], size: [3.4, 3.6] },
       ] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Grim Spiral', startup: 9, active: 4, recovery: 25, damage: 8, base: 28, growth: 9.9, angle: 50, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [10, 13], offset: [4.4, 2.5], size: [6.9, 3.1] }] },
+    AirFinisher: { label: "Reaper's Fall", startup: 12, active: 5, recovery: 22, landingLag: 14, damage: 10, base: 26, growth: 3.4, angle: 280, grounded: false, finisher: true,
+      hitboxes: [{ frames: [13, 17], offset: [0.6, 5.4], size: [5, 6.2] }] },
 
     SigSide: { label: "Reaper's Arc", startup: 20, active: 5, recovery: 34, damage: 15, base: 32, growth: 4.5, angle: 42, grounded: true, heavy: true, lunge: 5,
       hitboxes: [

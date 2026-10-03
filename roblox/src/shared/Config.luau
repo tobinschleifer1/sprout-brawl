@@ -86,11 +86,13 @@ Config.INPUT_BUFFER = 6
 -- A follow-up pressed during the previous move's strike (first active frame to `perfectLate` after
 -- its last), with no press of that button in the wind-up, is a timed link. Damage scales down from
 -- the `scaleFrom`th hit of a combo (knockback does not); from the `breakFrom`th the victim can break
--- out with a Dodge during that hit's freeze.
+-- out with a Dodge during that hit's freeze. A timed link into an aerial, or the first aerial after a
+-- cancel, chases the fighter just hit (see Fighter._chase).
 Config.COMBO = {
 	perfectLate = 4, perfectStartupCut = 2, perfectMinStartup = 2, perfectDamage = 1, perfectCharge = 1.25,
 	scaleFrom = 3, scaleStep = 0.08, scaleFloor = 0.5,
 	breakFrom = 4, breakFrames = 16, breakInv = 20, breakPush = 30, breakCooldown = 360,
+	chaseFrames = 24, chaseSpeed = 48,
 }
 -- The share of a hit's damage that lands as the `hits`th hit of a combo.
 function Config.comboScale(hits: number): number

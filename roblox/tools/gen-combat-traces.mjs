@@ -36,7 +36,7 @@ const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'sf', 'onGround', 'percent',
   'invincible', 'alive', 'stocks', 'bonusDamage', 'launchMul',
   'jumpsLeft', 'carryX', 'ultActive', 'ultShots', 'recoveryUsed',
   // combos (COMBO in config.js)
-  'comboHits', 'comboKey', 'perfectStreak', 'linkPerfect', 'breakCooldown'];
+  'comboHits', 'comboKey', 'perfectStreak', 'linkPerfect', 'breakCooldown', 'chase', 'breakable', 'cancelUsed', 'breakLocked'];
 
 // The numeric payload of every event kind Phase 3a can emit. Listing them rather than dumping the
 // object keeps the comparison numeric instead of a string compare, which would skip the tolerance
@@ -167,6 +167,41 @@ S.push({ name: 'timed string, scaled', stage: 'FoundryFloor', pin: true, who: SW
 // the attacker is shoved away, and the cooldown starts.
 S.push({ name: 'timed string, broken', stage: 'FoundryFloor', pin: true, who: SWORDS, at: [-1.2, 1.2],
   segments: timedString([[53, {}, { dodge: true, anyPress: true }]]) });
+
+// A finisher cannot be broken: the same timed string, ending in Judgement (Light on the third hit
+// instead of Heavy), and the victim's Dodge in the finisher's freeze does nothing.
+const FINISHED = [[4, L], [11, L], [19, L], [29, L]];
+S.push({ name: 'timed string into a finisher, unbreakable', stage: 'FoundryFloor', pin: true, who: SWORDS, at: [-1.2, 1.2],
+  segments: pressesAt(110, [...FINISHED, [43, {}, { dodge: true, anyPress: true }]], { 1: { percent: 150 } }) });
+
+// Rising Cut jump-cancelled into Overhead, which chases the victim (COMBO.chaseFrames), not pinned
+// so the chase can move the attacker.
+const J = { jump: true, jumpHeld: true, anyPress: true }, UL = { light: true, y: 1, anyPress: true };
+S.push({ name: 'jump cancel into a chase', stage: 'FoundryFloor', who: SWORDS, at: [-1.2, 1.2],
+  segments: pressesAt(90, [[4, { light: true, y: 1, anyPress: true }], [13, J], [14, J], [15, J], [16, J], [17, UL], [18, UL], [19, UL], [20, UL], [21, UL], [22, UL]],
+    { 1: { percent: 150 } }) });
+
+// One cancel per combo: Scythe's Wide Swing > Crossreap (timed), dodge-cancelled into a dash, the
+// string again off the dash - four hits, one combo - and the second dodge-cancel is refused.
+const D = { dodge: true, x: 1, anyPress: true }, SL = { light: true, x: 1, anyPress: true };
+S.push({ name: 'one cancel per combo', stage: 'FoundryFloor', who: [['Classic', 'Scythe'], ['Noir', 'Sword']], at: [-1.2, 1.2],
+  segments: pressesAt(110, [...[4, 15, 16, 17, 18, 19, 20, 35, 36, 37, 38, 39, 40, 51, 52, 53, 54, 55, 56].map((f) => [f, SL]), ...[27, 28, 29, 30, 31, 32, 33, 34, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].map((f) => [f, D])]
+    .sort((p, q) => p[0] - q[0]), { 1: { percent: 120 } }) });
+
+// A timed air link chases (COMBO.chaseFrames): Spin Cut, then Arc Slash pressed while it lands.
+// At 220% the victim flies fast enough that the chase is held to chaseSpeed.
+const AIR = (pct) => ({ 0: { y: 9.5, onGround: false, platform: null, state: 'air' }, 1: { y: 10, onGround: false, platform: null, state: 'air', percent: pct } });
+const FL = { light: true, x: 1, anyPress: true };
+for (const pct of [100, 220]) {
+  S.push({ name: `timed air link chases at ${pct}%`, stage: 'FoundryFloor', who: SWORDS, at: [-1.2, 1.2],
+    segments: pressesAt(60, [[1, L], ...Array.from({ length: 14 }, (_, k) => [11 + k, FL])], AIR(pct)) });
+}
+
+// Shield's counter, triggered by a Sword light, and its burst dodge-cancelled - the shield's one
+// cancel, carried from its counter data onto the burst it creates.
+S.push({ name: 'counter, dodge-cancelled', stage: 'FoundryFloor', who: [['Classic', 'Sword'], ['Noir', 'Shield']], at: [-1.2, 1.2],
+  segments: pressesAt(50, [[0, {}, { heavy: true, heavyHeld: true, anyPress: true }], [2, L],
+    ...Array.from({ length: 12 }, (_, k) => [10 + k, {}, { dodge: true, x: -1, anyPress: true }])]) });
 
 // blocked, perfect-blocked, and shield broken by repeated heavies
 S.push({ name: 'blocking', stage: 'FoundryFloor', who: SWORDS, at: [-1.2, 1.2],

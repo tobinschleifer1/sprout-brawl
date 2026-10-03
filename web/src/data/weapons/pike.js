@@ -33,6 +33,13 @@
 // game and it is thrown from outside everyone else's range, so it is a spacing tool rather than a
 // combo ender — the pike's kill routes all go through Pin and Pike Wall instead.
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Poke > Second Point > Lunge Point > Impale   CONFIRM 140-200%   kills 227%
+//   ROUTE  Skewer > Pole Vault                          CONFIRM 0-260%   kills 234%
 export default {
   id: 'Pike', name: 'Warpike', archetype: 'Spacer',
   tagline: 'The toll for getting close',
@@ -65,15 +72,18 @@ export default {
       chainsHeavy: { neutral: 'SigNeutral' },
       hitboxes: [{ frames: [7, 8], offset: [4.8, 3.2], size: [5.6, 1.4] }] },
     LightNeutral3: { label: 'Lunge Point', startup: 9, active: 3, recovery: 20, damage: 6, base: 17, growth: 1.9, angle: 44, grounded: true, lunge: 3,
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { neutral: 'SigNeutral', down: 'SigDown' },
       hitboxes: [{ frames: [10, 12], offset: [5.6, 3.2], size: [6.6, 1.6] }] },
 
     LightSide1: { label: 'Advance', startup: 9, active: 2, recovery: 13, damage: 4, base: 11, growth: 1.0, angle: 34, grounded: true, lunge: 3,
+      cancels: { dodge: true },
       chains: { side: 'LightSide2', neutral: 'LightNeutral2', up: 'LightUp' },
       // Full Extension never connects off anything — at 21 frames of startup on a move whose whole
       // job is to be thrown from outside everyone's range, that is correct, not a gap.
       hitboxes: [{ frames: [10, 11], offset: [5.0, 3.0], size: [6.0, 1.5] }] },
     LightSide2: { label: 'Drive', startup: 8, active: 3, recovery: 19, damage: 6, base: 16, growth: 1.8, angle: 36, grounded: true, lunge: 4,
+      cancels: { dodge: true },
       hitboxes: [{ frames: [9, 11], offset: [5.8, 3.0], size: [7.0, 1.6] }] },
 
     LightUp: { label: 'Raise Point', startup: 8, active: 3, recovery: 15, damage: 5, base: 15, growth: 1.7, angle: 84, grounded: true, extraHitstun: 5,
@@ -88,12 +98,19 @@ export default {
       hitboxes: [{ frames: [9, 16], offset: [0, 3.2], size: [7.4, 5.0] }] },
     // The reason to be in the air at all: a horizontal spear the length of half a platform.
     AirForward: { label: 'Skewer', startup: 11, active: 3, recovery: 16, landingLag: 11, damage: 8, base: 19, growth: 2.3, angle: 34, grounded: false,
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [12, 14], offset: [6.0, 3.0], size: [7.6, 1.6] }] },
     AirUp: { label: 'Sky Point', startup: 9, active: 3, recovery: 15, landingLag: 9, damage: 7, base: 17, growth: 2.2, angle: 86, grounded: false,
       hitboxes: [{ frames: [10, 12], offset: [0.8, 6.0], size: [1.8, 6.4] }] },
     AirDown: { label: 'Stake', startup: 12, active: 4, recovery: 18, landingLag: 13, damage: 9, base: 20, growth: 2.6, angle: 270, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [13, 16], offset: [1.0, -1.4], size: [1.8, 5.4] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Impale', startup: 11, active: 4, recovery: 28, damage: 9, base: 24, growth: 6.2, angle: 30, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [12, 15], offset: [6.4, 3.2], size: [9.5, 1.9] }] },
+    AirFinisher: { label: 'Pole Vault', startup: 13, active: 4, recovery: 22, landingLag: 15, damage: 11, base: 27, growth: 5.8, angle: 75, grounded: false, finisher: true,
+      hitboxes: [{ frames: [14, 17], offset: [6, 3], size: [9.1, 1.9] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Full Extension', startup: 21, active: 4, recovery: 33, damage: 14, base: 31, growth: 4.3, angle: 36, grounded: true, heavy: true, lunge: 6,

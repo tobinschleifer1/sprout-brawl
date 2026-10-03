@@ -25,6 +25,14 @@
 //   Rising Fist +Heavy      -> Overdrive Blow   CONFIRM   80-260%   trap    0-60%   kills  177%
 //   Low Kick    +Heavy      -> Meteor Fist      trap only     0-40%                 kills  360%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Jab > Cross > Body Blow > Haymaker     CONFIRM 0-260%   kills 207%
+//   ROUTE  Spin Kick > Flying Knee > Comet Drop   CONFIRM 0-260%   spike
+//   ROUTE  Flying Knee, dodge > Hook              CONFIRM 140-260%
 export default {
   id: 'Gauntlets', name: 'Gauntlets', archetype: 'Rushdown', tagline: 'Never let them breathe',
   blurb: 'The lightest, fastest fighter in the game and the shortest reach in it. Land four hits in a row and Overdrive makes everything faster still.',
@@ -42,41 +50,60 @@ export default {
   moves: {
     // ---- light string ----
     LightNeutral1: { label: 'Jab', startup: 3, active: 2, recovery: 6, damage: 2, base: 7, growth: 0.5, angle: 45, grounded: true,
+      cancels: { dodge: true },
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [4, 5], offset: [1.7, 2.9], size: [2.0, 1.6] }] },
     LightNeutral2: { label: 'Cross', startup: 3, active: 2, recovery: 7, damage: 3, base: 8, growth: 0.6, angle: 45, grounded: true,
+      cancels: { dodge: true },
       chains: { neutral: 'LightNeutral3', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [4, 5], offset: [1.9, 2.9], size: [2.2, 1.6] }] },
     // The cash-out link. Everything the gauntlets do is aimed at reaching this move with the
     // Overdrive counter full.
     LightNeutral3: { label: 'Body Blow', startup: 5, active: 2, recovery: 12, damage: 4, base: 14, growth: 1.3, angle: 50, grounded: true, extraHitstun: 1,
+      cancels: { dodge: true },
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { side: 'SigSide' },
       hitboxes: [{ frames: [6, 7], offset: [2.0, 2.7], size: [2.6, 2.2] }] },
 
     LightSide1: { label: 'Hook', startup: 4, active: 2, recovery: 9, damage: 3, base: 9, growth: 0.7, angle: 38, grounded: true, lunge: 1.5,
+      cancels: { dodge: true },
       chains: { neutral: 'LightNeutral3', side: 'LightSide2', up: 'LightUp' },
       hitboxes: [{ frames: [5, 6], offset: [2.1, 2.8], size: [2.4, 1.8] }] },
     LightSide2: { label: 'Dash Punch', startup: 5, active: 3, recovery: 13, damage: 4, base: 15, growth: 1.5, angle: 36, grounded: true, lunge: 3.5, extraHitstun: 8,
+      cancels: { dodge: true },
       hitboxes: [{ frames: [6, 8], offset: [2.4, 2.7], size: [3.0, 1.9] }] },
 
     LightUp: { label: 'Rising Fist', startup: 5, active: 3, recovery: 13, damage: 4, base: 13, growth: 1.5, angle: 85, grounded: true,
+      cancels: { dodge: true },
       // the brief routes this into Meteor Fist, which is the spike
       chainsHeavy: { neutral: 'SigNeutral', down: 'SigDown' },
       hitboxes: [{ frames: [6, 8], offset: [1.3, 3.6], size: [2.4, 3.6] }] },
     LightDown: { label: 'Low Kick', startup: 6, active: 3, recovery: 13, damage: 3, base: 10, growth: 1.0, angle: 16, grounded: true, trip: 55,
+      cancels: { dodge: true },
       chainsHeavy: { down: 'SigDown', neutral: 'SigDown' },
       hitboxes: [{ frames: [7, 9], offset: [2.0, 0.8], size: [3.0, 1.5] }] },
 
     // ---- aerials ----
     AirNeutral: { label: 'Spin Kick', startup: 5, active: 5, recovery: 10, landingLag: 6, damage: 4, base: 12, growth: 1.2, angle: 48, grounded: false,
+      cancels: { dodge: true },
+      chains: { neutral: 'AirForward', side: 'AirForward' },
       hitboxes: [{ frames: [6, 10], offset: [0, 2.8], size: [4.0, 3.6] }] },
     AirForward: { label: 'Flying Knee', startup: 6, active: 3, recovery: 11, landingLag: 7, damage: 5, base: 15, growth: 1.7, angle: 42, grounded: false,
+      cancels: { dodge: true },
+      chains: { down: 'AirDown' }, finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [7, 9], offset: [2.0, 2.7], size: [2.6, 2.4] }] },
     AirUp: { label: 'Upper', startup: 5, active: 3, recovery: 10, landingLag: 6, damage: 4, base: 13, growth: 1.5, angle: 88, grounded: false,
+      cancels: { dodge: true },
       hitboxes: [{ frames: [6, 8], offset: [0.6, 4.2], size: [2.4, 3.4] }] },
     AirDown: { label: 'Stomp', startup: 7, active: 4, recovery: 13, landingLag: 9, damage: 6, base: 15, growth: 1.9, angle: 270, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [8, 11], offset: [0.6, -0.8], size: [2.2, 3.0] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Haymaker', startup: 7, active: 3, recovery: 20, damage: 7, base: 22, growth: 10.1, angle: 40, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [8, 10], offset: [2.8, 2.7], size: [4.7, 2.6] }] },
+    AirFinisher: { label: 'Comet Drop', startup: 8, active: 4, recovery: 17, landingLag: 11, damage: 8, base: 19, growth: 2.3, angle: 280, grounded: false, finisher: true,
+      hitboxes: [{ frames: [9, 12], offset: [2, 2.7], size: [3.1, 2.9] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Rush Elbow', startup: 13, active: 4, recovery: 26, damage: 11, base: 34, growth: 5.6, angle: 38, grounded: true, heavy: true, lunge: 6,

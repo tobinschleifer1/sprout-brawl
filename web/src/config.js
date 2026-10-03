@@ -97,10 +97,17 @@ export const INPUT_BUFFER = 6;
 // percents stay where the balance tables put them. From the `breakFrom`th hit the victim can break
 // out with a Dodge pressed during that hit's freeze; an early or mashed Dodge locks the break out
 // for the rest of the combo.
+//
+// The chase: a timed link into an aerial, or the first aerial within `chaseFrames` of a jump or
+// dodge cancel off a landed hit, carries the attacker toward the fighter they just hit - aimed so
+// the new move's hitbox meets where the victim will be when it comes out, at up to `chaseSpeed`.
+// Every hit sends its victim away, so without it no aerial reaches the next one; mashed links do
+// not chase, so they whiff, and the skill stays in the timing.
 export const COMBO = {
   perfectLate: 4, perfectStartupCut: 2, perfectMinStartup: 2, perfectDamage: 1, perfectCharge: 1.25,
   scaleFrom: 3, scaleStep: 0.08, scaleFloor: 0.5,
   breakFrom: 4, breakFrames: 16, breakInv: 20, breakPush: 30, breakCooldown: 360,
+  chaseFrames: 24, chaseSpeed: 48,
 };
 // The share of a hit's damage that lands as the `hits`th hit of a combo.
 export const comboScale = (hits) => (hits < COMBO.scaleFrom ? 1 : Math.max(COMBO.scaleFloor, 1 - COMBO.scaleStep * (hits - COMBO.scaleFrom + 1)));

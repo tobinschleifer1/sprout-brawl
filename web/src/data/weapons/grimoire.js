@@ -20,6 +20,14 @@
 //   Backlash +Heavy -> Runebrand   CONFIRM  120-180%   trap   0-100%   kills  199%
 //   Nova     +Heavy -> Runebrand   CONFIRM   40-260%   trap    0-20%   kills  199%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Spark > Spark > Nova > Seal   CONFIRM 40-240%   kills 231%
+//   ROUTE  Levitate > Meteor Sigil       CONFIRM 20-260%   spike
+//   ROUTE  Updraft, jump > Levitate      CONFIRM 240-260%
 export default {
   id: 'Grimoire', name: 'Grimoire', archetype: 'Heavy zoner', tagline: 'Own the ground you stand on',
   blurb: 'Slow, heavy and floaty. Controls space with summons and a chargeable beam, and hits hard enough that one read ends a stock.',
@@ -39,6 +47,7 @@ export default {
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [6, 7], offset: [2.4, 2.8], size: [2.8, 2.4] }] },
     LightNeutral3: { label: 'Nova', startup: 8, active: 3, recovery: 18, damage: 6, base: 17, growth: 1.7, angle: 55, grounded: true, extraHitstun: 7,
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: 'SigSide',
       hitboxes: [{ frames: [9, 11], offset: [1.6, 2.8], size: [4.6, 4.0] }] },
 
@@ -50,6 +59,7 @@ export default {
       hitboxes: [{ frames: [8, 10], offset: [2.8, 2.7], size: [3.6, 2.6] }] },
 
     LightUp: { label: 'Updraft', startup: 8, active: 3, recovery: 15, damage: 5, base: 15, growth: 1.7, angle: 84, grounded: true, extraHitstun: 4,
+      cancels: { jump: true },
       chainsHeavy: 'SigSide',
       hitboxes: [{ frames: [9, 11], offset: [1.2, 4.2], size: [3.2, 4.6] }] },
     LightDown: { label: 'Ward', startup: 9, active: 4, recovery: 17, damage: 5, base: 13, growth: 1.4, angle: 22, grounded: true, trip: 60, extraHitstun: 8,
@@ -58,6 +68,7 @@ export default {
     AirNeutral: { label: 'Aura', startup: 9, active: 14, recovery: 15, landingLag: 9, damage: 7, base: 16, growth: 2.0, angle: 50, grounded: false, applies: { slow: 40 },
       hitboxes: [{ frames: [10, 23], offset: [0, 2.6], size: [5.6, 5.4], rehitEvery: 7 }] },
     AirUp: { label: 'Levitate', startup: 10, active: 5, recovery: 16, landingLag: 10, damage: 7, base: 18, growth: 2.5, angle: 85, grounded: false, applies: { slow: 20 },
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [11, 15], offset: [0.2, 5.2], size: [4.0, 4.6] }] },
     AirForward: { label: 'Cast Forward', startup: 11, active: 4, recovery: 16, landingLag: 11, damage: 8, base: 20, growth: 2.4, angle: 35, grounded: false, kind: 'projectile',
       projectile: { speed: 52, lifetime: 26, size: [1.2, 1.2], spawnOffset: [2.2, 2.8], shape: 'orb' } },
@@ -66,6 +77,12 @@ export default {
         { frames: [15, 16], offset: [0.5, -0.7], size: [2.2, 2.6], angle: 275 },   // the well still spikes at its core
         { frames: [15, 19], offset: [0.5, 0.6], size: [4.2, 4.2] },                // and drags everything else down slowly
       ] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Seal', startup: 10, active: 4, recovery: 26, damage: 9, base: 26, growth: 7, angle: 85, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [11, 14], offset: [2.4, 2.8], size: [7.1, 4.8] }] },
+    AirFinisher: { label: 'Meteor Sigil', startup: 12, active: 6, recovery: 22, landingLag: 14, damage: 10, base: 24, growth: 3, angle: 275, grounded: false, finisher: true,
+      hitboxes: [{ frames: [13, 18], offset: [0.2, 5.2], size: [4.8, 5.5] }] },
 
     SigSide: { label: 'Runebrand', startup: 15, active: 4, recovery: 36, damage: 15, base: 32, growth: 4.4, angle: 40, grounded: true, heavy: true, kind: 'projectile',
       projectile: { speed: 72, lifetime: 34, size: [2.8, 3.6], spawnOffset: [2.4, 2.4], shape: 'orb' } },   // body-height bolt, so it catches a victim launched at any light's angle   // tall enough to catch a victim launched at any of the light angles

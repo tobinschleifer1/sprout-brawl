@@ -103,6 +103,9 @@ local WEAPONS = {
 				grounded = true,
 				lunge = 2,
 				extraHitstun = 7,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					neutral = "SigNeutral",
 					side = "SigSide",
@@ -158,6 +161,9 @@ local WEAPONS = {
 				grounded = true,
 				lunge = 2,
 				extraHitstun = 4,
+				cancels = {
+					dodge = true,
+				},
 				chainsHeavy = "SigSide",
 				hitboxes = {
 					{
@@ -181,6 +187,9 @@ local WEAPONS = {
 				angle = 80,
 				grounded = true,
 				extraHitstun = 5,
+				cancels = {
+					jump = true,
+				},
 				chainsHeavy = "SigNeutral",
 				hitboxes = {
 					{
@@ -228,6 +237,10 @@ local WEAPONS = {
 				growth = 2,
 				angle = 50,
 				grounded = false,
+				chains = {
+					neutral = "AirForward",
+					side = "AirForward",
+				},
 				hitboxes = {
 					{
 						frames = { 9, 18 },
@@ -252,6 +265,12 @@ local WEAPONS = {
 				grounded = false,
 				onHit = {
 					bounce = 10,
+				},
+				chains = {
+					down = "AirDown",
+				},
+				finishers = {
+					neutral = "AirFinisher",
 				},
 				hitboxes = {
 					{
@@ -315,6 +334,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 37,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Judgement",
+				startup = 8,
+				active = 4,
+				recovery = 24,
+				damage = 8,
+				base = 28,
+				growth = 9.3,
+				angle = 70,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 9, 12 },
+						offset = { 3.6, 2.5 },
+						size = { 5.7, 3.1 },
+					},
+				},
+				id = "Finisher",
+				total = 36,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Falling Star",
+				startup = 12,
+				active = 5,
+				recovery = 21,
+				landingLag = 14,
+				damage = 11,
+				base = 26,
+				growth = 3.4,
+				angle = 290,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 13, 17 },
+						offset = { 3.4, 2.6 },
+						size = { 5.3, 3.6 },
+					},
+				},
+				id = "AirFinisher",
+				total = 38,
 				kind = "melee",
 			},
 			SigSide = {
@@ -535,6 +600,13 @@ local WEAPONS = {
 				grounded = true,
 				pullVictim = 2.5,
 				extraHitstun = 9,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					neutral = "SigNeutral",
 					side = "SigSide",
@@ -589,6 +661,10 @@ local WEAPONS = {
 				grounded = true,
 				pullVictim = 1.5,
 				extraHitstun = 5,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chainsHeavy = "SigSide",
 				hitboxes = {
 					{
@@ -612,6 +688,10 @@ local WEAPONS = {
 				angle = 82,
 				grounded = true,
 				extraHitstun = 5,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chainsHeavy = "SigNeutral",
 				hitboxes = {
 					{
@@ -683,6 +763,10 @@ local WEAPONS = {
 				angle = 32,
 				grounded = false,
 				pullVictim = 1.5,
+				chains = {
+					up = "AirUp",
+					down = "AirDown",
+				},
 				hitboxes = {
 					{
 						frames = { 12, 15 },
@@ -706,6 +790,9 @@ local WEAPONS = {
 				angle = 86,
 				grounded = false,
 				pullVictim = 1.2,
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 11, 14 },
@@ -743,6 +830,52 @@ local WEAPONS = {
 					},
 				},
 				id = "AirDown",
+				total = 39,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Grim Spiral",
+				startup = 9,
+				active = 4,
+				recovery = 25,
+				damage = 8,
+				base = 28,
+				growth = 9.9,
+				angle = 50,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 10, 13 },
+						offset = { 4.4, 2.5 },
+						size = { 6.9, 3.1 },
+					},
+				},
+				id = "Finisher",
+				total = 38,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Reaper's Fall",
+				startup = 12,
+				active = 5,
+				recovery = 22,
+				landingLag = 14,
+				damage = 10,
+				base = 26,
+				growth = 3.4,
+				angle = 280,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 13, 17 },
+						offset = { 0.6, 5.4 },
+						size = { 5, 6.2 },
+					},
+				},
+				id = "AirFinisher",
 				total = 39,
 				kind = "melee",
 			},
@@ -969,6 +1102,12 @@ local WEAPONS = {
 				angle = 45,
 				grounded = true,
 				extraHitstun = 5,
+				cancels = {
+					dodge = true,
+				},
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					side = "SigSide",
 					down = "SigDown",
@@ -1022,6 +1161,9 @@ local WEAPONS = {
 				angle = 38,
 				grounded = true,
 				extraHitstun = 5,
+				cancels = {
+					dodge = true,
+				},
 				chainsHeavy = "SigDown",
 				hitboxes = {
 					{
@@ -1093,6 +1235,9 @@ local WEAPONS = {
 				angle = 40,
 				grounded = false,
 				fastFallActive = true,
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 6, 8 },
@@ -1175,6 +1320,52 @@ local WEAPONS = {
 					},
 				},
 				id = "AirDown",
+				total = 28,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Last Round",
+				startup = 8,
+				active = 4,
+				recovery = 25,
+				damage = 8,
+				base = 22,
+				growth = 8.1,
+				angle = 45,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 9, 12 },
+						offset = { 3.2, 2.7 },
+						size = { 5.2, 2.9 },
+					},
+				},
+				id = "Finisher",
+				total = 37,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Recoil Jump",
+				startup = 7,
+				active = 4,
+				recovery = 17,
+				landingLag = 10,
+				damage = 8,
+				base = 22,
+				growth = 2.7,
+				angle = 280,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 8, 11 },
+						offset = { 0, 2.4 },
+						size = { 4.6, 4.3 },
+					},
+				},
+				id = "AirFinisher",
 				total = 28,
 				kind = "melee",
 			},
@@ -1394,6 +1585,9 @@ local WEAPONS = {
 				angle = 55,
 				grounded = true,
 				extraHitstun = 7,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = "SigSide",
 				hitboxes = {
 					{
@@ -1466,6 +1660,9 @@ local WEAPONS = {
 				angle = 84,
 				grounded = true,
 				extraHitstun = 4,
+				cancels = {
+					jump = true,
+				},
 				chainsHeavy = "SigSide",
 				hitboxes = {
 					{
@@ -1541,6 +1738,9 @@ local WEAPONS = {
 				applies = {
 					slow = 20,
 				},
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 11, 15 },
@@ -1604,6 +1804,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 39,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Seal",
+				startup = 10,
+				active = 4,
+				recovery = 26,
+				damage = 9,
+				base = 26,
+				growth = 7,
+				angle = 85,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 11, 14 },
+						offset = { 2.4, 2.8 },
+						size = { 7.1, 4.8 },
+					},
+				},
+				id = "Finisher",
+				total = 40,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Meteor Sigil",
+				startup = 12,
+				active = 6,
+				recovery = 22,
+				landingLag = 14,
+				damage = 10,
+				base = 24,
+				growth = 3,
+				angle = 275,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 13, 18 },
+						offset = { 0.2, 5.2 },
+						size = { 4.8, 5.5 },
+					},
+				},
+				id = "AirFinisher",
+				total = 40,
 				kind = "melee",
 			},
 			SigSide = {
@@ -1807,6 +2053,9 @@ local WEAPONS = {
 				growth = 1.2,
 				angle = 45,
 				grounded = true,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					up = "LightUp",
@@ -1919,6 +2168,9 @@ local WEAPONS = {
 				angle = 84,
 				grounded = true,
 				extraHitstun = 6,
+				cancels = {
+					jump = true,
+				},
 				chainsHeavy = {
 					neutral = "SigNeutral",
 					up = "SigNeutral",
@@ -1971,6 +2223,10 @@ local WEAPONS = {
 				growth = 2,
 				angle = 48,
 				grounded = false,
+				chains = {
+					neutral = "AirForward",
+					side = "AirForward",
+				},
 				hitboxes = {
 					{
 						frames = { 11, 16 },
@@ -1993,6 +2249,12 @@ local WEAPONS = {
 				growth = 2.8,
 				angle = 38,
 				grounded = false,
+				chains = {
+					down = "AirDown",
+				},
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 14, 17 },
@@ -2047,6 +2309,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 45,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Headsman",
+				startup = 13,
+				active = 5,
+				recovery = 28,
+				damage = 12,
+				base = 26,
+				growth = 6.9,
+				angle = 60,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 14, 18 },
+						offset = { 3.6, 2.8 },
+						size = { 7.1, 5.3 },
+					},
+				},
+				id = "Finisher",
+				total = 46,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Guillotine",
+				startup = 15,
+				active = 5,
+				recovery = 24,
+				landingLag = 18,
+				damage = 14,
+				base = 28,
+				growth = 3.6,
+				angle = 275,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 16, 20 },
+						offset = { 3, 2.8 },
+						size = { 5.5, 5.5 },
+					},
+				},
+				id = "AirFinisher",
+				total = 44,
 				kind = "melee",
 			},
 			SigSide = {
@@ -2282,6 +2590,9 @@ local WEAPONS = {
 				angle = 44,
 				grounded = true,
 				lunge = 3,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					neutral = "SigNeutral",
 					down = "SigDown",
@@ -2308,6 +2619,9 @@ local WEAPONS = {
 				angle = 34,
 				grounded = true,
 				lunge = 3,
+				cancels = {
+					dodge = true,
+				},
 				chains = {
 					side = "LightSide2",
 					neutral = "LightNeutral2",
@@ -2335,6 +2649,9 @@ local WEAPONS = {
 				angle = 36,
 				grounded = true,
 				lunge = 4,
+				cancels = {
+					dodge = true,
+				},
 				hitboxes = {
 					{
 						frames = { 9, 11 },
@@ -2431,6 +2748,9 @@ local WEAPONS = {
 				growth = 2.3,
 				angle = 34,
 				grounded = false,
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 12, 14 },
@@ -2485,6 +2805,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 34,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Impale",
+				startup = 11,
+				active = 4,
+				recovery = 28,
+				damage = 9,
+				base = 24,
+				growth = 6.2,
+				angle = 30,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 12, 15 },
+						offset = { 6.4, 3.2 },
+						size = { 9.5, 1.9 },
+					},
+				},
+				id = "Finisher",
+				total = 43,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Pole Vault",
+				startup = 13,
+				active = 4,
+				recovery = 22,
+				landingLag = 15,
+				damage = 11,
+				base = 27,
+				growth = 5.8,
+				angle = 75,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 14, 17 },
+						offset = { 6, 3 },
+						size = { 9.1, 1.9 },
+					},
+				},
+				id = "AirFinisher",
+				total = 39,
 				kind = "melee",
 			},
 			SigSide = {
@@ -2681,6 +3047,9 @@ local WEAPONS = {
 				growth = 0.5,
 				angle = 45,
 				grounded = true,
+				cancels = {
+					dodge = true,
+				},
 				chains = {
 					neutral = "LightNeutral2",
 					side = "LightSide1",
@@ -2708,6 +3077,9 @@ local WEAPONS = {
 				growth = 0.6,
 				angle = 45,
 				grounded = true,
+				cancels = {
+					dodge = true,
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					side = "LightSide1",
@@ -2736,6 +3108,12 @@ local WEAPONS = {
 				angle = 50,
 				grounded = true,
 				extraHitstun = 1,
+				cancels = {
+					dodge = true,
+				},
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					side = "SigSide",
 				},
@@ -2761,6 +3139,9 @@ local WEAPONS = {
 				angle = 38,
 				grounded = true,
 				lunge = 1.5,
+				cancels = {
+					dodge = true,
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					side = "LightSide2",
@@ -2789,6 +3170,9 @@ local WEAPONS = {
 				grounded = true,
 				lunge = 3.5,
 				extraHitstun = 8,
+				cancels = {
+					dodge = true,
+				},
 				hitboxes = {
 					{
 						frames = { 6, 8 },
@@ -2810,6 +3194,9 @@ local WEAPONS = {
 				growth = 1.5,
 				angle = 85,
 				grounded = true,
+				cancels = {
+					dodge = true,
+				},
 				chainsHeavy = {
 					neutral = "SigNeutral",
 					down = "SigDown",
@@ -2836,6 +3223,9 @@ local WEAPONS = {
 				angle = 16,
 				grounded = true,
 				trip = 55,
+				cancels = {
+					dodge = true,
+				},
 				chainsHeavy = {
 					down = "SigDown",
 					neutral = "SigDown",
@@ -2862,6 +3252,13 @@ local WEAPONS = {
 				growth = 1.2,
 				angle = 48,
 				grounded = false,
+				cancels = {
+					dodge = true,
+				},
+				chains = {
+					neutral = "AirForward",
+					side = "AirForward",
+				},
 				hitboxes = {
 					{
 						frames = { 6, 10 },
@@ -2884,6 +3281,15 @@ local WEAPONS = {
 				growth = 1.7,
 				angle = 42,
 				grounded = false,
+				cancels = {
+					dodge = true,
+				},
+				chains = {
+					down = "AirDown",
+				},
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 7, 9 },
@@ -2906,6 +3312,9 @@ local WEAPONS = {
 				growth = 1.5,
 				angle = 88,
 				grounded = false,
+				cancels = {
+					dodge = true,
+				},
 				hitboxes = {
 					{
 						frames = { 6, 8 },
@@ -2938,6 +3347,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 24,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Haymaker",
+				startup = 7,
+				active = 3,
+				recovery = 20,
+				damage = 7,
+				base = 22,
+				growth = 10.1,
+				angle = 40,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 8, 10 },
+						offset = { 2.8, 2.7 },
+						size = { 4.7, 2.6 },
+					},
+				},
+				id = "Finisher",
+				total = 30,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Comet Drop",
+				startup = 8,
+				active = 4,
+				recovery = 17,
+				landingLag = 11,
+				damage = 8,
+				base = 19,
+				growth = 2.3,
+				angle = 280,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 9, 12 },
+						offset = { 2, 2.7 },
+						size = { 3.1, 2.9 },
+					},
+				},
+				id = "AirFinisher",
+				total = 29,
 				kind = "melee",
 			},
 			SigSide = {
@@ -3121,6 +3576,9 @@ local WEAPONS = {
 				grounded = true,
 				shieldDamageMul = 1.6,
 				extraHitstun = 14,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					up = "LightUp",
@@ -3285,6 +3743,9 @@ local WEAPONS = {
 				growth = 2.1,
 				angle = 48,
 				grounded = false,
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 12, 16 },
@@ -3361,6 +3822,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 47,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Earthquake",
+				startup = 12,
+				active = 4,
+				recovery = 22,
+				damage = 10,
+				base = 24,
+				growth = 7,
+				angle = 72,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 13, 16 },
+						offset = { 3.6, 3.2 },
+						size = { 6.6, 4.3 },
+					},
+				},
+				id = "Finisher",
+				total = 38,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Anvil Drop",
+				startup = 13,
+				active = 6,
+				recovery = 23,
+				landingLag = 17,
+				damage = 12,
+				base = 29,
+				growth = 3.7,
+				angle = 270,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 14, 19 },
+						offset = { 0, 3 },
+						size = { 7.4, 6.2 },
+					},
+				},
+				id = "AirFinisher",
+				total = 42,
 				kind = "melee",
 			},
 			SigSide = {
@@ -3590,6 +4097,12 @@ local WEAPONS = {
 				angle = 50,
 				grounded = true,
 				extraHitstun = 14,
+				cancels = {
+					dodge = true,
+				},
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					down = "SigDown",
 				},
@@ -3765,6 +4278,9 @@ local WEAPONS = {
 				growth = 2,
 				angle = 86,
 				grounded = false,
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 9, 11 },
@@ -3797,6 +4313,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 33,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Bowstring Snap",
+				startup = 10,
+				active = 4,
+				recovery = 23,
+				damage = 9,
+				base = 24,
+				growth = 7.7,
+				angle = 50,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 11, 14 },
+						offset = { 3.2, 2.8 },
+						size = { 5.9, 3.6 },
+					},
+				},
+				id = "Finisher",
+				total = 37,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Rain Shot",
+				startup = 10,
+				active = 4,
+				recovery = 21,
+				landingLag = 13,
+				damage = 9,
+				base = 23,
+				growth = 2.8,
+				angle = 280,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 11, 14 },
+						offset = { 0.8, 4.6 },
+						size = { 2.6, 5.3 },
+					},
+				},
+				id = "AirFinisher",
+				total = 35,
 				kind = "melee",
 			},
 			SigSide = {
@@ -3984,6 +4546,9 @@ local WEAPONS = {
 				growth = 1.1,
 				angle = 44,
 				grounded = true,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					up = "LightUp",
@@ -4110,6 +4675,9 @@ local WEAPONS = {
 				angle = 82,
 				grounded = true,
 				extraHitstun = 6,
+				cancels = {
+					jump = true,
+				},
 				chainsHeavy = {
 					up = "SigNeutral",
 					neutral = "SigNeutral",
@@ -4159,6 +4727,10 @@ local WEAPONS = {
 				growth = 1.5,
 				angle = 50,
 				grounded = false,
+				chains = {
+					neutral = "AirForward",
+					side = "AirForward",
+				},
 				hitboxes = {
 					{
 						frames = { 9, 17 },
@@ -4181,6 +4753,12 @@ local WEAPONS = {
 				growth = 2.3,
 				angle = 36,
 				grounded = false,
+				chains = {
+					down = "AirDown",
+				},
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 12, 15 },
@@ -4235,6 +4813,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 36,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Wrecking Ball",
+				startup = 6,
+				active = 7,
+				recovery = 27,
+				damage = 10,
+				base = 26,
+				growth = 7,
+				angle = 45,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 7, 13 },
+						offset = { 4.2, 3.2 },
+						size = { 7.6, 4.1 },
+					},
+				},
+				id = "Finisher",
+				total = 40,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Pendulum",
+				startup = 13,
+				active = 5,
+				recovery = 23,
+				landingLag = 15,
+				damage = 11,
+				base = 27,
+				growth = 6.8,
+				angle = 50,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 14, 18 },
+						offset = { 4.2, 2.8 },
+						size = { 6.5, 3.6 },
+					},
+				},
+				id = "AirFinisher",
+				total = 41,
 				kind = "melee",
 			},
 			SigSide = {
@@ -4441,6 +5065,9 @@ local WEAPONS = {
 				grounded = true,
 				extraHitstun = 8,
 				shieldDamageMul = 1.8,
+				finishers = {
+					neutral = "Finisher",
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					up = "LightUp",
@@ -4603,6 +5230,10 @@ local WEAPONS = {
 				growth = 1.6,
 				angle = 50,
 				grounded = false,
+				chains = {
+					neutral = "AirForward",
+					side = "AirForward",
+				},
 				hitboxes = {
 					{
 						frames = { 9, 14 },
@@ -4625,6 +5256,12 @@ local WEAPONS = {
 				growth = 2.4,
 				angle = 38,
 				grounded = false,
+				chains = {
+					down = "AirDown",
+				},
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 11, 13 },
@@ -4679,6 +5316,52 @@ local WEAPONS = {
 					},
 				},
 				id = "AirDown",
+				total = 38,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Bulwark Rush",
+				startup = 8,
+				active = 4,
+				recovery = 23,
+				damage = 8,
+				base = 22,
+				growth = 6.8,
+				angle = 35,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 9, 12 },
+						offset = { 3.1, 2.8 },
+						size = { 5.2, 3.6 },
+					},
+				},
+				id = "Finisher",
+				total = 35,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Rampart Crash",
+				startup = 12,
+				active = 4,
+				recovery = 22,
+				landingLag = 16,
+				damage = 12,
+				base = 28,
+				growth = 5.1,
+				angle = 65,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 13, 16 },
+						offset = { 2.6, 2.8 },
+						size = { 4.3, 4.3 },
+					},
+				},
+				id = "AirFinisher",
 				total = 38,
 				kind = "melee",
 			},
@@ -4750,6 +5433,9 @@ local WEAPONS = {
 					hitbox = {
 						offset = { 2.4, 2.8 },
 						size = { 6, 5 },
+					},
+					cancels = {
+						dodge = true,
 					},
 				},
 				hitboxes = {},
@@ -4843,6 +5529,10 @@ local WEAPONS = {
 				growth = 0.45,
 				angle = 44,
 				grounded = true,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chains = {
 					neutral = "LightNeutral2",
 					side = "LightSide1",
@@ -4870,6 +5560,10 @@ local WEAPONS = {
 				growth = 0.5,
 				angle = 44,
 				grounded = true,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chains = {
 					neutral = "LightNeutral3",
 					side = "LightSide1",
@@ -4898,6 +5592,13 @@ local WEAPONS = {
 				angle = 50,
 				grounded = true,
 				extraHitstun = 1,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
+				finishers = {
+					neutral = "Finisher",
+				},
 				chainsHeavy = {
 					side = "SigSide",
 				},
@@ -4923,6 +5624,10 @@ local WEAPONS = {
 				angle = 36,
 				grounded = true,
 				lunge = 2.5,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chains = {
 					side = "LightSide2",
 					neutral = "LightNeutral3",
@@ -4951,6 +5656,10 @@ local WEAPONS = {
 				grounded = true,
 				lunge = 4,
 				extraHitstun = 10,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				hitboxes = {
 					{
 						frames = { 6, 8 },
@@ -4972,6 +5681,10 @@ local WEAPONS = {
 				growth = 1.4,
 				angle = 86,
 				grounded = true,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chainsHeavy = {
 					neutral = "SigNeutral",
 					up = "SigNeutral",
@@ -4998,6 +5711,10 @@ local WEAPONS = {
 				angle = 16,
 				grounded = true,
 				trip = 52,
+				cancels = {
+					jump = true,
+					dodge = true,
+				},
 				chainsHeavy = {
 					down = "SigDown",
 					neutral = "SigDown",
@@ -5024,6 +5741,11 @@ local WEAPONS = {
 				growth = 1.1,
 				angle = 46,
 				grounded = false,
+				chains = {
+					neutral = "AirForward",
+					side = "AirForward",
+					up = "AirUp",
+				},
 				hitboxes = {
 					{
 						frames = { 5, 10 },
@@ -5046,6 +5768,10 @@ local WEAPONS = {
 				growth = 1.6,
 				angle = 40,
 				grounded = false,
+				chains = {
+					up = "AirUp",
+					down = "AirDown",
+				},
 				hitboxes = {
 					{
 						frames = { 6, 8 },
@@ -5068,6 +5794,9 @@ local WEAPONS = {
 				growth = 1.4,
 				angle = 88,
 				grounded = false,
+				finishers = {
+					neutral = "AirFinisher",
+				},
 				hitboxes = {
 					{
 						frames = { 5, 7 },
@@ -5100,6 +5829,52 @@ local WEAPONS = {
 				},
 				id = "AirDown",
 				total = 23,
+				kind = "melee",
+			},
+			Finisher = {
+				label = "Thousand Cuts",
+				startup = 6,
+				active = 4,
+				recovery = 19,
+				damage = 7,
+				base = 23,
+				growth = 9.9,
+				angle = 45,
+				grounded = true,
+				finisher = true,
+				lunge = 3,
+				hitboxes = {
+					{
+						frames = { 7, 10 },
+						offset = { 2.9, 2.8 },
+						size = { 5, 2.9 },
+					},
+				},
+				id = "Finisher",
+				total = 29,
+				kind = "melee",
+			},
+			AirFinisher = {
+				label = "Carve",
+				startup = 6,
+				active = 4,
+				recovery = 16,
+				landingLag = 9,
+				damage = 7,
+				base = 18,
+				growth = 2.2,
+				angle = 285,
+				grounded = false,
+				finisher = true,
+				hitboxes = {
+					{
+						frames = { 7, 10 },
+						offset = { 0.6, 4.2 },
+						size = { 2.9, 4.1 },
+					},
+				},
+				id = "AirFinisher",
+				total = 26,
 				kind = "melee",
 			},
 			SigSide = {

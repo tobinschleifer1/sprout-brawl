@@ -38,6 +38,14 @@
 // everything else is a read you have to earn. Executioner kills at 134% and can never be
 // confirmed into — if you want it, you have to make them respect something else first.
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Chop > Backhand > Headsman         CONFIRM 140-260%   kills 198%
+//   ROUTE  Turn Cut > Overhand > Guillotine   CONFIRM 80-160%   spike
+//   ROUTE  Uppercut Swing, jump > Heave       CONFIRM 160-260%
 export default {
   id: 'Axe', name: 'Battle Axe', archetype: 'Heavy bruiser',
   tagline: 'Gravity does the work',
@@ -66,6 +74,7 @@ export default {
       chainsHeavy: { neutral: 'SigDown', side: 'SigSide', down: 'SigDown' },
       hitboxes: [{ frames: [8, 10], offset: [2.2, 3.0], size: [3.6, 3.2] }] },
     LightNeutral2: { label: 'Backhand', startup: 8, active: 3, recovery: 13, damage: 6, base: 14, growth: 1.2, angle: 45, grounded: true,
+      finishers: { neutral: 'Finisher' },
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       chainsHeavy: { neutral: 'SigDown', side: 'SigSide', down: 'SigDown' },
       hitboxes: [{ frames: [9, 11], offset: [2.4, 3.2], size: [3.8, 3.4] }] },
@@ -87,6 +96,7 @@ export default {
     // long enough that Uproot cannot be dodged out of — which is the whole reason the weapon has a
     // fast light at all.
     LightUp: { label: 'Uppercut Swing', startup: 10, active: 3, recovery: 17, damage: 7, base: 17, growth: 1.9, angle: 84, grounded: true, extraHitstun: 6,
+      cancels: { jump: true },
       chainsHeavy: { neutral: 'SigNeutral', up: 'SigNeutral' },
       hitboxes: [{ frames: [11, 13], offset: [1.6, 4.6], size: [3.4, 5.0] }] },
     // The haft sweeps low along the floor — the one move that uses the drag rather than fighting it.
@@ -97,8 +107,10 @@ export default {
     // ---- aerials ----
     // The axe in the air is a liability everywhere except straight down, which is the point.
     AirNeutral: { label: 'Turn Cut', startup: 10, active: 6, recovery: 16, landingLag: 12, damage: 8, base: 17, growth: 2.0, angle: 48, grounded: false,
+      chains: { neutral: 'AirForward', side: 'AirForward' },
       hitboxes: [{ frames: [11, 16], offset: [0, 3.0], size: [6.0, 5.4] }] },
     AirForward: { label: 'Overhand', startup: 13, active: 4, recovery: 18, landingLag: 14, damage: 11, base: 22, growth: 2.8, angle: 38, grounded: false,
+      chains: { down: 'AirDown' }, finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [14, 17], offset: [3.0, 2.8], size: [4.6, 4.6] }] },
     AirUp: { label: 'Heave', startup: 12, active: 4, recovery: 17, landingLag: 12, damage: 9, base: 19, growth: 2.5, angle: 88, grounded: false,
       hitboxes: [{ frames: [13, 16], offset: [0.8, 5.2], size: [4.0, 4.8] }] },
@@ -106,6 +118,12 @@ export default {
     AirDown: { label: 'Deadweight', startup: 15, active: 6, recovery: 24, landingLag: 18, damage: 13, base: 24, growth: 3.2, angle: 268, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [16, 21], offset: [1.2, -0.8], size: [3.8, 4.4] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Headsman', startup: 13, active: 5, recovery: 28, damage: 12, base: 26, growth: 6.9, angle: 60, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [14, 18], offset: [3.6, 2.8], size: [7.1, 5.3] }] },
+    AirFinisher: { label: 'Guillotine', startup: 15, active: 5, recovery: 24, landingLag: 18, damage: 14, base: 28, growth: 3.6, angle: 275, grounded: false, finisher: true,
+      hitboxes: [{ frames: [16, 20], offset: [3, 2.8], size: [5.5, 5.5] }] },
 
     // ---- signatures ----
     // All three are the same sentence said three ways: HAUL IT UP, then let it fall. The wind-ups

@@ -219,3 +219,167 @@ export function confirmWindow(weaponId, fromId, dir, toId, { max = 200, step = 5
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------------------------
+// routeAt(): a whole combo ROUTE played through the engine, the way a player would press it.
+//
+// `route` is a list of steps. The first is { start: moveId }; after it, each step is either
+//   { to: moveId, press: {...} }   the next attack: Light/Heavy with a direction, or
+//   { cancel: 'jump' | 'dodge', x }  cut the current move's recovery short.
+// `timing` is how the attacks are pressed (COMBO in config.js): 'perfect' presses each follow-up
+// the moment the previous move lands - during the hit's freeze, a timed link - and 'mash' presses
+// every frame from the start of each move. After a cancel the next attack is pressed every frame
+// until it comes out, which is what a player does.
+//
+// The victim escapes exactly as in confirmsAt: a dodge on their first actionable frame (an air
+// dodge in the air). `confirmed` means every attack in the route connected, each one after the
+// first while the victim was still in hitstun - the whole route was unescapable.
+export function routeAt(weaponId, route, percent, opts = {}) {
+  return withImpactStates((impacts) => routeAtInner(weaponId, route, percent, opts, impacts));
+}
+
+function routeAtInner(weaponId, route, percent, opts, impacts) {
+  const m = makeMatch({ loadouts: [['Classic', weaponId], ['Noir', opts.foeWeapon || weaponId]] });
+  skipCountdown(m);
+  for (let i = 0; i < 200; i++) m.step();
+  const [a, v] = m.fighters;
+  const gap = opts.gap ?? 2.4;
+  a.x = -gap / 2; v.x = gap / 2; a.facing = 1; v.facing = -1;
+  for (const f of [a, v]) {
+    f.vx = 0; f.vy = 0; f.invincible = 0;
+    if (opts.air) { f.onGround = false; f.platform = null; f.y = opts.air; f.setState('air'); }
+    else { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.setState('idle'); }
+  }
+  if (opts.air) a.y -= 0.5;                  // a touch below: aerials are aimed up and out
+  v.percent = percent; a.hitVictims = new Map();
+  const timing = opts.timing || 'perfect';
+  const press = (src, p) => m._input.set(src, Object.assign({}, EMPTY_IN, p, { anyPress: true }));
+
+  a.startMove(route[0].start);
+  let k = 1, dodged = false, cancelled = false, perfects = 0, serialAtStep = a.moveSerial;
+  const attacks = route.filter((s) => !s.cancel).map((s) => s.start || s.to);
+  const landedMoves = [];                    // [moveId, victim state at impact], first impact of each swing
+  const seenSerial = new Set();
+  for (let i = 0; i < 400 && k <= route.length; i++) {
+    const step = route[k];
+    let input = null;
+    if (step && step.cancel) {
+      if (a.moveLanded && a.state === 'attack') input = { [step.cancel]: true, x: step.x || 0, y: step.y || 0 };
+    } else if (step) {
+      const p = Object.assign({}, step.press);
+      if (cancelled) input = p;                                            // after a cancel: press until it comes out
+      else if (timing === 'mash') input = a.state === 'attack' ? p : null;
+      else if (a.moveLanded && a.state === 'attack') input = p;            // timed: from the moment it lands
+    }
+    if (input) press('p0', input); else m._input.clear('p0');
+    if (!dodged && landedMoves.length && v.state !== 'hitstun' && v.hitlag === 0 && !v.holder && ['idle', 'run', 'air'].includes(v.state)) {
+      press('p1', { dodge: true }); dodged = true;
+    } else if (dodged) m._input.clear('p1');
+    const n0 = impacts.length;
+    m.step();
+    for (const e of m.events) if (e.type === 'perfectlink' && e.fighter === 0) perfects++;
+    m.events.length = 0;
+    for (const hit of impacts.slice(n0)) {
+      if (hit.victim !== v || seenSerial.has(a.moveSerial)) continue;
+      seenSerial.add(a.moveSerial);
+      landedMoves.push([hit.move.id, hit.state]);
+    }
+    // advance the route
+    if (step && step.cancel && a.state !== 'attack') { k++; cancelled = true; continue; }
+    if (step && !step.cancel && a.moveId === step.to && a.moveSerial !== serialAtStep) { k++; cancelled = false; serialAtStep = a.moveSerial; }
+    if (k >= route.length && landedMoves.length >= attacks.length) break;
+    if (!a.move && a.state !== 'jumpsquat' && a.state !== 'air' && a.state !== 'dash' && a.state !== 'airdodge' && !cancelled && k < route.length) break;
+  }
+  const completed = k >= route.length;
+  const allLanded = completed && landedMoves.length >= attacks.length && attacks.every((id, j) => landedMoves[j] && landedMoves[j][0] === id);
+  const confirmed = allLanded && landedMoves.slice(1, attacks.length).every(([, s]) => s === 'hitstun');
+  return { completed, allLanded, confirmed, perfects, landed: landedMoves, dodged, reached: a.moveId };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The routes the combo system (COMBO in config.js) advertises for a weapon, read off its data.
+//   finisherRoute: Light from LightNeutral1 along the neutral chain to the move that holds the
+//     `Finisher` branch, then the finisher - the string a player links perfectly all the way.
+//   airRoute: back from the aerial holding the `AirFinisher` branch through the aerials that
+//     chain into it, then the air finisher.
+//   cancelRoutes: every declared cancel off a landed move, into the obvious follow-up - Rising
+//     into the up-aerial after a jump, the side light after a dodge's dash.
+const DIR_PRESS = { neutral: {}, side: { x: 1 }, up: { y: 1 }, down: { y: -1 } };
+export function finisherRoute(w) {
+  const M = w.moves;
+  const from = Object.keys(M).find((id) => M[id].finishers && Object.values(M[id].finishers).includes('Finisher'));
+  if (!from) return null;
+  const path = ['LightNeutral1'];
+  while (path[path.length - 1] !== from) {
+    const next = M[path[path.length - 1]].chains && M[path[path.length - 1]].chains.neutral;
+    if (!next || path.includes(next)) return null;
+    path.push(next);
+  }
+  return [{ start: path[0] }, ...path.slice(1).map((id) => ({ to: id, press: { light: true } })), { to: 'Finisher', press: { light: true } }];
+}
+export function airRoute(w) {
+  const M = w.moves;
+  let cur = Object.keys(M).find((id) => M[id].finishers && Object.values(M[id].finishers).includes('AirFinisher'));
+  if (!cur) return null;
+  // the longest chain of aerials leading into it: the whole air string, not a shortcut through it
+  const into = (id) => Object.keys(M).filter((p) => p.startsWith('Air') && M[p].chains && Object.values(M[p].chains).includes(id));
+  const longest = (id, seen) => {
+    let best = [id];
+    for (const p of into(id)) if (!seen.has(p)) { const l = [...longest(p, new Set([...seen, p])), id]; if (l.length > best.length) best = l; }
+    return best;
+  };
+  const path = longest(cur, new Set([cur]));
+  const steps = path.slice(1).map((id, i) => {
+    const dir = Object.entries(M[path[i]].chains).find(([, t]) => t === id)[0];
+    return { to: id, press: { light: true, ...DIR_PRESS[dir] } };
+  });
+  return [{ start: path[0] }, ...steps, { to: 'AirFinisher', press: { light: true } }];
+}
+export function cancelRoutes(w) {
+  const out = [];
+  for (const [id, m] of Object.entries(w.moves)) {
+    for (const kind of Object.keys(m.cancels || {})) {
+      const to = kind === 'jump' ? 'AirUp' : 'LightSide1';
+      out.push({ from: id, kind, to, route: [{ start: id }, { cancel: kind, x: kind === 'dodge' ? 1 : 0 }, { to, press: { light: true, ...(kind === 'jump' ? { y: 1 } : { x: 1 }) } }] });
+    }
+  }
+  return out;
+}
+export const routeLabel = (w, route) => route.map((s) => (s.cancel ? s.cancel : w.moves[s.start || s.to].label))
+  .join(' > ').replace(/ > (jump|dodge) > /g, ', $1 > ');
+
+// The longest combo a greedy attacker can hold a victim in (COMBO: the victim escapes the only way
+// it can without breaking - a dodge the moment it can act). Two greedy styles, the worse taken:
+// cancel every landed move that allows it, or run each string out first and cancel at its end.
+// Either way every follow-up is timed and aimed at the victim. This is the infinite check.
+export function longestCombo(weaponId, percent, frames = 600) {
+  let best = 0;
+  for (const style of ['cancel', 'string']) {
+    const m = makeMatch({ loadouts: [['Classic', weaponId], ['Noir', 'Sword']] });
+    skipCountdown(m); for (let i = 0; i < 200; i++) m.step();
+    const [a, v] = m.fighters;
+    a.x = -1.2; v.x = 1.2; a.facing = 1; v.facing = -1;
+    for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; f.setState('idle'); }
+    v.percent = percent;
+    const set = (src, p) => m._input.set(src, Object.assign({}, EMPTY_IN, p, { anyPress: true }));
+    let dodged = false, hit = false;
+    a.startMove('LightNeutral1');
+    for (let i = 0; i < frames; i++) {
+      const toward = v.x >= a.x ? 1 : -1;
+      let p = null;
+      if (a.state === 'attack' && a.moveLanded && a.move) {
+        const mv = a.move, c = mv.cancels;
+        const strings = style === 'string' && (mv.chains || mv.finishers || mv.chainsTo);
+        if (c && !strings) p = c.dodge ? { dodge: true, x: toward } : { jump: true };
+        else p = { light: true };
+      } else if (['idle', 'run', 'air', 'dash'].includes(a.state)) p = { light: true, x: toward };
+      if (p) set('p0', p); else m._input.clear('p0');
+      if (v.comboHits > 0) hit = true;
+      if (hit && !dodged && v.state !== 'hitstun' && v.hitlag === 0 && ['idle', 'run', 'air'].includes(v.state)) { set('p1', { dodge: true }); dodged = true; }
+      else { m._input.clear('p1'); if (v.state === 'hitstun') dodged = false; }
+      m.step(); m.events.length = 0;
+      best = Math.max(best, v.comboHits);
+    }
+  }
+  return best;
+}

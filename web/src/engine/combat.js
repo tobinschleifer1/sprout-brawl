@@ -213,13 +213,13 @@ export class Combat {
     launch *= kbMul; stun *= kbMul;
     const facing = move.behind ? -attacker.facing : (opts.facing ?? attacker.facing);
     const hl = hitlagFor(damage, move.heavy);
-    if (direct) { attacker.hitlag = hl; attacker.moveLanded = true; }
+    if (direct) { attacker.hitlag = hl; attacker.moveLanded = true; attacker.comboTarget = victim; }
     // A projectile connecting also counts as the move landing, but only while its owner is still
     // executing the move that fired it. Without this a ranged light can never open a combo string,
     // because moveLanded (which gates chaining) was set by melee contact alone.
     else if (opts.projectile && attacker.move === move) attacker.moveLanded = true;
     attacker.stats.damageDealt += dealt;
-    victim.applyHit({ damage: dealt, launch, stun, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip });
+    victim.applyHit({ damage: dealt, launch, stun, angle, facing, attacker, hitlag: opts.summon ? Math.min(hl, 4) : hl, extraHitstun: move.extraHitstun || 0, applies: move.applies, pull: move.pullVictim, attackerX: attacker.x, trip: move.trip, finisher: !!move.finisher });
     if (direct && move.onHit) {
       if (move.onHit.bounce && !attacker.onGround) { attacker.vy = move.onHit.bounce; attacker.fastFalling = false; }
       if (move.onHit.regainJump) attacker.jumpsLeft = Math.max(attacker.jumpsLeft, 1);

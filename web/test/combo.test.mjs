@@ -5,7 +5,7 @@
 // the follow-up has to physically reach, and a spot dodge is invincible on frames 3-14. Ten of the
 // twenty routes it certified were escapable in a real match. Everything here now runs the match.
 import { WEAPONS } from '../src/data/weapons/index.js';
-import { confirmsAt, edges, koPercent } from './balance.mjs';
+import { confirmsAt, edges, koPercent, routeAt, finisherRoute, airRoute, cancelRoutes, routeLabel, longestCombo } from './balance.mjs';
 
 let pass = 0, fail = 0;
 const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
@@ -155,6 +155,82 @@ for (const w of WEAPONS) {
   }
 }
 
+// ---- 8-12. the timed routes: finishers, air strings, cancels (COMBO in config.js) ----
+// Every route below is played through the engine by routeAt: each follow-up pressed the moment
+// the previous move lands (a timed link), the victim dodging on their first actionable frame.
+// CONFIRM means the whole route was unescapable.
+const band = (ps) => (ps.length ? (ps[0] === ps[ps.length - 1] ? `${ps[0]}%` : `${ps[0]}-${ps[ps.length - 1]}%`) : 'none');
+const routes = new Map();     // weapon -> [{ label, kind, confirm }]
+for (const w of WEAPONS) {
+  const list = [];
+  const measure = (route, kind, opts = {}) => {
+    const confirm = GRID.filter((p) => routeAt(w.id, route, p, opts).confirmed);
+    list.push({ label: routeLabel(w, route), kind, route, confirm, opts });
+  };
+  const fin = finisherRoute(w), air = airRoute(w);
+  if (fin) measure(fin, 'finisher');
+  if (air) measure(air, 'air', { air: 10 });
+  for (const c of cancelRoutes(w)) measure(c.route, 'cancel');
+  routes.set(w.id, list);
+}
+const finKO = (w, id) => sigKO(w, id);
+const earliestSig = (w) => Math.min(...['SigSide', 'SigDown', 'SigNeutral'].map((id) => sigKO(w, id)).filter((k) => k != null));
+
+// 8. every weapon has a finisher, and the string to it - linked perfectly - is a true combo somewhere
+for (const w of WEAPONS) {
+  const r = routes.get(w.id).find((x) => x.kind === 'finisher');
+  check(`${w.id}: the finisher string is a true combo`, !!r && r.confirm.length > 0,
+    r ? `${r.label}: CONFIRM ${band(r.confirm)}` : 'no move holds a Finisher branch reachable from LightNeutral1');
+}
+// 9. ...and mashing the same string never reaches the finisher, at any percent
+for (const w of WEAPONS) {
+  const r = routes.get(w.id).find((x) => x.kind === 'finisher');
+  const reached = r ? GRID.filter((p) => routeAt(w.id, r.route, p, { timing: 'mash' }).completed) : [];
+  check(`${w.id}: mashing never reaches the finisher`, !!r && reached.length === 0,
+    reached.length ? `mashed ${r.label} reached it at ${reached.join(', ')}%` : `mashed at every percent from 0 to ${GRID[GRID.length - 1]}: the string ends without it`);
+}
+// 10. a finisher ends a combo: it kills later than the weapon's own signatures, never early
+for (const w of WEAPONS) {
+  const ko = finKO(w, 'Finisher'), sig = earliestSig(w);
+  check(`${w.id}: the finisher kills later than a signature`, ko != null && ko > sig && ko >= 60,
+    `${w.moves.Finisher.label} KOs ${ko ?? 'never'}%, earliest signature ${sig}%`);
+}
+// 11. every weapon's air string - timed, so each link chases - is a true combo somewhere, and the
+//     same string mashed (no chase) never is
+for (const w of WEAPONS) {
+  const r = routes.get(w.id).find((x) => x.kind === 'air');
+  const mashed = r ? GRID.filter((p) => routeAt(w.id, r.route, p, { air: 10, timing: 'mash' }).confirmed) : [];
+  check(`${w.id}: the air string is a true combo only when timed`, !!r && r.confirm.length > 0 && mashed.length === 0,
+    r ? `${r.label}: timed CONFIRM ${band(r.confirm)}, mashed ${band(mashed)}` : 'no aerial holds an AirFinisher branch');
+}
+// 12. no infinites: a greedy attacker timing every link and cancelling every hit it may cannot hold
+//     anyone past eight hits, at any percent
+for (const w of WEAPONS) {
+  const longest = [0, 40, 80, 120, 160, 200].map((p) => longestCombo(w.id, p));
+  check(`${w.id}: no combo loops`, Math.max(...longest) <= 8, `longest combo at 0/40/80/120/160/200%: ${longest.join(' ')} hits`);
+}
+// 13. the header quotes every timed route, with the band measured above
+{
+  const fs = await import('node:fs');
+  const dir = new URL('../src/data/weapons/', import.meta.url);
+  for (const w of WEAPONS) {
+    const src = fs.readFileSync(new URL(`${w.id.toLowerCase()}.js`, dir), 'utf8');
+    const header = src.slice(0, src.indexOf('export default'));
+    const claims = new Map();
+    for (const m of header.matchAll(/ROUTE\s+(.+?)\s{2,}CONFIRM\s+(none|\d+(?:-\d+)?%)/g)) claims.set(m[1].trim(), m[2]);
+    const problems = [];
+    for (const r of routes.get(w.id)) {
+      const must = r.kind !== 'cancel' || r.confirm.length > 0;     // cancels that combo into nothing need not be listed
+      if (!claims.has(r.label)) { if (must) problems.push(`missing: ROUTE ${r.label}  CONFIRM ${band(r.confirm)}`); continue; }
+      if (claims.get(r.label) !== band(r.confirm)) problems.push(`'${r.label}' claims ${claims.get(r.label)}, measured ${band(r.confirm)}`);
+      claims.delete(r.label);
+    }
+    for (const label of claims.keys()) problems.push(`claims a route that does not exist: ${label}`);
+    check(`${w.id}: header routes match the measurement`, problems.length === 0,
+      problems.length ? problems.slice(0, 5).join('; ') : `${routes.get(w.id).length} timed routes measured, every quoted band reproduces`);
+  }
+}
+
 // ---- report the measured table, so a tuning change shows its effect ----
 console.log('\nMEASURED (simulated; victim spot-dodges on their first actionable frame)');
 console.log('  CONFIRM = landed while still in hitstun.  trap = landed on the dodge\'s recovery, a read.');
@@ -165,6 +241,7 @@ for (const w of WEAPONS) {
     const label = `${w.moves[r.e.from].label} +Heavy${r.e.dir === '*' ? '' : ' ' + r.e.dir}`;
     console.log(`    ${label.padEnd(28)} -> ${w.moves[r.e.to].label.padEnd(14)} CONFIRM ${b(r.confirm).padEnd(11)} trap ${b(r.punish).padEnd(11)} KO ${r.ko ?? '--'}%`);
   }
+  for (const r of routes.get(w.id)) console.log(`    ROUTE  ${r.label.padEnd(46)} CONFIRM ${band(r.confirm)}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

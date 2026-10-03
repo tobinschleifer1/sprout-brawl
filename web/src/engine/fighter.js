@@ -107,6 +107,9 @@ export class Fighter {
     this.perfectPress = { light: false, heavy: false }; this.mashed = { light: false, heavy: false };
     this.linkPerfect = false; this.perfectStreak = 0; this.chainDepth = 0;
     this.comboHits = 0; this.comboKey = -1; this.breakLocked = false; this.breakPress = false; this.breakCooldown = 0;
+    this.comboTarget = null; this.chase = 0;   // who this fighter last hit, and the chase window a cancel opens
+    this.breakable = true;                     // false while frozen by a finisher, which cannot be broken
+    this.cancelUsed = false;                   // one cancel per combo: see _cancel
     this.inWater = false;
     // What the stage is doing to this fighter THIS FRAME. Zeroed by the stage before hazards run
     // (see StageRuntime.step), written by hazards.js, read by _physics and _friction. Keeping it
@@ -191,7 +194,7 @@ export class Fighter {
     // The combo break: Dodge during the freeze of the breakFrom-th hit or later. Any other Dodge
     // while held in a combo - too early, or a second press - locks the break for the rest of it.
     if (frame.dodge && this.comboHits > 0 && this.state === 'hitstun') {
-      if (this.hitlag > 0 && this.comboHits >= COMBO.breakFrom && this.breakCooldown === 0 && !this.breakLocked) this.breakPress = true;
+      if (this.hitlag > 0 && this.breakable && this.comboHits >= COMBO.breakFrom && this.breakCooldown === 0 && !this.breakLocked) this.breakPress = true;
       else this.breakLocked = true;
     }
   }
@@ -205,6 +208,7 @@ export class Fighter {
     if (!this.alive) return;
     if (this.comboHits > 0 && !COMBO_HELD.has(this.state)) { this.comboHits = 0; this.comboKey = -1; this.breakLocked = false; this.breakPress = false; }
     if (this.breakPress) { this._breakOut(); return; }
+    if (this.cancelUsed && !(this.comboTarget && this.comboTarget.comboHits > 0)) this.cancelUsed = false;
     if (this.hitlag > 0) {
       // Buffers deliberately do NOT tick here. Hitlag runs up to HITLAG_CAP (12) frames, longer
       // than INPUT_BUFFER (6), so ticking during the freeze silently ate every escape input.
@@ -228,6 +232,7 @@ export class Fighter {
   _tickTimers() {
     if (this.invincible > 0) this.invincible--;
     if (this.breakCooldown > 0) this.breakCooldown--;
+    if (this.chase > 0) this.chase--;
     if (this.ledgeCooldown > 0) this.ledgeCooldown--;
     if (this.dropTimer > 0) this.dropTimer--;
     const e = this.effects;
@@ -578,6 +583,8 @@ export class Fighter {
       this.startupEff = Math.max(Math.min(COMBO.perfectMinStartup, this.startupEff), this.startupEff - COMBO.perfectStartupCut);
       this.bonusDamage += COMBO.perfectDamage;
     }
+    if (move.grounded === false && !this.onGround && (perfect || this.chase > 0)) this._chase(move);
+    this.chase = 0;
     this.startupShift = move.startup - this.startupEff;
     this.setState('attack');
     this.emit({ type: 'movestart', move: move.id, heavy: !!move.heavy });
@@ -700,9 +707,14 @@ export class Fighter {
   // frames are over - by Jump into a jump (on the ground) or a double jump (in the air), or by
   // Dodge into a dash (ground) or an air dodge (air). A whiff keeps its whole recovery, which is
   // where the risk of the move lives. Both spend what they would normally spend.
+  //
+  // One per combo: once a fighter has cancelled, they cannot cancel again until the fighter they
+  // are hitting gets out of the combo. Cancels start combos; they do not loop them. Without this
+  // Longbow could dodge-cancel Bowstave, dash in, re-open with Pierce and run the string back to
+  // Bowstave for fourteen hits, until the victim's percent finally sent them out of reach.
   _cancel(m, inp) {
     const c = m.cancels;
-    if (!c || !this.moveLanded || this.mf <= this.startupEff + m.active) return false;
+    if (!c || this.cancelUsed || !this.moveLanded || this.mf <= this.startupEff + m.active) return false;
     if (c.jump && this.buffer.jump > 0 && (this.onGround || this.jumpsLeft > 0)) {
       this.buffer.jump = 0;
       this.endMove();
@@ -712,6 +724,7 @@ export class Fighter {
         if (Math.abs(inp.x) > 0.5) this.facing = sign(inp.x);
         this.emit({ type: 'doublejump' });
       }
+      this.chase = COMBO.chaseFrames; this.cancelUsed = true;
       this.emit({ type: 'cancel', kind: 'jump' });
       return true;
     }
@@ -720,10 +733,30 @@ export class Fighter {
       this.endMove();
       if (this.onGround) this._startDash(Math.abs(inp.x) > 0.5 ? sign(inp.x) : this.facing);
       else this._startAirDodge(inp);
+      this.chase = COMBO.chaseFrames; this.cancelUsed = true;
       this.emit({ type: 'cancel', kind: 'dodge' });
       return true;
     }
     return false;
+  }
+
+  // The chase (COMBO in config.js): set off toward the fighter just hit, so that `move`'s first
+  // hitbox is centred on where they will be on its first active frame - their launch carried
+  // forward under gravity - at no more than chaseSpeed. Gravity is allowed for on our side too.
+  _chase(move) {
+    const v = this.comboTarget;
+    if (!v || !v.alive) return;
+    const t = (this.startupEff + 1) * FRAME;
+    const hb = move.hitboxes && move.hitboxes[0];
+    const ox = hb ? hb.offset[0] : 0, oy = hb ? hb.offset[1] : this.h / 2;
+    this.facing = v.x >= this.x ? 1 : -1;
+    const px = v.x + v.vx * t, py = v.y + v.vy * t - 0.5 * GRAVITY * t * t;
+    let vx = (px - this.facing * ox - this.x) / t;
+    let vy = (py + v.h / 2 - oy - this.y) / t + 0.5 * GRAVITY * t;
+    const speed = hypot(vx, vy);
+    if (speed > COMBO.chaseSpeed) { vx *= COMBO.chaseSpeed / speed; vy *= COMBO.chaseSpeed / speed; }
+    this.vx = vx; this.vy = vy; this.fastFalling = false;
+    this.emit({ type: 'chase', victim: v.index });
   }
 
   endMove() {
@@ -741,6 +774,7 @@ export class Fighter {
     const m = this.move; const c = m.counter;
     const dmg = Math.max(c.minDamage, Math.round(incomingDamage * c.multiplier));
     const burst = { id: 'CounterBurst', label: 'Spine Burst', startup: 0, active: c.burstFrames, recovery: c.burstRecovery, damage: dmg, base: m.base, growth: m.growth, angle: m.angle, heavy: true, kind: 'melee', total: c.burstFrames + c.burstRecovery,
+      cancels: c.cancels,
       hitboxes: [{ frames: [1, c.burstFrames], offset: c.hitbox.offset, size: c.hitbox.size }] };
     this.startMove(burst);
     if (this.mech.id === 'Spines') this.mech.spines = this.char.mechanic.max;
@@ -783,6 +817,10 @@ export class Fighter {
     this.stats.damageTaken += hit.damage;
     this.lastHitBy = hit.attacker || null; this.lastHitFrame = this.frameCount;
     this.hitlag = hit.hitlag;
+    // A finisher cannot be broken: an attacker who linked a whole string perfectly gets the end of
+    // it. The break is for the long combos - launcher, cancel, air string - that reach the
+    // breakFrom-th hit before their finisher does.
+    this.breakable = !hit.finisher;
     if (hit.applies) this._applyEffects(hit.applies);
     if (this.mech.id === 'Light') this.mech.segments = Math.max(0, this.mech.segments - 1);
     if (this.mech.id === 'Momentum') { this.mech.runFrames = 0; this.mech.ready = false; }

@@ -28,6 +28,13 @@
 //   Boss Strike +Heavy+Down -> Aegis Slam       trap only        0%                 kills  240%
 //   Boss Strike +Heavy+Side -> Bulwark Charge   trap only   20-120%                 kills  229%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Bash > Shield Jab > Bulwark Rush            CONFIRM 0-260%   kills 259%
+//   ROUTE  Shield Spin > Flying Bash > Rampart Crash   CONFIRM 60-220%   kills 267%
 export default {
   id: 'Shield', name: 'Shield', archetype: 'Counter attacker', tagline: 'Defensive',
   blurb: 'Slow, heavy, and short on reach. Counterguard turns the other player\'s best move into your best move, and whiffing it is the worst thing you can do.',
@@ -45,6 +52,7 @@ export default {
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [8, 10], offset: [2.2, 2.8], size: [3.0, 3.0] }] },
     LightNeutral2: { label: 'Shield Jab', startup: 6, active: 3, recovery: 15, damage: 5, base: 15, growth: 1.4, angle: 42, grounded: true, extraHitstun: 8, shieldDamageMul: 1.8,
+      finishers: { neutral: 'Finisher' },
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       // The brief routes this into Counterguard. It cannot: a counter has NO HITBOX - it is a
       // window that converts an incoming hit - so there is nothing for a combo to connect with.
@@ -70,14 +78,22 @@ export default {
 
     // ---- aerials ----
     AirNeutral: { label: 'Shield Spin', startup: 8, active: 6, recovery: 14, landingLag: 11, damage: 6, base: 15, growth: 1.6, angle: 50, grounded: false,
+      chains: { neutral: 'AirForward', side: 'AirForward' },
       hitboxes: [{ frames: [9, 14], offset: [0, 2.9], size: [5.0, 4.4] }] },
     AirForward: { label: 'Flying Bash', startup: 10, active: 3, recovery: 16, landingLag: 12, damage: 9, base: 20, growth: 2.4, angle: 38, grounded: false,
+      chains: { down: 'AirDown' }, finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [11, 13], offset: [2.6, 2.8], size: [3.6, 3.6] }] },
     AirUp: { label: 'Shield Launch', startup: 9, active: 3, recovery: 15, landingLag: 11, damage: 8, base: 18, growth: 2.3, angle: 88, grounded: false,
       hitboxes: [{ frames: [10, 12], offset: [0.8, 4.6], size: [3.2, 4.0] }] },
     AirDown: { label: 'Ground Break', startup: 13, active: 5, recovery: 20, landingLag: 15, damage: 11, base: 21, growth: 2.7, angle: 268, grounded: false,
       fastFallActive: true, shieldDamageMul: 2.2,
       hitboxes: [{ frames: [14, 18], offset: [1.0, -0.9], size: [3.2, 4.0] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Bulwark Rush', startup: 8, active: 4, recovery: 23, damage: 8, base: 22, growth: 6.8, angle: 35, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [9, 12], offset: [3.1, 2.8], size: [5.2, 3.6] }] },
+    AirFinisher: { label: 'Rampart Crash', startup: 12, active: 4, recovery: 22, landingLag: 16, damage: 12, base: 28, growth: 5.1, angle: 65, grounded: false, finisher: true,
+      hitboxes: [{ frames: [13, 16], offset: [2.6, 2.8], size: [4.3, 4.3] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Bulwark Charge', startup: 20, active: 5, recovery: 32, damage: 15, base: 29, growth: 3.9, angle: 38, grounded: true, heavy: true, lunge: 6,
@@ -90,7 +106,8 @@ export default {
     // its damage, floored at 11% so countering a jab is still worth something. Whiff it and you
     // owe 34 frames, which is longer than any punish window the weapon can create itself.
     SigNeutral: { label: 'Counterguard', startup: 6, active: 14, recovery: 34, damage: 0, base: 30, growth: 4.2, angle: 56, grounded: true, heavy: true, kind: 'counter',
-      counter: { multiplier: 1.9, minDamage: 11, burstFrames: 4, burstRecovery: 18, hitbox: { offset: [2.4, 2.8], size: [6.0, 5.0] } },
+      counter: { multiplier: 1.9, minDamage: 11, burstFrames: 4, burstRecovery: 18, hitbox: { offset: [2.4, 2.8], size: [6.0, 5.0] },
+        cancels: { dodge: true } },     // a landed counter can be dodge-cancelled: the shield's one cancel
       hitboxes: [] },
 
     // ULTIMATE - AEGIS. Their damage becomes yours.

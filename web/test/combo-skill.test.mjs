@@ -281,5 +281,102 @@ function breakAt(hitNumber, { pressInFreeze = true, cooldown = 0, earlyPress = f
   check('an early Dodge locks the break for the rest of the combo', !locked.broke, `pressed during the previous hit, then in the freeze: broke ${!!locked.broke}`);
 }
 
+// ---------------------------------------------------------------- the chase ----
+{
+  // A timed air link carries the attacker after the fighter it just hit; the same link mashed
+  // does not, and the chase is capped.
+  function airLink(timed) {
+    const d = duel({ percent: 100 });
+    const { m, a, v } = d;
+    for (const f of [a, v]) { f.onGround = false; f.platform = null; f.y = 10; f.setState('air'); }
+    a.y = 9.5;
+    let chased = null, startVX = null, pressed = false;
+    const r = play(d, 'AirNeutral', (f) => {
+      if (f.moveId === 'AirForward' && startVX === null) startVX = f.vx;
+      if (timed) { if (f.state === 'attack' && f.moveLanded && f.moveId === 'AirNeutral') return { light: true, x: 1 }; return null; }
+      if (f.state === 'attack' && f.moveId === 'AirNeutral') return pressed = !pressed, (pressed ? { light: true, x: 1 } : null);
+      return null;
+    }, 60);
+    chased = r.events.find((e) => e.type === 'chase' && e.fighter === 0);
+    const hitForward = r.events.some((e) => e.type === 'hit' && e.attacker === 0 && m.combat && e.combo === 2);
+    return { chased, moves: r.moves, startVX, hitForward, a };
+  }
+  const t = airLink(true), mash = airLink(false);
+  check('a timed air link chases the fighter just hit', !!t.chased && t.moves.includes('AirForward') && t.startVX !== null && Math.abs(t.startVX) > 1,
+    `chase ${!!t.chased}, moves ${t.moves.join(' > ')}, speed leaving ${t.startVX && t.startVX.toFixed(1)}`);
+  check('a mashed air link does not chase', mash.moves.includes('AirForward') && !mash.chased, `mashed: moves ${mash.moves.join(' > ')}, chase ${!!mash.chased}`);
+  check('the timed air link lands as the next hit of the combo', t.hitForward, `second hit of the combo landed: ${t.hitForward}`);
+  // the cap: a victim far away is chased at no more than chaseSpeed
+  const d = duel();
+  const { a, v } = d;
+  for (const f of [a, v]) { f.onGround = false; f.platform = null; f.y = 10; f.setState('air'); }
+  v.x = 40; v.vx = 0; v.vy = 0; a.comboTarget = v; a.chase = COMBO.chaseFrames;
+  a.startMove('AirForward');
+  check('a chase is capped at chaseSpeed', Math.abs(Math.hypot(a.vx, a.vy) - COMBO.chaseSpeed) < 1e-9, `speed ${Math.hypot(a.vx, a.vy).toFixed(3)}, cap ${COMBO.chaseSpeed}`);
+  // aimed: with no cap in the way, the move's hitbox centre meets the victim's predicted centre
+  const e = duel();
+  for (const f of [e.a, e.v]) { f.onGround = false; f.platform = null; f.y = 10; f.setState('air'); }
+  e.v.x = 2.5; e.v.y = 11; e.v.vx = 6; e.v.vy = 4; e.a.comboTarget = e.v; e.a.chase = COMBO.chaseFrames;
+  e.a.startMove('AirForward');
+  const T = (e.a.startupEff + 1) / 60, G = 150;
+  const hb = e.a.move.hitboxes[0];
+  const ax = e.a.x + e.a.vx * T + e.a.facing * hb.offset[0], ay = e.a.y + e.a.vy * T - 0.5 * G * T * T + hb.offset[1];
+  const vx = e.v.x + e.v.vx * T, vy = e.v.y + e.v.vy * T - 0.5 * G * T * T + e.v.h / 2;
+  check('a chase aims the hitbox at where the victim will be', Math.abs(ax - vx) < 1e-9 && Math.abs(ay - vy) < 1e-9,
+    `hitbox centre (${ax.toFixed(3)}, ${ay.toFixed(3)}), victim centre (${vx.toFixed(3)}, ${vy.toFixed(3)})`);
+  // a cancel opens the chase for the first aerial; a grounded move never chases
+  const g = duel();
+  g.a.onGround = false; g.a.platform = null; g.a.y = 6; g.a.vx = 0; g.a.vy = 0; g.v.y = 7;
+  g.a.comboTarget = g.v; g.a.chase = COMBO.chaseFrames; g.a.startMove('LightNeutral1');
+  check('a grounded move never chases, even started in the air, and starting it spends the window', g.a.vx === 0 && g.a.vy === 0 && g.a.chase === 0, `vx ${g.a.vx}, vy ${g.a.vy}, window ${g.a.chase}`);
+}
+
+// ---------------------------------------------------------------- finishers cannot be broken ----
+{
+  const d = duel({ percent: 40, edit: withFinisher });
+  const { m, a, v } = d;
+  const fin = a.char.moves.Finisher;
+  for (let n = 1; n <= COMBO.breakFrom; n++) { a.moveSerial++; m.combat.resolveHit(a, v, n === COMBO.breakFrom ? fin : a.char.moves.LightNeutral1, null, null, {}); if (n < COMBO.breakFrom) v.hitlag = 0; }
+  press(m, 'p1', { dodge: true }); m.step(); m._input.clear('p1');
+  const broke = m.events.some((e) => e.type === 'combobreak');
+  m.events.length = 0;
+  check('a finisher cannot be broken', !broke && v.state === 'hitstun' && v.breakLocked, `Dodge in the finisher's freeze: broke ${broke}, state ${v.state}, locked ${v.breakLocked}`);
+  // and the next ordinary hit is breakable again (the lock aside): breakable follows the last hit
+  a.moveSerial++; m.combat.resolveHit(a, v, a.char.moves.LightNeutral1, null, null, {});
+  check('breakable follows the last hit taken', v.breakable === true, `after an ordinary hit: breakable ${v.breakable}`);
+}
+
+// ---------------------------------------------------------------- one cancel per combo ----
+{
+  // A landed move with a cancel, the victim held in a combo: the first cancel goes and marks it...
+  const d = duel({ edit: cancelling({ dodge: true }) });
+  const { m } = d;
+  const landedInCombo = () => {
+    d.v.comboHits = 2; d.v.setState('hitstun'); d.v.hitstun = 60;
+    d.a.comboTarget = d.v;
+    d.a.startMove('LightNeutral1'); d.a.moveLanded = true; d.a.mf = d.a.startupEff + d.a.char.moves.LightNeutral1.active;
+    d.a.buffer.dodge = 6;
+    d.a._stepAttack(m.ctx);
+  };
+  landedInCombo();
+  check('a cancel marks the combo as cancelled', d.a.state === 'dash' && d.a.cancelUsed, `state ${d.a.state}, used ${d.a.cancelUsed}`);
+  // ...and the second, in the same combo, is refused
+  landedInCombo();
+  check('no second cancel while the victim is still in the combo', d.a.state === 'attack', `state after the attempt: ${d.a.state}`);
+  // once they are out of it, a cancel is allowed again
+  d.v.comboHits = 0; d.a.buffer.dodge = 0; d.a.step(m.ctx);
+  check('the cancel comes back when the combo ends', d.a.cancelUsed === false, `used ${d.a.cancelUsed}`);
+}
+
+// ---------------------------------------------------------------- the counter's cancel ----
+{
+  const d = duel({ weapon: 'Shield' });
+  const { a } = d;
+  a.startMove('SigNeutral');
+  a.triggerCounter(10);
+  check("Shield's counter burst carries its cancel", a.moveId === 'CounterBurst' && a.move.cancels && a.move.cancels.dodge === true,
+    `move ${a.moveId}, cancels ${JSON.stringify(a.move.cancels)}`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -28,6 +28,14 @@
 //   Quick Shot +Heavy+Side -> Rainfall     trap only    0-180%                 kills  335%
 //   Low Arrow  +Heavy      -> Tripwire     trap only     0-60%                 kills  235%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Draw > Quick Shot > Bowstave > Bowstring Snap   CONFIRM 0-140%   kills 265%
+//   ROUTE  Overhead Loose > Rain Shot                      CONFIRM 0-260%   spike
+//   ROUTE  Bowstave, dodge > Pierce                        CONFIRM 100-180%
 export default {
   id: 'Longbow', name: 'Longbow', archetype: 'Precision zoner', tagline: 'Charge your shots',
   blurb: 'One arrow at a time, drawn as long as you dare. Helpless up close, and the longest single threat in the game from across the stage.',
@@ -54,6 +62,8 @@ export default {
       projectile: { speed: 66, lifetime: 26, size: [1.4, 0.3], spawnOffset: [2.2, 3.0], shape: 'arrow' } },
     // The only move on the weapon that wants them close, and the only one that sets anything up.
     LightNeutral3: { label: 'Bowstave', startup: 8, active: 3, recovery: 15, damage: 6, base: 17, growth: 1.8, angle: 50, grounded: true, extraHitstun: 14,
+      cancels: { dodge: true },
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { down: 'SigDown' },
       hitboxes: [{ frames: [9, 11], offset: [2.4, 2.8], size: [3.6, 3.0] }] },
 
@@ -82,10 +92,17 @@ export default {
     AirForward: { label: 'Loosed', startup: 9, active: 3, recovery: 16, landingLag: 10, damage: 7, base: 18, growth: 2.1, angle: 28, grounded: false, kind: 'projectile',
       projectile: { speed: 76, lifetime: 30, size: [1.8, 0.3], spawnOffset: [2.2, 2.8], shape: 'arrow' } },
     AirUp: { label: 'Overhead Loose', startup: 8, active: 3, recovery: 15, landingLag: 9, damage: 6, base: 16, growth: 2.0, angle: 86, grounded: false,
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [9, 11], offset: [0.8, 4.6], size: [2.2, 4.4] }] },
     AirDown: { label: 'Plunging Shot', startup: 11, active: 4, recovery: 18, landingLag: 12, damage: 8, base: 19, growth: 2.4, angle: 272, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [12, 15], offset: [0.9, -1.0], size: [2.0, 4.0] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Bowstring Snap', startup: 10, active: 4, recovery: 23, damage: 9, base: 24, growth: 7.7, angle: 50, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [11, 14], offset: [3.2, 2.8], size: [5.9, 3.6] }] },
+    AirFinisher: { label: 'Rain Shot', startup: 10, active: 4, recovery: 21, landingLag: 13, damage: 9, base: 23, growth: 2.8, angle: 280, grounded: false, finisher: true,
+      hitboxes: [{ frames: [11, 14], offset: [0.8, 4.6], size: [2.6, 5.3] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Rainfall', startup: 24, active: 5, recovery: 32, damage: 12, base: 30, growth: 4.4, angle: 60, grounded: true, heavy: true, kind: 'projectile',

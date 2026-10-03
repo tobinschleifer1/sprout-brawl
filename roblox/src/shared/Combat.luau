@@ -358,6 +358,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	if direct then
 		attacker.hitlag = hl
 		attacker.moveLanded = true
+		attacker.comboTarget = victim
 	elseif opts.projectile and attacker.move == move then
 		-- A projectile connecting also counts as the move landing, but only while its owner is
 		-- still executing the move that fired it.
@@ -367,7 +368,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	victim:applyHit({ damage = dealt, launch = launch, stun = stun, angle = angle, facing = facing,
 		attacker = attacker, hitlag = if opts.summon then math.min(hl, 4) else hl,
 		extraHitstun = move.extraHitstun or 0, applies = move.applies, pull = move.pullVictim,
-		attackerX = attacker.x, trip = move.trip })
+		attackerX = attacker.x, trip = move.trip, finisher = not not move.finisher })
 	if direct and move.onHit then
 		if move.onHit.bounce and not attacker.onGround then
 			attacker.vy = move.onHit.bounce

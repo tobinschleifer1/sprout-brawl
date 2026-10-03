@@ -26,6 +26,14 @@
 //   Full Circle   +Heavy+Side -> Reaper         CONFIRM   80-120%   trap   20-60%   kills  199%
 //   Return        +Heavy+Side -> Reaper         trap only     0-80%                 kills  199%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Swing > Return > Wrecking Ball      CONFIRM 40-260%   kills 225%
+//   ROUTE  Whirl > Flung Head > Pendulum       CONFIRM 220-260%   kills 235%
+//   ROUTE  Rising Chain, jump > Chain Launch   CONFIRM 180-260%
 export default {
   id: 'Flail', name: 'Chain Flail', archetype: 'Space control', tagline: 'Unpredictable',
   blurb: 'A weighted head on four studs of chain. Wide, slow arcs that hit going out and coming back, and a snare that decides who closes the distance.',
@@ -51,6 +59,7 @@ export default {
     // Return: the head comes back through the same space, which is the whole point of a flail.
     // Two hitboxes, one outbound and one inbound, and they read as one motion.
     LightNeutral2: { label: 'Return', startup: 7, active: 6, recovery: 15, damage: 4, base: 13, growth: 1.1, angle: 44, grounded: true,
+      finishers: { neutral: 'Finisher' },
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       chainsHeavy: { side: 'SigSide' },
       hitboxes: [
@@ -72,6 +81,7 @@ export default {
       hitboxes: [{ frames: [10, 14], offset: [4.8, 2.9], size: [6.8, 3.2] }] },
 
     LightUp: { label: 'Rising Chain', startup: 9, active: 4, recovery: 17, damage: 5, base: 16, growth: 1.8, angle: 82, grounded: true, extraHitstun: 6,
+      cancels: { jump: true },
       chainsHeavy: { up: 'SigNeutral', neutral: 'SigNeutral' },
       hitboxes: [{ frames: [10, 13], offset: [1.8, 4.4], size: [3.2, 5.2] }] },
     LightDown: { label: 'Ground Wrap', startup: 11, active: 5, recovery: 16, damage: 5, base: 13, growth: 1.4, angle: 12, grounded: true, trip: 68, extraHitstun: 12,
@@ -79,14 +89,22 @@ export default {
 
     // ---- aerials ----
     AirNeutral: { label: 'Whirl', startup: 8, active: 9, recovery: 15, landingLag: 10, damage: 5, base: 14, growth: 1.5, angle: 50, grounded: false,
+      chains: { neutral: 'AirForward', side: 'AirForward' },
       hitboxes: [{ frames: [9, 17], offset: [0, 3.0], size: [7.8, 5.4] }] },
     AirForward: { label: 'Flung Head', startup: 11, active: 4, recovery: 17, landingLag: 11, damage: 8, base: 19, growth: 2.3, angle: 36, grounded: false,
+      chains: { down: 'AirDown' }, finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [12, 15], offset: [4.2, 2.8], size: [5.4, 3.0] }] },
     AirUp: { label: 'Chain Launch', startup: 9, active: 4, recovery: 16, landingLag: 10, damage: 7, base: 17, growth: 2.2, angle: 86, grounded: false,
       hitboxes: [{ frames: [10, 13], offset: [1.0, 5.0], size: [3.0, 5.2] }] },
     AirDown: { label: 'Drop Weight', startup: 12, active: 5, recovery: 19, landingLag: 13, damage: 9, base: 20, growth: 2.6, angle: 270, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [13, 17], offset: [1.0, -1.2], size: [2.6, 4.6] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Wrecking Ball', startup: 6, active: 7, recovery: 27, damage: 10, base: 26, growth: 7, angle: 45, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [7, 13], offset: [4.2, 3.2], size: [7.6, 4.1] }] },
+    AirFinisher: { label: 'Pendulum', startup: 13, active: 5, recovery: 23, landingLag: 15, damage: 11, base: 27, growth: 6.8, angle: 50, grounded: false, finisher: true,
+      hitboxes: [{ frames: [14, 18], offset: [4.2, 2.8], size: [6.5, 3.6] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Reaper', startup: 21, active: 8, recovery: 31, damage: 15, base: 31, growth: 4.6, angle: 42, grounded: true, heavy: true, lunge: 3,

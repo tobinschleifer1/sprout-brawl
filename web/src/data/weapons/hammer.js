@@ -27,6 +27,13 @@
 //   Back Swing    +Heavy+Side -> Breach          trap only  120-260%                 kills  200%
 //   Ground Slam   +Heavy+Side -> Breach          trap only   80-120%                 kills  200%
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Hammer > Back Swing > Earthquake   CONFIRM 100-220%   kills 219%
+//   ROUTE  Turn Smash > Anvil Drop            CONFIRM 40-260%   spike
 export default {
   id: 'Hammer', name: 'War Hammer', archetype: 'Superheavy', tagline: 'Armour breaker',
   blurb: 'The heaviest, slowest weapon in the game. Every heavy chews through a shield, so blocking it is not the answer it is against everything else.',
@@ -44,6 +51,7 @@ export default {
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },
       hitboxes: [{ frames: [10, 12], offset: [2.6, 3.0], size: [4.0, 3.4] }] },
     LightNeutral2: { label: 'Back Swing', startup: 10, active: 3, recovery: 14, damage: 7, base: 16, growth: 1.4, angle: 45, grounded: true, shieldDamageMul: 1.6, extraHitstun: 14,
+      finishers: { neutral: 'Finisher' },
       chains: { neutral: 'LightNeutral3', up: 'LightUp', down: 'LightDown' },
       chainsHeavy: { side: 'SigSide' },
       hitboxes: [{ frames: [11, 13], offset: [2.8, 3.2], size: [4.2, 3.6] }] },
@@ -70,6 +78,7 @@ export default {
 
     // ---- aerials ----
     AirNeutral: { label: 'Turn Smash', startup: 11, active: 5, recovery: 17, landingLag: 13, damage: 9, base: 18, growth: 2.1, angle: 48, grounded: false,
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [12, 16], offset: [0, 3.0], size: [6.2, 5.2] }] },
     AirForward: { label: 'Falling Head', startup: 14, active: 4, recovery: 19, landingLag: 15, damage: 12, base: 23, growth: 2.9, angle: 38, grounded: false,
       hitboxes: [{ frames: [15, 18], offset: [3.0, 2.8], size: [4.4, 4.4] }] },
@@ -78,6 +87,12 @@ export default {
     AirDown: { label: 'Pile Driver', startup: 16, active: 6, recovery: 25, landingLag: 19, damage: 14, base: 25, growth: 3.3, angle: 268, grounded: false,
       fastFallActive: true,
       hitboxes: [{ frames: [17, 22], offset: [1.2, -0.9], size: [3.6, 4.6] }] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Earthquake', startup: 12, active: 4, recovery: 22, damage: 10, base: 24, growth: 7, angle: 72, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [13, 16], offset: [3.6, 3.2], size: [6.6, 4.3] }] },
+    AirFinisher: { label: 'Anvil Drop', startup: 13, active: 6, recovery: 23, landingLag: 17, damage: 12, base: 29, growth: 3.7, angle: 270, grounded: false, finisher: true,
+      hitboxes: [{ frames: [14, 19], offset: [0, 3], size: [7.4, 6.2] }] },
 
     // ---- signatures ----
     SigSide: { label: 'Breach', startup: 22, active: 5, recovery: 34, damage: 17, base: 30, growth: 3.9, angle: 40, grounded: true, heavy: true, lunge: 4,

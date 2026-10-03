@@ -23,6 +23,15 @@
 //
 // Overcharge is deliberately absent from the tree: a 24-frame charged beam stays a read.
 
+//
+// Timed routes (COMBO in config.js), measured in combo.test.mjs the same way: every link pressed
+// the moment the previous move lands, the victim dodging on their first actionable frame. The
+// finisher only exists at the end of a string linked perfectly all the way - mashed, the string
+// stops short of it - and timed air links chase the victim, so mashed air strings fall apart.
+//   ROUTE  Pop Shot > Double Tap > Point Blank > Last Round   CONFIRM 0-260%   kills 257%
+//   ROUTE  Kick Off > Recoil Jump                             CONFIRM 0-260%   spike
+//   ROUTE  Point Blank, dodge > Strafe                        CONFIRM 240-260%
+//   ROUTE  Kickback, dodge > Strafe                           CONFIRM 120-260%
 export default {
   id: 'Blasters', name: 'Blasters', archetype: 'Zoner', tagline: 'Win neutral, pray at 120%',
   blurb: 'Fast, light, ranged. Chips from a distance on a six-round magazine and dies earlier than anything else on the roster.',
@@ -42,6 +51,8 @@ export default {
       chains: { neutral: 'LightNeutral3', up: 'LightUp' },
       projectile: { speed: 72, lifetime: 16, size: [0.8, 0.5], spawnOffset: [2.2, 2.8], shape: 'slug' } },
     LightNeutral3: { label: 'Point Blank', startup: 6, active: 3, recovery: 17, damage: 5, base: 16, growth: 1.6, angle: 45, grounded: true, extraHitstun: 5,
+      cancels: { dodge: true },
+      finishers: { neutral: 'Finisher' },
       chainsHeavy: { side: 'SigSide', down: 'SigDown' },
       hitboxes: [{ frames: [7, 9], offset: [2.4, 2.7], size: [3.0, 2.4] }] },
 
@@ -49,6 +60,7 @@ export default {
       chains: { side: 'LightSide2', neutral: 'LightSide2' },
       projectile: { speed: 66, lifetime: 15, size: [0.9, 0.5], spawnOffset: [2.4, 2.8], shape: 'slug' } },
     LightSide2: { label: 'Kickback', startup: 6, active: 3, recovery: 18, damage: 5, base: 18, growth: 2.0, angle: 38, grounded: true, extraHitstun: 5,
+      cancels: { dodge: true },
       chainsHeavy: 'SigDown',
       hitboxes: [{ frames: [7, 9], offset: [2.8, 2.6], size: [3.4, 2.4] }] },
 
@@ -60,6 +72,7 @@ export default {
       hitboxes: [{ frames: [8, 11], offset: [2.6, 0.8], size: [4.0, 1.4] }] },
 
     AirNeutral: { label: 'Kick Off', startup: 5, active: 3, recovery: 11, landingLag: 6, damage: 5, base: 13, growth: 1.6, angle: 40, grounded: false, fastFallActive: true,
+      finishers: { neutral: 'AirFinisher' },
       hitboxes: [{ frames: [6, 8], offset: [0, 2.4], size: [3.8, 3.6] }] },
     AirUp: { label: 'Flak Burst', startup: 8, active: 3, recovery: 13, landingLag: 8, damage: 6, base: 16, growth: 2.2, angle: 86, grounded: false, ammo: 1,
       hitboxes: [{ frames: [9, 11], offset: [0.2, 5.0], size: [3.4, 3.8] }] },
@@ -70,6 +83,12 @@ export default {
         { frames: [10, 11], offset: [0.4, -0.6], size: [1.6, 2.0], angle: 275 },
         { frames: [10, 13], offset: [0.4, 1.0], size: [2.0, 2.8] },
       ] },
+
+    // ---- finishers: the end of a string linked perfectly all the way (COMBO, config.js) ----
+    Finisher: { label: 'Last Round', startup: 8, active: 4, recovery: 25, damage: 8, base: 22, growth: 8.1, angle: 45, grounded: true, finisher: true, lunge: 3,
+      hitboxes: [{ frames: [9, 12], offset: [3.2, 2.7], size: [5.2, 2.9] }] },
+    AirFinisher: { label: 'Recoil Jump', startup: 7, active: 4, recovery: 17, landingLag: 10, damage: 8, base: 22, growth: 2.7, angle: 280, grounded: false, finisher: true,
+      hitboxes: [{ frames: [8, 11], offset: [0, 2.4], size: [4.6, 4.3] }] },
 
     SigSide: { label: 'Full Auto', startup: 17, active: 12, recovery: 26, damage: 4, base: 14, growth: 1.4, angle: 32, grounded: true, heavy: true, kind: 'volley', ammo: 1,
       projectile: { speed: 78, lifetime: 18, size: [0.9, 0.5], spawnOffset: [2.6, 2.9], shape: 'slug', count: 4, every: 2 } },

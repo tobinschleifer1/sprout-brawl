@@ -22,6 +22,7 @@ local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
 local SceneSnapshot = require(Shared.SceneSnapshot)
 local SnapshotCodec = require(Shared.SnapshotCodec)
+local SceneCodec = require(Shared.SceneCodec)
 local Stage = require(Shared.Stage)
 local RemoteInput = require(script.Parent.RemoteInput)
 
@@ -124,6 +125,9 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 	-- A new match's first snapshot is a keyframe: the last one sent (self.lastSnap, the base of the
 	-- next delta - SnapshotCodec) belonged to the match before.
 	self.keyframeAt = -math.huge
+	-- and its first scene too (SceneCodec): the last one sent was the old match's
+	self.lastScene, self.sceneKeyDue, self.scenesSent = nil, true, 0
+	self.stepTime, self.outBytes, self.outSince = 0, 0, os.clock()
 	self.conn = RunService.PostSimulation:Connect(function(dt: number)
 		self:tick(dt)
 	end)
@@ -155,6 +159,7 @@ function MatchService.rejoin(self: any, player: Player): boolean
 	Net.remote("Match"):FireClient(player, cfg)
 	if self.finished then Net.remote("Results"):FireClient(player, self:results()) end
 	self.keyframeDue = true          -- a rejoined client has no base for a delta
+	self.sceneKeyDue = true
 	return true
 end
 
@@ -166,6 +171,7 @@ function MatchService.addViewer(self: any, player: Player): boolean
 	table.insert(self.audience, player)
 	Net.remote("Match"):FireClient(player, self:description())
 	self.keyframeDue = true          -- nor has a new viewer
+	self.sceneKeyDue = true
 	return true
 end
 
@@ -248,11 +254,13 @@ function MatchService.tick(self: any, dt: number)
 	end
 	self.accum += dt
 	local steps = 0
+	local t0 = os.clock()
 	while self.accum >= FRAME and steps < MAX_CATCHUP do
 		self.accum -= FRAME
 		steps += 1
 		Match.step(m)
 	end
+	if steps > 0 then self:measure((os.clock() - t0) / steps) end
 	if self.accum >= FRAME then
 		-- Debt we are choosing not to pay. Drop it rather than spiral.
 		self.accum = 0
@@ -272,18 +280,29 @@ function MatchService.tick(self: any, dt: number)
 end
 
 -- ---------------------------------------------------------------- broadcast ----
--- Complete snapshots are reliable and capped at 30Hz (simulation/input stay at 60Hz). Four
--- fighters exceeded the unreliable packet limit. Never throttle the discrete event stream.
+-- Fighter snapshots go out every frame, at 60Hz. They were capped at 30 while each was a ~1.1KB
+-- table; as deltas (SnapshotCodec) four fighters cost ~8KB/s at 60Hz, and the doubled rate halves
+-- how far in the past other fighters have to be drawn (Interp) and how stale a correction to our
+-- own prediction is. Reliable: deltas need their base. Never throttle the discrete event stream.
+local SNAPSHOT_EVERY = 1
+MatchService.SNAPSHOT_EVERY = SNAPSHOT_EVERY
 function MatchService.broadcast(self: any)
 	local m = self.match
 	-- Separate world state keeps the fighter/prediction format independent of effect complexity.
 	if m.frame - self.sceneFrame >= 2 or m.state == "results" then
 		local scene = SceneSnapshot.encode(m)
 		scene.id = self.generation
-		self:send("Scene", scene)
+		-- only what changed since the scene sent before it, but a keyframe once a second and for
+		-- anyone who has just joined the audience (SceneCodec)
+		local key = self.lastScene == nil or self.sceneKeyDue or self.scenesSent % SceneCodec.KEYFRAME_EVERY == 0
+		local packet = SceneCodec.encode(scene, if key then nil else self.lastScene)
+		self:send("Scene", packet)
+		if key then self.sceneKeyDue = false end
+		self.lastScene, self.scenesSent = scene, (self.scenesSent or 0) + 1
 		self.sceneFrame = m.frame
+		if self.scenesSent % 15 == 0 then self:count(SceneCodec.estimate(packet) * 15) end
 	end
-	if m.frame - self.snapshotFrame >= 2 or m.state == "results" then
+	if m.frame - self.snapshotFrame >= SNAPSHOT_EVERY or m.state == "results" then
 		self.snapshotFrame = m.frame
 		local fighters = table.create(#m.fighters)
 		for i, f in m.fighters do
@@ -301,18 +320,40 @@ function MatchService.broadcast(self: any)
 		-- Only what changed since the last snapshot, except for a keyframe: the first, one a second,
 		-- and the next after anyone joins the audience late (SnapshotCodec).
 		local keyframe = self.lastSnap == nil or self.keyframeDue or m.frame - self.keyframeAt >= SnapshotCodec.KEYFRAME_EVERY
-		self:send("Snapshot", SnapshotCodec.encode(snap, if keyframe then nil else self.lastSnap))
+		local packed = SnapshotCodec.encode(snap, if keyframe then nil else self.lastSnap)
+		self:send("Snapshot", packed)
+		self:count(buffer.len(packed))
 		if keyframe then
 			self.keyframeAt, self.keyframeDue = m.frame, false
 		end
 		self.lastSnap = snap
 	end
 	if #m.events > 0 then
-		-- With the frame they happened on: snapshots go out at 30Hz, so a client stamping an event
-		-- with its newest snapshot's frame would be up to a frame late, and the ultimate's cutscene
-		-- (UltCinematic) is timed in frames from its event.
+		-- With the frame they happened on: a client stamping an event with its newest snapshot's frame
+		-- would be off by however late that snapshot was, and the ultimate's cutscene (UltCinematic)
+		-- is timed in frames from its event.
 		self:send("Events", m.events, m.frame)
 		m.events = {}
+	end
+end
+
+-- What the server costs and sends, for the client's performance overlay (PerfMonitor): the step
+-- time, averaged, and bytes sent to each player a second - the snapshots exactly, the scenes from a
+-- sample of their estimated size (SceneCodec.estimate). Attributes on ReplicatedStorage, which replicate to every client.
+function MatchService.measure(self: any, step: number)
+	self.stepTime = (self.stepTime or 0) * 0.95 + step * 0.05
+end
+function MatchService.count(self: any, bytes: number)
+	self.outBytes = (self.outBytes or 0) + bytes
+	local now = os.clock()
+	local span = now - (self.outSince or now)
+	if span >= 1 then
+		local step, out = math.floor(self.stepTime * 1e5 + 0.5) / 100, math.floor(self.outBytes / span / 1024 * 100 + 0.5) / 100
+		pcall(function()          -- a test harness's ReplicatedStorage is a plain table
+			ReplicatedStorage:SetAttribute("ServerStepMs", step)
+			ReplicatedStorage:SetAttribute("ServerOutKBs", out)
+		end)
+		self.outBytes, self.outSince = 0, now
 	end
 end
 

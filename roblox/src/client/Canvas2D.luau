@@ -208,6 +208,11 @@ end
 -- for a canvas drawn once per change (a creator thumbnail), where anything not drawn now is a
 -- picture that will never come back.
 function Canvas2D.finish(self: any, purge: boolean?)
+	-- what this frame drew, for the performance monitor
+	self.lastUsed = self.used
+	local sprites = 0
+	for _, k in self.spriteUse or {} do sprites += k end
+	self.lastSprites = sprites
 	for i = self.used + 1, #self.pool do
 		local st = self.poolState[i]
 		if not st.vis then
@@ -359,6 +364,90 @@ end
 -- waits a frame. An effect a frame late is invisible; a hitch is not.
 Canvas2D.BUILD_PER_FRAME = 360
 
+-- IMAGES. Where the engine allows it, a sprite is not a container of Frames at all but ONE
+-- ImageLabel showing an EditableImage the rectangles were painted into, pixel for pixel (one art
+-- cell, one pixel; Pixelated resampling keeps it crisp at any size). Measured in Studio: fifty
+-- 64x64 images built in 2ms, where one 200-cell sprite of Frames took 2ms by itself - and an image
+-- is one Instance for the engine to lay out each time the camera moves, not two hundred, and its
+-- fade is one property rather than a write to every child. A mirrored drawing is its own image
+-- (the rows reversed, as the Frame path does under the container's half turn).
+--
+-- EditableImage can be unavailable (an experience without the permission, a device out of image
+-- memory, outside Roblox): creation is tried once, and on failure - or for a picture larger than an
+-- EditableImage can be - the sprite falls back to Frames, unchanged. Canvas2D.IMAGES = false forces
+-- Frames everywhere.
+Canvas2D.IMAGES = nil :: boolean?
+Canvas2D.MAX_IMAGE = 1024
+local assetService: any = nil
+local function imagesOn(): boolean
+	if Canvas2D.IMAGES == nil then
+		local ok = pcall(function()
+			assetService = game:GetService("AssetService")
+			local probe = assetService:CreateEditableImage({ Size = Vector2.new(1, 1) })
+			probe:Destroy()
+		end)
+		Canvas2D.IMAGES = ok
+	end
+	return Canvas2D.IMAGES == true
+end
+Canvas2D.imagesOn = imagesOn
+
+-- Paints `rects` (as Canvas2D.sprite takes them) into an RGBA buffer cols x rows, rows down from the
+-- top, later rectangles over earlier ones with their own alpha. Pure: the test reads it back.
+function Canvas2D.paint(rects: { any }, cols: number, rows: number, flip: boolean): buffer
+	local buf = buffer.create(cols * rows * 4)
+	for _, r in rects do
+		local c = Canvas2D.hex(r[5], Color3.new(1, 0, 1))
+		local R, G, B = math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5)
+		-- RGBA in memory order is a little-endian u32 of ABGR: one write a pixel when opaque
+		local word = bit32.bor(R, bit32.lshift(G, 8), bit32.lshift(B, 16), bit32.lshift(255, 24))
+		local a = r[6]
+		local row0 = if flip then rows - r[2] - r[4] else r[2]
+		for y = math.max(0, row0), math.min(rows, row0 + r[4]) - 1 do
+			for x = math.max(0, r[1]), math.min(cols, r[1] + r[3]) - 1 do
+				local i = (y * cols + x) * 4
+				if a >= 1 then
+					buffer.writeu32(buf, i, word)
+				else
+					-- source over what is already there, as a translucent Frame over another would be
+					local da = buffer.readu8(buf, i + 3) / 255
+					local oa = a + da * (1 - a)
+					local function mixc(src: number, dst: number): number
+						return if oa > 0 then math.floor((src * a + dst * da * (1 - a)) / oa + 0.5) else 0
+					end
+					buffer.writeu8(buf, i, mixc(R, buffer.readu8(buf, i)))
+					buffer.writeu8(buf, i + 1, mixc(G, buffer.readu8(buf, i + 1)))
+					buffer.writeu8(buf, i + 2, mixc(B, buffer.readu8(buf, i + 2)))
+					buffer.writeu8(buf, i + 3, math.floor(oa * 255 + 0.5))
+				end
+			end
+		end
+	end
+	return buf
+end
+
+-- The image for a picture, built once per rects table and facing (weak-keyed: a picture nobody
+-- holds any more takes its images with it). Nil when an image cannot be had.
+local images: { [any]: any } = setmetatable({}, { __mode = "k" }) :: any
+local function imageFor(rects: { any }, cols: number, rows: number, flip: boolean): any
+	if cols > Canvas2D.MAX_IMAGE or rows > Canvas2D.MAX_IMAGE or cols < 1 or rows < 1 then return nil end
+	local entry = images[rects]
+	if not entry then
+		entry = {}
+		images[rects] = entry
+	end
+	local side = if flip then "f" else "n"
+	if entry[side] == nil then
+		local ok, content = pcall(function()
+			local img = assetService:CreateEditableImage({ Size = Vector2.new(cols, rows) })
+			img:WritePixelsBuffer(Vector2.zero, Vector2.new(cols, rows), Canvas2D.paint(rects, cols, rows, flip))
+			return { image = img, content = Content.fromObject(img) }
+		end)
+		entry[side] = if ok then content else false
+	end
+	return entry[side] or nil
+end
+
 function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1: number, pw: number, ph: number,
 	cols: number, rows: number, alpha: number?, deferrable: boolean?)
 	local m = self.m
@@ -385,46 +474,78 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 	if deferrable and (not sp or sp.rects ~= rects) and (self.built or 0) >= Canvas2D.BUILD_PER_FRAME then
 		return
 	end
+	local image = if imagesOn() then imageFor(rects, cols, rows, flip) else nil
+	if sp and (sp.image ~= nil) ~= (image ~= nil) then
+		-- the picture changed between an image and Frames (too big for an image, or the image
+		-- failed): start this slot again in the other form
+		sp.frame:Destroy()
+		self.sprites[slot] = nil
+		sp = nil
+	end
 	if not sp then
-		local f = Instance.new("Frame")
+		local f: GuiObject
+		if image then
+			local label = Instance.new("ImageLabel")
+			label.BackgroundTransparency = 1
+			label.ResampleMode = Enum.ResamplerMode.Pixelated
+			label.ScaleType = Enum.ScaleType.Stretch
+			f = label
+		else
+			f = Instance.new("Frame")
+			f.BorderSizePixel = 0
+			f.BackgroundTransparency = 1
+		end
 		f.Name = "Sprite"
-		f.BorderSizePixel = 0
-		f.BackgroundTransparency = 1
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.Parent = self.layer
-		sp = { frame = f, children = {}, seen = self.frameNo }
+		sp = { frame = f, children = {}, seen = self.frameNo, image = if image then true else nil }
 		self.sprites[slot] = sp
 	end
-	if sp.rects ~= rects then
-		for _, child in sp.children do
-			child:Destroy()
+	if image then
+		if sp.content ~= image.content then
+			(sp.frame :: any).ImageContent = image.content
+			sp.content = image.content
+			-- an image costs its painting, about a hundredth of a Frame a pixel
+			if sp.rects ~= rects then self.built = (self.built or 0) + cols * rows / 100 end
+			sp.rects = rects
 		end
-		table.clear(sp.children)
-		self.built = (self.built or 0) + #rects
-		for i, r in rects do
-			local child = Instance.new("Frame")
-			child.BorderSizePixel = 0
-			child.BackgroundColor3 = Canvas2D.hex(r[5], Color3.new(1, 0, 1))
-			child.ZIndex = i
-			child.Parent = sp.frame
-			sp.children[i] = child
+		local a = (alpha or 1) * self.alpha
+		if sp.alpha ~= a then
+			(sp.frame :: any).ImageTransparency = 1 - a
+			sp.alpha = a
 		end
-		sp.rects, sp.flip, sp.alpha = rects, nil, nil
-	end
-	if sp.flip ~= flip then
-		for i, r in rects do
-			local row = if flip then rows - r[2] - r[4] else r[2]
-			sp.children[i].Position = UDim2.fromScale(r[1] / cols, row / rows)
-			sp.children[i].Size = UDim2.fromScale(r[3] / cols, r[4] / rows)
+	else
+		if sp.rects ~= rects then
+			for _, child in sp.children do
+				child:Destroy()
+			end
+			table.clear(sp.children)
+			self.built = (self.built or 0) + #rects
+			for i, r in rects do
+				local child = Instance.new("Frame")
+				child.BorderSizePixel = 0
+				child.BackgroundColor3 = Canvas2D.hex(r[5], Color3.new(1, 0, 1))
+				child.ZIndex = i
+				child.Parent = sp.frame
+				sp.children[i] = child
+			end
+			sp.rects, sp.flip, sp.alpha = rects, nil, nil
 		end
-		sp.flip = flip
-	end
-	local a = (alpha or 1) * self.alpha
-	if sp.alpha ~= a then
-		for i, r in rects do
-			sp.children[i].BackgroundTransparency = 1 - r[6] * a
+		if sp.flip ~= flip then
+			for i, r in rects do
+				local row = if flip then rows - r[2] - r[4] else r[2]
+				sp.children[i].Position = UDim2.fromScale(r[1] / cols, row / rows)
+				sp.children[i].Size = UDim2.fromScale(r[3] / cols, r[4] / rows)
+			end
+			sp.flip = flip
 		end
-		sp.alpha = a
+		local a = (alpha or 1) * self.alpha
+		if sp.alpha ~= a then
+			for i, r in rects do
+				sp.children[i].BackgroundTransparency = 1 - r[6] * a
+			end
+			sp.alpha = a
+		end
 	end
 	local f = sp.frame
 	place(f, sp, sx, sy, math.max(1, sizeX), math.max(1, sizeY), math.deg(math.atan2(ay, ax)))

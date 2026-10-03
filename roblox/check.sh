@@ -102,6 +102,10 @@ echo "== parity: the HUD's damage ramp vs web/src/ui/hud.js =="
 lune run tests/hud-parity
 echo "== the ultimate VFX draw, every weapon and phase =="
 lune run tests/ultimate-vfx
+echo "== sprites as images, with Frames to fall back on =="
+lune run tests/canvas-images
+echo "== the connection: scene deltas, interpolation, eased corrections, the monitor =="
+lune run tests/net-smooth
 echo "== the fight camera: framing at every resolution =="
 lune run tests/camera
 echo "== the ultimates' pixel-art effects, played in real matches =="

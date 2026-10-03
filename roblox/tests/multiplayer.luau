@@ -227,7 +227,7 @@ for id=1,8 do
 			assert(#msg.data.fighters==(if id<=6 then 6 else 2), "snapshot belongs only to recipient room")
 		end
 	end
-	assert(count==150, "complete 30Hz snapshots for every participant")
+	assert(count==300, "complete 60Hz snapshots for every participant")
 	assert(not snapDropped[id], `player {id} could not decode {snapDropped[id]} snapshots`)
 	-- Mostly deltas: a keyframe at the start and one a second, 300 frames here.
 	assert(keyframes[id] and keyframes[id] >= 5 and keyframes[id] <= 7, `player {id}: {keyframes[id]} keyframes in five seconds`)
@@ -241,6 +241,8 @@ send(5,"Hello")
 local keysBefore = keyframes[5]
 now+=1/30; run.PostSimulation:Fire(1/30)
 assert(keyframes[5] == keysBefore + 1 and not snapDropped[5], "a rejoined fighter gets a keyframe next, and decodes it")
+-- and the scene likewise (SceneCodec): with no base, a delta would be undrawable
+assert(last(5, "Scene") and last(5, "Scene").k, "a rejoined fighter's next scene is a keyframe")
 local six=instances[1]
 local before=six.input:consumedBy("p1")
 send(9,"Input",{0},six.generation,0)
@@ -455,4 +457,4 @@ do
 	assert(keyframes[90] == k + 1 and not snapDropped[90], "a new match on the same service starts with a keyframe")
 	svc:stop()
 end
-print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 30Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight, and arcade fights: countdown, spectators, winner stays, vs CPU, leavers")
+print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight, and arcade fights: countdown, spectators, winner stays, vs CPU, leavers")

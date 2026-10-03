@@ -51,6 +51,21 @@ for _, data in Stages.LIST do
 end
 if Realms.name({ id = "Nowhere", name = "Plain" }) ~= "Plain" then fail("a stage with no realm keeps its own name") end
 
+-- ------------------------------------------------------------------ built once ----
+-- Every drawing comes back as the SAME table on a second call: Canvas2D.sprite knows a picture is
+-- unchanged by its identity, so a fresh table each frame rebuilds the sprite each frame.
+for _, data in Stages.LIST do
+	local realm = Realms.of(data.id) :: any
+	local b1, s1 = RealmArt.island(realm, 40, 6, 1)
+	local b2, s2 = RealmArt.island(realm, 40, 6, 1)
+	if b1 ~= b2 or s1 ~= s2 then fail(`{data.id}: an island was built again on the second call`) end
+	if RealmArt.shelf(realm, 12, 1) ~= RealmArt.shelf(realm, 12, 1) then fail(`{data.id}: a platform was built again`) end
+	if RealmArt.paving(realm, 30, 8, 1) ~= RealmArt.paving(realm, 30, 8, 1) then fail(`{data.id}: paving was built again`) end
+	for _, which in { "far", "landmark", "near", "clouds", "storm" } do
+		if RealmArt.layer(realm, which) ~= RealmArt.layer(realm, which) then fail(`{data.id}: the {which} layer was built again`) end
+	end
+end
+
 -- ------------------------------------------------------------------ the art on the geometry ----
 local sprites: { any } = {}
 local rects = 0

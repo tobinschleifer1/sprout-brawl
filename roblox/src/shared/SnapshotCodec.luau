@@ -22,6 +22,10 @@
 local Snapshot = require(script.Parent.Snapshot)
 
 local SnapshotCodec = {}
+-- How many bytes a packet is (the client's `buffer` is a local name for its snapshot list there).
+function SnapshotCodec.size(packed: buffer): number
+	return buffer.len(packed)
+end
 SnapshotCodec.KEYFRAME_EVERY = 60   -- frames: a client that lost its base recovers within a second
 
 local WIRE: { string } = {}

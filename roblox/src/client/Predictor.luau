@@ -157,7 +157,18 @@ end
 -- A snapshot arrived describing the state after the server consumed `consumed` of our frames.
 -- Roll back to our own state at that frame, overwrite it with what the server actually says, and
 -- replay everything since. This is the whole of rollback netcode; the rest is bookkeeping.
+-- SMOOTHING. A correction moves the predicted fighter, and drawing it where it now is made every
+-- correction a visible jump - "the controls feel late", "I teleport back". The simulation snaps
+-- (it must: it is the truth the next inputs act on); only the DRAWING eases. The gap between where
+-- we drew the fighter and where the correction puts it is kept as an offset that decays to nothing
+-- in about 70ms (Predictor.visual). A gap larger than SNAP_STUDS - a respawn, a grab, a warp - is
+-- not a mistake to ease over, so it is drawn at once.
+Predictor.SMOOTH_RATE = 30     -- per second: e^(-30 * 0.07) is about an eighth left after 70ms
+Predictor.SNAP_STUDS = 6
+
 function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any?)
+	local beforeX, beforeY = self.fighter.x, self.fighter.y
+	local wasReady = self.ready
 	if self.ready then
 		-- Our own full snapshot from that frame, if we still hold it. Without this the non-wire
 		-- state is whatever prediction left it as, and the replay below applies inputs the fighter
@@ -177,6 +188,29 @@ function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any
 	for seq = consumed + 1, self.sent do
 		simulate(self, seq, false)
 	end
+	-- how far the correction moved the fighter we are drawing
+	local dx, dy = beforeX - self.fighter.x, beforeY - self.fighter.y
+	self.lastCorrection = if wasReady then math.sqrt(dx * dx + dy * dy) else 0
+	if wasReady and self.lastCorrection < Predictor.SNAP_STUDS then
+		self.offsetX = (self.offsetX or 0) + dx
+		self.offsetY = (self.offsetY or 0) + dy
+	else
+		self.offsetX, self.offsetY = 0, 0
+	end
+end
+
+-- The predicted fighter as it should be DRAWN after `dt` seconds: its state, eased from where the
+-- last correction found it (see SMOOTHING above).
+function Predictor.visual(self: any, dt: number): any
+	local out = self:state()
+	local keep = math.exp(-Predictor.SMOOTH_RATE * dt)
+	self.offsetX = (self.offsetX or 0) * keep
+	self.offsetY = (self.offsetY or 0) * keep
+	if math.abs(self.offsetX) < 1e-3 then self.offsetX = 0 end
+	if math.abs(self.offsetY) < 1e-3 then self.offsetY = 0 end
+	out.x += self.offsetX
+	out.y += self.offsetY
+	return out
 end
 
 -- The events of newly predicted frames since the last call, stamped with where the fighter was.

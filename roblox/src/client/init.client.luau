@@ -48,6 +48,9 @@ local ClimbRecords = require(script.ClimbRecords)
 local Plaza = require(Shared.Plaza)
 local PresenceCodec = require(Shared.PresenceCodec)
 local SnapshotCodec = require(Shared.SnapshotCodec)
+local SceneCodec = require(Shared.SceneCodec)
+local PerfMonitor = require(script.PerfMonitor)
+local Interp = require(script.Interp)
 local SkipProducts = require(Shared.SkipProducts)
 local MarketplaceService = game:GetService("MarketplaceService")
 local UIS = game:GetService("UserInputService")
@@ -56,7 +59,7 @@ local FRAME = Config.FRAME
 -- Two snapshots of buffer. Snapshots arrive at 30Hz but not evenly, and drawing the newest one the
 -- instant it lands means every jittered packet is a visible stutter. Rendering two snapshots in
 -- the past costs about 67ms on remote fighters; the local fighter still uses prediction.
-local INTERP_DELAY = FRAME * 4
+-- (Now measured: see Interp. It starts here, at four frames, until snapshots give it something.)
 
 local input = InputClient.new()
 local cam2d = Camera2D.new()
@@ -73,6 +76,12 @@ local buffer: { any } = {}        -- snapshots, oldest first, each tagged with a
 -- The last snapshot received: what the server's next delta is made against (SnapshotCodec). Nil
 -- until a keyframe arrives; a new match description clears it.
 local snapBase: any = nil
+-- Likewise the last scene (SceneCodec), the base its deltas apply to.
+local sceneBase: any = nil
+-- Draw cost and connection health (PerfMonitor): F3 shows it; attributes carry it to Studio.
+local perf = PerfMonitor.new()
+-- How far in the past other fighters are drawn, from how evenly snapshots arrive (Interp).
+local interp = Interp.new(FRAME)
 local pendingFrames: { number } = {}
 -- Posing errors are reported once per fighter. Reported every frame, a single broken rig produces
 -- sixty lines a second and buries whatever else the console had to say.
@@ -348,6 +357,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	end
 	canvas:clear()
 	snapBase = nil
+	sceneBase = nil
 	acceptingSnapshots = true
 	pendingFrames = {}
 	input:reset()
@@ -429,6 +439,8 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(packed: any)
 		social:setEnabled(false)
 	end
 	snap.t = os.clock()
+	interp:arrive(snap.t)
+	perf:arrival(snap.t, SnapshotCodec.size(packed))
 	table.insert(buffer, snap)
 	-- Reconcile before the frame is drawn, not during the draw: a correction is simulation, and
 	-- doing it inside RenderStepped would run it at the render rate rather than once per snapshot.
@@ -438,6 +450,7 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(packed: any)
 				for i, entry in roster do
 					if entry.index == localIndex then
 						predictor:reconcile(Snapshot.decode(snap.fighters[i]), a.n, snap.platforms)
+						if (predictor.lastCorrection or 0) > 0.05 then perf:correction(os.clock(), predictor.lastCorrection) end
 					end
 				end
 			end
@@ -448,7 +461,12 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(packed: any)
 	end
 end)
 
-Net.remote("Scene").OnClientEvent:Connect(function(scene: any)
+Net.remote("Scene").OnClientEvent:Connect(function(packet: any)
+	-- a delta against the last scene, or a keyframe (SceneCodec)
+	local scene = SceneCodec.decode(packet, sceneBase)
+	if not scene then return end
+	sceneBase = scene
+	perf:received(os.clock(), 0)
 	if not acceptingSnapshots or not matchCfg or scene.id ~= matchCfg.id then return end
 	table.insert(scenes, scene)
 	while #scenes > 8 do table.remove(scenes, 1) end
@@ -582,27 +600,73 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 
+-- The F3 overlay (PerfMonitor): draw cost, connection health and the server's numbers.
+local perfLabel = Instance.new("TextLabel")
+perfLabel.Name = "PerfOverlay"
+perfLabel.BackgroundColor3 = Color3.fromRGB(12, 10, 18)
+perfLabel.BackgroundTransparency = 0.25
+perfLabel.TextColor3 = Color3.fromRGB(230, 240, 255)
+perfLabel.Font = Enum.Font.Code
+perfLabel.TextSize = 14
+perfLabel.TextXAlignment = Enum.TextXAlignment.Left
+perfLabel.TextYAlignment = Enum.TextYAlignment.Top
+perfLabel.Position = UDim2.fromOffset(8, 64)
+perfLabel.Size = UDim2.fromOffset(560, 74)
+perfLabel.ZIndex = 1000000
+perfLabel.Visible = false
+perfLabel.Parent = canvas.gui
+UIS.InputBegan:Connect(function(io: InputObject)
+	if io.KeyCode == Enum.KeyCode.F3 and not UIS:GetFocusedTextBox() then perfLabel.Visible = not perfLabel.Visible end
+end)
+local function measured(dt: number, began: number)
+	perf.interp = interp.delay
+	local ok, ping = pcall(function() return Players.LocalPlayer:GetNetworkPing() end)
+	if ok then perf.ping = ping end
+	perf:frame(dt, os.clock() - began, canvas.lastUsed or 0, canvas.lastSprites or 0)
+	local s = perf:publish(canvas.gui, os.clock())
+	if s and perfLabel.Visible then
+		perfLabel.Text = PerfMonitor.describe(s, { stepMs = ReplicatedStorage:GetAttribute("ServerStepMs"),
+			outKBs = ReplicatedStorage:GetAttribute("ServerOutKBs") })
+	end
+end
+
+-- Where a frame's time goes, section by section, published with the rest (PerfSection*).
+local function section(name: string, t0: number): number
+	local now = os.clock()
+	perf:section(name, now - t0)
+	return now
+end
+
 RunService.RenderStepped:Connect(function(dt: number)
+	local began = os.clock()
+	local mark = began
 	if select_ then select_:drawPreviews() end
+	mark = section("Previews", mark)
 	if parkour.active then
 		parkour:draw(canvas, dt)
+		section("Climb", mark)
+		measured(dt, began)
 		return
 	end
 	if hub.active then
 		hub:draw(canvas, dt)
+		mark = section("Lobby", mark)
 		editor:draw(os.clock())
+		section("Editor", mark)
+		measured(dt, began)
 		return
 	end
 	local drawAt = os.clock()
-	local states = interpolate(drawAt - INTERP_DELAY)
+	local states = interpolate(drawAt - interp.delay)
 	-- Our own fighter, predicted. Interpolation exists to hide other people's packet jitter, and
-	-- applying it to the local fighter cost INTERP_DELAY on top of the round trip. This is the
+	-- applying it to the local fighter cost the interpolation delay on top of the round trip. This is the
 	-- fighter as our own inputs have already taken it, corrected against the server on every
 	-- snapshot - so it answers on the frame the key went down.
 	if states and predictor and predictor.ready then
 		for i, st in states do
 			if st.index == localIndex then
-				states[i] = predictor:state()
+				-- eased from the last correction rather than jumping to it (Predictor.visual)
+				states[i] = predictor:visual(dt)
 				break
 			end
 		end
@@ -691,6 +755,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if hud then
 		hud.disasterView = if scene and scene.hazards then scene.hazards.disaster else nil
 	end
+	local fightMark = os.clock()
 	local banner = FightScene.draw(canvas, {
 		view = view, shakeX = cam2d.shakeX, shakeY = cam2d.shakeY,
 		stage = stageView, platforms = interpBase and interpBase.platforms,
@@ -703,11 +768,15 @@ RunService.RenderStepped:Connect(function(dt: number)
 			warn(`[Blockfall] {err}, and will not be reported again`)
 		end,
 	})
+	fightMark = section("Fight", fightMark)
 	if hud then hud:ultBanner(banner, ult) end
 	canvas:finish()
+	fightMark = section("Finish", fightMark)
 	if hud then
 		hud:update(states, buffer[#buffer], canvas, chars, matchCfg)
 	end
+	section("Hud", fightMark)
+	measured(dt, began)
 
 end)
 

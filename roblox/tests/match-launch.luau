@@ -31,6 +31,7 @@ local Service = luau.load(fs.readFile("src/server/MatchService.luau"), { environ
 	end,
 }, injectGlobals = true })()
 local SnapshotCodec = Loader.load("SnapshotCodec")
+local SceneCodec = Loader.load("SceneCodec")
 local player = { UserId = 17, Name = "LaunchTest", DisplayName = "LaunchTest" }
 local outsider = { UserId = 99 }
 local service = Service.new()
@@ -47,7 +48,7 @@ for _, stage in Loader.load("Data/Stages").LIST do
 		assert(#messages.Match == 1 and #messages.Match[1].fighters == count, "startup must describe every fighter")
 		assert(messages.Match[1].stage == stage.id)
 		for _ = 1, 300 do service:tick(1/60) end
-		assert(#messages.Snapshot == 150, "snapshot cadence must be exactly 30Hz, independent of roster size")
+		assert(#messages.Snapshot == 300, "snapshot cadence must be exactly 60Hz, independent of roster size")
 		-- Decoded in order, as a client does (keyframes and deltas, SnapshotCodec): every one decodes
 		-- to a complete state of the current match, the first needing no base.
 		local base = nil
@@ -59,6 +60,14 @@ for _, stage in Loader.load("Data/Stages").LIST do
 		end
 		assert(SnapshotCodec.isKeyframe(messages.Snapshot[1]), "a match starts with a keyframe")
 		assert(#messages.Scene == 150, "world state stays at 30Hz")
+		-- and the scenes decode in order as a client decodes them: a keyframe first, deltas after
+		local sceneBase = nil
+		for n, packet in messages.Scene do
+			local scene = SceneCodec.decode(packet, sceneBase)
+			assert(scene and scene.id == service.generation and scene.hazards, `scene {n} could not be decoded from the one before it`)
+			sceneBase = scene
+		end
+		assert(messages.Scene[1].k, "a match's first scene is a keyframe")
 		assert(#messages.Events > 0, "countdown events are never suppressed by snapshot throttling")
 		local match = service.match
 		service.input:push("p17", { 0, 0, 0 })
@@ -74,4 +83,4 @@ for _, stage in Loader.load("Data/Stages").LIST do
 end
 service:stop()
 assert(not service:rejoin(player), "no stale rejoin after match teardown")
-print(`PASS launch: {cases} real matches (2/3/4 fighters x six arenas), complete snapshots at 30Hz, events, safe retry`)
+print(`PASS launch: {cases} real matches (2/3/4 fighters x six arenas), complete snapshots at 60Hz, scenes as keyframe and deltas, events, safe retry`)

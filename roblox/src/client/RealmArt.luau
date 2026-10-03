@@ -139,8 +139,11 @@ local BODY_PPU = 2
 RealmArt.BODY_PPU = BODY_PPU
 function RealmArt.island(realm: any, width: number, thick: number, seed: number): (Art, Art)
 	local key = `realm|{realm.id}|island|{width}|{thick}|{seed}`
-	local hit, hitTop = cache[key], cache[key .. "|top"]
-	if hit and hitTop then return hit, hitTop end
+	-- Built once. (The first version looked the surface up under a key nothing stored, so it missed
+	-- every time and rebuilt the island - and handed Canvas2D a new table, which rebuilt its sprite -
+	-- every frame: 17ms a frame in the lobby, found with PerfMonitor's sections.)
+	local hit = cache[key]
+	if hit then return hit, RealmArt.surface(realm, width, seed) end
 	local P = BODY_PPU
 	local ink, list = inks()
 	local O = ink(OUTLINE)

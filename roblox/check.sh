@@ -86,6 +86,9 @@ lune run tests/climb-progress
 lune run tests/climb-boards
 lune run tests/purchases
 lune run tests/room-ui
+echo "== the select screen: layout, stat bars, every control; and the bot vote =="
+lune run tests/select-screen
+lune run tests/bot-vote
 lune run tests/multiplayer
 lune run tests/presence-codec
 lune run tests/snapshot-codec

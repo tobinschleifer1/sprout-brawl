@@ -32,8 +32,79 @@ function Rooms.setAvatar(self: any, player: any, code: string): any
 	return nil
 end
 
+local function invalidate(room: any)
+	room.revision += 1
+	for _, slot in room.slots do slot.ready = false end
+end
+
+-- The bot vote. An empty pedestal's ADD BOT (or a bot's REMOVE) is a proposal anyone in the room
+-- can make; every player gets a ballot, the proposer's counted as yes, and a strict majority of the
+-- players in the room decides - three players, two yes, the bot is added; two players, both must
+-- agree; alone, your own yes is a majority. It closes the moment the result is certain, and fails
+-- if it is still open after BOT_VOTE_TIME seconds. One vote at a time per room.
+Rooms.BOT_VOTE_TIME = 10
+
 function Rooms.new(): any
-	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {} }, Rooms)
+	-- `clock` is replaceable so the vote's timer can be tested without waiting
+	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {}, clock = os.clock }, Rooms)
+end
+
+local function humans(room: any): number
+	local n = 0
+	for _, slot in room.slots do if slot.player then n += 1 end end
+	return n
+end
+
+-- Puts a bot in (or takes one out of) slot `i`: the old host-only action, now what a passed vote does.
+local function applyBot(room: any, i: number, value: any)
+	local slot = room.slots[i]
+	slot.bot = value or nil
+	-- A bot wears a ready-made character (by slot, so it is stable), which also shows every
+	-- player what the kit can do before they open the creator.
+	slot.weapon, slot.avatar = "Sword", if value then BOT_LOOKS[(i * 5) % #BOT_LOOKS + 1] else "Classic"
+	invalidate(room)
+end
+
+-- Settle the room's vote if its result is certain, or its time is up. Returns true if it closed.
+function Rooms.settleVote(self: any, room: any): boolean
+	local v = room.botVote
+	if not v then return false end
+	local slot = room.slots[v.slot]
+	-- the slot it was about is no longer what the vote was about: someone took it, or it changed
+	if not slot or slot.player or (v.value ~= false) == (slot.bot ~= nil) then
+		room.botVote = nil
+		return true
+	end
+	local total, yes, no = humans(room), 0, 0
+	for _, slot2 in room.slots do
+		if slot2.player then
+			local b = v.ballots[slot2.player.UserId]
+			if b == true then yes += 1 elseif b == false then no += 1 end
+		end
+	end
+	if yes * 2 > total then
+		room.botVote = nil
+		room.lastVote = { slot = v.slot, value = v.value, passed = true }
+		applyBot(room, v.slot, v.value)
+		return true
+	end
+	if no * 2 >= total or self.clock() >= v.deadline then
+		room.botVote = nil
+		room.lastVote = { slot = v.slot, value = v.value, passed = false }
+		return true
+	end
+	return false
+end
+
+-- Close every vote whose time is up. Returns the rooms that changed, for the caller to resend.
+function Rooms.tick(self: any): { any }
+	local changed = {}
+	for _, room in self.rooms do
+		if room.botVote and self.clock() >= room.botVote.deadline and self:settleVote(room) then
+			table.insert(changed, room)
+		end
+	end
+	return changed
 end
 function Rooms.profile(self: any, id: number): any
 	if not self.profiles[id] then self.profiles[id] = { weapon = "Sword", avatar = "Classic" } end
@@ -41,10 +112,6 @@ function Rooms.profile(self: any, id: number): any
 end
 function Rooms.get(self: any, id: number): any
 	return self.rooms[self.membership[id]]
-end
-local function invalidate(room: any)
-	room.revision += 1
-	for _, slot in room.slots do slot.ready = false end
 end
 function Rooms.leave(self: any, player: any): any
 	local room = self:get(player.UserId)
@@ -58,6 +125,10 @@ function Rooms.leave(self: any, player: any): any
 	if not first then self.rooms[room.id] = nil
 	elseif room.host == player.UserId then room.host = first end
 	invalidate(room)
+	if room.botVote then
+		room.botVote.ballots[player.UserId] = nil
+		self:settleVote(room)
+	end
 	return room
 end
 function Rooms.join(self: any, player: any, format: any): (any, string?)
@@ -101,6 +172,8 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	slot.player, slot.weapon, slot.avatar = player, profile.weapon, profile.avatar
 	self.membership[player.UserId] = room.id
 	invalidate(room)
+	-- a newcomer takes a vote's slot (cancelling it) or joins the electorate
+	if room.botVote then self:settleVote(room) end
 	return room, nil
 end
 function Rooms.canStart(_self: any, room: any): boolean
@@ -119,11 +192,22 @@ function Rooms.view(self: any, room: any): any
 			team = slot.team, bot = slot.bot, ready = slot.ready == true, weapon = slot.weapon, avatar = slot.avatar,
 			vote = slot.vote })
 	end
+	local vote = nil
+	if room.botVote then
+		local v = room.botVote
+		local ballots, yes, no = {}, 0, 0
+		for id, b in v.ballots do
+			ballots[tostring(id)] = b
+			if b then yes += 1 else no += 1 end
+		end
+		vote = { slot = v.slot, value = v.value, by = v.by, yes = yes, no = no, voters = humans(room),
+			ballots = ballots, left = math.max(0, v.deadline - self.clock()) }
+	end
 	return { id = room.id, host = room.host, format = room.format, name = room.name,
 		state = room.state, revision = room.revision, stage = room.stage, stocks = room.stocks,
 		items = room.items, disasters = room.disasters, slots = slots, canStart = self:canStart(room),
 		mapChoice = room.mapChoice, mapSet = room.mapSet, mode = room.mode, time = room.time,
-		preset = Rooms.presetOf(room) }
+		preset = Rooms.presetOf(room), botVote = vote, lastVote = room.lastVote }
 end
 function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local room = self:get(player.UserId)
@@ -135,6 +219,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	-- weapon or avatar is an absolute choice about your own slot, so it is exempt - otherwise every
 	-- teammate's ready toggle made your loadout change fail with "Room changed".
 	local own_loadout = msg.action == "weapon" or msg.action == "avatar" or msg.action == "vote"
+		or msg.action == "ballot"
 	if msg.revision ~= room.revision and not own_loadout then
 		return false, "Room changed. Please use the refreshed choices."
 	end
@@ -157,6 +242,28 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		end
 		own.vote = value
 		room.revision += 1
+		return true, nil
+	elseif action == "bot" then
+		-- A proposal, not an edit: see BOT_VOTE_TIME. Anyone in the room may make one.
+		local i = msg.slot
+		if type(i) ~= "number" or i % 1 ~= 0 or i < 1 or i > #room.slots then return false, "Invalid slot." end
+		local slot = room.slots[i]
+		if slot.player then return false, "Cannot replace a player with a bot." end
+		if value ~= false and value ~= "easy" and value ~= "normal" and value ~= "hard" then return false, "Unknown difficulty." end
+		if room.botVote then return false, "A bot vote is already running." end
+		if value == false and not slot.bot then return false, "There is no bot there." end
+		if value ~= false and slot.bot then return false, "There is already a bot there." end
+		room.botVote = { slot = i, value = value, by = player.UserId, ballots = { [player.UserId] = true },
+			deadline = self.clock() + Rooms.BOT_VOTE_TIME }
+		room.lastVote = nil
+		self:settleVote(room)
+		return true, nil
+	elseif action == "ballot" then
+		-- Your own ballot on the running bot vote: yes or no, changeable until it closes.
+		if not room.botVote then return false, "There is no bot vote running." end
+		if type(value) ~= "boolean" then return false, "Vote yes or no." end
+		room.botVote.ballots[player.UserId] = value
+		self:settleVote(room)
 		return true, nil
 	elseif action == "weapon" or action == "avatar" then
 		-- An avatar is a preset id or a kit code; Loadout.validAvatar hands back the canonical code,
@@ -202,16 +309,6 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	elseif action == "disasters" then
 		if value ~= "off" and value ~= "stage" and value ~= "chaos" then return false, "Unknown disaster setting." end
 		room.disasters = value
-	elseif action == "bot" then
-		local i = msg.slot
-		if type(i) ~= "number" or i % 1 ~= 0 or i < 1 or i > #room.slots then return false, "Invalid slot." end
-		local slot = room.slots[i]
-		if slot.player then return false, "Cannot replace a player with a bot." end
-		if value ~= false and value ~= "easy" and value ~= "normal" and value ~= "hard" then return false, "Unknown difficulty." end
-		slot.bot = value or nil
-		-- A bot wears a ready-made character (by slot, so it is stable), which also shows every
-		-- player what the kit can do before they open the creator.
-		slot.weapon, slot.avatar = "Sword", if value then BOT_LOOKS[(i * 5) % #BOT_LOOKS + 1] else "Classic"
 	else return false, "Unknown room action." end
 	invalidate(room)
 	return true, nil

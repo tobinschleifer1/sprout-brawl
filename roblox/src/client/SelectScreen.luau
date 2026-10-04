@@ -1,0 +1,629 @@
+--!strict
+-- The pre-match select screen: everyone in the room at once, each on their own pedestal, picking
+-- a weapon from the roster at the top. Blockfall's own take on the genre's select screen - a grid
+-- of round portraits, a pedestal per player with the fighter standing on it and a card of their
+-- stats, a ready state, a rules bar - in the game's pixel style. It replaces the room panel's
+-- Players and Weapons pages; Maps and Rules still open the room panel's pages over it.
+--
+-- Two layers share one layout (SelectScreen.layout, pure): the game's canvas draws the scene - the
+-- sky, the portraits (your avatar holding each weapon), the pedestals and the fighters standing on
+-- them - and this ScreenGui lays the words, cards and buttons over it. While the screen is open the
+-- canvas draws this INSTEAD of the plaza, so it costs nothing on top of what the lobby already did.
+--
+-- Empty pedestals offer ADD BOT; a bot's offers REMOVE. Either starts a vote (Rooms.BOT_VOTE_TIME):
+-- every player gets YES / NO, and a strict majority of the players in the room decides.
+local Shared = game:GetService("ReplicatedStorage").Shared
+local Weapons = require(Shared.Data.Weapons)
+local Stages = require(Shared.Data.Stages)
+local Loadout = require(Shared.Loadout)
+local Fighter = require(Shared.Fighter)
+local Snapshot = require(Shared.Snapshot)
+local Canvas2D = require(script.Parent.Canvas2D)
+local Fighter2D = require(script.Parent.Fighter2D)
+local HudColors = require(script.Parent.HudColors)
+local WeaponStats = require(script.Parent.WeaponStats)
+
+local SelectScreen = {}
+SelectScreen.__index = SelectScreen
+
+local DISPLAY = Enum.Font.LuckiestGuy
+local LABEL = Enum.Font.GothamBlack
+local INK = Color3.fromRGB(11, 16, 32)
+local PANEL = Color3.fromRGB(16, 24, 42)
+local EDGE = Color3.fromRGB(64, 98, 150)
+local WHITE = Color3.fromRGB(240, 244, 252)
+local DIM = Color3.fromRGB(150, 168, 196)
+local GOLD = Color3.fromRGB(255, 210, 74)
+local GREEN = Color3.fromRGB(92, 224, 122)
+local RED = Color3.fromRGB(232, 92, 84)
+local STAT_NAMES = { damage = "DMG", defense = "DEF", dexterity = "DEX", speed = "SPD" }
+local DIFFICULTIES = { "easy", "normal", "hard" }
+
+-- ------------------------------------------------------------------ layout ----
+-- Where everything goes on a W x H screen with `slots` (the room's slot views, in room order).
+-- Pure: the canvas and the GUI both read it, so they cannot drift apart. Pedestals are in screen
+-- order - team 0 on the left, team 1 on the right, with a gap for the VS between them.
+function SelectScreen.layout(W: number, H: number, slots: { any }): any
+	local s = math.clamp(math.min(W / 1280, H / 720), 0.55, 1.4)
+	-- a wide, short screen (a phone on its side) takes the roster in one row, leaving the height for
+	-- the fighters; anything squarer takes two rows of six
+	local perRow = if W / H > 1.9 or H < 520 then 12 else 6
+	local cell = math.floor(math.clamp(math.min(W * (if perRow == 12 then 0.052 else 0.058), H * 0.1), 34, 84))
+	local gap = math.floor(cell * 0.22)
+	local rosterW = perRow * cell + (perRow - 1) * gap
+	local rosterTop = math.floor(84 * s)
+	local roster = {}
+	for i = 1, #Weapons.LIST do
+		local row, col = (i - 1) // perRow, (i - 1) % perRow
+		roster[i] = { id = Weapons.LIST[i].id, x = W / 2 - rosterW / 2 + col * (cell + gap) + cell / 2,
+			y = rosterTop + row * (cell + gap + math.floor(14 * s)) + cell / 2 }
+	end
+	local rows = math.ceil(#Weapons.LIST / perRow)
+	local rosterBottom = rosterTop + rows * cell + (rows - 1) * gap + math.floor(14 * s) * rows
+	-- pedestals: team 0 then team 1
+	local order = {}
+	for i, slot in slots do if (slot.team or 0) == 0 then table.insert(order, i) end end
+	for i, slot in slots do if (slot.team or 0) ~= 0 then table.insert(order, i) end end
+	local n = math.max(1, #order)
+	local buttonsY = H - math.floor(62 * s)
+	local cardH = math.floor(math.clamp(H * 0.24, 96, 190))
+	local cardY = buttonsY - math.floor(18 * s) - cardH
+	local vsGap = math.floor(56 * s)
+	local cardW = math.floor(math.min(250 * s, (W - 40 - vsGap) / n - 14))
+	local total = n * cardW + (n - 1) * 14 + vsGap
+	local x = W / 2 - total / 2
+	local fighterH = math.max(40, cardY - math.floor(26 * s) - (rosterBottom + math.floor(18 * s)))
+	local pedestals = {}
+	for k, i in order do
+		if k > 1 and (slots[order[k - 1]].team or 0) ~= (slots[i].team or 0) then x += vsGap end
+		table.insert(pedestals, { slot = i, team = slots[i].team or 0, x = x, cardY = cardY, cardW = cardW, cardH = cardH,
+			cx = x + cardW / 2, plinthY = cardY - math.floor(2 * s), plinthW = cardW * 0.8, plinthH = math.floor(30 * s),
+			fighterH = math.min(fighterH, cardW * 1.15) })
+		x += cardW + 14
+	end
+	local vsX = nil
+	for k = 2, #pedestals do
+		if pedestals[k].team ~= pedestals[k - 1].team then vsX = (pedestals[k - 1].x + pedestals[k - 1].cardW + pedestals[k].x) / 2 end
+	end
+	return { s = s, cell = cell, roster = roster, rosterBottom = rosterBottom, pedestals = pedestals, vsX = vsX,
+		buttonsY = buttonsY, W = W, H = H }
+end
+
+-- ------------------------------------------------------------------ gui helpers ----
+local function make(class: string, parent: Instance?, props: any): any
+	local o: any = Instance.new(class)
+	for k, v in props do o[k] = v end
+	if parent then o.Parent = parent end
+	return o
+end
+local function corner(parent: Instance, r: number)
+	make("UICorner", parent, { CornerRadius = UDim.new(0, r) })
+end
+local function stroke(parent: Instance, colour: Color3, thick: number): any
+	return make("UIStroke", parent, { Color = colour, Thickness = thick, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+end
+local function text(parent: Instance, value: string, size: number, colour: Color3, font: any?): any
+	local t = make("TextLabel", parent, { BackgroundTransparency = 1, Text = value, TextSize = size, TextColor3 = colour,
+		Font = font or LABEL, TextXAlignment = Enum.TextXAlignment.Center })
+	-- display text gets the heavy dark outline the genre's UI reads by
+	if font == DISPLAY then make("UIStroke", t, { Color = INK, Thickness = 2 }) end
+	return t
+end
+-- `small` buttons (the difficulty chips) skip the text outline, which fills small letters in
+local function button(parent: Instance, value: string, colour: Color3, onClick: () -> (), small: boolean?): any
+	local b = make("TextButton", parent, { Text = value, Font = DISPLAY, TextSize = 18, TextColor3 = WHITE,
+		BackgroundColor3 = colour, AutoButtonColor = true, BorderSizePixel = 0 })
+	corner(b, 8)
+	stroke(b, INK, 2)
+	if not small then make("UIStroke", b, { Color = INK, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }) end
+	b.Activated:Connect(onClick)
+	return b
+end
+local function hexOf(c: Color3): string
+	return string.format("#%02X%02X%02X", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+end
+
+-- ------------------------------------------------------------------ construction ----
+function SelectScreen.new(parent: Instance): any
+	local self: any = setmetatable({ open = false, minimised = false, room = nil, userId = 0, cards = {}, cells = {},
+		tags = {}, difficulty = "normal", fighters = {}, chars = {}, voteEndsAt = 0, built = nil }, SelectScreen)
+	local gui = make("ScreenGui", parent, { Name = "BlockfallSelect", ResetOnSpawn = false, IgnoreGuiInset = true,
+		DisplayOrder = 15, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
+	self.gui = gui
+	local root = make("Frame", gui, { Name = "Root", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 })
+	self.root = root
+
+	-- the top bar: the room, and its rules as a pill, with the map and rules boards behind buttons
+	self.title = text(root, "MATCH ROOM", 26, WHITE, DISPLAY)
+	self.title.Name = "Title"
+	self.title.TextXAlignment = Enum.TextXAlignment.Left
+	local bar = make("Frame", root, { Name = "RulesBar", BackgroundColor3 = PANEL, BackgroundTransparency = 0.12, BorderSizePixel = 0 })
+	corner(bar, 18)
+	stroke(bar, EDGE, 2)
+	self.bar = bar
+	self.rules = text(bar, "", 15, WHITE)
+	self.rules.Name = "Rules"
+	self.mapButton = button(root, "MAP", Color3.fromRGB(46, 104, 178), function() if self.onStation then self.onStation("Maps") end end)
+	self.mapButton.Name = "MapButton"
+	self.rulesButton = button(root, "RULES", Color3.fromRGB(46, 104, 178), function() if self.onStation then self.onStation("Rules") end end)
+	self.rulesButton.Name = "RulesButton"
+
+	-- the VS between the teams
+	self.vs = text(root, "VS", 40, GOLD, DISPLAY)
+	self.vs.Name = "VS"
+
+	-- the bottom row
+	self.leave = button(root, "LEAVE", Color3.fromRGB(120, 46, 52), function() self:send("leave") end)
+	self.leave.Name = "Leave"
+	self.hideButton = button(root, "HIDE", Color3.fromRGB(52, 64, 88), function() self:minimise() end)
+	self.hideButton.Name = "Hide"
+	self.ready = button(root, "READY", GREEN, function() self:send("ready") end)
+	self.ready.Name = "Ready"
+	self.start = button(root, "START", GOLD, function()
+		local room = self.room
+		if room and room.host == self.userId and room.canStart then self:send("start") end
+	end)
+	self.start.Name = "Start"
+	self.status = text(root, "", 14, WHITE)
+	self.status.Name = "Status"
+
+	-- minimised: one button back in, over the plaza
+	self.reopen = button(gui, "ROOM ▲", Color3.fromRGB(46, 104, 178), function() self:show() end)
+	self.reopen.Name = "Reopen"
+	self.reopen.Visible = false
+	self.reopen.Size = UDim2.fromOffset(150, 40)
+	self.reopen.Position = UDim2.new(0.5, -75, 1, -56)
+	return self
+end
+
+-- ------------------------------------------------------------------ actions ----
+function SelectScreen.send(self: any, action: string, value: any?, slot: number?)
+	if self.onAction then
+		self.onAction({ action = action, value = value, slot = slot, id = self.room and self.room.id,
+			revision = self.room and self.room.revision })
+	end
+end
+function SelectScreen.show(self: any)
+	if not self.room or self.room.left then return end
+	self.open, self.minimised = true, false
+	self.gui.Enabled = true
+	self.root.Visible, self.reopen.Visible = true, false
+	self.layoutKey = nil       -- relayout against the current screen
+	self:render()
+end
+function SelectScreen.minimise(self: any)
+	self.open, self.minimised = false, true
+	self.root.Visible, self.reopen.Visible = false, true
+	if self.onHide then self.onHide() end
+end
+function SelectScreen.hide(self: any)
+	self.open, self.minimised = false, false
+	self.gui.Enabled = false
+end
+function SelectScreen.waiting(self: any, message: string)
+	self.status.Text = message
+end
+
+-- A room view from the server. Opening a room (a new id) brings the screen up.
+function SelectScreen.update(self: any, room: any, userId: number)
+	local entering = not self.room or self.room.left or self.room.id ~= room.id
+	local back = not entering and self.room.state == "playing" and room.state == "setup"
+	self.room, self.userId = room, userId
+	if room.left then self:hide(); self.room = nil; return end
+	if room.botVote then self.voteEndsAt = os.clock() + (room.botVote.left or 0) end
+	-- a new room, or this one back from a fight (a rematch), brings the screen up
+	if (entering or back) and room.state == "setup" then self:show() else self:render() end
+end
+
+-- ------------------------------------------------------------------ building the layout ----
+local function place(o: any, x: number, y: number, w: number, h: number)
+	o.Position = UDim2.fromOffset(math.floor(x + 0.5), math.floor(y + 0.5))
+	o.Size = UDim2.fromOffset(math.floor(w + 0.5), math.floor(h + 0.5))
+end
+
+-- The roster's portraits and each pedestal's card, rebuilt when the screen or the slot count
+-- changes. Everything else in a room update only changes text and colours.
+function SelectScreen.build(self: any, L: any)
+	for _, c in self.cells do c.button:Destroy() end
+	for _, c in self.cards do c.root:Destroy() end
+	for _, t in self.tags do t:Destroy() end
+	self.cells, self.cards, self.tags = {}, {}, {}
+	local s = L.s
+	place(self.title, 24 * s, 12 * s, 420 * s, 36 * s)
+	self.title.TextSize = math.floor(26 * s)
+	place(self.bar, L.W / 2 - 300 * s, 14 * s, 600 * s, 38 * s)
+	place(self.rules, 14 * s, 0, 572 * s, 38 * s)
+	self.rules.TextSize = math.floor(15 * s)
+	place(self.mapButton, L.W - 214 * s, 14 * s, 92 * s, 38 * s)
+	place(self.rulesButton, L.W - 114 * s, 14 * s, 92 * s, 38 * s)
+	for _, b in { self.mapButton, self.rulesButton, self.leave, self.hideButton, self.ready, self.start } do b.TextSize = math.floor(18 * s) end
+	place(self.leave, 24 * s, L.buttonsY, 110 * s, 44 * s)
+	place(self.hideButton, 144 * s, L.buttonsY, 96 * s, 44 * s)
+	place(self.ready, L.W / 2 - 110 * s, L.buttonsY, 220 * s, 48 * s)
+	self.ready.TextSize = math.floor(26 * s)
+	place(self.start, L.W - 214 * s, L.buttonsY, 190 * s, 48 * s)
+	self.start.TextSize = math.floor(24 * s)
+	place(self.status, L.W / 2 - 400 * s, 56 * s, 800 * s, 18 * s)
+	self.status.TextSize = math.floor(14 * s)
+	if L.vsX then place(self.vs, L.vsX - 40 * s, L.pedestals[1].cardY + 20 * s, 80 * s, 50 * s); self.vs.TextSize = math.floor(44 * s) end
+	self.vs.Visible = L.vsX ~= nil
+
+	-- the roster: a ring per weapon over the canvas's portrait, the weapon's name under it
+	for i, r in L.roster do
+		local b = make("TextButton", self.root, { Name = "Pick" .. r.id, Text = "", BackgroundTransparency = 1, AutoButtonColor = false })
+		place(b, r.x - L.cell / 2, r.y - L.cell / 2, L.cell, L.cell)
+		corner(b, math.floor(L.cell / 2))
+		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
+		local name = text(self.root, string.upper(Weapons.LIST[i].name), math.floor(11 * s), DIM)
+		name.Name = "Name" .. r.id
+		place(name, r.x - L.cell, r.y + L.cell / 2 + 1, L.cell * 2, 14 * s)
+		b.Activated:Connect(function() self:send("weapon", r.id) end)
+		self.cells[i] = { button = b, ring = ring, name = name, id = r.id }
+		table.insert(self.tags, name)
+	end
+
+	-- a card per pedestal
+	for _, p in L.pedestals do
+		local team = HudColors.TEAM[(p.team % 2) + 1]
+		local card = make("Frame", self.root, { Name = "Card" .. p.slot, BackgroundColor3 = PANEL, BackgroundTransparency = 0, BorderSizePixel = 0 })
+		place(card, p.x, p.cardY, p.cardW, p.cardH)
+		corner(card, 10)
+		local edge = stroke(card, team, 2)
+		local band = make("Frame", card, { Name = "Band", BackgroundColor3 = team, BorderSizePixel = 0 })
+		place(band, 0, 0, p.cardW, 22 * s)
+		corner(band, 10)
+		local who = text(band, "", math.floor(12 * s), INK)
+		who.Name = "Who"
+		place(who, 8 * s, 0, p.cardW - 16 * s, 22 * s)
+		who.TextXAlignment = Enum.TextXAlignment.Left
+		local status = text(band, "", math.floor(11 * s), INK)
+		status.Name = "State"
+		place(status, 8 * s, 0, p.cardW - 16 * s, 22 * s)
+		status.TextXAlignment = Enum.TextXAlignment.Right
+		local weapon = text(card, "", math.floor(22 * s), WHITE, DISPLAY)
+		weapon.Name = "Weapon"
+		place(weapon, 8 * s, 24 * s, p.cardW - 16 * s, 26 * s)
+		local kind = text(card, "", math.floor(11 * s), DIM)
+		kind.Name = "Kind"
+		place(kind, 8 * s, 48 * s, p.cardW - 16 * s, 14 * s)
+		-- the four stat bars, ten segments each
+		local bars = {}
+		local rowH = math.floor((p.cardH - 72 * s) / 4)
+		for k, key in WeaponStats.KEYS do
+			local y = 66 * s + (k - 1) * rowH
+			local tag = text(card, STAT_NAMES[key], math.floor(11 * s), DIM)
+			place(tag, 10 * s, y, 34 * s, rowH)
+			tag.TextXAlignment = Enum.TextXAlignment.Left
+			tag.Name = "Stat" .. key
+			local segs = {}
+			local segW = (p.cardW - 62 * s) / 10
+			for n = 1, 10 do
+				local seg = make("Frame", card, { BorderSizePixel = 0, BackgroundColor3 = Color3.fromRGB(40, 54, 80) })
+				place(seg, 48 * s + (n - 1) * segW, y + rowH * 0.25, segW - 2, math.max(4, rowH * 0.5))
+				segs[n] = seg
+			end
+			bars[key] = segs
+			segs.tag = tag
+		end
+		-- the open slot: ADD BOT and the difficulty to propose it at
+		local open = make("Frame", card, { Name = "Open", BackgroundTransparency = 1 })
+		place(open, 0, 26 * s, p.cardW, p.cardH - 26 * s)
+		local openText = text(open, "OPEN SLOT", math.floor(18 * s), DIM, DISPLAY)
+		place(openText, 0, 4 * s, p.cardW, 24 * s)
+		local addBot = button(open, "+ ADD BOT", Color3.fromRGB(46, 104, 178), function()
+			self:send("bot", self.difficulty, p.slot)
+		end)
+		addBot.Name = "AddBot"
+		addBot.TextSize = math.floor(18 * s)
+		place(addBot, p.cardW * 0.12, 36 * s, p.cardW * 0.76, 38 * s)
+		local chips = {}
+		for k, d in DIFFICULTIES do
+			local chip = button(open, string.upper(d), Color3.fromRGB(40, 54, 80), function()
+				self.difficulty = d
+				self:render()
+			end, true)
+			chip.Name = "Difficulty" .. d
+			chip.TextSize = math.floor(12 * s)
+			local cw = (p.cardW * 0.76 - 8 * s) / 3
+			place(chip, p.cardW * 0.12 + (k - 1) * (cw + 4 * s), 82 * s, cw, 26 * s)
+			chips[d] = chip
+		end
+		-- a running vote on this slot: the question, the time left, the tally and your ballot
+		local vote = make("Frame", card, { Name = "Vote", BackgroundTransparency = 1, Visible = false })
+		place(vote, 0, 26 * s, p.cardW, p.cardH - 26 * s)
+		local question = text(vote, "", math.floor(16 * s), GOLD, DISPLAY)
+		question.Name = "Question"
+		place(question, 6 * s, 2 * s, p.cardW - 12 * s, 22 * s)
+		local tally = text(vote, "", math.floor(12 * s), WHITE)
+		tally.Name = "Tally"
+		place(tally, 6 * s, 26 * s, p.cardW - 12 * s, 16 * s)
+		local yes = button(vote, "YES", GREEN, function() self:send("ballot", true) end)
+		yes.Name = "Yes"
+		place(yes, p.cardW * 0.1, 50 * s, p.cardW * 0.38, 34 * s)
+		local no = button(vote, "NO", RED, function() self:send("ballot", false) end)
+		no.Name = "No"
+		place(no, p.cardW * 0.52, 50 * s, p.cardW * 0.38, 34 * s)
+		-- a bot's own card: who it is, and the vote to take it out
+		local remove = button(card, "REMOVE BOT", Color3.fromRGB(120, 46, 52), function() self:send("bot", false, p.slot) end)
+		remove.Name = "RemoveBot"
+		remove.TextSize = math.floor(12 * s)
+		place(remove, p.cardW - 98 * s, 26 * s, 90 * s, 22 * s)
+		-- an empty pedestal's "?" where a fighter would stand
+		local unknown = text(self.root, "?", math.floor(p.fighterH * 0.5), Color3.fromRGB(190, 210, 240), DISPLAY)
+		unknown.Name = "Unknown" .. p.slot
+		unknown.TextTransparency = 0.35
+		place(unknown, p.cx - p.fighterH * 0.4, p.plinthY - p.plinthH - p.fighterH * 0.8, p.fighterH * 0.8, p.fighterH * 0.7)
+		table.insert(self.tags, unknown)
+		self.cards[p.slot] = { unknown = unknown, root = card, edge = edge, band = band, who = who, status = status, weapon = weapon, kind = kind,
+			bars = bars, open = open, addBot = addBot, chips = chips, vote = vote, question = question, tally = tally,
+			yes = yes, no = no, remove = remove, team = team, p = p }
+	end
+end
+
+-- ------------------------------------------------------------------ rendering a room view ----
+function SelectScreen.viewport(self: any): (number, number)
+	local size = self.gui.AbsoluteSize
+	return math.max(320, size.X), math.max(240, size.Y)
+end
+
+function SelectScreen.render(self: any)
+	local room = self.room
+	if not room or room.left then return end
+	local W, H = self:viewport()
+	local layoutKey = `{W}x{H}x{#room.slots}`
+	if self.layoutKey ~= layoutKey then
+		self.L = SelectScreen.layout(W, H, room.slots)
+		self:build(self.L)
+		self.layoutKey = layoutKey
+	end
+	local host = room.host == self.userId
+	local mine = nil
+	for _, slot in room.slots do if slot.userId == self.userId then mine = slot end end
+
+	self.title.Text = `{string.upper(room.name or "MATCH")}  ·  ROOM {room.id}`
+	local mode = if room.mode == "timed" then `TIMED {math.floor((room.time or 180) / 60)}:{string.format("%02d", (room.time or 180) % 60)}` else `STOCK · {room.stocks}`
+	local map = if room.mapChoice == "vote" then "MAP: VOTE" elseif room.mapChoice == "random" or room.stage == "Random" then "MAP: RANDOM"
+		else "MAP: " .. string.upper((Stages.BY_ID[room.stage] or { name = room.stage }).name or room.stage)
+	self.rules.Text = `{mode}   ·   ITEMS {if room.items then "ON" else "OFF"}   ·   DISASTERS {string.upper(room.disasters or "off")}   ·   {map}`
+
+	-- the roster: your pick in gold, everyone's tag over what they picked
+	local picked: { [string]: { any } } = {}
+	for i, slot in room.slots do
+		if (slot.userId or slot.bot) and slot.weapon then
+			picked[slot.weapon] = picked[slot.weapon] or {}
+			table.insert(picked[slot.weapon], { i = i, slot = slot })
+		end
+	end
+	for k = #self.tags, 1, -1 do
+		local t = self.tags[k]
+		if t.Name == "Tag" then t:Destroy(); table.remove(self.tags, k) end
+	end
+	local L = self.L
+	for idx, c in self.cells do
+		local mineHere = mine and mine.weapon == c.id
+		c.ring.Color = if mineHere then GOLD else Color3.fromRGB(214, 228, 250)
+		c.ring.Thickness = if mineHere then 5 else 3
+		c.name.TextColor3 = if mineHere then GOLD else DIM
+		local list: { any } = picked[c.id] or {}
+		for n, entry in list do
+			local slot = entry.slot
+			local you = slot.userId == self.userId
+			local colour = HudColors.TEAM[((slot.team or 0) % 2) + 1]
+			local tag = text(self.root, if you then "YOU" elseif slot.bot then "CPU" else `P{entry.i}`, math.floor(11 * L.s), INK)
+			tag.Name = "Tag"
+			tag.BackgroundTransparency = 0
+			tag.BackgroundColor3 = colour
+			corner(tag, 6)
+			local r = L.roster[idx]
+			place(tag, r.x - L.cell / 2 + (n - 1) * 30 * L.s - 4, r.y - L.cell / 2 - 6, 30 * L.s, 15 * L.s)
+			table.insert(self.tags, tag)
+		end
+	end
+
+	-- the cards
+	local vote = room.botVote
+	for i, slot in room.slots do
+		local card = self.cards[i]
+		if not card then continue end
+		local human, bot = slot.userId ~= nil, slot.bot ~= nil
+		local filled = human or bot
+		card.who.Text = if human then `{if slot.userId == room.host then "★ " else ""}{string.upper(slot.name or "PLAYER")}`
+			elseif bot then `CPU · {string.upper(slot.bot)}` else `PLAYER {i}`
+		card.status.Text = if human then (if slot.ready then "READY" else "SELECTING") elseif bot then "READY" else ""
+		card.status.TextColor3 = INK
+		card.edge.Color = if human and slot.ready then GREEN else card.team
+		card.edge.Thickness = if human and slot.ready then 3 else 2
+		card.weapon.Visible, card.kind.Visible = filled, filled
+		local w = filled and Weapons.BY_ID[slot.weapon]
+		if w then
+			card.weapon.Text = string.upper(w.name)
+			card.kind.Text = `{string.upper(w.archetype or "")}  {string.rep("★", w.difficulty or 1)}{string.rep("☆", 3 - (w.difficulty or 1))}`
+			local stats = WeaponStats.of(w.id)
+			for key, segs in card.bars do
+				segs.tag.Visible = true
+				for n = 1, 10 do
+					segs[n].Visible = true
+					segs[n].BackgroundColor3 = if n <= stats[key] then GOLD else Color3.fromRGB(40, 54, 80)
+				end
+			end
+		else
+			for _, segs in card.bars do
+				segs.tag.Visible = false
+				for n = 1, 10 do segs[n].Visible = false end
+			end
+		end
+		card.unknown.Visible = not filled
+		local voting = vote ~= nil and vote.slot == i
+		card.vote.Visible = voting
+		card.open.Visible = not filled and not voting
+		card.remove.Visible = bot and not voting and vote == nil
+		card.addBot.Active = vote == nil
+		card.addBot.Text = if vote then "VOTE RUNNING" else "+ ADD BOT"
+		for d, chip in card.chips do
+			chip.BackgroundColor3 = if d == self.difficulty then GOLD else Color3.fromRGB(40, 54, 80)
+			chip.TextColor3 = if d == self.difficulty then INK else WHITE
+		end
+		if voting then
+			local mineBallot = vote.ballots and vote.ballots[tostring(self.userId)]
+			card.question.Text = if vote.value == false then "REMOVE THE BOT?" else `ADD {string.upper(vote.value)} BOT?`
+			card.tally.Text = `{vote.yes} YES · {vote.no} NO  ·  {vote.voters} VOTING`
+			card.yes.BackgroundColor3 = if mineBallot == true then GREEN else Color3.fromRGB(46, 88, 60)
+			card.no.BackgroundColor3 = if mineBallot == false then RED else Color3.fromRGB(88, 46, 46)
+		end
+	end
+
+	-- the bottom row
+	self.ready.Text = if mine and mine.ready then "READY ✓" else "READY"
+	self.ready.BackgroundColor3 = if mine and mine.ready then GREEN else Color3.fromRGB(46, 120, 76)
+	self.start.Visible = host
+	self.start.Text = if room.canStart then "START" else "WAITING…"
+	self.start.BackgroundColor3 = if room.canStart then GOLD else Color3.fromRGB(70, 74, 86)
+	local last = room.lastVote
+	self.status.Text = room.error
+		or (if room.state == "playing" then "Loading arena…" else nil)
+		or (if last then (if last.passed then (if last.value == false then "The bot was voted out." else "Vote passed: bot added.")
+			else "Bot vote failed.") else nil)
+		or (if host then "You host this room. Fill every pedestal and ready up." else "Ready up when you have picked your weapon.")
+end
+
+-- ------------------------------------------------------------------ the canvas scene ----
+-- A fighter standing on a pedestal (or in a portrait), cached by look: a Fighter posed and turned
+-- into the snapshot shape Fighter2D draws.
+-- `still` is for the roster: its portraits never move, so the snapshot is made once per look.
+local function standIn(self: any, key: string, avatar: string, weapon: string, facing: number, state: string, still: boolean?): (any, any)
+	local char = self.chars[avatar .. "|" .. weapon]
+	if not char then
+		char = Loadout.build(avatar, weapon)
+		self.chars[avatar .. "|" .. weapon] = char
+	end
+	local f = self.fighters[key]
+	if not f or f.char ~= char then
+		f = Fighter.new({ index = 0, char = char, x = 0, y = 0, stocks = 3 })
+		f.onGround, f.invincible = true, 0
+		self.fighters[key] = f
+		f.snap = nil
+	end
+	if still and f.snap then return f.snap, char end
+	if f.state ~= state then f:setState(state) end
+	f.facing = facing
+	f.sf += 1
+	f.frameCount += 1
+	local snap = Snapshot.decode(Snapshot.encode(f))
+	if still then f.snap = snap end
+	return snap, char
+end
+
+-- Draw `s` with its feet at screen (x, y), `h` pixels tall.
+local function drawStanding(c: any, s: any, char: any, x: number, y: number, h: number, t: number)
+	local vp = c:viewport()
+	local ppu = h / (char.height + 0.6)
+	c:world((vp.X / 2 - x) / ppu, (y - vp.Y / 2) / ppu, ppu, 0, 0)
+	Fighter2D.draw(c, s, char, t, 0)
+end
+
+local SKY = { Color3.fromRGB(10, 18, 48), Color3.fromRGB(24, 58, 112), Color3.fromRGB(56, 128, 196), Color3.fromRGB(150, 206, 240) }
+local function skyAt(k: number): Color3
+	local n = #SKY - 1
+	local i = math.clamp(math.floor(k * n), 0, n - 1)
+	return SKY[i + 1]:Lerp(SKY[i + 2], k * n - i)
+end
+
+-- The whole scene, into the game's canvas (in place of the plaza). `myAvatar` dresses the roster.
+-- Redrawn at REDRAW_HZ, not every frame: a menu's idle breathing reads the same at 30 frames a
+-- second, and the canvas keeps the last frame's picture through a frame that draws nothing - so
+-- this halves the screen's cost for free.
+SelectScreen.REDRAW_HZ = 30
+
+function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
+	local room, L = self.room, self.L
+	if not room or not L then return end
+	local t = os.clock()
+	self.sinceDraw = (self.sinceDraw or math.huge) + dt
+	if self.sinceDraw < 1 / SelectScreen.REDRAW_HZ - 1e-3 then
+		self:tickVote(t)
+		return
+	end
+	self.sinceDraw = 0
+	local vp = c:viewport()
+	local W, H = vp.X, vp.Y
+	c:screen()
+	-- the sky, in pixel bands, with a few stars twinkling at the top
+	local bands = 28
+	for b = 0, bands - 1 do
+		Canvas2D.rect(c, 0, b * H / bands, W, H / bands + 1, skyAt(b / (bands - 1)), 1)
+	end
+	for k = 1, 22 do
+		local sx, sy = (k * 197) % W, (k * 61) % (H * 0.35)
+		local tw = 0.35 + 0.35 * math.sin(t * 2 + k)
+		Canvas2D.rect(c, sx, sy, 2, 2, WHITE, tw)
+	end
+	-- a bank of pixel clouds along the bottom, drifting
+	local cloud = Color3.fromRGB(226, 240, 252)
+	for k = 0, 9 do
+		local cx = ((k * 173 + t * 6) % (W + 260)) - 130
+		local cy = H * 0.86 + (k % 3) * 14
+		for j = 0, 4 do
+			local r = 26 + ((k + j) % 3) * 10
+			Canvas2D.rect(c, cx + j * 26 - r, cy - r * 0.6, r * 2, r * 1.2, cloud, 0.85)
+		end
+	end
+	-- the roster: a disc per weapon, your avatar holding it standing in the disc
+	local avatar: string = myAvatar or "Classic"
+	if not myAvatar then
+		for _, slot in room.slots do if slot.userId == self.userId and slot.avatar then avatar = slot.avatar end end
+	end
+	for i, r in L.roster do
+		Canvas2D.circle(c, r.x, r.y, L.cell / 2, Color3.fromRGB(22, 40, 74), 1)
+		Canvas2D.circle(c, r.x, r.y - L.cell * 0.08, L.cell * 0.4, Color3.fromRGB(38, 70, 120), 1)
+		local s, char = standIn(self, "roster" .. i, avatar, r.id, 1, "idle", true)
+		drawStanding(c, s, char, r.x, r.y + L.cell * 0.42, L.cell * 0.82, 0)
+		c:screen()
+	end
+	-- the pedestals and who stands on them
+	for _, p in L.pedestals do
+		local slot = room.slots[p.slot]
+		local team = HudColors.TEAM[(p.team % 2) + 1]
+		local left = p.cx - p.plinthW / 2
+		-- a beam of the team's light behind the fighter, in three soft steps
+		local top = p.plinthY - p.plinthH - p.fighterH * 1.05
+		for k = 0, 2 do
+			local bw = p.cardW * (0.62 - k * 0.17)
+			Canvas2D.rect(c, p.cx - bw / 2, top, bw, p.plinthY - top, team, 0.07)
+		end
+		-- the pedestal: its body down behind the card, a stone top slab with a lit bevel and a dark
+		-- lip, a band of the team's colour, and a few chips of stone for texture
+		local bodyW = p.cardW * 0.86
+		Canvas2D.rect(c, p.cx - bodyW / 2, p.plinthY - 2, bodyW, p.cardH * 0.4, Color3.fromRGB(58, 66, 86), 1)
+		Canvas2D.rect(c, left - 6, p.plinthY - p.plinthH, p.plinthW + 12, p.plinthH, Color3.fromRGB(104, 116, 142), 1)
+		Canvas2D.rect(c, left - 6, p.plinthY - p.plinthH, p.plinthW + 12, 5, Color3.fromRGB(190, 204, 226), 1)
+		Canvas2D.rect(c, left - 6, p.plinthY - 4, p.plinthW + 12, 4, Color3.fromRGB(44, 50, 66), 1)
+		Canvas2D.rect(c, left - 6, p.plinthY - p.plinthH + 8, p.plinthW + 12, 4, team, 1)
+		for k = 1, 5 do
+			Canvas2D.rect(c, left + (k * 37) % p.plinthW, p.plinthY - p.plinthH + 14 + (k % 2) * 3, 6, 2, Color3.fromRGB(78, 88, 110), 1)
+		end
+		if slot and (slot.userId or slot.bot) and slot.weapon then
+			local facing = if p.team == 0 then 1 else -1
+			local s, char = standIn(self, "slot" .. p.slot, slot.avatar or "Classic", slot.weapon, facing,
+				if slot.ready or slot.bot then "victory" else "idle")
+			drawStanding(c, s, char, p.cx, p.plinthY - p.plinthH, p.fighterH, t)
+			c:screen()
+		end
+	end
+	c:finish()
+	self:tickVote(t)
+end
+
+-- The vote's countdown, written once a second.
+function SelectScreen.tickVote(self: any, t: number)
+	local vote = self.room and self.room.botVote
+	if not vote then return end
+	local card = self.cards[vote.slot]
+	local left = math.max(0, math.ceil(self.voteEndsAt - t))
+	if card and card.leftShown ~= left then
+		card.leftShown = left
+		card.tally.Text = `{vote.yes} YES · {vote.no} NO  ·  {vote.voters} VOTING  ·  {left}s`
+	end
+end
+
+SelectScreen.hexOf = hexOf
+return SelectScreen

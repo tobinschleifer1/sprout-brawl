@@ -40,6 +40,7 @@ local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
 local Hud = require(script.Hud)
 local Select = require(script.RoomPanel)
+local SelectScreen = require(script.SelectScreen)
 local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
@@ -130,6 +131,14 @@ local localIndex: number? = nil
 local predictor: any = nil
 local hud: any = nil
 local select_: any = nil
+-- The select screen: everyone in the room on their pedestals (SelectScreen). The room panel above
+-- still shows the Maps and Rules boards over it.
+local selectScreen: any = nil
+-- Is a room overlay up (the select screen open, or the room panel's boards)? The plaza does not
+-- take input, and the social panel steps aside, while one is.
+local function roomOverlay(): boolean
+	return (select_ ~= nil and select_.gui.Enabled) or (selectScreen ~= nil and selectScreen.open)
+end
 local matchCfg: any = nil
 local sawFirst = false
 local acceptingSnapshots = false
@@ -143,7 +152,7 @@ local editor = AvatarEditor.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	weapon = function(): string return if select_ then select_.cfg.slots[1].weaponId else "Sword" end,
 })
 local function openStudio()
-	if hub.active and not hub.room and not (select_ and select_.gui.Enabled) then editor:open() end
+	if hub.active and not hub.room and not roomOverlay() then editor:open() end
 end
 hub.onCharacter = openStudio
 -- Stamps, quick messages, who is here, and warps (LobbySocial); the lobby draws what it hears.
@@ -273,7 +282,7 @@ end)
 UIS.InputBegan:Connect(function(input: InputObject)
 	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 	if records:key(input.KeyCode) then return end
-	if hub.active and not editor:isOpen() and not (select_ and select_.gui.Enabled) and not UIS:GetFocusedTextBox() then
+	if hub.active and not editor:isOpen() and not roomOverlay() and not UIS:GetFocusedTextBox() then
 		social:key(input.KeyCode)
 	end
 	editor:key(input.KeyCode, UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)
@@ -299,8 +308,19 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 			end
 			Net.remote("RoomAction"):FireServer(action)
 		end
+		selectScreen = SelectScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
+		selectScreen.onAction = function(action: any)
+			if action.action == "start" then
+				if not launch:begin(os.clock()) then return end
+				selectScreen:waiting("Requesting your match…")
+			end
+			if action.action == "leave" then selectScreen:hide() end
+			Net.remote("RoomAction"):FireServer(action)
+		end
+		-- the map and rules boards are the room panel's pages, shown over the select screen
+		selectScreen.onStation = function(page: string) select_:openStation(page) end
 		hub.onInteract = function(station: any)
-			if not select_.gui.Enabled then
+			if not roomOverlay() then
 				if station.kind == "Wardrobe" then
 					openStudio()
 				elseif station.kind == "Parkour" then
@@ -312,10 +332,12 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 				elseif station.kind == "Warp" then
 					social:toggle("Map")
 				elseif station.kind == "Format" then
-					select_:waiting("Joining " .. station.name .. "…")
+					-- the room's view opens the select screen when it arrives
 					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
 				elseif station.kind == "Exit" then
 					select_:send("leave")
+				elseif station.id == "Players" or station.id == "Weapons" then
+					selectScreen:show()               -- the pedestals and the roster replace those pages
 				else
 					select_:openStation(station.id)
 				end
@@ -327,6 +349,7 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 		select_.cfg = msg.last
 	end
 	hub:show(select_.cfg)
+	selectScreen:hide()
 	if msg and msg.error then
 		select_:show(`That match could not be run: {msg.error}`)
 	else
@@ -338,6 +361,7 @@ Net.remote("RoomView").OnClientEvent:Connect(function(view: any)
 	if not select_ then return end
 	if view.error then launch:reset() end
 	select_:update(view, Players.LocalPlayer.UserId)
+	if selectScreen then selectScreen:update(view, Players.LocalPlayer.UserId) end
 	if view.left then launch:reset() end
 	hub:configure(select_.cfg)
 	hub:setRoom(view)
@@ -356,6 +380,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	if select_ then
 		select_:waiting("Loading arena and fighters…")
 	end
+	if selectScreen then selectScreen:hide() end
 	canvas:clear()
 	snapBase = nil
 	sceneBase = nil
@@ -585,8 +610,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if records:isOpen() then records:tick() end
 	if parkour.active then parkour:step(dt, records:isOpen() or skipPrompt) end
 	if hub.active then
-		hub:step(dt, (select_ ~= nil and select_.gui.Enabled) or editor:isOpen() or records:isOpen())
-		if not social.enabled then social:setEnabled(true) end
+		hub:step(dt, roomOverlay() or editor:isOpen() or records:isOpen())
+		-- the select screen covers the plaza: its prompts and the social panel step aside under it
+		local covered = selectScreen ~= nil and selectScreen.open
+		if hub.gui.Enabled == covered then hub.gui.Enabled = not covered end
+		if social.enabled == covered then social:setEnabled(not covered) end
 		poseElapsed += dt
 		if poseElapsed >= 0.1 then
 			poseElapsed = 0
@@ -660,6 +688,13 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if parkour.active then
 		parkour:draw(canvas, dt)
 		section("Climb", mark)
+		measured(dt, began)
+		return
+	end
+	if selectScreen and selectScreen.open then
+		selectScreen:draw(canvas, dt)
+		mark = section("Select", mark)
+		editor:draw(os.clock())
 		measured(dt, began)
 		return
 	end

@@ -428,6 +428,8 @@ RunService.Heartbeat:Connect(function(dt: number)
 		task.spawn(boardsJob)
 	end
 	for _, cab in arcade:due(os.clock()) do startCabinet(cab) end
+	-- bot votes whose ten seconds ran out (Rooms.BOT_VOTE_TIME): closed, and the room resent
+	for _, room in rooms:tick() do publish(room) end
 	if saveClock >= 1 then
 		saveClock = 0
 		task.spawn(function() avatars:tick() end)

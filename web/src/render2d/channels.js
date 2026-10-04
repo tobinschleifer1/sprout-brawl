@@ -95,7 +95,32 @@ function lagged(f, m, frames) {
 // Which ordinary categories a thrusting weapon replaces. Rising attacks stay rotational: you
 // cannot thrust upward off a line that runs forward, and the pike's up-angled moves genuinely are
 // swings of the point.
-const THRUSTABLE = { jab: 'thrust', side: 'thrust', fair: 'thrust', sigside: 'thrust', down: 'thrustlow', sigdown: 'thrustlow', dair: 'thrustlow' };
+// The combo steps each get a thrust of their own, so a thrusting weapon's string does not collapse
+// back into one pose: the second point goes high, the third drives in deep.
+const THRUSTABLE = { jab: 'thrust', side: 'thrust', fair: 'thrust', sigside: 'thrust', down: 'thrustlow', sigdown: 'thrustlow', dair: 'thrustlow',
+  jab2: 'thrusthigh', side2: 'thrusthigh', jab3: 'thrustlunge' };
+// (A thrusting weapon's finisher keeps the jump-in body: the leap is the finisher, and its point
+// comes down onto the line from above - see the pike's `finisher` arc in weapons2d.js.)
+
+// Which body family a move is. The combo steps (COMBO in config.js) each have their own, so a
+// string reads as a string: the second and third neutral lights and the second side light are not
+// the first one again, and a finisher and an air finisher are their own moments. An air finisher
+// is a slam if it sends downward and a heave if it sends up. Exported for the tests.
+export function bodyCategory(m) {
+  const id = m.id || '';
+  if (id === 'LightNeutral2') return 'jab2';
+  if (id === 'LightNeutral3') return 'jab3';
+  if (id === 'LightSide2') return 'side2';
+  if (id === 'Finisher') return 'finisher';
+  if (id === 'AirFinisher') return m.angle > 180 ? 'airslam' : 'airlaunch';
+  return id.startsWith('LightNeutral') ? 'jab'
+    : id.startsWith('LightSide') || id === 'ItemSwing' ? 'side'
+    : id === 'LightDown' ? 'down' : id === 'LightUp' ? 'up'
+    : id === 'AirNeutral' ? 'nair' : id === 'AirForward' ? 'fair'
+    : id === 'AirDown' ? 'dair' : id === 'AirUp' ? 'uair'
+    : id === 'SigSide' ? 'sigside' : id === 'SigDown' ? 'sigdown' : id === 'SigNeutral' ? 'signeut'
+    : id === 'CounterBurst' ? 'burst' : id === 'ItemSpray' ? 'spray' : 'jab';
+}
 
 // ------------------------------------------------------------------- the ultimate bodies -----
 // Each of these is written against the SAME phase boundaries weapons2d.js's ultimatePose uses, so
@@ -447,13 +472,7 @@ function attackChannels(ch, f, t) {
   // through this map's default and play the JAB body pose - six bespoke weapon performances above
   // a fighter doing a jab - so they get their own function, phased the same way the weapon is.
   if (id === 'Ultimate') return ultChannels(ch, f, m, t);
-  const cat = id.startsWith('LightNeutral') ? 'jab'
-    : id.startsWith('LightSide') || id === 'ItemSwing' ? 'side'
-    : id === 'LightDown' ? 'down' : id === 'LightUp' ? 'up'
-    : id === 'AirNeutral' ? 'nair' : id === 'AirForward' ? 'fair'
-    : id === 'AirDown' ? 'dair' : id === 'AirUp' ? 'uair'
-    : id === 'SigSide' ? 'sigside' : id === 'SigDown' ? 'sigdown' : id === 'SigNeutral' ? 'signeut'
-    : id === 'CounterBurst' ? 'burst' : id === 'ItemSpray' ? 'spray' : 'jab';
+  const cat = bodyCategory(m);
   ch.smear = s.smear * (m.heavy ? 1 : 0.7);
 
   // A weapon can declare that it THRUSTS. A thrust is not a small swing: the reach comes from the
@@ -572,6 +591,66 @@ function attackChannels(ch, f, t) {
       ch.bob = 0.24 * Math.max(0, w);
       ch.legL = -0.4 * Math.max(0, w); ch.legR = 0.3 * Math.max(0, w);
       break;
+    // ---- the combo steps ----
+    case 'jab2':
+      // A backhand return: the arm cocks across the front, high, and sweeps back out and down
+      // through the strike while the torso turns the other way to the first jab.
+      // (every pose here is at rest at w = 0, which is where the recovery's settle ends)
+      ch.armR.z = w < 0 ? (F + 0.7) * -w : (F - 0.35) * w;
+      ch.armL.z = 0.5 - 0.7 * Math.abs(wLag2);
+      ch.lean = w < 0 ? -0.06 * -w : 0.26 * w;
+      ch.head = 0.12 * Math.max(0, -w) - 0.1 * Math.max(0, wLag3);
+      ch.legL = 0.3 * Math.max(0, w); ch.legR = -0.12 * Math.max(0, w);
+      ch.sx = 1 + 0.08 * Math.max(0, w);
+      break;
+    case 'jab3':
+      // A stepping cross: the rear foot drives, the hips turn through, and the lean is twice the
+      // first jab's. The arm comes from further back than either jab before it.
+      ch.armR.z = w < 0 ? -0.95 * -w : (F + 0.15) * w;
+      ch.armL.z = 0.2 - 0.9 * Math.max(0, wLag3);
+      ch.lean = w < 0 ? -0.22 * -w : 0.4 * w;
+      ch.legR = 0.6 * Math.max(0, w) - 0.15 * Math.max(0, -w); ch.legL = -0.4 * Math.max(0, w);
+      ch.sx = 1 + 0.14 * Math.max(0, w); ch.sy = 1 - 0.07 * Math.max(0, w);
+      ch.bob = -0.1 * Math.max(0, w);
+      ch.head = -0.16 * Math.max(0, wLag3);
+      break;
+    case 'side2':
+      // The follow-through: a pivot on the front foot - one full turn across the strike - into a
+      // second, wider cut.
+      ch.spinY = w > 0 ? PI * 2 * easeOut(clamp(w, 0, 1)) : 0;
+      ch.armR.z = w < 0 ? -1.35 * -w : (F + 0.4) * w;
+      ch.armL.z = -0.3 - 0.6 * Math.max(0, wLag2);
+      ch.lean = w < 0 ? -0.4 * -w : 0.5 * w;
+      ch.legR = 0.65 * Math.max(0, w); ch.legL = -0.45 * Math.max(0, w);
+      ch.sx = 1 + 0.12 * Math.max(0, w);
+      break;
+    case 'finisher':
+      // The end of a perfect string: a jump-in. Stretched tall and both arms overhead on the
+      // wind-up, then the whole body comes down into the cleave and squashes into the floor.
+      ch.armR.z = w < 0 ? -0.6 - 2.3 * -w : (F + 0.5) * w;
+      ch.armL.z = w < 0 ? 0.6 + 2.2 * -w : 1.2 * Math.max(0, wLag2);
+      ch.sy = w < 0 ? 1 + 0.2 * -w : 1 - 0.24 * w;
+      ch.sx = w < 0 ? 1 - 0.1 * -w : 1 + 0.26 * w;
+      ch.lean = w < 0 ? -0.3 * -w : 0.6 * w;
+      ch.bob = 0.45 * Math.max(0, -w) - 0.25 * Math.max(0, w);
+      ch.legR = 0.9 * Math.max(0, w) - 0.3 * Math.max(0, -w); ch.legL = -0.6 * Math.max(0, w) + 0.3 * Math.max(0, -w);
+      ch.head = 0.3 * Math.max(0, wLag3) - 0.2 * Math.max(0, -w);
+      break;
+    case 'airslam':
+      // An air finisher that sends down: arms stacked overhead, then driven through the body.
+      if (w < 0) { ch.armL.z = 3.0 * -w; ch.armR.z = -3.0 * -w; ch.sy = 1 + 0.16 * -w; ch.legL = -0.6 * -w; ch.legR = -0.5 * -w; ch.head = -0.2 * -w; }
+      else { ch.armL.z = 0.25 - 0.7 * w; ch.armR.z = -0.25 + 0.7 * w; ch.sy = 1 - 0.18 * w; ch.sx = 1 + 0.2 * w; ch.head = 0.5 * w; ch.legL = 0.6 * w; ch.legR = 0.5 * w; ch.lean = 0.3 * w; }
+      break;
+    case 'airlaunch':
+      // An air finisher that sends up: tucked low, then the whole body uncoils upward.
+      ch.armR.z = w < 0 ? -0.9 * -w : (F + 1.3) * w;
+      ch.armL.z = w < 0 ? 0.9 * -w : 1.3 * Math.max(0, wLag2);
+      ch.sy = w < 0 ? 1 - 0.18 * -w : 1 + 0.24 * w;
+      ch.sx = w < 0 ? 1 + 0.14 * -w : 1 - 0.12 * w;
+      ch.legL = w < 0 ? 0.8 * -w : -0.8 * w; ch.legR = w < 0 ? 0.7 * -w : -0.6 * w;
+      ch.lean = -0.3 * Math.max(0, w);
+      ch.head = -0.25 * Math.max(0, w);
+      break;
     case 'burst':
       ch.sx = 1 + 0.3 * Math.max(0, w); ch.sy = 1 + 0.3 * Math.max(0, w);
       ch.armL.z = 1.6 * Math.max(0, w); ch.armR.z = -1.6 * Math.max(0, w);
@@ -592,6 +671,29 @@ function attackChannels(ch, f, t) {
       ch.sx = 1 + 0.1 * Math.max(0, w); ch.sy = 1 - 0.06 * Math.max(0, w) + 0.05 * Math.max(0, -w);
       ch.head = -0.14 * Math.max(0, wLag2);
       ch.bob = -0.2 * Math.max(0, w) + 0.1 * Math.max(0, -w);
+      break;
+    case 'thrusthigh':
+      // The second point: up into the line from below, the body rising onto the toes behind it.
+      ch.armR.z = w < 0 ? -0.2 * -w : (F + 0.4) * Math.max(0, w);
+      ch.armR.ext = 1 + (w < 0 ? -0.2 * -w : 0.55 * w);
+      ch.armL.z = 0.7 - 1.1 * Math.max(0, wLag2);
+      ch.lean = w < 0 ? -0.18 * -w : 0.2 * w;
+      ch.sy = 1 + 0.12 * Math.max(0, w) - 0.08 * Math.max(0, -w);
+      ch.legR = 0.5 * Math.max(0, w); ch.legL = -0.5 * Math.max(0, w);
+      ch.bob = 0.16 * Math.max(0, w) - 0.1 * Math.max(0, -w);
+      ch.head = -0.22 * Math.max(0, wLag3);
+      break;
+    case 'thrustlunge':
+      // The third point, and a thrusting weapon's finisher: a deep lunge, the front knee bent,
+      // the rear leg straight out behind, the arm fully along the line.
+      ch.armR.z = w < 0 ? -0.6 * -w : (F - 0.1) * Math.max(0, w);
+      ch.armR.ext = 1 + (w < 0 ? -0.26 * -w : 0.78 * w);
+      ch.armL.z = 0.4 - 1.4 * Math.max(0, wLag3);
+      ch.lean = w < 0 ? -0.36 * -w : 0.58 * w;
+      ch.legR = 1.35 * Math.max(0, w) - 0.3 * Math.max(0, -w); ch.legL = -0.95 * Math.max(0, w) + 0.35 * Math.max(0, -w);
+      ch.sy = 1 - 0.16 * Math.max(0, w) + 0.06 * Math.max(0, -w); ch.sx = 1 + 0.16 * Math.max(0, w);
+      ch.bob = -0.34 * Math.max(0, w) + 0.12 * Math.max(0, -w);
+      ch.head = -0.1 * Math.max(0, wLag2);
       break;
     case 'thrustlow':
       // The same drive aimed at the ankles: the fighter drops into it rather than leaning into it.
@@ -717,6 +819,18 @@ export function channelsFor(f, t) {
       const br = Math.sin(sf * 0.22);
       ch.armL.z = 1.2 + br * 0.18; ch.armR.z = -1.2 - br * 0.14;
       ch.sy = 0.95 + br * 0.03; ch.head = br * 0.2; ch.bob = br * 0.1;
+      break;
+    }
+    case 'breakout': {
+      // The combo break (COMBO in config.js): the body bursts open - arms flung wide, stretched in
+      // a white flash for the first frames - and settles back in on the spring.
+      const k = clamp(sf / 16, 0, 1);
+      const q = settle(k, 2.4, 5);          // 0 at the burst, 1 once settled
+      ch.armL.z = 2.4 - 1.9 * q; ch.armR.z = -2.4 + 1.9 * q;
+      ch.legL = 0.6 - 0.45 * q; ch.legR = -0.6 + 0.45 * q;
+      ch.sx = 1.22 - 0.22 * q; ch.sy = 1.12 - 0.12 * q;
+      ch.head = -0.3 * (1 - q);
+      ch.tint = sf < 4 ? '#FFFFFF' : null;
       break;
     }
     case 'tech': ch.opacity = 0.6; if (f.techRoll) { ch.spinZ = -sf * 0.42; ch.smear = clamp(1 - sf / 10, 0, 1); } else { const k = clamp(sf / 8, 0, 1); const q = 1 - settle(k, 3, 7); ch.sy = 1 - 0.16 * q; ch.sx = 1 + 0.12 * q; } break;

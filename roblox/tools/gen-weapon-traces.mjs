@@ -24,7 +24,7 @@ const n = (v) => (typeof v === 'number' ? String(v) : v);
 
 const STATES = [
   'idle', 'run', 'dash', 'jumpsquat', 'landing', 'shield', 'shielddrop', 'ledge', 'tether', 'knockdown', 'ko',
-  'hitstun', 'tumble', 'air', 'helpless', 'recovery', 'groundpound', 'attack',
+  'hitstun', 'tumble', 'air', 'helpless', 'recovery', 'groundpound', 'attack', 'breakout',
   // No branch of weaponPose matches these, so they must come out as the bare rest pose. Controls.
   'idle_unused', 'grabbed',
 ];

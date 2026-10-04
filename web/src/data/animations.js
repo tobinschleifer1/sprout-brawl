@@ -47,6 +47,24 @@ export const TEMPLATES = {
     T('follow-through', 'recovery', 0.35, 'A long carry past the strike. Heavy weapons overshoot furthest.'),
     T('settle', 'recovery', 1, 'Damped return to idle, with a wobble for heavy weapons.'),
   ],
+  // A combo step after the first (COMBO in config.js): the previous hit IS the wind-up, so the
+  // anticipation is a short turn of the body rather than a fresh cock, and the contact is a pose
+  // the step before it never made.
+  link: [
+    T('turn', 'startup', 0.5, 'Out of the last hit\'s follow-through and around, without returning to the stance - the string never resets between links.'),
+    T('cocked', 'startup', 1, 'Loaded for this link\'s own direction - the backhand from across the body, the cross from behind the hip, the spin from the far side.'),
+    T('contact', 'active', 1, 'The link\'s contact pose, visibly not the one before it. Brightest values of the move.'),
+    T('recover', 'recovery', 1, 'Settle, ready to turn into the next link.'),
+  ],
+  // The end of a string linked perfectly all the way: the biggest light-weapon moment there is.
+  finisher: [
+    T('gather', 'startup', 0.4, 'The tell: the fighter rises - stretched tall, both arms up, weapon overhead. On screen long enough to read, because the defender cannot break it.'),
+    T('apex', 'startup', 0.8, 'The top of the jump-in, held a beat: the most stretched silhouette of the string.'),
+    T('launch', 'startup', 1, 'Coming down into it, smeared.'),
+    T('contact', 'active', 1, 'The cleave, squashed into the floor (or, in the air, driven straight through). Held for every active frame; the finisher impact plays over it.'),
+    T('follow-through', 'recovery', 0.4, 'A long carry past the strike.'),
+    T('settle', 'recovery', 1, 'Back up out of the squash to the stance.'),
+  ],
   ult: [
     T('activation', 'startup', 0.35, 'The banner pose, shown during the 26-frame freeze: a hero stance facing the camera three-quarters on.'),
     T('wind-up', 'startup', 0.7, 'Gather power; the weapon at its ultimate scale.'),
@@ -63,6 +81,8 @@ export const TEMPLATES = {
 
 export function templateFor(moveId) {
   if (moveId === 'Ultimate') return 'ult';
+  if (moveId === 'Finisher' || moveId === 'AirFinisher') return 'finisher';
+  if (moveId === 'LightNeutral2' || moveId === 'LightNeutral3' || moveId === 'LightSide2') return 'link';
   if (moveId.startsWith('Sig')) return 'sig';
   if (moveId.startsWith('Air')) return 'air';
   return 'light';

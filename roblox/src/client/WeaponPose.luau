@@ -48,6 +48,13 @@ local SWINGS: { [string]: any } = {
 	sigside = { arc = { D(175), D(-40), D(-15) }, trail = D(150), heavy = true },
 	sigdown = { arc = { D(150), D(-85), D(-65) }, trail = D(140), heavy = true },
 	signeut = { arc = { D(-120), D(130), D(110) }, trail = D(140), heavy = true },
+	-- the combo steps (weapons2d.js has the reasoning): each its own motion, every contact on its hitbox
+	jab2 = { arc = { D(-50), D(15), D(35) }, trail = D(85) },
+	jab3 = { arc = { D(115), D(-12), D(8) }, trail = D(125), heavy = true },
+	side2 = { arc = { D(205), D(-30), D(-10) }, trail = D(235), heavy = true },
+	finisher = { arc = { D(195), D(-70), D(-45) }, trail = D(250), heavy = true },
+	airslam = { arc = { D(150), D(-100), D(-88) }, trail = D(170), heavy = true },
+	airlaunch = { arc = { D(-120), D(45), D(35) }, trail = D(165), heavy = true },
 }
 
 -- Per-weapon overrides. SWINGS is the sword's motion; these weapons do not move like a sword.
@@ -60,7 +67,8 @@ local SWINGS: { [string]: any } = {
 local SWING_BY_MOVE: { [string]: { [string]: any } } = {
 	Flail = {
 		LightNeutral2 = { arc = { D(96), D(200), D(220) }, via = D(-2), trail = D(140), heavy = true },
-		LightNeutral3 = { arc = { D(110), D(205), D(225) }, via = D(-4), trail = D(160), heavy = true },
+		-- Full Circle winds up from overhead behind, so it reads as the orbit it is and not Return again
+		LightNeutral3 = { arc = { D(160), D(205), D(225) }, via = D(-12), trail = D(200), heavy = true },
 	},
 }
 
@@ -76,6 +84,12 @@ local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
 		sigside = { arc = { D(175), D(-38), D(-14) }, trail = D(170), heavy = true },
 		sigdown = { arc = { D(168), D(-88), D(-70) }, trail = D(165), heavy = true },
 		signeut = { arc = { D(-125), D(120), D(98) }, trail = D(150), heavy = true },
+		jab2 = { arc = { D(-45), D(10), D(30) }, trail = D(75), heavy = true },
+		jab3 = { arc = { D(130), D(-15), D(5) }, trail = D(140), heavy = true },
+		side2 = { arc = { D(210), D(-35), D(-12) }, trail = D(240), heavy = true },
+		finisher = { arc = { D(200), D(-90), D(-70) }, trail = D(250), heavy = true },
+		airslam = { arc = { D(165), D(-100), D(-92) }, trail = D(170), heavy = true },
+		airlaunch = { arc = { D(-130), D(42), D(30) }, trail = D(170), heavy = true },
 	},
 	Pike = {
 		jab =     { arc = { D(-26), D(2), D(-8) }, trail = D(26), thrust = 0.2 },
@@ -89,6 +103,12 @@ local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
 		sigside = { arc = { D(-34), D(2), D(-10) }, trail = D(32), thrust = 0.35, heavy = true },
 		sigdown = { arc = { D(-4), D(-38), D(-28) }, trail = D(32), thrust = 0.3, heavy = true },
 		signeut = { arc = { D(10), D(92), D(76) }, trail = D(48), thrust = 0.3, heavy = true },
+		jab2 = { arc = { D(-40), D(14), D(4) }, trail = D(36), thrust = 0.3 },
+		jab3 = { arc = { D(-30), D(-2), D(-10) }, trail = D(30), thrust = 0.4 },
+		side2 = { arc = { D(-64), D(8), D(-2) }, trail = D(60), thrust = 0.3 },
+		finisher = { arc = { D(55), D(2), D(-8) }, trail = D(60), thrust = 0.45, heavy = true },
+		airslam = { arc = { D(-60), D(-94), D(-88) }, trail = D(36), thrust = 0.25 },
+		airlaunch = { arc = { D(-10), D(25), D(15) }, trail = D(36), thrust = 0.3, heavy = true },
 	},
 	Hammer = {
 		jab =     { arc = { D(70), D(-8), D(12) }, trail = D(70), heavy = true },
@@ -101,6 +121,12 @@ local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
 		sigside = { arc = { D(178), D(-40), D(-16) }, trail = D(175), heavy = true },
 		sigdown = { arc = { D(172), D(-90), D(-72) }, trail = D(170), heavy = true },
 		signeut = { arc = { D(-130), D(124), D(100) }, trail = D(158), heavy = true },
+		jab2 = { arc = { D(-50), D(5), D(25) }, trail = D(70), heavy = true },
+		jab3 = { arc = { D(140), D(-20), D(0) }, trail = D(160), heavy = true },
+		side2 = { arc = { D(215), D(-40), D(-14) }, trail = D(250), heavy = true },
+		finisher = { arc = { D(205), D(-95), D(-78) }, trail = D(260), heavy = true },
+		airslam = { arc = { D(170), D(-100), D(-95) }, trail = D(170), heavy = true },
+		airlaunch = { arc = { D(-135), D(40), D(28) }, trail = D(175), heavy = true },
 	},
 	Daggers = {
 		jab =     { arc = { D(58), D(14), D(30) }, trail = D(44), thrust = 0.2 },
@@ -114,6 +140,12 @@ local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
 		sigside = { arc = { D(88), D(2), D(22) }, trail = D(80), heavy = true },
 		sigdown = { arc = { D(34), D(-60), D(-44) }, trail = D(70), heavy = true },
 		signeut = { arc = { D(-92), D(94), D(76) }, trail = D(96), heavy = true },
+		jab2 = { arc = { D(-20), D(18), D(30) }, trail = D(48) },
+		jab3 = { arc = { D(86), D(4), D(24) }, trail = D(82), thrust = 0.25 },
+		side2 = { arc = { D(160), D(0), D(20) }, trail = D(160) },
+		finisher = { arc = { D(120), D(-20), D(6) }, trail = D(140), heavy = true },
+		airslam = { arc = { D(-40), D(-96), D(-88) }, trail = D(60) },
+		airlaunch = { arc = { D(-96), D(45), D(32) }, trail = D(140), heavy = true },
 	},
 	Flail = {
 		jab =     { arc = { D(96), D(-2), D(34) }, trail = D(96), heavy = true },
@@ -127,12 +159,21 @@ local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
 		sigside = { arc = { D(186), D(-40), D(24) }, trail = D(190), heavy = true },
 		sigdown = { arc = { D(40), D(-86), D(-52) }, trail = D(140), heavy = true },
 		signeut = { arc = { D(-134), D(128), D(96) }, trail = D(160), heavy = true },
+		side2 = { arc = { D(220), D(-40), D(20) }, trail = D(230), heavy = true },
+		finisher = { arc = { D(210), D(-80), D(-30) }, trail = D(250), heavy = true },
+		airslam = { arc = { D(160), D(-100), D(-80) }, trail = D(170), heavy = true },
+		airlaunch = { arc = { D(-140), D(50), D(30) }, trail = D(190), heavy = true },
 	},
 }
 
 local function categoryOf(id: string?): string?
 	if not id or id == "" then return nil end
 	if id == "Ultimate" then return "ult" end
+	if id == "LightNeutral2" then return "jab2" end
+	if id == "LightNeutral3" then return "jab3" end
+	if id == "LightSide2" then return "side2" end
+	if id == "Finisher" then return "finisher" end
+	if id == "AirFinisher" then return "airfinisher" end   -- a slam or a heave: by its angle
 	if string.sub(id, 1, 12) == "LightNeutral" then return "jab" end
 	if string.sub(id, 1, 9) == "LightSide" then return "side" end
 	if id == "LightDown" then return "down" end
@@ -574,6 +615,12 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	if s == "shield" or s == "shielddrop" then out.angle = guardOf(wid) - 0.25; return out end
 	if s == "ledge" or s == "tether" then out.angle = D(-110); return out end
 	if s == "knockdown" or s == "ko" then out.hide = true; return out end
+	-- the combo break: flung up with the arms, back down to the guard
+	if s == "breakout" then
+		local k = math.min(1, (f.stateFrame or 0) / 16)
+		out.angle = D(80) + (guardOf(wid) - D(80)) * easeOut(k)
+		return out
+	end
 	if s == "hitstun" or s == "tumble" then
 		out.angle = D(-120) + math.sin(f.stateFrame * 0.7) * 0.5
 		return out
@@ -593,6 +640,7 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	local m = move
 	local st, act, rec, mf = f.startupEff, m.active, m.recovery, f.moveFrame
 	local cat = categoryOf(m.id)
+	if cat == "airfinisher" then cat = if m.angle > 180 then "airslam" else "airlaunch" end
 	if cat == "ult" then
 		return ultimatePose(f, m, wid, out, t)
 	end

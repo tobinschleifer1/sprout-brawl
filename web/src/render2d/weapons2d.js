@@ -36,6 +36,17 @@ const SWINGS = {
   sigside:  { arc: [D(175), D(-40), D(-15)], trail: D(150), heavy: true },
   sigdown:  { arc: [D(150), D(-85), D(-65)], trail: D(140), heavy: true },
   signeut:  { arc: [D(-120), D(130), D(110)], trail: D(140), heavy: true },
+  // The combo steps (COMBO in config.js), each its own motion so a string reads as one: the
+  // backhand return rises into the target where the jab fell onto it, the cross comes from further
+  // back, the second side cut is the spin's full sweep, the finisher an overhead cleave, and an air
+  // finisher either drives straight down (a spike) or heaves up and forward. Every contact angle
+  // points at its move's hitbox - geometry.test.mjs holds the blade to it on every live frame.
+  jab2:      { arc: [D(-50), D(15), D(35)], trail: D(85) },
+  jab3:      { arc: [D(115), D(-12), D(8)], trail: D(125), heavy: true },
+  side2:     { arc: [D(205), D(-30), D(-10)], trail: D(235), heavy: true },
+  finisher:  { arc: [D(195), D(-70), D(-45)], trail: D(250), heavy: true },
+  airslam:   { arc: [D(150), D(-100), D(-88)], trail: D(170), heavy: true },
+  airlaunch: { arc: [D(-120), D(45), D(35)], trail: D(165), heavy: true },
 };
 
 // Per-weapon arc overrides. The shared SWINGS table is the sword's motion, and two weapons do not
@@ -61,6 +72,12 @@ const SWING_BY_WEAPON = {
     sigside: { arc: [D(175), D(-38), D(-14)], trail: D(170), heavy: true },
     sigdown: { arc: [D(168), D(-88), D(-70)], trail: D(165), heavy: true },
     signeut: { arc: [D(-125), D(120), D(98)], trail: D(150), heavy: true },
+    jab2:      { arc: [D(-45), D(10), D(30)], trail: D(75), heavy: true },
+    jab3:      { arc: [D(130), D(-15), D(5)], trail: D(140), heavy: true },
+    side2:     { arc: [D(210), D(-35), D(-12)], trail: D(240), heavy: true },
+    finisher:  { arc: [D(200), D(-90), D(-70)], trail: D(250), heavy: true },
+    airslam:   { arc: [D(165), D(-100), D(-92)], trail: D(170), heavy: true },
+    airlaunch: { arc: [D(-130), D(42), D(30)], trail: D(170), heavy: true },
   },
   // A THRUST reads through the body, not the prop.
   //
@@ -86,6 +103,13 @@ const SWING_BY_WEAPON = {
     sigside: { arc: [D(-34), D(2), D(-10)], trail: D(32), thrust: 0.35, heavy: true },
     sigdown: { arc: [D(-4), D(-38), D(-28)], trail: D(32), thrust: 0.3, heavy: true },
     signeut: { arc: [D(10), D(92), D(76)], trail: D(48), thrust: 0.3, heavy: true },
+    // the string's points: the second rises into the line, the third and the finisher drive deep
+    jab2:      { arc: [D(-40), D(14), D(4)], trail: D(36), thrust: 0.3 },
+    jab3:      { arc: [D(-30), D(-2), D(-10)], trail: D(30), thrust: 0.4 },
+    side2:     { arc: [D(-64), D(8), D(-2)], trail: D(60), thrust: 0.3 },
+    finisher:  { arc: [D(55), D(2), D(-8)], trail: D(60), thrust: 0.45, heavy: true },   // down onto the line from the leap
+    airslam:   { arc: [D(-60), D(-94), D(-88)], trail: D(36), thrust: 0.25 },
+    airlaunch: { arc: [D(-10), D(25), D(15)], trail: D(36), thrust: 0.3, heavy: true },
   },
   // The hammer is the axe's arcs taken further: it is heavier than the axe and every heavy is a
   // lift and a drop, so the cocked angle is higher and the contact is at or below the floor line.
@@ -100,6 +124,12 @@ const SWING_BY_WEAPON = {
     sigside: { arc: [D(178), D(-40), D(-16)], trail: D(175), heavy: true },
     sigdown: { arc: [D(172), D(-90), D(-72)], trail: D(170), heavy: true },
     signeut: { arc: [D(-130), D(124), D(100)], trail: D(158), heavy: true },
+    jab2:      { arc: [D(-50), D(5), D(25)], trail: D(70), heavy: true },
+    jab3:      { arc: [D(140), D(-20), D(0)], trail: D(160), heavy: true },
+    side2:     { arc: [D(215), D(-40), D(-14)], trail: D(250), heavy: true },
+    finisher:  { arc: [D(205), D(-95), D(-78)], trail: D(260), heavy: true },
+    airslam:   { arc: [D(170), D(-100), D(-95)], trail: D(170), heavy: true },
+    airlaunch: { arc: [D(-135), D(40), D(28)], trail: D(175), heavy: true },
   },
   // A dagger is not a small sword: the arcs are short and they end pointing where the blade is
   // going, because at a 1.5-stud blade there is no arc long enough to read on its own. Measured on
@@ -116,6 +146,12 @@ const SWING_BY_WEAPON = {
     sigside: { arc: [D(88), D(2), D(22)], trail: D(80), heavy: true },
     sigdown: { arc: [D(34), D(-60), D(-44)], trail: D(70), heavy: true },
     signeut: { arc: [D(-92), D(94), D(76)], trail: D(96), heavy: true },
+    jab2:      { arc: [D(-20), D(18), D(30)], trail: D(48) },
+    jab3:      { arc: [D(86), D(4), D(24)], trail: D(82), thrust: 0.25 },
+    side2:     { arc: [D(160), D(0), D(20)], trail: D(160) },
+    finisher:  { arc: [D(120), D(-20), D(6)], trail: D(140), heavy: true },
+    airslam:   { arc: [D(-40), D(-96), D(-88)], trail: D(60) },
+    airlaunch: { arc: [D(-96), D(45), D(32)], trail: D(140), heavy: true },
   },
   // The flail's head is on four studs of chain: it travels further than anything else and it does
   // not stop where the swing stops, which is why every settle angle here overshoots.
@@ -131,6 +167,11 @@ const SWING_BY_WEAPON = {
     sigside: { arc: [D(186), D(-40), D(24)], trail: D(190), heavy: true },
     sigdown: { arc: [D(40), D(-86), D(-52)], trail: D(140), heavy: true },
     signeut: { arc: [D(-134), D(128), D(96)], trail: D(160), heavy: true },
+    // (Return and Full Circle - LightNeutral2/3 - keep their out-and-behind arcs from SWING_BY_MOVE)
+    side2:     { arc: [D(220), D(-40), D(20)], trail: D(230), heavy: true },
+    finisher:  { arc: [D(210), D(-80), D(-30)], trail: D(250), heavy: true },
+    airslam:   { arc: [D(160), D(-100), D(-80)], trail: D(170), heavy: true },
+    airlaunch: { arc: [D(-140), D(50), D(30)], trail: D(190), heavy: true },
   },
 };
 
@@ -142,13 +183,19 @@ const SWING_BY_WEAPON = {
 const SWING_BY_MOVE = {
   Flail: {
     LightNeutral2: { arc: [D(96), D(200), D(220)], via: D(-2), trail: D(140), heavy: true },
-    LightNeutral3: { arc: [D(110), D(205), D(225)], via: D(-4), trail: D(160), heavy: true },
+    // Full Circle winds up from overhead behind, so it reads as the orbit it is and not Return again
+    LightNeutral3: { arc: [D(160), D(205), D(225)], via: D(-12), trail: D(200), heavy: true },
   },
 };
 
 function categoryOf(id) {
   if (!id) return null;
   if (id === 'Ultimate') return 'ult';
+  if (id === 'LightNeutral2') return 'jab2';
+  if (id === 'LightNeutral3') return 'jab3';
+  if (id === 'LightSide2') return 'side2';
+  if (id === 'Finisher') return 'finisher';
+  if (id === 'AirFinisher') return 'airfinisher';         // a slam or a heave: by its angle, below
   if (id.startsWith('LightNeutral')) return 'jab';
   if (id.startsWith('LightSide')) return 'side';
   if (id === 'LightDown') return 'down';
@@ -239,6 +286,8 @@ export function weaponPose(f, t) {
   if (s === 'shield' || s === 'shielddrop') { out.angle = (GUARD[wid] ?? REST[wid] ?? D(-70)) - 0.25; return out; }
   if (s === 'ledge' || s === 'tether') { out.angle = D(-110); return out; }
   if (s === 'knockdown' || s === 'ko') { out.hide = true; return out; }
+  // The combo break: the weapon is flung up with the arms and comes back down to the guard.
+  if (s === 'breakout') { const k = Math.min(1, f.sf / 16); out.angle = D(80) + ((GUARD[wid] ?? REST[wid] ?? D(-70)) - D(80)) * easeOut(k); return out; }
   if (s === 'hitstun' || s === 'tumble') { out.angle = D(-120) + Math.sin(f.sf * 0.7) * 0.5; return out; }
   // In the air the weapon says which way you are going: trailing behind and below on the way up,
   // swung forward and ready on the way down, blended through the apex by vertical speed. It used
@@ -251,7 +300,8 @@ export function weaponPose(f, t) {
 
   const m = f.move;
   const st = f.startupEff, act = m.active, rec = m.recovery, mf = f.mf;
-  const cat = categoryOf(m.id);
+  let cat = categoryOf(m.id);
+  if (cat === 'airfinisher') cat = m.angle > 180 ? 'airslam' : 'airlaunch';
   if (cat === 'ult') return ultimatePose(f, m, wid, out, t);
   const swing = (SWING_BY_MOVE[wid] && SWING_BY_MOVE[wid][m.id]) || (SWING_BY_WEAPON[wid] && SWING_BY_WEAPON[wid][cat]) || SWINGS[cat] || SWINGS.jab;
 

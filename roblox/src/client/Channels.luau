@@ -106,10 +106,38 @@ end
 -- Which ordinary categories a thrusting weapon replaces. Rising attacks stay rotational: you cannot
 -- thrust upward off a line that runs forward, and the pike's up-angled moves genuinely are swings
 -- of the point.
+-- The combo steps each get a thrust of their own (the second point high, the third deep); a
+-- thrusting weapon's finisher keeps the jump-in body. See channels.js.
 local THRUSTABLE: { [string]: string } = {
 	jab = "thrust", side = "thrust", fair = "thrust", sigside = "thrust",
 	down = "thrustlow", sigdown = "thrustlow", dair = "thrustlow",
+	jab2 = "thrusthigh", side2 = "thrusthigh", jab3 = "thrustlunge",
 }
+
+-- Which body family a move is (channels.js bodyCategory): the combo steps each have their own, and
+-- an air finisher is a slam if it sends downward, a heave if it sends up.
+function Channels.bodyCategory(m: any): string
+	local id = m.id or ""
+	if id == "LightNeutral2" then return "jab2" end
+	if id == "LightNeutral3" then return "jab3" end
+	if id == "LightSide2" then return "side2" end
+	if id == "Finisher" then return "finisher" end
+	if id == "AirFinisher" then return if m.angle > 180 then "airslam" else "airlaunch" end
+	if string.sub(id, 1, 12) == "LightNeutral" then return "jab" end
+	if string.sub(id, 1, 9) == "LightSide" or id == "ItemSwing" then return "side" end
+	if id == "LightDown" then return "down" end
+	if id == "LightUp" then return "up" end
+	if id == "AirNeutral" then return "nair" end
+	if id == "AirForward" then return "fair" end
+	if id == "AirDown" then return "dair" end
+	if id == "AirUp" then return "uair" end
+	if id == "SigSide" then return "sigside" end
+	if id == "SigDown" then return "sigdown" end
+	if id == "SigNeutral" then return "signeut" end
+	if id == "CounterBurst" then return "burst" end
+	if id == "ItemSpray" then return "spray" end
+	return "jab"
+end
 
 -- ------------------------------------------------------- the ultimate bodies -----
 -- Each of these is written against the SAME phase boundaries weapons2d.js's ultimatePose uses, so
@@ -475,21 +503,7 @@ local function attackChannels(ch: any, f: any, char: any, move: any, t: number)
 	if id == "Ultimate" then
 		return ultChannels(ch, f, char, m, t)
 	end
-	local cat
-	if string.sub(id, 1, 12) == "LightNeutral" then cat = "jab"
-	elseif string.sub(id, 1, 9) == "LightSide" or id == "ItemSwing" then cat = "side"
-	elseif id == "LightDown" then cat = "down"
-	elseif id == "LightUp" then cat = "up"
-	elseif id == "AirNeutral" then cat = "nair"
-	elseif id == "AirForward" then cat = "fair"
-	elseif id == "AirDown" then cat = "dair"
-	elseif id == "AirUp" then cat = "uair"
-	elseif id == "SigSide" then cat = "sigside"
-	elseif id == "SigDown" then cat = "sigdown"
-	elseif id == "SigNeutral" then cat = "signeut"
-	elseif id == "CounterBurst" then cat = "burst"
-	elseif id == "ItemSpray" then cat = "spray"
-	else cat = "jab" end
+	local cat = Channels.bodyCategory(m)
 	ch.smear = s.smear * (if m.heavy then 1 else 0.7)
 
 	-- A weapon can declare that it THRUSTS. A thrust is not a small swing: the reach comes from the
@@ -604,6 +618,54 @@ local function attackChannels(ch: any, f: any, char: any, move: any, t: number)
 		ch.lean = -0.3 * pos(w)
 		ch.bob = 0.24 * pos(w)
 		ch.legL = -0.4 * pos(w); ch.legR = 0.3 * pos(w)
+	-- ---- the combo steps (channels.js has the reasoning); every pose is at rest at w = 0 ----
+	elseif cat2 == "jab2" then
+		ch.armR.z = if w < 0 then (F + 0.7) * -w else (F - 0.35) * w
+		ch.armL.z = 0.5 - 0.7 * math.abs(wLag2)
+		ch.lean = if w < 0 then -0.06 * -w else 0.26 * w
+		ch.head = 0.12 * pos(-w) - 0.1 * pos(wLag3)
+		ch.legL = 0.3 * pos(w); ch.legR = -0.12 * pos(w)
+		ch.sx = 1 + 0.08 * pos(w)
+	elseif cat2 == "jab3" then
+		ch.armR.z = if w < 0 then -0.95 * -w else (F + 0.15) * w
+		ch.armL.z = 0.2 - 0.9 * pos(wLag3)
+		ch.lean = if w < 0 then -0.22 * -w else 0.4 * w
+		ch.legR = 0.6 * pos(w) - 0.15 * pos(-w); ch.legL = -0.4 * pos(w)
+		ch.sx = 1 + 0.14 * pos(w); ch.sy = 1 - 0.07 * pos(w)
+		ch.bob = -0.1 * pos(w)
+		ch.head = -0.16 * pos(wLag3)
+	elseif cat2 == "side2" then
+		ch.spinY = if w > 0 then PI * 2 * easeOut(clamp(w, 0, 1)) else 0
+		ch.armR.z = if w < 0 then -1.35 * -w else (F + 0.4) * w
+		ch.armL.z = -0.3 - 0.6 * pos(wLag2)
+		ch.lean = if w < 0 then -0.4 * -w else 0.5 * w
+		ch.legR = 0.65 * pos(w); ch.legL = -0.45 * pos(w)
+		ch.sx = 1 + 0.12 * pos(w)
+	elseif cat2 == "finisher" then
+		ch.armR.z = if w < 0 then -0.6 - 2.3 * -w else (F + 0.5) * w
+		ch.armL.z = if w < 0 then 0.6 + 2.2 * -w else 1.2 * pos(wLag2)
+		ch.sy = if w < 0 then 1 + 0.2 * -w else 1 - 0.24 * w
+		ch.sx = if w < 0 then 1 - 0.1 * -w else 1 + 0.26 * w
+		ch.lean = if w < 0 then -0.3 * -w else 0.6 * w
+		ch.bob = 0.45 * pos(-w) - 0.25 * pos(w)
+		ch.legR = 0.9 * pos(w) - 0.3 * pos(-w); ch.legL = -0.6 * pos(w) + 0.3 * pos(-w)
+		ch.head = 0.3 * pos(wLag3) - 0.2 * pos(-w)
+	elseif cat2 == "airslam" then
+		if w < 0 then
+			ch.armL.z = 3.0 * -w; ch.armR.z = -3.0 * -w; ch.sy = 1 + 0.16 * -w; ch.legL = -0.6 * -w; ch.legR = -0.5 * -w; ch.head = -0.2 * -w
+		else
+			ch.armL.z = 0.25 - 0.7 * w; ch.armR.z = -0.25 + 0.7 * w; ch.sy = 1 - 0.18 * w; ch.sx = 1 + 0.2 * w
+			ch.head = 0.5 * w; ch.legL = 0.6 * w; ch.legR = 0.5 * w; ch.lean = 0.3 * w
+		end
+	elseif cat2 == "airlaunch" then
+		ch.armR.z = if w < 0 then -0.9 * -w else (F + 1.3) * w
+		ch.armL.z = if w < 0 then 0.9 * -w else 1.3 * pos(wLag2)
+		ch.sy = if w < 0 then 1 - 0.18 * -w else 1 + 0.24 * w
+		ch.sx = if w < 0 then 1 + 0.14 * -w else 1 - 0.12 * w
+		ch.legL = if w < 0 then 0.8 * -w else -0.8 * w
+		ch.legR = if w < 0 then 0.7 * -w else -0.6 * w
+		ch.lean = -0.3 * pos(w)
+		ch.head = -0.25 * pos(w)
 	elseif cat2 == "burst" then
 		ch.sx = 1 + 0.3 * pos(w); ch.sy = 1 + 0.3 * pos(w)
 		ch.armL.z = 1.6 * pos(w); ch.armR.z = -1.6 * pos(w)
@@ -622,6 +684,24 @@ local function attackChannels(ch: any, f: any, char: any, move: any, t: number)
 		ch.sx = 1 + 0.1 * pos(w); ch.sy = 1 - 0.06 * pos(w) + 0.05 * pos(-w)
 		ch.head = -0.14 * pos(wLag2)
 		ch.bob = -0.2 * pos(w) + 0.1 * pos(-w)
+	elseif cat2 == "thrusthigh" then
+		ch.armR.z = if w < 0 then -0.2 * -w else (F + 0.4) * pos(w)
+		ch.armR.ext = 1 + (if w < 0 then -0.2 * -w else 0.55 * w)
+		ch.armL.z = 0.7 - 1.1 * pos(wLag2)
+		ch.lean = if w < 0 then -0.18 * -w else 0.2 * w
+		ch.sy = 1 + 0.12 * pos(w) - 0.08 * pos(-w)
+		ch.legR = 0.5 * pos(w); ch.legL = -0.5 * pos(w)
+		ch.bob = 0.16 * pos(w) - 0.1 * pos(-w)
+		ch.head = -0.22 * pos(wLag3)
+	elseif cat2 == "thrustlunge" then
+		ch.armR.z = if w < 0 then -0.6 * -w else (F - 0.1) * pos(w)
+		ch.armR.ext = 1 + (if w < 0 then -0.26 * -w else 0.78 * w)
+		ch.armL.z = 0.4 - 1.4 * pos(wLag3)
+		ch.lean = if w < 0 then -0.36 * -w else 0.58 * w
+		ch.legR = 1.35 * pos(w) - 0.3 * pos(-w); ch.legL = -0.95 * pos(w) + 0.35 * pos(-w)
+		ch.sy = 1 - 0.16 * pos(w) + 0.06 * pos(-w); ch.sx = 1 + 0.16 * pos(w)
+		ch.bob = -0.34 * pos(w) + 0.12 * pos(-w)
+		ch.head = -0.1 * pos(wLag2)
 	elseif cat2 == "thrustlow" then
 		-- The same drive aimed at the ankles: the fighter drops into it rather than leaning into it.
 		ch.armR.z = if w < 0 then -0.4 * -w else (F + 0.55) * pos(w)
@@ -760,6 +840,15 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 		local br = math.sin(sf * 0.22)
 		ch.armL.z = 1.2 + br * 0.18; ch.armR.z = -1.2 - br * 0.14
 		ch.sy = 0.95 + br * 0.03; ch.head = br * 0.2; ch.bob = br * 0.1
+	elseif s == "breakout" then
+		-- the combo break: burst open, flash white, settle back in on the spring
+		local k = clamp(sf / 16, 0, 1)
+		local q = settle(k, 2.4, 5)
+		ch.armL.z = 2.4 - 1.9 * q; ch.armR.z = -2.4 + 1.9 * q
+		ch.legL = 0.6 - 0.45 * q; ch.legR = -0.6 + 0.45 * q
+		ch.sx = 1.22 - 0.22 * q; ch.sy = 1.12 - 0.12 * q
+		ch.head = -0.3 * (1 - q)
+		ch.tint = if sf < 4 then "#FFFFFF" else nil
 	elseif s == "tech" then
 		ch.opacity = 0.6
 		if f.techRoll ~= 0 then

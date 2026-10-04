@@ -228,7 +228,7 @@ export class Combat {
     if (direct && move.dragVictim && hb && hb.rehitEvery && victim.pendingLaunch) victim.pendingLaunch = { vx: attacker.vx * 0.95, vy: 6 };
     this.onHitLanded(attacker, victim, move, isMelee);
     if (victim.item && damage >= ITEM_CFG.knockOutDamage) this.dropItem(victim, true);
-    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits });
+    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits, finisher: !!move.finisher });
     return true;
   }
 

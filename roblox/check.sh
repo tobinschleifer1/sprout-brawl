@@ -110,6 +110,8 @@ echo "== the fight camera: framing at every resolution =="
 lune run tests/camera
 echo "== the ultimates' pixel-art effects, played in real matches =="
 lune run tests/ult-fx
+echo "== combos on screen: the counter, the break prompt, the guide, and the combo effects =="
+lune run tests/combo-hud
 echo "== hits, the shield and flying: impacts, the shell, speed lines and smoke =="
 lune run tests/hit-fx
 echo "== what a client is allowed to ask the server for =="

@@ -52,6 +52,7 @@ function snapEvents(evts) {
     for (const k of EVENT_NUMS) row.push(e[k] === undefined ? null : n(e[k]));
     row.push(e.perfect === undefined ? null : e.perfect);
     row.push(e.heavy === undefined ? null : e.heavy);
+    row.push(e.finisher === undefined ? null : e.finisher);
     return row;
   });
 }

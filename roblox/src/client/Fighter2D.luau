@@ -32,6 +32,9 @@ Fighter2D.effects = nil :: any
 -- Team colour by fighter index in a team match, or nil: each fighter then stands in a disc of it
 -- (web/src/data/teams.js TEAM_GLOW). Set by the client when a match starts.
 Fighter2D.teamColours = nil :: any
+-- A brief flash over a fighter by index - a timed link's gold (FxPlayer.glows) - drawn the way the
+-- hit flash is, as the fighter's own silhouette in the colour. Set each frame by FightScene.
+Fighter2D.glows = nil :: any
 local TEAMS = require(game:GetService("ReplicatedStorage").Shared.Data.Teams)
 local TEAM_GLOW, TEAM_MARKER = TEAMS.glow, TEAMS.marker
 
@@ -73,6 +76,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- client already has, so it is looked up from moveId here.
 	local move = if s.moveId then char.moves[s.moveId] else nil
 	local ch = Channels.For(s, char, move, t)
+	local glow = if Fighter2D.glows then Fighter2D.glows[s.index] else nil
+	if glow and not ch.tint then ch.tint = glow.colour end     -- the pose's own flash wins
 	local wpose = WeaponPose.For(s, char, move, t)
 	local wid = if char.weapon then char.weapon.id else nil
 	if not ch.visible then

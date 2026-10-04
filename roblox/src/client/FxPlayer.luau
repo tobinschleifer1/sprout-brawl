@@ -27,12 +27,13 @@ export type Item = {
 }
 
 function FxPlayer.new(): any
-	return { items = {} :: { Item }, flash = 0, flashColour = "#FFFFFF", seed = 0 }
+	return { items = {} :: { Item }, flash = 0, flashColour = "#FFFFFF", seed = 0, glows = {} }
 end
 
 function FxPlayer.clear(P: any)
 	table.clear(P.items)
 	P.flash = 0
+	table.clear(P.glows)
 end
 
 -- `size` is the drawing's width in studs. `dur` seconds plays the whole flipbook once.
@@ -118,6 +119,9 @@ FxPlayer.CLASS = {
 -- Hits use one variation of each drawing: they already differ by the angle they are aimed along,
 -- and every variation is a sprite built the first time it is seen (ult-fx holds the budget).
 local ONE = { seed = 0 }
+-- A timed link's flash over the fighter (COMBO): gold, for this long.
+FxPlayer.PERFECT = "#FFD24A"
+FxPlayer.GLOW_TIME = 0.1
 
 function FxPlayer.hit(P: any, e: any, states: { any }, chars: { any }): boolean
 	local s = stateOf(states, e.attacker)
@@ -144,6 +148,15 @@ function FxPlayer.hit(P: any, e: any, states: { any }, chars: { any }): boolean
 	else
 		add(P, "pop", e.x, e.y, size * 1.15, dur, glow, { rot = (P.seed % 8) * 0.39, seed = 0 })
 		if e.heavy then add(P, "ring", e.x, e.y, size * 1.8, dur, glow, ONE) end
+	end
+	-- A finisher (COMBO, config.js): the end of a string linked perfectly all the way. Its impact
+	-- goes off two sizes up, in a gold burst under the weapon's own, with a flash of the screen and
+	-- the hardest shake a hit gives (FightScene.spawn).
+	if e.finisher then
+		add(P, "burst", e.x, e.y, size * 2.4, 0.36, "gold", ONE)
+		add(P, "ring", e.x, e.y, size * 3.6, 0.34, glow, ONE)
+		add(P, "ring", e.x, e.y, size * 2.2, 0.26, "gold", { seed = 0, delay = 0.05 })
+		flash(P, 0.26, glow or "#FFE07A")
 	end
 	if e.heavy then
 		local v = stateOf(states, e.victim)
@@ -182,6 +195,51 @@ function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolea
 	end
 	if t == "hit" then
 		return FxPlayer.hit(P, e, states, chars)
+	end
+	-- ---- combos (COMBO in config.js) ----
+	if t == "perfectlink" then
+		-- A timed link: a gold star where the fighter is, bigger the longer the streak, and a brief
+		-- gold flash over the fighter's own silhouette (P.glows, read by Fighter2D via FightScene).
+		local s = stateOf(states, e.fighter)
+		local char = if s then chars[s.index + 1] else nil
+		local streak = math.min(e.streak or 1, 4)
+		local x, y = e.x or (s and s.x) or 0, e.y or (if s and char then s.y + char.height * 0.5 else 0)
+		local size = 1.6 + streak * 0.5 + (if e.finisher then 1 else 0)
+		add(P, "star", x, y, size, 0.22, "gold", ONE)
+		add(P, "ring", x, y, size * 1.6, 0.24, "gold", ONE)
+		if e.fighter ~= nil then P.glows[e.fighter] = { colour = FxPlayer.PERFECT, left = FxPlayer.GLOW_TIME } end
+		return true
+	end
+	if t == "combobreak" then
+		-- The break: a shockwave in the breaker's shield colour, and shards of the combo flung out.
+		local col = FxPlayer.shieldColour and FxPlayer.shieldColour(e.fighter) or "#4FC8FF"
+		local x, y = e.x or 0, e.y or 0
+		add(P, "burst", x, y, 6, 0.34, col, ONE)
+		add(P, "ring", x, y, 10, 0.36, col, ONE)
+		add(P, "ring", x, y, 6, 0.3, "#FFFFFF", { seed = 0, delay = 0.04, sy = 0.5 })
+		for k = 0, 5 do
+			local a = k / 6 * math.pi * 2
+			add(P, "spark", x + math.cos(a) * 2.2, y + math.sin(a) * 2.2, 1.2, 0.26, col, { rot = a, seed = 0, delay = k * 0.012 })
+		end
+		flash(P, 0.16, col)
+		return true
+	end
+	if t == "chase" then
+		-- The chase: a streak in the attacker's weapon colour, aimed at the fighter they are after.
+		local s, v = stateOf(states, e.fighter), stateOf(states, e.victim)
+		local char = if s then chars[s.index + 1] else nil
+		if not s or not v or not char then return false end
+		local cy = s.y + char.height * 0.5
+		local vc = chars[v.index + 1]
+		local a = math.atan2(v.y + (if vc then vc.height * 0.5 else 2.5) - cy, v.x - s.x)
+		add(P, "lance", s.x - math.cos(a) * 1.5, cy - math.sin(a) * 1.5, 4.5, 0.18, glowOf(char), { rot = a, sy = 0.6, seed = 0 })
+		return true
+	end
+	if t == "cancel" then
+		-- A cancel: a small puff where the fighter cut the move short.
+		local s = stateOf(states, e.fighter)
+		add(P, "pop", e.x or (s and s.x) or 0, (s and s.y or e.y or 0) + 0.4, 1.8, 0.18, "wind", ONE)
+		return true
 	end
 	if t == "shieldbreak" then
 		-- the shell shatters: a burst in its colour and shards flung out of it
@@ -311,6 +369,10 @@ function FxPlayer.step(P: any, dt: number)
 	end
 	P.items = keep
 	P.flash = math.max(0, P.flash - dt * 5)
+	for i, g in P.glows do
+		g.left -= dt
+		if g.left <= 0 then P.glows[i] = nil end
+	end
 end
 
 function FxPlayer.draw(P: any, c: any)

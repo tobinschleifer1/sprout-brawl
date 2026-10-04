@@ -45,9 +45,12 @@ local gap = tonumber(process.args[7] or "7") or 7
 -- "left": the caster starts on the right and faces left, so the mirrored drawing is seen too
 local side = if process.args[8] == "left" then -1 else 1
 -- "calm": nobody presses anything - for looking at a stage
-local noUlt = process.args[9] == "calm" or process.args[9] == "wide" or process.args[9] == "brawl"
+local noUlt = process.args[9] == "calm" or process.args[9] == "wide" or process.args[9] == "brawl" or process.args[9] == "combo"
 -- "brawl": every fighter is a hard bot, to see ordinary hits, shields and launches
 local brawl = process.args[9] == "brawl"
+-- "combo": the caster plays a timed string into its finisher (Light pressed as each hit lands) on
+-- the first enemy, who starts at 120% - for looking at the combo effects and the counter's events
+local comboMode = process.args[9] == "combo"
 -- "wide": a fixed camera on the whole stage instead of the fight camera
 local wide = process.args[9] == "wide"
 -- a disaster to force, from 0.1 s into the fight (frames then count from the fight's start)
@@ -62,6 +65,7 @@ local held: { [string]: boolean } = {}
 local inputs = { poll = function() end, get = function(_, source)
 	local f = Input.emptyFrame()
 	if held[source] then f.ult = true end
+	if comboMode and source == "p1" and held.light then f.light = true; f.anyPress = true end
 	return f
 end }
 local fighters = { { char = Loadout.build(avatar, weapon), source = "p1", team = 0 } }
@@ -98,11 +102,18 @@ local rand = (function() local s = 7; return function() s = (s * 48271) % 214748
 for frame = 0, last do
 	caster.ultCharge = if frame == 0 then 100 else caster.ultCharge
 	held.p1 = not noUlt and (frame == 0 or (frame % 20 == 0 and frame < 140))
+	if comboMode then
+		if frame == 0 then match.fighters[2].percent = 120 end
+		held.light = frame == 1 or (caster.state == "attack" and caster.moveLanded and caster.moveId ~= "Finisher")
+	end
 	match:step()
 	local states = {}
 	for _, f in match.fighters do table.insert(states, Snapshot.decode(Snapshot.encode(f))) end
 	local scene = SceneSnapshot.encode(match)
 	for _, e in match.events do
+		if comboMode and (e.type == "perfectlink" or (e.type == "hit" and e.attacker == 0)) then
+			print(`frame {frame}: {e.type}{if e.finisher then " (finisher)" else ""}{if e.streak then " streak " .. e.streak else ""}`)
+		end
 		if e.type == "ultimate" and not ultFrame then ultFrame = frame end
 		FightScene.spawn(fx, player, e, states, chars, function(i) local ch = chars[(i or 0) + 1]; return ch and ch.weaponPalette.glow end,
 			rand, function() return 5.2 end, true)

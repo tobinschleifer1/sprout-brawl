@@ -757,6 +757,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		end
 		-- (web/src/main.js puts the words up on the same frame)
 		if hud then
+			hud:comboEvent(e)
 			if e.type == "ko" then
 				local entry = roster[(e.fighter or 0) + 1]
 				hud:announce("ko", `{Callouts.ko.text}  {HudColors.MARKS[((e.fighter or 0) % 8) + 1]} {if entry then entry.name else ""}`)

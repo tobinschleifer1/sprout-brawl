@@ -37,14 +37,20 @@ local FightScene = {}
 local WHITE = Color3.new(1, 1, 1)
 local NIGHT = Color3.fromRGB(5, 6, 10)
 
+-- How hard a finisher shakes the camera: past a heavy hit's 0.5, short of an ultimate's 1.4.
+FightScene.FINISHER_SHAKE = 1.2
+
 -- One event, released at the frame it happened on: its sparks (Effects, the parity-held port) and
 -- its drawn moment (FxPlayer). Where FxPlayer draws the event, the plain rings Effects would add
 -- are dropped - a gold ring with spikes over the caster's own coloured shockwave is two drawings
 -- of one thing, in two palettes. The sparks, dust and shake are kept.
+
 function FightScene.spawn(fx: any, player: any, e: any, states: { any }, chars: { any },
 	glowOf: (number?) -> string?, rand: () -> number, heightOf: (number?) -> number, sparks: boolean)
 	local rings = #fx.rings
 	if sparks then Effects.spawn(fx, e, glowOf, rand, heightOf) end
+	-- A finisher lands with the hardest shake an ordinary hit gives (COMBO, config.js).
+	if e.type == "hit" and e.finisher then fx.shake = math.max(fx.shake, FightScene.FINISHER_SHAKE) end
 	if FxPlayer.spawn(player, e, states, chars) then
 		for i = #fx.rings, rings + 1, -1 do table.remove(fx.rings, i) end
 	end
@@ -102,6 +108,7 @@ function FightScene.draw(c: any, S: any): any
 	guard(-7, "the hit reactions failed to draw", function()
 		HitReact.draw(c, S.states, S.chars, S.t)
 	end)
+	Fighter2D.glows = if S.player then S.player.glows else nil
 	for _, st in S.states do
 		local char = S.chars[st.index + 1]
 		if char and not (cine and cine.active and st == caster) then

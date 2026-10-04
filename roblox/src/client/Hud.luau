@@ -20,6 +20,8 @@ local Callouts = require(ReplicatedStorage.Shared.Data.Callouts)
 local HudColors = require(script.Parent.HudColors)
 local Bindings = require(script.Parent.Bindings)
 local AbilityStatus = require(script.Parent.AbilityStatus)
+local ComboHud = require(script.Parent.ComboHud)
+local ComboGuide = require(script.Parent.ComboGuide)
 
 local DisasterShapes = require(script.Parent.DisasterShapes)
 local PodiumView = require(script.Parent.PodiumView)
@@ -29,6 +31,8 @@ Hud.__index = Hud
 local FONT = Enum.Font.GothamBold
 local DIM = Color3.fromRGB(198, 204, 214)
 local PANEL = Color3.fromRGB(18, 20, 26)
+local GOLD = Color3.fromRGB(255, 210, 74)       -- a timed link's colour (FxPlayer.PERFECT)
+local BROKE = Color3.fromRGB(150, 156, 168)
 
 local function label(parent: Instance, size: UDim2, pos: UDim2, text: string, px: number, colour: Color3): TextLabel
 	local t = Instance.new("TextLabel")
@@ -61,13 +65,19 @@ function Hud.new(parent: Instance): any
 	hints.Name = "CombatBindings"
 	hints.TextWrapped = true
 	hints.TextXAlignment = Enum.TextXAlignment.Center
-	self.abilities = label(gui, UDim2.new(1, -24, 0, 42), UDim2.fromOffset(12, 88), "", 13, Color3.fromRGB(239,176,90))
+	-- The local player's combo routes (ComboGuide), read off their weapon; filled in by bind.
+	self.guide = label(gui, UDim2.new(1, -24, 0, 30), UDim2.fromOffset(12, 86), "", 12, GOLD)
+	self.guide.Name = "ComboGuide"
+	self.guide.TextWrapped = true
+	self.guide.TextXAlignment = Enum.TextXAlignment.Center
+	self.guide.TextTransparency = 0.15
+	self.abilities = label(gui, UDim2.new(1, -24, 0, 42), UDim2.fromOffset(12, 118), "", 13, Color3.fromRGB(239,176,90))
 	self.abilities.Name = "YourAbilities"
 	self.abilities.TextWrapped = true
 	self.abilities.TextXAlignment = Enum.TextXAlignment.Center
 
 	-- What natural disaster is coming and when: cool while it warns, hot once it strikes.
-	self.disaster = label(gui, UDim2.fromOffset(420, 26), UDim2.new(0.5, -210, 0, 134), "", 18, Color3.new(1, 1, 1))
+	self.disaster = label(gui, UDim2.fromOffset(420, 26), UDim2.new(0.5, -210, 0, 164), "", 18, Color3.new(1, 1, 1))
 	self.disaster.Name = "DisasterBanner"
 	self.disaster.TextXAlignment = Enum.TextXAlignment.Center
 
@@ -93,15 +103,29 @@ function Hud.new(parent: Instance): any
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
 	self.callout.TextTransparency = 1
 
+	-- Combos (Config.COMBO): ComboHud works out what to say; the tiles and this prompt say it.
+	self.combo = ComboHud.new()
+	-- Over the local player's head, during a freeze they can break out of.
+	self.breakPrompt = label(gui, UDim2.fromOffset(120, 24), UDim2.fromOffset(0, 0), "DODGE!", 20, Color3.fromRGB(120, 220, 255))
+	self.breakPrompt.Name = "BreakPrompt"
+	self.breakPrompt.TextXAlignment = Enum.TextXAlignment.Center
+	self.breakPrompt.Visible = false
+
 	self.tiles = {}
 	self.floats = {}
 	return self
+end
+
+-- An event, released when the drawn picture reaches it (the same moment its effect plays).
+function Hud.comboEvent(self: any, e: any)
+	ComboHud.event(self.combo, e, os.clock())
 end
 
 -- One tile per fighter, built once a match. The mark is a shape as well as a colour, because at
 -- tile size four coloured boxes are four boxes.
 function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?, teams: boolean?)
 	self.localIndex = localIndex
+	self.guide.Text = table.concat(ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil), "     ·     ")
 	if teams ~= nil then self.teamsOn = teams end
 	for _, t in self.tiles do
 		t.root:Destroy()
@@ -162,9 +186,22 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		ultFill.BorderSizePixel = 0
 		ultFill.Parent = ultBack
 
+		-- The combo this fighter is running, above their tile: the hit count and damage, and their
+		-- streak of timed links under it. Their own combo-break cooldown sits in the tile's corner.
+		local combo = label(root, UDim2.fromOffset(W, 22), UDim2.fromOffset(0, -46), "", 18, Color3.new(1, 1, 1))
+		combo.Name = "Combo"
+		combo.TextStrokeTransparency = 0.4
+		local perfect = label(root, UDim2.fromOffset(W, 16), UDim2.fromOffset(0, -24), "", 13, GOLD)
+		perfect.Name = "Perfect"
+		perfect.TextStrokeTransparency = 0.5
+		local breakCd = label(root, UDim2.fromOffset(70, 14), UDim2.fromOffset(W - 76, 5), "", 10, BROKE)
+		breakCd.Name = "BreakCooldown"
+		breakCd.TextXAlignment = Enum.TextXAlignment.Right
+
 		table.insert(self.tiles, {
 			root = root, pct = pct, stocks = stocks, name = name, weapon = weapon,
 			ultBack = ultBack, ultFill = ultFill, colour = colour, index = entry.index,
+			combo = combo, perfect = perfect, breakCd = breakCd,
 		})
 
 		-- The floating percent over the fighter's own head, which is what a player actually reads
@@ -292,6 +329,30 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	if mine and chars[self.localIndex + 1] then
 		self.abilities.Text = if self.abilityUntil and os.clock() < self.abilityUntil then self.abilityMessage
 			else AbilityStatus.describe(mine, chars[self.localIndex + 1])
+	end
+
+	local combos = ComboHud.view(self.combo, states, now)
+	for _, tile in self.tiles do
+		local c = combos[tile.index]
+		if c then
+			tile.combo.Text = if c.broken then `{c.hits} HITS · BROKEN` else `{c.hits} HITS  {c.damage}%`
+			tile.combo.TextColor3 = if c.broken then BROKE elseif c.finisher then GOLD else Color3.new(1, 1, 1)
+			tile.combo.TextTransparency = 1 - c.alpha
+			tile.perfect.Text = if c.finisher then "FINISHER!" elseif c.perfect > 0 then `PERFECT ×{c.perfect}` else ""
+			tile.perfect.TextTransparency = 1 - c.alpha
+		else
+			tile.combo.Text, tile.perfect.Text = "", ""
+		end
+		local b = ComboHud.breakView(byIndex[tile.index])
+		tile.breakCd.Text = if b.cooldown > 0 then string.format("BREAK %.0fs", math.ceil(b.cooldown)) else ""
+	end
+	local prompt = ComboHud.breakView(mine)
+	self.breakPrompt.Visible = false
+	if prompt.prompt and mine and canvas then
+		local ch = chars[self.localIndex + 1]
+		local p = canvas:project(mine.x, mine.y + (if ch then ch.height else 5) + 3.2)
+		self.breakPrompt.Position = UDim2.fromOffset(p.X - 60, p.Y - 24)
+		self.breakPrompt.Visible = true
 	end
 
 	for i, tile in self.tiles do

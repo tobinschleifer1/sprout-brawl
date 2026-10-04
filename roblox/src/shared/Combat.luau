@@ -390,7 +390,8 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	end
 	Combat.emit(self, { type = "hit", x = cx, y = cy, damage = dealt, launch = launch,
 		heavy = not not move.heavy, weight = victim.weight, attacker = attacker.index,
-		victim = victim.index, angle = angle, facing = facing, combo = victim.comboHits })
+		victim = victim.index, angle = angle, facing = facing, combo = victim.comboHits,
+		finisher = not not move.finisher })
 	return true
 end
 

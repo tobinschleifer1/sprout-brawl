@@ -27,7 +27,21 @@ for (const n of d.nodes) {
     const font = FONTS[n.font] || "'Montserrat', Arial, sans-serif";
     const weight = n.font === 'Font.GothamBlack' ? 900 : 700;
     const stroke = n.textStroke ? ` stroke="${n.textStroke}" stroke-width="${Math.max(2, n.size / 7)}" paint-order="stroke" stroke-linejoin="round"` : '';
-    out += `<text x="${tx}" y="${n.y + n.h / 2 + n.size * 0.36}" fill="${n.colour}" font-family="${font}" font-weight="${weight}" font-size="${n.size}" text-anchor="${n.align}"${stroke}>${esc(n.text)}</text>`;
+    // TextWrapped labels wrap at their width, as Roblox does (by an average glyph width)
+    let lines = [n.text];
+    if (n.wrap) {
+      const per = Math.max(1, Math.floor(n.w / (n.size * (n.font === 'Font.LuckiestGuy' ? 0.52 : 0.6))));
+      lines = [];
+      let cur = '';
+      for (const word of String(n.text).split(' ')) {
+        if ((cur + ' ' + word).trim().length > per && cur) { lines.push(cur); cur = word; } else cur = (cur + ' ' + word).trim();
+      }
+      if (cur) lines.push(cur);
+    }
+    lines.forEach((ln, i) => {
+      const y = n.y + n.h / 2 + (i - (lines.length - 1) / 2) * n.size * 1.15 + n.size * 0.36;
+      out += `<text x="${tx}" y="${y}" fill="${n.colour}" font-family="${font}" font-weight="${weight}" font-size="${n.size}" text-anchor="${n.align}"${stroke}>${esc(ln)}</text>`;
+    });
   }
 }
 fs.writeFileSync(output, out + '</svg>');

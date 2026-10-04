@@ -28,9 +28,15 @@ for size, format in { "Duel", "Doubles", "Triples" } do
 	assert(edit(people[1], "stage", "Undertow"))
 	assert(not model:canStart(room), "map change resets readiness")
 	for _, p in people do assert(edit(p, "ready")) end
-	assert(not edit(people[2], "start"), "guest cannot start")
-	assert(edit(people[1], "start"))
-	assert(not edit(people[1], "start"), "duplicate start cannot create another match")
+	-- nobody presses start: everyone ready moves the room to the map vote, the map vote to the rules
+	-- vote, and the rules vote starts the fight (Rooms.PICK_TIME)
+	assert(not edit(people[1], "start"), "the host cannot start: the votes do")
+	assert(model:advance(room) and room.phase == "map", "everyone ready moves the room to the map vote")
+	for _, p in people do assert(edit(p, "vote", "Undertow")) end
+	assert(model:advance(room) and room.phase == "rules" and room.stage == "Undertow", "the map vote picks the map")
+	for _, p in people do assert(edit(p, "rule", "current")) end
+	assert(model:advance(room) and room.state == "playing", "the rules vote starts the fight")
+	assert(not model:advance(room), "a started room cannot start another match")
 	local roster, opts = model:roster(room)
 	local counts = {0,0}
 	for _, entry in roster do counts[entry.team + 1] += 1; assert(entry.player) end

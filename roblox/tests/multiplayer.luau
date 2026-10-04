@@ -101,6 +101,13 @@ local function edit(id: number, action: string, value: any?, slot: number?)
 	local view=last(id,"RoomView")
 	send(id,"RoomAction",{id=view.id,revision=view.revision,action=action,value=value,slot=slot})
 end
+-- After everyone is ready the room votes its map, then its rules, and the fight starts itself.
+local function votes(ids: { number })
+	for _, id in ids do assert(last(id,"RoomView").phase=="map","everyone ready did not open the map vote") end
+	for _, id in ids do edit(id,"vote","FoundryFloor") end
+	for _, id in ids do assert(last(id,"RoomView").phase=="rules","everyone voting did not open the rules vote") end
+	for _, id in ids do edit(id,"rule","current") end
+end
 for i=1,9 do
 	people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}
 	send(i,"Hello")
@@ -203,8 +210,8 @@ do
 end
 for i=7,8 do send(i,"RoomAction",{action="join",format="Duel"}) end
 for i=1,8 do edit(i,"ready") end
-edit(1,"start")
-edit(7,"start")
+votes({1,2,3,4,5,6})
+votes({7,8})
 assert(#last(1,"Match").fighters==6 and #last(7,"Match").fighters==2)
 local knights = 0
 for _, f in last(1,"Match").fighters do if f.avatar==KNIGHT then knights += 1 end end
@@ -296,7 +303,7 @@ for _, peer in last(9,"HubPresence") do
 end
 -- Explicit bot match can finish and cleanly return; completion targets no other room.
 send(9,"RoomAction",{action="join",format="Duel"})
-edit(9,"bot","normal",2); edit(9,"ready"); edit(9,"start")
+edit(9,"bot","normal",2); edit(9,"ready"); votes({9})
 assert(#last(9,"Match").fighters==2)
 send(9,"RoomAction",{action="leave"})
 assert(last(9,"RoomView").left)

@@ -4,7 +4,7 @@
 -- the screen can be looked at without Studio. Every Frame, label and button is resolved to its
 -- absolute rectangle through its parents, with its corner radius and outline.
 --
---   lune run tools/render-select <out.json> [width] [height] [format: 1v1|2v2|3v3]
+--   lune run tools/render-select <out.json> [width] [height] [format: 1v1|2v2|3v3] [phase: pick|map|rules]
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local process = require("@lune/process")
@@ -19,6 +19,7 @@ local shapes = Recorder.install(Canvas)
 local W = tonumber(process.args[2] or "1280") or 1280
 local H = tonumber(process.args[3] or "720") or 720
 local format = process.args[4] or "2v2"
+local phase = process.args[5] or "pick"
 
 -- ------------------------------------------------------------------ stand-in Instances ----
 local made = {}
@@ -85,6 +86,17 @@ local room = { id = 12, host = 1, format = format, name = format .. " Match", st
 	botVote = if size >= 4 then { slot = 3, value = "normal", by = 2, yes = 1, no = 0, voters = if size >= 6 then 3 else 2,
 		ballots = { ["2"] = true }, left = 7 } else nil }
 
+room.phase, room.phaseLeft = phase, if phase == "pick" then nil else 11
+if phase ~= "pick" then
+	room.botVote = nil
+	for _, slot in slots do if not slot.userId and not slot.bot then slot.bot, slot.weapon, slot.ready = "easy", "Axe", true end end
+end
+if phase == "map" then slots[1].vote, slots[2].vote = "Undertow", "Random"; if slots[5] then slots[5].vote = "Undertow" end end
+if phase == "rules" then
+	room.mapResult, room.stage = "Undertow", "Undertow"
+	slots[1].ruleVote = "casual"
+	if slots[5] then slots[5].ruleVote = "chaos" end
+end
 local screen = Screen.new(new("Folder"))
 screen:update(room, 1)
 local c = Recorder.canvas(Canvas, W, H)
@@ -131,6 +143,7 @@ for _, o in made do
 		if (cls == "TextLabel" or cls == "TextButton") and o.Text and o.Text ~= "" then
 			node.text, node.colour, node.size = o.Text, hex(o.TextColor3 or Rbx.Color3.new(1, 1, 1)), o.TextSize or 14
 			node.font = tostring(o.Font or "")
+			node.wrap = o.TextWrapped == true
 			node.align = if o.TextXAlignment == "TextXAlignment.Left" then "start" elseif o.TextXAlignment == "TextXAlignment.Right" then "end" else "middle"
 		end
 		table.insert(nodes, node)

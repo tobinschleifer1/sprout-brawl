@@ -310,15 +310,9 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 		end
 		selectScreen = SelectScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 		selectScreen.onAction = function(action: any)
-			if action.action == "start" then
-				if not launch:begin(os.clock()) then return end
-				selectScreen:waiting("Requesting your match…")
-			end
 			if action.action == "leave" then selectScreen:hide() end
 			Net.remote("RoomAction"):FireServer(action)
 		end
-		-- the map and rules boards are the room panel's pages, shown over the select screen
-		selectScreen.onStation = function(page: string) select_:openStation(page) end
 		hub.onInteract = function(station: any)
 			if not roomOverlay() then
 				if station.kind == "Wardrobe" then
@@ -336,10 +330,10 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
 				elseif station.kind == "Exit" then
 					select_:send("leave")
-				elseif station.id == "Players" or station.id == "Weapons" then
-					selectScreen:show()               -- the pedestals and the roster replace those pages
 				else
-					select_:openStation(station.id)
+					-- Players, Weapons, Maps, Rules: the pedestals and the roster replace those
+					-- pages, and the room votes on the map and the rules
+					selectScreen:show()
 				end
 			end
 		end

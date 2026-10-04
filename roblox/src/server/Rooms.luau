@@ -44,9 +44,22 @@ end
 -- if it is still open after BOT_VOTE_TIME seconds. One vote at a time per room.
 Rooms.BOT_VOTE_TIME = 10
 
+-- The room's way to the fight, in three phases (all inside state "setup"):
+--   pick   everyone picks a weapon; it moves on the moment every pedestal is filled and every
+--          player is ready, or PICK_TIME seconds after the room fills, with whatever is picked;
+--   map    everyone votes for an arena (or Random) for MAP_TIME seconds, or until all have voted;
+--          most votes wins, a tie is drawn at random between the tied, no votes is Random;
+--   rules  the same, between the rule presets and "keep current", for RULES_TIME seconds.
+-- Then the fight starts itself: nobody, the host included, presses start. A player leaving during
+-- a vote sends the room back to pick, because it has a pedestal to fill again.
+Rooms.PICK_TIME, Rooms.MAP_TIME, Rooms.RULES_TIME = 30, 15, 15
+-- What a winning rule set changes (the map is already chosen by then, so not mapChoice/mapSet).
+local RULE_KEYS = { "mode", "stocks", "time", "items", "disasters" }
+
 function Rooms.new(): any
-	-- `clock` is replaceable so the vote's timer can be tested without waiting
-	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {}, clock = os.clock }, Rooms)
+	-- `clock` and `rand` are replaceable so the timers and the tie-breaks can be tested
+	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {}, clock = os.clock,
+		rand = function(n: number): number return math.random(1, n) end }, Rooms)
 end
 
 local function humans(room: any): number
@@ -96,13 +109,101 @@ function Rooms.settleVote(self: any, room: any): boolean
 	return false
 end
 
--- Close every vote whose time is up. Returns the rooms that changed, for the caller to resend.
+local function full(room: any): boolean
+	for _, slot in room.slots do if not slot.player and not slot.bot then return false end end
+	return true
+end
+-- Back to weapon select: votes cleared, everyone un-readied.
+function Rooms.toPick(room: any)
+	room.phase, room.phaseEnds = "pick", nil
+	for _, slot in room.slots do slot.vote, slot.ruleVote = nil, nil end
+	invalidate(room)
+end
+local function enter(self: any, room: any, phase: string, seconds: number)
+	room.phase, room.phaseEnds = phase, self.clock() + seconds
+	for _, slot in room.slots do
+		if phase == "map" then slot.vote = nil else slot.ruleVote = nil end
+	end
+	room.revision += 1
+end
+-- The most-voted of the players' ballots in `field`; a tie is drawn by `rand` between the tied
+-- (in a fixed order, so the draw is reproducible); nil when nobody voted.
+local function winner(self: any, room: any, field: string): string?
+	local count: { [string]: number } = {}
+	for _, slot in room.slots do
+		local b = slot.player and slot[field]
+		if b then count[b] = (count[b] or 0) + 1 end
+	end
+	local best, tied = 0, {}
+	for id, n in count do
+		if n > best then best, tied = n, { id } elseif n == best then table.insert(tied, id) end
+	end
+	if #tied == 0 then return nil end
+	table.sort(tied)
+	return tied[if #tied == 1 then 1 else self.rand(#tied)]
+end
+-- (A room always has a player in it: the last one leaving deletes it.)
+local function allVoted(room: any, field: string): boolean
+	for _, slot in room.slots do
+		if slot.player and not slot[field] then return false end
+	end
+	return true
+end
+
+-- Move the room on if its phase is over (see PICK_TIME). Returns true if anything changed; the
+-- caller resends the room, and starts the fight once `state` is "playing".
+function Rooms.advance(self: any, room: any): boolean
+	if room.state ~= "setup" then return false end
+	local now = self.clock()
+	local phase = room.phase or "pick"
+	if phase ~= "pick" and not full(room) then
+		Rooms.toPick(room)
+		return true
+	end
+	if phase == "pick" then
+		if self:canStart(room) or (room.phaseEnds and now >= room.phaseEnds and full(room)) then
+			enter(self, room, "map", Rooms.MAP_TIME)
+			return true
+		end
+		if full(room) and not room.phaseEnds then room.phaseEnds = now + Rooms.PICK_TIME; return true end
+		if not full(room) and room.phaseEnds then room.phaseEnds = nil; return true end
+		return false
+	elseif phase == "map" then
+		if not (allVoted(room, "vote") or now >= room.phaseEnds) then return false end
+		local pick = winner(self, room, "vote") or "Random"
+		if pick == "Random" then
+			local pool = Rooms.mapPool("all")
+			pick = pool[self.rand(#pool)]
+		end
+		room.stage, room.mapChoice, room.mapResult = pick, "host", pick
+		enter(self, room, "rules", Rooms.RULES_TIME)
+		return true
+	elseif phase == "rules" then
+		if not (allVoted(room, "ruleVote") or now >= room.phaseEnds) then return false end
+		local pick = winner(self, room, "ruleVote") or "current"
+		for _, preset in Rules.presets do
+			if preset.id == pick then
+				for _, key in RULE_KEYS do room[key] = preset.rules[key] end
+			end
+		end
+		room.ruleResult = pick
+		room.phase, room.phaseEnds = "pick", nil
+		room.state = "playing"
+		room.revision += 1
+		return true
+	end
+	return false
+end
+
+-- Close every vote and phase whose time is up. Returns the rooms that changed, for the caller to
+-- resend (and to start the fight in, if one now is "playing").
 function Rooms.tick(self: any): { any }
 	local changed = {}
 	for _, room in self.rooms do
-		if room.botVote and self.clock() >= room.botVote.deadline and self:settleVote(room) then
-			table.insert(changed, room)
-		end
+		local moved = false
+		if room.botVote and self.clock() >= room.botVote.deadline and self:settleVote(room) then moved = true end
+		if self:advance(room) then moved = true end
+		if moved then table.insert(changed, room) end
 	end
 	return changed
 end
@@ -163,7 +264,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 		room = { id = self.nextId, host = player.UserId, format = format, name = spec.name,
 			state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true,
 			disasters = "off", slots = {},    -- natural disasters: OFF unless the host turns them on
-			mapChoice = "host", mapSet = "all", mode = "stock", time = 180 }
+			mapChoice = "host", mapSet = "all", mode = "stock", time = 180, phase = "pick" }
 		for i = 1, spec.teamSize * 2 do room.slots[i] = { team = (i - 1) % 2 } end
 		self.rooms[room.id], place = room, 1
 	end
@@ -190,7 +291,7 @@ function Rooms.view(self: any, room: any): any
 		table.insert(slots, { userId = if slot.player then slot.player.UserId else nil,
 			name = if slot.player then slot.player.DisplayName else if slot.bot then "CPU" else "Open · bots off",
 			team = slot.team, bot = slot.bot, ready = slot.ready == true, weapon = slot.weapon, avatar = slot.avatar,
-			vote = slot.vote })
+			vote = slot.vote, ruleVote = slot.ruleVote })
 	end
 	local vote = nil
 	if room.botVote then
@@ -207,7 +308,9 @@ function Rooms.view(self: any, room: any): any
 		state = room.state, revision = room.revision, stage = room.stage, stocks = room.stocks,
 		items = room.items, disasters = room.disasters, slots = slots, canStart = self:canStart(room),
 		mapChoice = room.mapChoice, mapSet = room.mapSet, mode = room.mode, time = room.time,
-		preset = Rooms.presetOf(room), botVote = vote, lastVote = room.lastVote }
+		preset = Rooms.presetOf(room), botVote = vote, lastVote = room.lastVote,
+		phase = room.phase or "pick", phaseLeft = if room.phaseEnds then math.max(0, room.phaseEnds - self.clock()) else nil,
+		mapResult = room.mapResult, ruleResult = room.ruleResult }
 end
 function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local room = self:get(player.UserId)
@@ -219,7 +322,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	-- weapon or avatar is an absolute choice about your own slot, so it is exempt - otherwise every
 	-- teammate's ready toggle made your loadout change fail with "Room changed".
 	local own_loadout = msg.action == "weapon" or msg.action == "avatar" or msg.action == "vote"
-		or msg.action == "ballot"
+		or msg.action == "ballot" or msg.action == "rule"
 	if msg.revision ~= room.revision and not own_loadout then
 		return false, "Room changed. Please use the refreshed choices."
 	end
@@ -228,16 +331,32 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	for _, slot in room.slots do if slot.player == player then own = slot end end
 	if not own then return false, "You are not in this room." end
 	local action, value = msg.action, msg.value
+	local phase = room.phase or "pick"
+	-- Weapons, readiness and bots are the pick phase's; once the votes begin they are locked in.
+	if phase ~= "pick" and (action == "ready" or action == "weapon" or action == "bot" or action == "ballot") then
+		return false, "Weapons are locked in - the vote is on."
+	end
 	if action == "ready" then
 		own.ready = not own.ready; room.revision += 1; return true, nil
 	elseif action == "start" then
-		if room.host ~= player.UserId or not self:canStart(room) then return false, "Fill both teams and ready every player first." end
-		room.state = "playing"; room.revision += 1; return true, nil
+		-- Gone: the fight starts itself after the rules vote (see PICK_TIME). Nobody presses start.
+		return false, "The fight starts itself after the map and rules votes."
+	elseif action == "rule" then
+		-- Your ballot in the rules phase: a preset's id, or "current" to keep the room's rules.
+		if phase ~= "rules" then return false, "The rules vote has not started." end
+		local ok = value == "current"
+		for _, preset in Rules.presets do if preset.id == value then ok = true end end
+		if not ok then return false, "Unknown rule set." end
+		own.ruleVote = value
+		room.revision += 1
+		return true, nil
 	elseif action == "vote" then
 		-- Your own ballot: like your loadout it is exempt from the revision check, and unlike the
-		-- shared rules it un-readies nobody - a vote changes no-one's consent to the fight.
-		if room.mapChoice ~= "vote" then return false, "The host picks the map in this room." end
-		if value ~= "Random" and not (type(value) == "string" and Stages.BY_ID[value] and Rooms.inSet(Stages.BY_ID[value], room.mapSet)) then
+		-- shared rules it un-readies nobody - a vote changes no-one's consent to the fight. The map
+		-- phase is the vote; a room set to "vote" outside it keeps the old standing ballot.
+		if phase ~= "map" and room.mapChoice ~= "vote" then return false, "The host picks the map in this room." end
+		local set = if phase == "map" then "all" else room.mapSet
+		if value ~= "Random" and not (type(value) == "string" and Stages.BY_ID[value] and Rooms.inSet(Stages.BY_ID[value], set)) then
 			return false, "Unknown map."
 		end
 		own.vote = value
@@ -272,6 +391,10 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 			else Loadout.validAvatar(value)
 		if not clean then return false, "Unknown loadout." end
 		own[action] = clean; self:profile(player.UserId)[action] = clean
+	elseif phase ~= "pick" then
+		-- The votes decide now: a host change mid-vote would rewrite what "keep current" means, or
+		-- (a preset) clear everyone's arena ballots.
+		return false, "The room is voting - settings are locked."
 	elseif room.host ~= player.UserId then return false, "Only the host can change match settings."
 	elseif action == "stage" then
 		if value ~= "Random" and (type(value) ~= "string" or not Stages.BY_ID[value]) then return false, "Unknown map." end

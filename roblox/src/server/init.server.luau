@@ -38,6 +38,7 @@ end)
 local boards = ClimbBoards.new({ speed = if okBoards then fastest else nil, levels = if okBoards then highest else nil,
 	clock = os.time, name = function(userId: number) return Players:GetNameFromUserIdAsync(userId) end })
 local services: any = {}
+local launchRoom: (any) -> ()      -- defined beside RoomAction; the tick uses it too
 local poses: any = {}
 local limits: any = {}
 local loaded: any = {}
@@ -68,6 +69,7 @@ local function resetRoom(room: any, why: string?)
 	if service then service:stop(); services[room.id] = nil end
 	room.state, room.revision = "setup", room.revision + 1
 	for _, slot in room.slots do slot.bot, slot.ready = nil, false end
+	Rooms.toPick(room)             -- back to weapon select: the next fight votes its map and rules again
 	for _, player in members(room) do hub(player, why) end
 	publish(room)
 end
@@ -75,7 +77,7 @@ local function leave(player: Player)
 	local room = rooms:leave(player)
 	if not room then return end
 	if room.state == "playing" then resetRoom(room, "A player left. Fight cancelled; ready up again.")
-	else publish(room) end
+	else rooms:advance(room); publish(room) end
 end
 -- Player objects that have left, weakly held: a Hello that yielded on the DataStore must not put a
 -- departed player back into the lobby. By object, not user id, so a rejoin is a fresh start.
@@ -108,6 +110,21 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	hub(player)
 	if room then publish(room) end
 end)
+-- The fight a room's votes have just finished choosing: started once, when its state turns to
+-- "playing" (after the rules vote - Rooms.advance), whether by a ballot or by the clock.
+launchRoom = function(room: any)
+	if room.state ~= "playing" or services[room.id] then return end
+	generation += 1
+	local service = MatchService.new(members(room), generation * 1000)
+	services[room.id] = service
+	service.onFinished = function(_: any, match: any)
+		task.wait(6)
+		if services[room.id] == service and service.match == match then resetRoom(room) end
+	end
+	local roster, opts = rooms:roster(room)
+	local ok, err = pcall(function() service:start(roster, opts) end)
+	if not ok then warn(`[Blockfall] room launch failed: {err}`); resetRoom(room, "Arena failed to load. Please try again.") end
+end
 Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any)
 	if not loaded[player.UserId] or type(msg) ~= "table" or not admitted(player, "room", 0.08) then return end
 	if msg.action == "leave" then leave(player); hub(player); Net.remote("RoomView"):FireClient(player, { left = true }); return end
@@ -127,19 +144,9 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		end
 	end
 	if not room then Net.remote("RoomView"):FireClient(player, { left = true, error = why }); return end
+	rooms:advance(room)            -- everyone ready, everyone voted: the room moves on (Rooms.PICK_TIME)
 	publish(room)
-	if msg.action == "start" then
-		generation += 1
-		local service = MatchService.new(members(room), generation * 1000)
-		services[room.id] = service
-		service.onFinished = function(_: any, match: any)
-			task.wait(6)
-			if services[room.id] == service and service.match == match then resetRoom(room) end
-		end
-		local roster, opts = rooms:roster(room)
-		local ok, err = pcall(function() service:start(roster, opts) end)
-		if not ok then warn(`[Blockfall] room launch failed: {err}`); resetRoom(room, "Arena failed to load. Please try again.") end
-	end
+	launchRoom(room)
 end)
 Net.remote("Avatar").OnServerEvent:Connect(function(player: Player, msg: any)
 	if not loaded[player.UserId] or not admitted(player, "avatar", 0.15) then return end
@@ -429,7 +436,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 	for _, cab in arcade:due(os.clock()) do startCabinet(cab) end
 	-- bot votes whose ten seconds ran out (Rooms.BOT_VOTE_TIME): closed, and the room resent
-	for _, room in rooms:tick() do publish(room) end
+	for _, room in rooms:tick() do publish(room); launchRoom(room) end
 	if saveClock >= 1 then
 		saveClock = 0
 		task.spawn(function() avatars:tick() end)

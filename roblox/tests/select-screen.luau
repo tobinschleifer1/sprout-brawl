@@ -4,12 +4,18 @@
 --
 --   * the bars come from the data: the heaviest hitter tops Damage and Defense, the fastest tops
 --     Dexterity and Speed, and every bar is 3..9;
---   * the layout fits at 1280x720, 1920x1080 and a phone's 812x375, for 1v1, 2v2 and 3v3: nothing
+--   * the layout fits at 1280x720, 1920x1080, phones (812x375, 640x320), an ultrawide and short windows,
+--     for 1v1, 2v2 and 3v3: nothing
 --     off screen, no two portraits or cards overlap, team 0 on the left of team 1 with the VS
 --     between, the pedestals under the roster;
+--   * the vote pages fit too: a card per arena and Random, a card per rule set and "keep current",
+--     all on screen, none overlapping, between the title and the strip of who has voted;
 --   * every control sends its action: a portrait its weapon, ADD BOT the chosen difficulty for its
---     slot, YES / NO the ballot, REMOVE a bot, READY, LEAVE, START only for a host who can start;
---     HIDE and the ROOM button minimise and restore; a vote shows its card and hides ADD BOT;
+--     slot, YES / NO the ballot, REMOVE a bot, READY, LEAVE; there is no START (the room starts
+--     itself); HIDE and the ROOM button minimise and restore; a vote shows its card and hides ADD BOT;
+--   * the room's phase picks the page: an arena card sends its vote, a rule card its rule; counts,
+--     your gold ring, the who-has-voted chips, the countdown and the arena in the rules bar follow
+--     the room; the map page draws each arena;
 --   * each card's bars are that weapon's, and every pick carries its player's tag;
 --   * a new room and a room back from a fight open the screen; leaving closes it;
 --   * the scene draws, and the roster's still portraits are made once, not every frame.
@@ -22,6 +28,8 @@ local Loader = require("./loader")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local WeaponStats = Loader.loadFrom("src/client/", "WeaponStats")
 local Weapons = Loader.load("Data/Weapons")
+local Stages = Loader.load("Data/Stages")
+local Rules = Loader.load("Data/Rules")
 local Recorder = require("../tools/recorder")
 local shapes = Recorder.install(Canvas)
 
@@ -57,6 +65,7 @@ local function new(class: string): any
 		props.destroyed = true
 		for _, ch in table.clone(props._children) do ch:Destroy() end
 	end
+	props.FindFirstChild = function(_, name) for _, ch in props._children do if ch.Name == name and not ch.destroyed then return ch end end return nil end
 	self = setmetatable({}, { __index = props, __newindex = function(_, k, v)
 		props[k] = v
 		if k == "Parent" and v then table.insert(v._children, self) end
@@ -85,7 +94,7 @@ local Screen = luau.load(fs.readFile("src/client/SelectScreen.luau"), { debugNam
 local function overlap(a: any, b: any): boolean
 	return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
 end
-for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 } } do
+for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 }, { 2560, 1080 }, { 1280, 560 }, { 1280, 400 }, { 640, 320 } } do
 	for _, n in { 2, 4, 6 } do
 		local sw, sh = size[1], size[2]
 		local slots = {}
@@ -113,6 +122,23 @@ for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 } } do
 		end
 		if lastTeam0 >= firstTeam1 then fail(`{where}: team 0 is not left of team 1`) end
 		if not L.vsX or L.vsX <= lastTeam0 or L.vsX >= firstTeam1 then fail(`{where}: the VS is not between the teams`) end
+		-- the vote pages: every card (and an arena's name under it) inside the band between the
+		-- title and the strip, none overlapping
+		if #L.maps ~= #Stages.LIST + 1 or L.maps[#L.maps].id ~= "Random" then fail(`{where}: {#L.maps} arena cards, want every stage and Random`) end
+		if #L.rules ~= #Rules.presets + 1 or L.rules[#L.rules].id ~= "current" then fail(`{where}: {#L.rules} rule cards, want every preset and keep current`) end
+		for _, set in { { L.maps, L.nameH, "arena" }, { L.rules, 0, "rule" } } do
+			local boxes = {}
+			for _, m in set[1] do
+				local box = { x = m.x, y = m.y, w = m.w, h = m.h + set[2] }
+				if box.x < 0 or box.x + box.w > sw or box.y < L.voteTop or box.y + box.h > L.stripY then
+					fail(`{where}: the {m.id} {set[3]} card is outside the vote band`)
+				end
+				if m.w < 40 or m.h < 24 then fail(`{where}: the {m.id} {set[3]} card is only {m.w}x{m.h}`) end
+				for _, other in boxes do if overlap(box, other) then fail(`{where}: two {set[3]} cards overlap`) end end
+				table.insert(boxes, box)
+			end
+		end
+		if L.stripY + 28 * L.s > L.buttonsY then fail(`{where}: the voted strip runs into LEAVE / HIDE`) end
 	end
 end
 
@@ -171,8 +197,7 @@ inCard(4, "RemoveBot").Activated:Fire()
 if lastSent().action ~= "bot" or lastSent().value ~= false or lastSent().slot ~= 4 then fail("REMOVE BOT did not send a removal for the bot's slot") end
 find("Ready").Activated:Fire()
 if lastSent().action ~= "ready" then fail("READY did not send ready") end
-screen:update(room({ host = 2 }), 1)
-if visible(find("Start")) then fail("a host's START showed for someone who is not the host") end
+if find("Start") or find("MapButton") or find("RulesButton") then fail("the screen still has a START, MAP or RULES button: the room votes and starts itself") end
 -- a vote running on slot 3
 screen:update(room({ botVote = { slot = 3, value = "hard", by = 2, yes = 1, no = 0, voters = 2, ballots = { ["2"] = true }, left = 6 } }), 1)
 if not visible(inCard(3, "Vote")) or visible(inCard(3, "AddBot")) then fail("a running vote did not take over its card") end
@@ -193,15 +218,82 @@ if gold ~= hb.damage + hb.defense + hb.dexterity + hb.speed then fail(`the hamme
 local tags = {}
 for _, o in made do if o.Name == "Tag" and not o.destroyed then tags[o.Text] = true end end
 if not tags.YOU or not tags.P2 or not tags.CPU then fail("the roster is missing a player's tag") end
--- START: a host who can start sends it; one who cannot does not
-screen:update(room({ host = 1, canStart = true }), 1)
-local before = #sent
-find("Start").Activated:Fire()
-if #sent ~= before + 1 or lastSent().action ~= "start" then fail("a host who could start did not send START") end
-screen:update(room({ host = 1, canStart = false }), 1)
-before = #sent
-find("Start").Activated:Fire()
-if #sent ~= before then fail("START sent while the room could not start") end
+-- the pick page while the room is full: its countdown to the map vote
+local function page(name: string): boolean return visible(find("Page" .. name)) end
+screen:update(room({ phaseLeft = 25 }), 1)
+if not page("pick") or page("map") or page("rules") then fail("the pick phase did not show the pick page alone") end
+if not string.find(screen.status.Text, "25s", 1, true) then fail(`the pick countdown says "{screen.status.Text}"`) end
+if not string.find(find("Rules").Text, "MAP: VOTE", 1, true) then fail(`the rules bar says "{find("Rules").Text}" before the map vote`) end
+-- the map vote: P2 and you on the Undertow, nobody else
+local function voted(phase: string, field: string, mineV: string?, theirs: string?, left: number): any
+	local r = room({ phase = phase, phaseLeft = left, stage = "Undertow" })
+	r.slots[3] = { team = 0, bot = "easy", weapon = "Axe", avatar = "Classic", ready = true }
+	r.slots[1][field], r.slots[2][field] = mineV, theirs
+	return r
+end
+screen:update(voted("map", "vote", "Undertow", "Undertow", 11), 1)
+if not page("map") or page("pick") or page("rules") then fail("the map phase did not show the map page alone") end
+if not visible(find("Clock")) or find("Clock").Text ~= "11" then fail(`the map vote's clock says "{find("Clock").Text}"`) end
+if find("VoteTitle").Text ~= "VOTE FOR THE ARENA" then fail("the map page has no title") end
+local undertow = find("MapUndertow")
+local count = undertow and undertow:FindFirstChild("Count")
+if not count or not visible(count) or count.Text ~= "2" then fail(`the Undertow's count shows {count and count.Text}`) end
+if visible(find("MapRandom"):FindFirstChild("Count")) then fail("an arena nobody voted for shows a count") end
+local ring
+for _, ch in undertow._children do if ch.ClassName == "UIStroke" then ring = ch end end
+if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness ~= 5 then fail("your arena has no gold ring") end
+if math.abs(find("MapNameUndertow").TextColor3.B - find("MapNameRandom").TextColor3.B) < 0.1 then fail("your arena's name is not picked out") end
+for _, id in { "Random", Stages.LIST[1].id } do
+	find("Map" .. id).Activated:Fire()
+	if lastSent().action ~= "vote" or lastSent().value ~= id or lastSent().id ~= 7 then fail(`the {id} arena card sent {lastSent().action}/{tostring(lastSent().value)}`) end
+end
+local function chip(i: number): any return find("Chip" .. i) end
+if not chip(1) or not string.find(chip(1).Text, "✓", 1, true) or chip(3).Text ~= "CPU" or chip(5) then
+	fail(`the voted strip reads {chip(1) and chip(1).Text} / {chip(3) and chip(3).Text}`)
+end
+screen:update(voted("map", "vote", nil, "Undertow", 10), 1)
+if string.find(chip(1).Text, "✓", 1, true) or not string.find(chip(2).Text, "✓", 1, true) then fail("the strip does not follow who has voted") end
+-- the map page draws each arena inside its own card: its sky and its platforms, in the card
+local c = Recorder.canvas(Canvas, W, H)
+table.clear(shapes)
+screen.sinceDraw = nil
+screen:draw(c, 1)
+for _, m in screen.L.maps do
+	if m.id ~= "Random" then
+		local inside, colours = 0, {}
+		for _, sh in shapes do
+			if sh[1] == "p" then
+				local ok = true
+				for k = 2, 5 do
+					local x, y = sh[k][1], sh[k][2]
+					if x < m.x - 0.5 or x > m.x + m.w + 0.5 or y < m.y - 0.5 or y > m.y + m.h + 0.5 then ok = false end
+				end
+				if ok then inside += 1; colours[sh[6]] = true end
+			end
+		end
+		local n = 0
+		for _ in colours do n += 1 end
+		if inside < 20 or n < 6 then fail(`the {m.id} card has {inside} shapes in {n} colours drawn inside it - its arena is not drawn`) end
+	end
+end
+-- the rules vote: the arena is settled, so the bar names it
+screen:update(voted("rules", "ruleVote", "chaos", nil, 9), 1)
+if not page("rules") or page("map") or page("pick") then fail("the rules phase did not show the rules page alone") end
+-- (the Undertow, by its realm's name, as on its card)
+if not string.find(find("Rules").Text, "MAP: VIKING HARBOR", 1, true) then fail(`the rules bar says "{find("Rules").Text}" after the map vote`) end
+if find("Clock").Text ~= "9" then fail(`the rules vote's clock says "{find("Clock").Text}"`) end
+for _, preset in Rules.presets do
+	local card = find("Rule" .. preset.id)
+	local n = if preset.id == "chaos" then "1 VOTE" else ""
+	if card:FindFirstChild("Count").Text ~= n then fail(`the {preset.id} card counts "{card:FindFirstChild("Count").Text}"`) end
+	local how = card:FindFirstChild("Fact1").Text
+	if (preset.rules.mode == "timed") ~= (string.find(how, "TIMED", 1, true) ~= nil) then fail(`the {preset.id} card says "{how}"`) end
+	card.Activated:Fire()
+	if lastSent().action ~= "rule" or lastSent().value ~= preset.id then fail(`the {preset.id} card sent {lastSent().action}/{tostring(lastSent().value)}`) end
+end
+find("Rulecurrent").Activated:Fire()
+if lastSent().action ~= "rule" or lastSent().value ~= "current" then fail("KEEP CURRENT did not send current") end
+screen:update(room(), 1)
 -- HIDE and back
 find("Hide").Activated:Fire()
 if screen.open or not visible(find("Reopen")) or visible(find("Root")) then fail("HIDE did not minimise to the ROOM button") end
@@ -210,8 +302,8 @@ if not screen.open or not visible(find("Root")) then fail("the ROOM button did n
 find("Leave").Activated:Fire()
 if lastSent().action ~= "leave" then fail("LEAVE did not send leave") end
 -- the scene draws, and the roster's portraits are made once
-local c = Recorder.canvas(Canvas, W, H)
 table.clear(shapes)
+screen.sinceDraw = nil
 screen:draw(c, 1 / 60)
 local first = #shapes
 local snap = screen.fighters.roster1 and screen.fighters.roster1.snap
@@ -232,5 +324,6 @@ if not screen.open then fail("the room back from its fight did not bring the scr
 screen:update({ left = true }, 1)
 if screen.open or screen.gui.Enabled then fail("leaving did not close the screen") end
 
-print("PASS select screen: bars from the data; the layout fits 1280x720, 1920x1080 and 812x375 for 1v1/2v2/3v3 with the teams either side of the VS")
-print("  every control sends its action (portrait, ADD BOT at a difficulty, YES/NO, REMOVE, READY, START for a host who can, LEAVE), HIDE and ROOM, votes take their card, cards show their weapon's bars, picks carry tags, rematches reopen, the roster is drawn once")
+print("PASS select screen: bars from the data; the layout fits 1280x720, 1920x1080, 812x375, 2560x1080, 1280x560, 1280x400 and 640x320 for 1v1/2v2/3v3 with the teams either side of the VS")
+print("  every control sends its action (portrait, ADD BOT at a difficulty, YES/NO, REMOVE, READY, LEAVE; no START), HIDE and ROOM, votes take their card, cards show their weapon's bars, picks carry tags, rematches reopen, the roster is drawn once")
+print("  the vote pages fit at every size; the phase picks the page; arena and rule cards send their votes, with counts, your ring, the voted strip, the clock and the arena in the bar")

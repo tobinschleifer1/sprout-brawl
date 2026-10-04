@@ -89,6 +89,7 @@ lune run tests/room-ui
 echo "== the select screen: layout, stat bars, every control; and the bot vote =="
 lune run tests/select-screen
 lune run tests/bot-vote
+lune run tests/room-phases
 lune run tests/multiplayer
 lune run tests/presence-codec
 lune run tests/snapshot-codec

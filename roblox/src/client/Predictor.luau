@@ -24,6 +24,7 @@ local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 local Input = require(game:GetService("ReplicatedStorage").Shared.Input)
 local Snapshot = require(game:GetService("ReplicatedStorage").Shared.Snapshot)
 local Stage = require(game:GetService("ReplicatedStorage").Shared.Stage)
+local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 
 local Predictor = {}
 Predictor.__index = Predictor
@@ -77,7 +78,7 @@ function Predictor.applyWire(self: any, w: any)
 	local f = self.fighter
 	for _, pair in Snapshot.FIELDS do
 		local name = pair[1]
-		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" then
+		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" and name ~= "comboTarget" then
 			-- Back through the name map: the snapshot calls them stateFrame and moveFrame, the
 			-- Fighter calls them sf and mf, and writing the snapshot's names onto a Fighter sets
 			-- two fields nothing reads while leaving the two that matter untouched.
@@ -89,6 +90,10 @@ function Predictor.applyWire(self: any, w: any)
 	-- with the new move's frame counter - which reads as the right attack at the wrong speed.
 	f.move = if w.moveId then self.char.moves[w.moveId] else nil
 	f.effects.chill.stacks = w.chillStacks or 0
+	-- The fighter we last hit, for the chase: the server sends an index, and the only stand-in we
+	-- have is that fighter as the same snapshot describes them (`others`, from reconcile). It does
+	-- not move during the replay - it is where the chase aims, which is all the chase reads.
+	f.comboTarget = if w.comboTarget ~= nil and self.others then self.others[w.comboTarget] else nil
 	-- A rollback's old platform reference can point to a different island or shelf. Resolve
 	-- every grounded correction against its actual contact, using Stage.supported's footprint.
 	-- Assuming the main floor teleported shelf fighters down and erased shields as "air".
@@ -166,8 +171,12 @@ end
 Predictor.SMOOTH_RATE = 30     -- per second: e^(-30 * 0.07) is about an eighth left after 70ms
 Predictor.SNAP_STUDS = 6
 
-function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any?)
+-- `others`, if given, is every fighter in the same snapshot as { [index] = { index, x, y, vx, vy,
+-- h, alive, comboHits, onGround, hitlag } }: what a predicted chase aims at, and whether its combo
+-- is still going.
+function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any?, others: any?)
 	local beforeX, beforeY = self.fighter.x, self.fighter.y
+	self.others = others
 	local wasReady = self.ready
 	if self.ready then
 		-- Our own full snapshot from that frame, if we still hold it. Without this the non-wire
@@ -185,8 +194,29 @@ function Predictor.reconcile(self: any, w: any, consumed: number, platforms: any
 	self:applyWire(w)
 	self.ready = true
 
+	-- The other fighters move on while we replay: carry each stand-in forward along what the
+	-- snapshot says of it - frozen while its hit freeze lasts, otherwise its velocity under
+	-- gravity - so a chase predicted a few frames on aims near where they will be. Copies, so the
+	-- caller's table is not changed. Their launch out of a freeze is not on the wire, so a chase
+	-- straight out of one can still be a correction.
+	if others then
+		local moving = {}
+		for i, o in others do moving[i] = table.clone(o) end
+		self.others = moving
+		local f = self.fighter
+		if f.comboTarget then f.comboTarget = moving[f.comboTarget.index] end
+	end
 	for seq = consumed + 1, self.sent do
 		simulate(self, seq, false)
+		for _, o in self.others or {} do
+			if (o.hitlag or 0) > 0 then
+				o.hitlag -= 1
+			else
+				o.x += (o.vx or 0) * Config.FRAME
+				o.y += (o.vy or 0) * Config.FRAME
+				if not o.onGround then o.vy = (o.vy or 0) - Config.GRAVITY * Config.FRAME end
+			end
+		end
 	end
 	-- how far the correction moved the fighter we are drawing
 	local dx, dy = beforeX - self.fighter.x, beforeY - self.fighter.y
@@ -232,6 +262,7 @@ function Predictor.state(self: any): any
 	out.item = if f.item then f.item.def.id else nil
 	out.chillStacks = f.effects.chill.stacks
 	out.ledgeAction = if f.la then f.la.kind else nil
+	out.comboTarget = if f.comboTarget then f.comboTarget.index else nil
 	return out
 end
 

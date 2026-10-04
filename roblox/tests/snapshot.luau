@@ -30,6 +30,8 @@ local EXPECTED = {
 	"item",
 	"startupEff", "frameCount", "charge", "hitlag", "fastFalling", "ultCooldown", "techRoll", "ultShots", "hitstun", "lastHitFrame",
 	"chillStacks", "ledgeAction",
+	"moveLanded", "comboTarget", "perfectStreak",
+	"comboHits", "breakable", "breakCooldown",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation
@@ -98,6 +100,18 @@ f.hitstun = 13
 f.lastHitFrame = 77
 f.effects.chill.stacks = 2
 f.la = { kind = "attack", L = {} }
+-- combos: every value distinct from the fresh default (moveLanded false, streak 0, breakable true...)
+f.moveLanded = true
+f.perfectStreak = 2
+f.chainDepth = 3
+f.linkPerfect = true
+f.chase = 19
+f.cancelUsed = true
+f.comboTarget = Fighter.new({ index = 1, char = char, x = 0, y = 0, stocks = 3 })
+f.comboHits = 5
+f.breakLocked = true
+f.breakable = false
+f.breakCooldown = 222
 
 local EXPECT_VALUE: { [string]: any } = {
 	index = 3, x = 12.5, y = 7.25, vx = -4.5, vy = 9.75, facing = -1,
@@ -108,6 +122,10 @@ local EXPECT_VALUE: { [string]: any } = {
 	ultCooldown = 27, techRoll = -1, ultShots = 4, hitstun = 13, lastHitFrame = 77,
 	-- Flattened out of f.effects.chill.stacks and f.la.kind respectively.
 	chillStacks = 2, ledgeAction = "attack",
+	moveLanded = true, perfectStreak = 2,
+	-- a reference to the fighter we last hit; only its index crosses
+	comboTarget = 1,
+	comboHits = 5, breakable = false, breakCooldown = 222,
 }
 
 local decoded = Snapshot.decode(Snapshot.encode(f))

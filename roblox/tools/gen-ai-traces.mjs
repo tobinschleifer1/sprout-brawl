@@ -24,8 +24,9 @@ const n = (v) => (typeof v === 'number' ? String(v) : v);
 const nn = (v) => (v === null || v === undefined ? null : String(v));
 
 const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'percent', 'onGround', 'jumpsLeft', 'alive',
-  'stocks', 'moveId', 'ultCharge', 'ultShots', 'hitstun'];
-const AI = ['timer', 'plan', 'hold', 'jumpCd', 'ultCd', 'defCd', 'punish', 'fetch', 'fetchCd', 'noFumble'];
+  'stocks', 'moveId', 'ultCharge', 'ultShots', 'hitstun', 'comboHits', 'perfectStreak', 'breakCooldown'];
+const AI = ['timer', 'plan', 'hold', 'jumpCd', 'ultCd', 'defCd', 'punish', 'fetch', 'fetchCd', 'noFumble',
+  'comboMove', 'airFollow', 'breakTry'];
 
 const idle = { poll() {}, get() { return emptyFrame(); }, kb2Active: false };
 
@@ -40,8 +41,22 @@ function run(spec) {
     })),
   });
 
+  // `percent`: where each fighter starts, so the combo planner's kill-percent cash-out and the
+  // break (which needs a fourth hit) are reached inside a short trace.
+  if (spec.percent) spec.percent.forEach((p, i) => { m.fighters[i].percent = p; });
   const rows = [];
+  let launched = false;
   for (let i = 0; i < spec.frames && m.state !== 'results'; i++) {
+    // `launch`: the moment the fight starts, put fighter 0 point-blank on fighter 1 and start this
+    // move - so a path bots rarely open on (a launcher's jump cancel) is traced; everything after
+    // is the bot's own decision.
+    if (spec.launch && !launched && m.state === 'fight') {
+      launched = true;
+      const [a, v] = m.fighters;
+      for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = m.stage.main.top; f.vx = 0; f.vy = 0; f.invincible = 0; f.setState('idle'); }
+      a.x = -1.2; v.x = 1.2; a.facing = 1; v.facing = -1;
+      a.startMove(spec.launch);
+    }
     // Items on the fourteen-second spawn timer almost never reach a bot: they land somewhere far
     // off, and a bot within five studs of an opponent will not go for one at all. Placing them
     // directly is the only way itemAction's fetch path runs.
@@ -71,6 +86,17 @@ for (const level of ['easy', 'normal', 'hard', 'elite', 'impossible', 'just_dont
     who: [['Classic', 'Sword', level], ['Noir', 'Pike', level]], stocks: 3, frames: 1800 });
 }
 // `dummy` returns an empty frame and never enters decide() at all.
+// Combos (COMBO in config.js): top bots timing strings, cashing out at kill percent, cancelling,
+// and the victims trying the break.
+// Seeds chosen because their matches contain a cancel and a break as well as timed links.
+S.push({ name: 'combo bots: daggers into a sword', stage: 'FoundryFloor', seed: 9, stocks: 3, frames: 2400,
+  who: [['Classic', 'Daggers', 'just_dont'], ['Noir', 'Sword', 'elite']], percent: [0, 110] });
+S.push({ name: 'combo bots: scythe into gauntlets', stage: 'FoundryFloor', seed: 6, stocks: 3, frames: 2400,
+  who: [['Classic', 'Scythe', 'just_dont'], ['Noir', 'Gauntlets', 'elite']], percent: [80, 120] });
+S.push({ name: 'combo bots: cash-out at kill percent', stage: 'FoundryFloor', seed: 17, stocks: 3, frames: 700,
+  who: [['Classic', 'Sword', 'just_dont'], ['Noir', 'Axe', 'hard']], percent: [0, 95] });
+S.push({ name: 'combo bots: launcher, jump cancel, chase', stage: 'FoundryFloor', seed: 3, stocks: 3, frames: 400,
+  who: [['Classic', 'Sword', 'just_dont'], ['Noir', 'Axe', 'easy']], percent: [0, 50], launch: 'LightUp' });
 S.push({ name: 'dummy', stage: 'FoundryFloor', seed: 7, frames: 400,
   who: [['Classic', 'Sword', 'dummy'], ['Noir', 'Sword', 'hard']], stocks: 3 });
 // The misspelled alias in LEVELS, which is a real key somebody could pass.

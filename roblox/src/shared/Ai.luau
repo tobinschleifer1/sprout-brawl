@@ -16,17 +16,20 @@
 --     when two are equidistant.
 
 local Input = require(script.Parent.Input)
+local COMBO = require(script.Parent.Config).COMBO
 
 local Ai = {}
 
+-- combo / timing / cancel / breakOut: how well each level strings, times, cancels and breaks out
+-- (Config.COMBO) - see ai.js.
 Ai.LEVELS = {
 	dummy = nil,
-	easy = { sight = 26, reaction = 22, commit = 20, aggression = 0.35, defence = 0.15, kill = 0.5, dodge = 0.1, ult = 0.2, edge = 0.0, slip = 0.30, chains = 0 },
-	normal = { sight = 15, reaction = 12, commit = 16, aggression = 0.55, defence = 0.35, kill = 0.7, dodge = 0.25, ult = 0.5, edge = 0.15, slip = 0.15, chains = 1 },
-	hard = { sight = 9, reaction = 6, commit = 13, aggression = 0.7, defence = 0.55, kill = 0.9, dodge = 0.4, ult = 0.75, edge = 0.4, slip = 0.07, chains = 2 },
-	elite = { sight = 5, reaction = 3, commit = 11, aggression = 0.85, defence = 0.7, kill = 1.0, dodge = 0.6, ult = 0.9, edge = 0.65, slip = 0.03, chains = 3 },
-	impossible = { sight = 2, reaction = 1, commit = 9, aggression = 0.95, defence = 0.85, kill = 1.0, dodge = 0.8, ult = 1.0, edge = 0.8, slip = 0.01, chains = 3 },
-	just_dont = { sight = 0, reaction = 1, commit = 8, aggression = 1.0, defence = 1.0, kill = 1.0, dodge = 1.0, ult = 1.0, edge = 0.95, slip = 0.0, chains = 3 },
+	easy = { sight = 26, reaction = 22, commit = 20, aggression = 0.35, defence = 0.15, kill = 0.5, dodge = 0.1, ult = 0.2, edge = 0.0, slip = 0.30, chains = 0, combo = 0.2, timing = 0.1, cancel = 0, breakOut = 0 },
+	normal = { sight = 15, reaction = 12, commit = 16, aggression = 0.55, defence = 0.35, kill = 0.7, dodge = 0.25, ult = 0.5, edge = 0.15, slip = 0.15, chains = 1, combo = 0.5, timing = 0.35, cancel = 0.15, breakOut = 0.1 },
+	hard = { sight = 9, reaction = 6, commit = 13, aggression = 0.7, defence = 0.55, kill = 0.9, dodge = 0.4, ult = 0.75, edge = 0.4, slip = 0.07, chains = 2, combo = 0.75, timing = 0.7, cancel = 0.5, breakOut = 0.35 },
+	elite = { sight = 5, reaction = 3, commit = 11, aggression = 0.85, defence = 0.7, kill = 1.0, dodge = 0.6, ult = 0.9, edge = 0.65, slip = 0.03, chains = 3, combo = 0.9, timing = 0.85, cancel = 0.75, breakOut = 0.6 },
+	impossible = { sight = 2, reaction = 1, commit = 9, aggression = 0.95, defence = 0.85, kill = 1.0, dodge = 0.8, ult = 1.0, edge = 0.8, slip = 0.01, chains = 3, combo = 1.0, timing = 0.95, cancel = 0.9, breakOut = 0.85 },
+	just_dont = { sight = 0, reaction = 1, commit = 8, aggression = 1.0, defence = 1.0, kill = 1.0, dodge = 1.0, ult = 1.0, edge = 0.95, slip = 0.0, chains = 3, combo = 1.0, timing = 1.0, cancel = 1.0, breakOut = 1.0 },
 }
 Ai.LEVELS.imposible = Ai.LEVELS.impossible     -- the misspelling is in the JavaScript too
 
@@ -299,10 +302,57 @@ function Ai.computeBotInput(f: any, match: any): any
 	local L = LEVELS[f.botLevel] or LEVELS.normal
 	if not f.ai then
 		f.ai = { timer = 0, plan = "approach", hold = 0, jumpCd = 0, lastState = "", ultCd = 0,
-			defCd = 0, punish = 0, chain = nil, noFumble = false, fetch = 0, fetchCd = 0 }
+			defCd = 0, punish = 0, chain = nil, noFumble = false, fetch = 0, fetchCd = 0,
+			comboMove = -1, combo = nil, airFollow = 0, breakTry = -9999 }
 	end
 	f.ai.noFumble = false
 	return fumble(decide(f, match, L, f.ai), L, f.ai)
+end
+
+-- ---------------------------------------------------------------------------- combos ----
+-- Once per landed move, what follows it, and whether it is pressed on the strike (timed) or late.
+-- The same draws in the same order as ai.js planCombo.
+local DIRS = { "neutral", "side", "up", "down" }
+local function dirOf(map: any): string?
+	if not map then return nil end
+	if type(map) == "string" then return "neutral" end
+	for _, k in DIRS do
+		if map[k] then return k end
+	end
+	return nil
+end
+local function planCombo(f: any, L: any, tv: any): any
+	local m = f.move
+	if not chance(L.combo) then return nil end
+	local timed = chance(L.timing)
+	if m.finishers and m.finishers.neutral and timed and f.perfectStreak == f.chainDepth then
+		return { press = "light", dir = "neutral", timed = true }
+	end
+	if m.chainsHeavy and tv.percent >= 100 then return { press = "heavy", dir = dirOf(m.chainsHeavy), timed = timed } end
+	local light = dirOf(m.chains) or (if m.chainsTo then "neutral" else nil)
+	if light then return { press = "light", dir = light, timed = timed } end
+	if m.cancels and chance(L.cancel) then
+		local jump = m.cancels.jump and (tv.y > f.y + 1 or not m.cancels.dodge)
+		return { press = if jump then "jump" else "dodge", dir = "side", cancel = true }
+	end
+	if m.chainsHeavy then return { press = "heavy", dir = dirOf(m.chainsHeavy), timed = timed } end
+	return nil
+end
+local function comboInput(frame: any, f: any, plan: any, dir: number)
+	local m = f.move
+	local late = f.mf >= f.startupEff + m.active + COMBO.perfectLate
+	if plan.cancel then
+		if f.mf <= f.startupEff + m.active then return end
+	elseif not (plan.timed or late) then
+		return
+	end
+	frame[plan.press] = true
+	frame.anyPress = true
+	if plan.press == "heavy" then frame.heavyHeld = true end
+	if plan.press == "jump" then frame.jumpHeld = true end
+	if plan.dir == "side" then frame.x = dir
+	elseif plan.dir == "up" then frame.y = 1
+	elseif plan.dir == "down" then frame.y = -1 end
 end
 
 function decide(f: any, match: any, L: any, st: any): any
@@ -417,7 +467,27 @@ function decide(f: any, match: any, L: any, st: any): any
 		st.chain = nil
 		frame.x = -sign(if f.vx ~= 0 then f.vx else 1) * 0.6
 		frame.y = if f.vy > 0 then -0.5 else 0.5
+		-- the combo break: one try per freeze that allows it
+		if f.hitlag > 0 and f.comboHits >= COMBO.breakFrom and f.breakable and f.breakCooldown == 0
+			and not f.breakLocked and st.breakTry ~= f.lastHitFrame then
+			st.breakTry = f.lastHitFrame
+			if chance(L.breakOut) then
+				frame.dodge = true
+				frame.anyPress = true
+			end
+		end
 		return frame
+	end
+	-- after a jump cancel: an aerial at them while the chase window is open
+	if st.airFollow > 0 then
+		st.airFollow -= 1
+		if not f.onGround and state == "air" then
+			frame.light = true
+			frame.anyPress = true
+			frame.x = dir
+			frame.y = if dy > 2 then 1 else 0
+			return frame
+		end
 	end
 	if f.tumbling and not f.onGround then
 		if f.y < 4 and f.vy < 0 then
@@ -450,8 +520,15 @@ function decide(f: any, match: any, L: any, st: any): any
 		if f.move and f.move.charge and state == "attack" then
 			frame.heavyHeld = f.charge < (f.move.charge.maxHold * 0.6)
 		end
-		if f.move and f.move.chainsTo and f.moveLanded then
-			frame.light = chance(0.7)
+		if state == "attack" and f.move and f.moveLanded then
+			if st.comboMove ~= f.moveSerial then
+				st.comboMove = f.moveSerial
+				st.combo = planCombo(f, L, tv)
+			end
+			if st.combo then
+				comboInput(frame, f, st.combo, dir)
+				if st.combo.press == "jump" and frame.jump then st.airFollow = COMBO.chaseFrames end
+			end
 		end
 		if state == "attack" and f.move and not f.onGround then
 			frame.x = dir * 0.6

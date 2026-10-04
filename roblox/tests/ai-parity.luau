@@ -76,10 +76,26 @@ for _, spec in T.scenarios do
 		items = not not spec.items, fighters = fighters,
 	})
 
+	if spec.percent then
+		for i, p in spec.percent do m.fighters[i].percent = num(p) end
+	end
 	local broke = false
+	local launched = false
 	for frame = 1, num(spec.frames) do
 		if m.state == "results" then
 			break
+		end
+		-- `launch`: see gen-ai-traces.mjs
+		if spec.launch and not launched and m.state == "fight" then
+			launched = true
+			local a, v = m.fighters[1], m.fighters[2]
+			for _, f in { a, v } do
+				f.onGround = true; f.platform = m.stage.main; f.y = m.stage.main.top
+				f.vx = 0; f.vy = 0; f.invincible = 0
+				f:setState("idle")
+			end
+			a.x = -1.2; v.x = 1.2; a.facing = 1; v.facing = -1
+			a:startMove(spec.launch)
 		end
 		if spec.drop then
 			for _, d in spec.drop do

@@ -19,7 +19,7 @@ const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 
 
 const AV = ['Classic', 'Noir', 'Ember', 'Moss'];
 function itemMatch(opts = {}) {
-  const m = makeMatch({ mode: 'StockFFA', stocks: opts.stocks ?? 3, stageId: opts.stageId,
+  const m = makeMatch({ mode: 'StockFFA', stocks: opts.stocks ?? 3, stageId: opts.stageId, seed: opts.seed,
     loadouts: (opts.weapons || ['Sword', 'Scythe']).map((w, i) => [AV[i % 4], w]) });
   m.itemsOn = true;
   if (opts.bots !== false) m.fighters.forEach((f) => { f.isBot = true; f.botLevel = opts.level || 'hard'; });
@@ -56,7 +56,7 @@ function park(p, x, y) { p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.gravity = 0; p.
 {
   const t = { itemspawn: 0, pickup: 0, throwitem: 0, rivet: 0, placeitem: 0, spring: 0, lodestone: 0, bulwark: 0 };
   for (let g = 0; g < 6; g++) {
-    const m = itemMatch({ weapons: ['Sword', 'Scythe', 'Axe', 'Pike'], level: 'hard' });
+    const m = itemMatch({ weapons: ['Sword', 'Scythe', 'Axe', 'Pike'], level: 'hard', seed: 1 + g });   // six different matches
     for (let i = 0; i < 60 * 200 && m.state !== 'results'; i++) {
       m.step();
       for (const e of m.events) if (t[e.type] !== undefined) t[e.type]++;
@@ -76,8 +76,11 @@ function park(p, x, y) { p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.gravity = 0; p.
   const ids = ITEM_LIST.map((d) => d.id);
   const artless = ids.filter((id) => !ITEM_ART_IDS.includes(id));
   const seen = new Set();
+  // Eight DIFFERENT matches. Without a seed every one of them was seed 1 - the same match eight
+  // times - so this only ever sampled one, and which items it saw moved whenever anything else
+  // drew from the match's generator (the bots' combo decisions did).
   for (let g = 0; g < 8 && seen.size < ids.length; g++) {
-    const m = itemMatch({ weapons: ['Sword', 'Scythe', 'Axe', 'Pike'], level: 'hard' });
+    const m = itemMatch({ weapons: ['Sword', 'Scythe', 'Axe', 'Pike'], level: 'hard', seed: 1 + g });
     for (let i = 0; i < 60 * 200 && m.state !== 'results'; i++) {
       m.step();
       for (const e of m.events) if (e.type === 'itemspawn') seen.add(e.item);

@@ -1,6 +1,6 @@
 # Combo system plan: skill through timing, air strings and finishers
 
-Status: phases 1 and 2 done (engine, weapon data); phase 3 next. Branch: `revamp/sprites-disasters`.
+Status: phases 1-3 done (engine, weapon data, prediction and bots); phase 4 next. Branch: `revamp/sprites-disasters`.
 
 The decisions behind it:
 

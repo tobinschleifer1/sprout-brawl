@@ -1,4 +1,5 @@
 import { emptyFrame } from './input.js';
+import { COMBO } from '../config.js';
 
 // `ult` is how well a bot spends its ultimate: at 0.2 it throws it out roughly whenever the bar
 // fills, at 1.0 it waits for the range the move actually wants and for a target worth spending it
@@ -28,14 +29,20 @@ import { emptyFrame } from './input.js';
 // `ult` is how well a bot spends its ultimate: at 0.2 it throws it out roughly whenever the bar
 // fills, at 1.0 it waits for the range the move actually wants. `edge` is how willing it is to
 // follow someone off the stage.
+//
+// Combos (COMBO in config.js): `combo` is the chance of continuing a string once a move lands,
+// `timing` the chance a continuation is pressed on the strike - a timed link, which is what opens
+// the finisher - rather than late, `cancel` the chance of using a move's cancel, and `breakOut` the
+// chance of trying the combo break in a freeze that allows one. Weak levels mostly drop strings or
+// link them late; the top levels time them, take the finisher and break out.
 export const LEVELS = {
   dummy: null,
-  easy: { sight: 26, reaction: 22, commit: 20, aggression: 0.35, defence: 0.15, kill: 0.5, dodge: 0.1, ult: 0.2, edge: 0.0, slip: 0.30, chains: 0 },
-  normal: { sight: 15, reaction: 12, commit: 16, aggression: 0.55, defence: 0.35, kill: 0.7, dodge: 0.25, ult: 0.5, edge: 0.15, slip: 0.15, chains: 1 },
-  hard: { sight: 9, reaction: 6, commit: 13, aggression: 0.7, defence: 0.55, kill: 0.9, dodge: 0.4, ult: 0.75, edge: 0.4, slip: 0.07, chains: 2 },
-  elite: { sight: 5, reaction: 3, commit: 11, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6, ult: 0.9, edge: 0.65, slip: 0.03, chains: 3 },
-  impossible: { sight: 2, reaction: 1, commit: 9, aggression: 0.95, defence: 0.85, kill: 1.0, dodge: 0.8, ult: 1.0, edge: 0.8, slip: 0.01, chains: 3 },
-  just_dont: { sight: 0, reaction: 1, commit: 8, aggression: 1.0, defence: 1.0, kill: 1.0, dodge: 1.0, ult: 1.0, edge: 0.95, slip: 0.0, chains: 3 },
+  easy: { sight: 26, reaction: 22, commit: 20, aggression: 0.35, defence: 0.15, kill: 0.5, dodge: 0.1, ult: 0.2, edge: 0.0, slip: 0.30, chains: 0, combo: 0.2, timing: 0.1, cancel: 0, breakOut: 0 },
+  normal: { sight: 15, reaction: 12, commit: 16, aggression: 0.55, defence: 0.35, kill: 0.7, dodge: 0.25, ult: 0.5, edge: 0.15, slip: 0.15, chains: 1, combo: 0.5, timing: 0.35, cancel: 0.15, breakOut: 0.1 },
+  hard: { sight: 9, reaction: 6, commit: 13, aggression: 0.7, defence: 0.55, kill: 0.9, dodge: 0.4, ult: 0.75, edge: 0.4, slip: 0.07, chains: 2, combo: 0.75, timing: 0.7, cancel: 0.5, breakOut: 0.35 },
+  elite: { sight: 5, reaction: 3, commit: 11, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6, ult: 0.9, edge: 0.65, slip: 0.03, chains: 3, combo: 0.9, timing: 0.85, cancel: 0.75, breakOut: 0.6 },
+  impossible: { sight: 2, reaction: 1, commit: 9, aggression: 0.95, defence: 0.85, kill: 1.0, dodge: 0.8, ult: 1.0, edge: 0.8, slip: 0.01, chains: 3, combo: 1.0, timing: 0.95, cancel: 0.9, breakOut: 0.85 },
+  just_dont: { sight: 0, reaction: 1, commit: 8, aggression: 1.0, defence: 1.0, kill: 1.0, dodge: 1.0, ult: 1.0, edge: 0.95, slip: 0.0, chains: 3, combo: 1.0, timing: 1.0, cancel: 1.0, breakOut: 1.0 },
 };
 LEVELS.imposible = LEVELS.impossible;
 const sign = (v) => (v < 0 ? -1 : 1);
@@ -251,9 +258,41 @@ export function computeBotInput(f, match) {
   RNG = (match.stage && match.stage.rng) || Math.random;
   if (f.botLevel === 'dummy') return emptyFrame();            // dummy stands still
   const L = LEVELS[f.botLevel] || LEVELS.normal;
-  if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false, fetch: 0, fetchCd: 0 };
+  if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false, fetch: 0, fetchCd: 0, comboMove: -1, combo: null, airFollow: 0, breakTry: -9999 };
   f.ai.noFumble = false;
   return fumble(decide(f, match, L, f.ai), L, f.ai);
+}
+
+// ----------------------------------------------------------------------------- combos -----
+// Once per landed move, decide what follows it (COMBO in config.js): the finisher if the string
+// is still perfect, a signature cash-out once the victim is at kill percent, the next light link,
+// or the move's cancel - each with this level's skill - and whether it is pressed on the strike
+// (timed) or late. Returns the plan; comboInput turns it into this frame's buttons.
+const DIR_INPUT = { neutral: {}, side: null, up: { y: 1 }, down: { y: -1 } };
+const DIRS = ['neutral', 'side', 'up', 'down'];
+function planCombo(f, L, tv) {
+  const m = f.move;
+  if (!chance(L.combo)) return null;
+  const timed = chance(L.timing);
+  // A fixed preference, not key order: Luau tables have none, and the port has to choose the same.
+  const dirOf = (map) => { if (!map) return null; if (typeof map === 'string') return 'neutral'; return DIRS.find((k) => map[k]) || null; };
+  if (m.finishers && m.finishers.neutral && timed && f.perfectStreak === f.chainDepth) return { press: 'light', dir: 'neutral', timed: true };
+  if (m.chainsHeavy && tv.percent >= 100) return { press: 'heavy', dir: dirOf(m.chainsHeavy), timed };
+  const light = dirOf(m.chains) || (m.chainsTo ? 'neutral' : null);
+  if (light) return { press: 'light', dir: light, timed };
+  if (m.cancels && chance(L.cancel)) return { press: m.cancels.jump && (tv.y > f.y + 1 || !m.cancels.dodge) ? 'jump' : 'dodge', dir: 'side', cancel: true };
+  if (m.chainsHeavy) return { press: 'heavy', dir: dirOf(m.chainsHeavy), timed };
+  return null;
+}
+function comboInput(frame, f, plan, dir) {
+  const m = f.move;
+  const late = f.mf >= f.startupEff + m.active + COMBO.perfectLate;
+  if (plan.cancel ? f.mf <= f.startupEff + m.active : !(plan.timed || late)) return;
+  frame[plan.press] = true; frame.anyPress = true;
+  if (plan.press === 'heavy') frame.heavyHeld = true;
+  if (plan.press === 'jump') frame.jumpHeld = true;
+  const d = DIR_INPUT[plan.dir];
+  if (d === null) frame.x = dir; else Object.assign(frame, d);
 }
 
 function decide(f, match, L, st) {
@@ -306,7 +345,21 @@ function decide(f, match, L, st) {
     return frame;
   }
   // ---- hitstun / tumble / knockdown ----
-  if (f.state === 'hitstun') { st.noFumble = true; st.chain = null; frame.x = -sign(f.vx || 1) * 0.6; frame.y = f.vy > 0 ? -0.5 : 0.5; return frame; }
+  if (f.state === 'hitstun') {
+    st.noFumble = true; st.chain = null; frame.x = -sign(f.vx || 1) * 0.6; frame.y = f.vy > 0 ? -0.5 : 0.5;
+    // The combo break: one try per freeze that allows it (a failed try presses nothing, so it
+    // never locks the break the way an early press would).
+    if (f.hitlag > 0 && f.comboHits >= COMBO.breakFrom && f.breakable && f.breakCooldown === 0 && !f.breakLocked && st.breakTry !== f.lastHitFrame) {
+      st.breakTry = f.lastHitFrame;
+      if (chance(L.breakOut)) { frame.dodge = true; frame.anyPress = true; }
+    }
+    return frame;
+  }
+  // After a jump cancel: an aerial at them while the chase window is open.
+  if (st.airFollow > 0) {
+    st.airFollow--;
+    if (!f.onGround && f.state === 'air') { frame.light = true; frame.anyPress = true; frame.x = dir; frame.y = dy > 2 ? 1 : 0; return frame; }
+  }
   if (f.tumbling && !f.onGround) { if (f.y < 4 && f.vy < 0) frame.guard = true; else if (chance(0.2)) frame.jump = true; return frame; }
   if (f.state === 'knockdown') return frame;
   // Deadeye is a stance: it holds three rounds and spends one per press. A bot that pressed once
@@ -319,7 +372,13 @@ function decide(f, match, L, st) {
   if (f.state === 'attack' || f.state === 'holding' || f.state === 'grab') {
     if (f.state === 'holding') { const r = RNG(); frame.x = r < 0.4 ? f.facing : r < 0.6 ? -f.facing : 0; frame.y = r > 0.8 ? 1 : 0; }
     if (f.move && f.move.charge && f.state === 'attack') frame.heavyHeld = f.charge < (f.move.charge.maxHold * 0.6);
-    if (f.move && f.move.chainsTo && f.moveLanded) frame.light = chance(0.7);
+    if (f.state === 'attack' && f.move && f.moveLanded) {
+      if (st.comboMove !== f.moveSerial) { st.comboMove = f.moveSerial; st.combo = planCombo(f, L, tv); }
+      if (st.combo) {
+        comboInput(frame, f, st.combo, dir);
+        if (st.combo.press === 'jump' && frame.jump) st.airFollow = COMBO.chaseFrames;
+      }
+    }
     if (f.state === 'attack' && f.move && !f.onGround) frame.x = dir * 0.6;
     return frame;
   }

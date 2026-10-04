@@ -44,6 +44,17 @@ local FIELDS = {
 	-- the objects would put a timer and a ledge reference on the wire 60 times a second to deliver
 	-- one integer and one string.
 	{ "chillStacks", "cs" }, { "ledgeAction", "la" },
+	-- Combos (Config.COMBO): only what the client cannot work out for itself. Its combat is a
+	-- stub, so it never sees a hit land: without `moveLanded` it never predicted a chain, and every
+	-- follow-up arrived a round trip late as a correction; without `comboTarget` (sent as an index)
+	-- a predicted chase has nobody to aim at. The victim's combo count and whether the last hit
+	-- can be broken are written by hits, so a break the local player presses is only predicted if
+	-- they arrive. The streak and the break cooldown are for the combo HUD.
+	-- The string's depth, the timed-link flag, the chase window, the cancel flag and the break
+	-- lock are NOT sent: the predictor's own rollback history carries them exactly once it knows
+	-- the hit landed (removing any of them still replays tests/prediction-combos.luau exactly).
+	{ "moveLanded", "ml" }, { "comboTarget", "ct" }, { "perfectStreak", "ps" },
+	{ "comboHits", "co" }, { "breakable", "bk" }, { "breakCooldown", "bc" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -69,6 +80,9 @@ function Snapshot.encode(f: any): { [string]: any }
 			out[wire] = if f.item then f.item.def.id else nil
 		elseif name == "chillStacks" then
 			out[wire] = f.effects.chill.stacks
+		elseif name == "comboTarget" then
+			-- a fighter reference; only its index crosses
+			out[wire] = if f.comboTarget then f.comboTarget.index else nil
 		elseif name == "ledgeAction" then
 			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
 			-- from the stage. Only the kind changes the pose.

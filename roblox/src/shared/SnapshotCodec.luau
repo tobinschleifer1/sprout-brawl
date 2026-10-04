@@ -30,7 +30,12 @@ SnapshotCodec.KEYFRAME_EVERY = 60   -- frames: a client that lost its base recov
 
 local WIRE: { string } = {}
 for i, pair in Snapshot.FIELDS do WIRE[i] = pair[2] end
-assert(#WIRE <= 32, "a fighter's changed-field mask is 32 bits")
+-- The changed-field mask is two 32-bit words: fields 1-32 in the first, 33-64 in the second.
+assert(#WIRE <= 64, "a fighter's changed-field mask is 64 bits")
+local function bitOf(k: number): (number, number)
+	if k <= 32 then return 1, bit32.lshift(1, k - 1) end
+	return 2, bit32.lshift(1, k - 33)
+end
 
 -- ------------------------------------------------------------------ writer ----
 local T_NIL, T_FALSE, T_TRUE, T_I8, T_I16, T_I32, T_F64, T_STR = 0, 1, 2, 3, 4, 5, 6, 7
@@ -130,13 +135,17 @@ function SnapshotCodec.encode(snap: any, base: any?): buffer
 	w.u8(#snap.fighters)
 	for i, f in snap.fighters do
 		local prev = if delta then (base :: any).fighters[i] else nil
-		local mask = 0
+		local mask = { 0, 0 }
 		for k, key in WIRE do
-			if not prev or differs(prev[key], f[key]) then mask = bit32.bor(mask, bit32.lshift(1, k - 1)) end
+			if not prev or differs(prev[key], f[key]) then
+				local word, bit = bitOf(k)
+				mask[word] = bit32.bor(mask[word], bit)
+			end
 		end
-		w.u32(mask)
+		w.u32(mask[1]); w.u32(mask[2])
 		for k, key in WIRE do
-			if bit32.btest(mask, bit32.lshift(1, k - 1)) then w.value(f[key]) end
+			local word, bit = bitOf(k)
+			if bit32.btest(mask[word], bit) then w.value(f[key]) end
 		end
 	end
 	local platforms = snap.platforms
@@ -167,10 +176,11 @@ function SnapshotCodec.decode(b: any, base: any?): any
 		if delta and #(base :: any).fighters ~= n then return nil end
 		out.fighters = table.create(n)
 		for i = 1, n do
-			local mask = r.u32()
+			local mask = { r.u32(), r.u32() }
 			local f = if delta then table.clone((base :: any).fighters[i]) else {}
 			for k, key in WIRE do
-				if bit32.btest(mask, bit32.lshift(1, k - 1)) then f[key] = r.value() end
+				local word, bit = bitOf(k)
+				if bit32.btest(mask[word], bit) then f[key] = r.value() end
 			end
 			out.fighters[i] = f
 		end

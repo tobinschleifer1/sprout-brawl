@@ -117,6 +117,8 @@ lune run tests/match-config
 echo "== prediction: rollback and replay against a straight simulation =="
 lune run tests/prediction
 lune run tests/prediction-platforms
+echo "== combos predicted on the server's frames: timed strings, chases, the victim's break =="
+lune run tests/prediction-combos
 echo "== the client's view-only stage, moved by the server =="
 lune run tests/stage-view
 echo "== parity: Stage vs web/src/engine/stage.js =="

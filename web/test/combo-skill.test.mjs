@@ -20,8 +20,8 @@ const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 
 
 // Two fighters toe to toe on Foundry Floor, attacker on the left facing right. `edit` changes the
 // attacker's moves before anything runs (each match builds its own character, so this is local).
-function duel({ weapon = 'Sword', gap = 2.4, percent = 0, edit } = {}) {
-  const m = makeMatch({ loadouts: [['Classic', weapon], ['Noir', 'Sword']] });
+function duel({ weapon = 'Sword', gap = 2.4, percent = 0, edit, seed = 1 } = {}) {
+  const m = makeMatch({ loadouts: [['Classic', weapon], ['Noir', 'Sword']], seed });
   skipCountdown(m);
   for (let i = 0; i < 200; i++) m.step();
   const [a, v] = m.fighters;
@@ -376,6 +376,74 @@ function breakAt(hitNumber, { pressInFreeze = true, cooldown = 0, earlyPress = f
   a.triggerCounter(10);
   check("Shield's counter burst carries its cancel", a.moveId === 'CounterBurst' && a.move.cancels && a.move.cancels.dodge === true,
     `move ${a.moveId}, cancels ${JSON.stringify(a.move.cancels)}`);
+}
+
+// ---------------------------------------------------------------- bots ----
+{
+  // Bots of each level against their own level, a minute each over three seeds: timed links per
+  // landed hit grow with the level, hard bots use their cancels.
+  function sample(level, weapon) {
+    const c = { perfect: 0, hits: 0, cancel: 0, links: 0, ordinary: 0 };
+    for (const seed of [1, 2, 3]) {
+      const m = makeMatch({ loadouts: [['Classic', weapon], ['Noir', weapon]], seed });
+      for (const f of m.fighters) { f.isBot = true; f.botLevel = level; }
+      skipCountdown(m);
+      let serial = -1;
+      for (let i = 0; i < 3600 && m.state !== 'results'; i++) {
+        m.step();
+        const a = m.fighters[0];
+        if (a.moveSerial !== serial) {
+          serial = a.moveSerial;
+          if (a.state === 'attack' && a.chainDepth > 0) { c.links++; if (!a.linkPerfect) c.ordinary++; }
+        }
+        for (const e of m.events) {
+          if (e.type === 'perfectlink' && e.fighter === 0) c.perfect++;
+          if (e.type === 'hit' && e.attacker === 0) c.hits++;
+          if (e.type === 'cancel' && e.fighter === 0) c.cancel++;
+        }
+        m.events.length = 0;
+      }
+    }
+    return c;
+  }
+  const share = {}, timedOfLinks = {}, ordinary = {};
+  for (const lv of ['easy', 'normal', 'hard']) {
+    const c = sample(lv, 'Sword');
+    share[lv] = c.perfect / Math.max(1, c.hits);
+    timedOfLinks[lv] = (c.links - c.ordinary) / Math.max(1, c.links);
+    ordinary[lv] = c.ordinary;
+  }
+  check('bots time more of their links the harder they are', share.easy < share.normal && share.normal < share.hard && share.hard > 0.2,
+    `timed links per landed hit: easy ${share.easy.toFixed(2)}, normal ${share.normal.toFixed(2)}, hard ${share.hard.toFixed(2)}`);
+  check('weaker bots link late, stronger ones on time', ordinary.normal > 0 && timedOfLinks.normal < timedOfLinks.hard,
+    `normal: ${ordinary.normal} late links, ${(timedOfLinks.normal * 100).toFixed(0)}% of links timed; hard ${(timedOfLinks.hard * 100).toFixed(0)}%`);
+  const dag = sample('hard', 'Daggers');
+  check('hard bots use their cancels', dag.cancel > 0, `hard Daggers: ${dag.cancel} cancels in three minutes`);
+  // The break, by level: a bot held in a fourth hit's freeze tries it with its level's skill.
+  function botBreak(level, seed = 1) {
+    const d = duel({ percent: 40, seed });
+    const { m, a, v } = d;
+    v.isBot = true; v.botLevel = level;
+    // xorshift's first outputs from a small seed sit near 0, and nothing has drawn from this
+    // match's generator yet - so spend a few, or every trial draws the same near-0 and passes
+    for (let k = 0; k < 8; k++) m.stage.rng();
+    for (let n = 1; n <= COMBO.breakFrom; n++) { a.moveSerial++; m.combat.resolveHit(a, v, a.char.moves.LightNeutral1, null, null, {}); if (n < COMBO.breakFrom) v.hitlag = 0; }
+    // through the whole freeze: a bot gets one try per freeze, not one per frame of it
+    let broke = false;
+    for (let k = 0; k < 14 && !broke && (k === 0 || v.hitlag > 0); k++) {
+      m.step();
+      broke = m.events.some((e) => e.type === 'combobreak' && e.fighter === 1);
+      m.events.length = 0;
+    }
+    return broke;
+  }
+  check('a top bot breaks a fourth-hit freeze; an easy one never tries', botBreak('just_dont') && !botBreak('easy'),
+    `just_dont broke: ${botBreak('just_dont')}, easy broke: ${botBreak('easy')}`);
+  // One try per freeze: a hard bot (breakOut 0.35) breaks about a third of the time. Retrying on
+  // every frame of the freeze would make it most of the time.
+  let breaks = 0;
+  for (let k = 1; k <= 40; k++) if (botBreak('hard', k * 7919 + 101)) breaks++;
+  check('a bot tries the break once a freeze, at its level\'s rate', breaks >= 6 && breaks <= 22, `hard: ${breaks} of 40 freezes broken (breakOut 0.35)`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

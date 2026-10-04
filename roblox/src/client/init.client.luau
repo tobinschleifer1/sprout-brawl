@@ -453,9 +453,18 @@ Net.remote("Snapshot").OnClientEvent:Connect(function(packed: any)
 	if predictor and localIndex and snap.acks then
 		for _, a in snap.acks do
 			if a.i == localIndex and (a.e or 0) == (matchCfg.inputEpoch or 0) then
+				-- everyone in this snapshot, as the chase reads them (Predictor.reconcile)
+				local others = {}
+				for i, entry in roster do
+					local st = Snapshot.decode(snap.fighters[i])
+					local ch = chars[entry.index + 1]
+					others[entry.index] = { index = entry.index, x = st.x, y = st.y, vx = st.vx, vy = st.vy,
+						h = if ch then ch.height else 5, alive = st.alive, comboHits = st.comboHits or 0,
+						onGround = st.onGround, hitlag = st.hitlag or 0 }
+				end
 				for i, entry in roster do
 					if entry.index == localIndex then
-						predictor:reconcile(Snapshot.decode(snap.fighters[i]), a.n, snap.platforms)
+						predictor:reconcile(Snapshot.decode(snap.fighters[i]), a.n, snap.platforms, others)
 						if (predictor.lastCorrection or 0) > 0.05 then perf:correction(os.clock(), predictor.lastCorrection) end
 					end
 				end

@@ -50,6 +50,8 @@ local icons: { any } = {}
 Canvas.sprite = function(c: any, key: string, list: any, x0: number, y1: number, pw: number, ph: number, cols: number, rows: number)
 	table.insert(icons, { key = key, d = c.m.d, x0 = x0, y1 = y1, w = cols * pw, h = rows * ph })
 end
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Social = luau.load(fs.readFile("src/client/LobbySocial.luau"), { debugName = "LobbySocial", environment = {
 	game = { GetService = function(_, name) if name == "ReplicatedStorage" then return { Shared = shared } end error(name) end },
 	script = { Parent = codes },

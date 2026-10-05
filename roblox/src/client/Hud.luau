@@ -25,14 +25,24 @@ local ComboGuide = require(script.Parent.ComboGuide)
 
 local DisasterShapes = require(script.Parent.DisasterShapes)
 local PodiumView = require(script.Parent.PodiumView)
+local Ui = require(script.Parent.Ui)
 local Hud = {}
 Hud.__index = Hud
 
-local FONT = Enum.Font.GothamBold
+-- The look is the shared cartoon kit's (Ui): outlined display numbers, ink-bordered cards, key caps.
+local FONT = Ui.LABEL
 local DIM = Color3.fromRGB(198, 204, 214)
-local PANEL = Color3.fromRGB(18, 20, 26)
-local GOLD = Color3.fromRGB(255, 210, 74)       -- a timed link's colour (FxPlayer.PERFECT)
+local PANEL = Ui.PANEL
+local GOLD = Ui.GOLD                            -- a timed link's colour (FxPlayer.PERFECT)
 local BROKE = Color3.fromRGB(150, 156, 168)
+local SLATE = Color3.fromRGB(40, 54, 80)        -- an empty ultimate block
+local ULT_BLOCKS = 10                           -- the meter's blocks: two hits of charge each
+
+-- Hold H for your combo card mid-fight (it shows by itself through the countdown). Polled from
+-- UserInputService rather than bound like the fight's keys: it changes nothing in the simulation.
+Hud.COMBO_KEY = "H"
+local UIS: any = nil
+pcall(function() UIS = game:GetService("UserInputService") end)
 
 local function label(parent: Instance, size: UDim2, pos: UDim2, text: string, px: number, colour: Color3): TextLabel
 	local t = Instance.new("TextLabel")
@@ -47,6 +57,12 @@ local function label(parent: Instance, size: UDim2, pos: UDim2, text: string, px
 	t.Parent = parent
 	return t
 end
+-- Display words with the kit's ink outline; returns the label and the outline, which fades with it.
+local function display(parent: Instance, size: UDim2, pos: UDim2, text: string, px: number, colour: Color3): (TextLabel, any)
+	local t = label(parent, size, pos, text, px, colour)
+	t.Font = Ui.DISPLAY
+	return t, Ui.outline(t, math.max(1.5, px / 11))
+end
 
 function Hud.new(parent: Instance): any
 	local self = setmetatable({}, Hud)
@@ -59,27 +75,50 @@ function Hud.new(parent: Instance): any
 	gui.Parent = parent
 	self.gui = gui
 
-	self.timer = label(gui, UDim2.fromOffset(280, 34), UDim2.new(0.5, -140, 0, 12), "", 26, DIM)
+	-- The clock, in a pill at the top; hidden with it in a stock match.
+	local pill = Ui.pill(gui, "TimerPill", Ui.EDGE)
+	pill.AnchorPoint = Vector2.new(0.5, 0)
+	pill.Position, pill.Size = UDim2.new(0.5, 0, 0, 10), UDim2.fromOffset(124, 42)
+	pill.Visible = false
+	self.timerPill = pill
+	self.timer = display(pill, UDim2.fromScale(1, 1), UDim2.new(), "", 30, DIM)
 	self.timer.TextXAlignment = Enum.TextXAlignment.Center
-	local hints = label(gui, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 48), Bindings.hint(), 13, DIM)
-	hints.Name = "CombatBindings"
-	hints.TextWrapped = true
-	hints.TextXAlignment = Enum.TextXAlignment.Center
-	-- The local player's combo routes (ComboGuide), read off their weapon; filled in by bind.
-	self.guide = label(gui, UDim2.new(1, -24, 0, 30), UDim2.fromOffset(12, 86), "", 12, GOLD)
-	self.guide.Name = "ComboGuide"
-	self.guide.TextWrapped = true
-	self.guide.TextXAlignment = Enum.TextXAlignment.Center
-	self.guide.TextTransparency = 0.15
-	self.abilities = label(gui, UDim2.new(1, -24, 0, 42), UDim2.fromOffset(12, 118), "", 13, Color3.fromRGB(239,176,90))
+	-- The keys that matter mid-fight, as caps, under the clock.
+	local KB: any = Bindings.keyboard
+	local hints = Ui.hintRow(gui, "CombatBindings", { { KB.ult[1], "ULTIMATE" }, { KB.guard[1], "SHIELD" },
+		{ KB.pickup[1], "PICKUP" }, { Hud.COMBO_KEY, "COMBOS" } }, 22)
+	hints.Position, hints.Size = UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 24)
+	self.hints = hints
+	-- What your ultimate is waiting on, or what just happened to it, in a gold pill (empty: hidden).
+	local abilityPill = Ui.pill(gui, "AbilityPill", GOLD)
+	abilityPill.AnchorPoint = Vector2.new(0.5, 0)
+	abilityPill.Position, abilityPill.Size = UDim2.new(0.5, 0, 0, 92), UDim2.fromOffset(500, 30)
+	abilityPill.Visible = false
+	self.abilityPill = abilityPill
+	self.abilities = display(abilityPill, UDim2.fromScale(1, 1), UDim2.new(), "", 15, GOLD)
 	self.abilities.Name = "YourAbilities"
-	self.abilities.TextWrapped = true
 	self.abilities.TextXAlignment = Enum.TextXAlignment.Center
 
 	-- What natural disaster is coming and when: cool while it warns, hot once it strikes.
-	self.disaster = label(gui, UDim2.fromOffset(420, 26), UDim2.new(0.5, -210, 0, 164), "", 18, Color3.new(1, 1, 1))
+	self.disaster = display(gui, UDim2.fromOffset(520, 28), UDim2.new(0.5, -260, 0, 128), "", 22, Color3.new(1, 1, 1))
 	self.disaster.Name = "DisasterBanner"
 	self.disaster.TextXAlignment = Enum.TextXAlignment.Center
+
+	-- The local player's combo routes (ComboGuide), read off their weapon and filled in by bind: a
+	-- card through the countdown, then tucked away until COMBO_KEY is held.
+	local card = Ui.panel(gui, "ComboCard", Color3.fromRGB(150, 96, 20), "YOUR COMBOS", 26)
+	card.AnchorPoint = Vector2.new(0.5, 0)
+	card.Position, card.Size = UDim2.new(0.5, 0, 0, 126), UDim2.new(1, -32, 0, 84)
+	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(760, 84) })
+	card.Visible = false
+	self.guideCard = card
+	local hold = label(card, UDim2.new(0, 160, 0, 26), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
+	hold.TextXAlignment = Enum.TextXAlignment.Right
+	hold.ZIndex = 3
+	self.guide = label(card, UDim2.new(1, -24, 0, 50), UDim2.fromOffset(12, 29), "", 13, GOLD)
+	self.guide.Name = "ComboGuide"
+	self.guide.TextWrapped = true
+	self.guide.TextXAlignment = Enum.TextXAlignment.Center
 
 	-- The ultimate's name and caster, laid along the cutscene banner the canvas paints.
 	self.ultName = label(gui, UDim2.fromOffset(10, 10), UDim2.fromOffset(0, 0), "", 20, Color3.new(1, 1, 1))
@@ -94,19 +133,21 @@ function Hud.new(parent: Instance): any
 	self.ultCaster.Font = Enum.Font.Arcade
 
 	-- The stage's name as the match opens, above the countdown (which owns the callout).
-	self.stageName = label(gui, UDim2.fromOffset(600, 40), UDim2.new(0.5, -300, 0.24, 0), "", 30, Color3.new(1, 1, 1))
+	self.stageName, self.stageOutline = display(gui, UDim2.fromOffset(700, 50), UDim2.new(0.5, -350, 0.24, 0), "", 44, Color3.new(1, 1, 1))
 	self.stageName.Name = "StageName"
 	self.stageName.TextXAlignment = Enum.TextXAlignment.Center
 	self.stageName.TextTransparency = 1
 
-	self.callout = label(gui, UDim2.fromOffset(600, 90), UDim2.new(0.5, -300, 0.32, 0), "", 72, Color3.new(1, 1, 1))
+	-- The countdown, GO, KO and GAME: big cartoon words with a heavy outline.
+	self.callout, self.calloutOutline = display(gui, UDim2.fromOffset(800, 100), UDim2.new(0.5, -400, 0.32, 0), "", 72, Color3.new(1, 1, 1))
+	self.calloutOutline.Thickness = 5
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
 	self.callout.TextTransparency = 1
 
 	-- Combos (Config.COMBO): ComboHud works out what to say; the tiles and this prompt say it.
 	self.combo = ComboHud.new()
 	-- Over the local player's head, during a freeze they can break out of.
-	self.breakPrompt = label(gui, UDim2.fromOffset(120, 24), UDim2.fromOffset(0, 0), "DODGE!", 20, Color3.fromRGB(120, 220, 255))
+	self.breakPrompt = display(gui, UDim2.fromOffset(120, 28), UDim2.fromOffset(0, 0), "DODGE!", 24, Color3.fromRGB(120, 220, 255))
 	self.breakPrompt.Name = "BreakPrompt"
 	self.breakPrompt.TextXAlignment = Enum.TextXAlignment.Center
 	self.breakPrompt.Visible = false
@@ -125,7 +166,7 @@ end
 -- tile size four coloured boxes are four boxes.
 function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?, teams: boolean?)
 	self.localIndex = localIndex
-	self.guide.Text = table.concat(ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil), "     ·     ")
+	self.guide.Text = table.concat(ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil), "\n")
 	if teams ~= nil then self.teamsOn = teams end
 	for _, t in self.tiles do
 		t.root:Destroy()
@@ -136,77 +177,82 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 	self.tiles, self.floats, self.floatMarks = {}, {}, {}
 
 	local n = #roster
-	local W, H, GAP = math.clamp(math.floor((self.gui.AbsoluteSize.X - 36) / 2), 140, 190), 62, 10
+	local W, H, GAP = math.clamp(math.floor((self.gui.AbsoluteSize.X - 36) / 2), 140, 190), 72, 10
 	local columns = math.max(1, math.min(n, math.floor((self.gui.AbsoluteSize.X - 16) / (W + GAP))))
 	local total = columns * W + (columns - 1) * GAP
 	self.layoutWidth = self.gui.AbsoluteSize.X
 	for i, entry in roster do
 		-- In a team match the tile wears the team's colour, as the web's does.
 		local colour = if self.teamsOn then HudColors.TEAM[((entry.team or 0) % 2) + 1] else HudColors.PLAYER[(entry.index % 8) + 1]
-		local root = Instance.new("Frame")
-		root.Size = UDim2.fromOffset(W, H)
+		local yours = entry.index == localIndex
+		-- A card: ink border (gold on your own), a band in the player's colour with their mark and
+		-- name outlined in it, the percent big under it. The colour is the band, not the fill: a
+		-- filled card fights the percent for attention, and the percent is the number that decides
+		-- how you play the next ten seconds.
+		local root = Ui.make("Frame", self.gui, { Name = "Tile" .. i, BackgroundColor3 = PANEL, BackgroundTransparency = 0.08,
+			BorderSizePixel = 0, Size = UDim2.fromOffset(W, H) })
 		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
 			-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
-		root.BackgroundColor3 = PANEL
-		root.BackgroundTransparency = 0.25
-		root.BorderSizePixel = 0
-		root.Parent = self.gui
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 6)
-		corner.Parent = root
-		-- The player's colour as a stripe rather than a fill: a filled tile fights the percent for
-		-- attention, and the percent is the number that decides how you play the next ten seconds.
-		local stripe = Instance.new("Frame")
-		stripe.Size = UDim2.new(0, 4, 1, 0)
-		stripe.BackgroundColor3 = colour
-		stripe.BorderSizePixel = 0
-		stripe.Parent = root
+		Ui.corner(root, 12)
+		Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
+		local band = Ui.make("Frame", root, { Name = "Band", BackgroundColor3 = colour, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20) })
+		Ui.corner(band, 12)
+		Ui.make("Frame", band, { Name = "Square", BackgroundColor3 = colour, BorderSizePixel = 0,
+			Position = UDim2.new(0, 0, 1, -10), Size = UDim2.new(1, 0, 0, 10) })
 
-		local name = label(root, UDim2.fromOffset(W - 16, 16), UDim2.fromOffset(12, 5),
-			`{HudColors.MARKS[(entry.index % 8) + 1]} T{entry.team + 1} {entry.name}`, 12, colour)
-		local weapon = label(root, UDim2.fromOffset(W - 16, 14), UDim2.fromOffset(12, 20),
-			chars[i] and chars[i].name or entry.weapon, 11, DIM)
-		weapon.TextTransparency = 0.35
-		local pct = label(root, UDim2.fromOffset(85, 30), UDim2.fromOffset(10, 30), "0%", 24, Color3.new(1, 1, 1))
-		local stocks = label(root, UDim2.fromOffset(50, 18), UDim2.fromOffset(W - 58, 36), "", 13, colour)
-		stocks.TextXAlignment = Enum.TextXAlignment.Right
+		local name = display(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
+			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 22),
+			string.upper(chars[i] and chars[i].name or entry.weapon), 10, DIM)
+		local pct = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", 30, Color3.new(1, 1, 1))
+		-- Stocks as pixel blocks in the player's colour, right-aligned, capped at eight.
+		local pips = {}
+		for k = 1, 8 do
+			local pip = Ui.make("Frame", root, { Name = "Stock" .. k, BackgroundColor3 = colour, BorderSizePixel = 0,
+				Position = UDim2.fromOffset(W - 8 - k * 13, 26), Size = UDim2.fromOffset(10, 10), Visible = false })
+			Ui.stroke(pip, Ui.INK, 1.5)
+			Ui.make("Frame", pip, { Name = "Hi", BackgroundColor3 = Ui.shade(colour, 0.45), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
+			pips[k] = pip
+		end
 
-		-- The ultimate meter. Hidden outright for a loadout with no ultimate, so it never shows a
-		-- bar that cannot fill.
-		local ultBack = Instance.new("Frame")
-		ultBack.Size = UDim2.new(1, -20, 0, 4)
-		ultBack.Position = UDim2.fromOffset(10, H - 10)
-		ultBack.BackgroundColor3 = Color3.fromRGB(52, 58, 70)
-		ultBack.BorderSizePixel = 0
+		-- The ultimate meter: a row of blocks along the card's foot. Hidden outright for a loadout
+		-- with no ultimate, so it never shows a meter that cannot fill.
+		local ultBack = Ui.make("Frame", root, { Name = "Ultimate", BackgroundTransparency = 1, BorderSizePixel = 0,
+			Position = UDim2.new(1, -8 - 76, 1, -15), Size = UDim2.fromOffset(76, 8) })
 		ultBack.Visible = chars[i] ~= nil and chars[i].moves.Ultimate ~= nil
-		ultBack.Parent = root
-		local ultFill = Instance.new("Frame")
-		ultFill.Size = UDim2.new(0, 0, 1, 0)
-		ultFill.BackgroundColor3 = colour
-		ultFill.BorderSizePixel = 0
-		ultFill.Parent = ultBack
+		local blocks = {}
+		for k = 1, ULT_BLOCKS do
+			blocks[k] = Ui.make("Frame", ultBack, { BackgroundColor3 = SLATE, BorderSizePixel = 0,
+				Position = UDim2.fromOffset((k - 1) * 7.6, 0), Size = UDim2.fromOffset(6, 8) })
+		end
+		-- Your own card says when your shield is up.
+		local shield = nil
+		if yours then
+			shield = label(root, UDim2.fromOffset(76, 12), UDim2.new(1, -8 - 76, 1, -29), "SHIELD", 10, DIM)
+			shield.Name = "Shield"
+			shield.TextXAlignment = Enum.TextXAlignment.Right
+		end
 
 		-- The combo this fighter is running, above their tile: the hit count and damage, and their
 		-- streak of timed links under it. Their own combo-break cooldown sits in the tile's corner.
-		local combo = label(root, UDim2.fromOffset(W, 22), UDim2.fromOffset(0, -46), "", 18, Color3.new(1, 1, 1))
+		local combo = display(root, UDim2.fromOffset(W, 24), UDim2.fromOffset(0, -50), "", 20, Color3.new(1, 1, 1))
 		combo.Name = "Combo"
-		combo.TextStrokeTransparency = 0.4
-		local perfect = label(root, UDim2.fromOffset(W, 16), UDim2.fromOffset(0, -24), "", 13, GOLD)
+		local perfect = display(root, UDim2.fromOffset(W, 18), UDim2.fromOffset(0, -26), "", 15, GOLD)
 		perfect.Name = "Perfect"
-		perfect.TextStrokeTransparency = 0.5
-		local breakCd = label(root, UDim2.fromOffset(70, 14), UDim2.fromOffset(W - 76, 5), "", 10, BROKE)
+		local breakCd = label(root, UDim2.fromOffset(70, 12), UDim2.fromOffset(W - 78, 22), "", 10, BROKE)
 		breakCd.Name = "BreakCooldown"
 		breakCd.TextXAlignment = Enum.TextXAlignment.Right
 
 		table.insert(self.tiles, {
-			root = root, pct = pct, stocks = stocks, name = name, weapon = weapon,
-			ultBack = ultBack, ultFill = ultFill, colour = colour, index = entry.index,
+			root = root, pct = pct, pips = pips, name = name, weapon = weapon,
+			ultBack = ultBack, ult = blocks, colour = colour, index = entry.index, shield = shield,
 			combo = combo, perfect = perfect, breakCd = breakCd,
 		})
 
 		-- The floating percent over the fighter's own head, which is what a player actually reads
 		-- mid-fight: the tiles are for the glance between stocks.
-		local float = label(self.gui, UDim2.fromOffset(90, 22), UDim2.fromOffset(0, 0), "0%", 16, Color3.new(1, 1, 1))
+		local float = display(self.gui, UDim2.fromOffset(90, 22), UDim2.fromOffset(0, 0), "0%", 17, Color3.new(1, 1, 1))
 		float.TextXAlignment = Enum.TextXAlignment.Center
 		-- The player's mark in their (team) colour ahead of the percent, as the web's label has it.
 		float.RichText = true
@@ -267,6 +313,16 @@ function Hud.ultBanner(self: any, B: any, ult: any)
 	self.ultCaster.TextTransparency = 1 - B.alpha * 0.85
 end
 
+-- Is COMBO_KEY held (and not into a chat box)?
+function Hud.comboHeld(_self: any): boolean
+	if not UIS then return false end
+	local ok, held = pcall(function()
+		if UIS:GetFocusedTextBox() then return false end
+		return UIS:IsKeyDown((Enum.KeyCode :: any)[Hud.COMBO_KEY])
+	end)
+	return ok and held == true
+end
+
 function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: { any }, cfg: any)
 	if self.results then self.results:draw(os.clock()) end
 	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex, self.teamsOn) end
@@ -277,10 +333,12 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	elseif cfg and cfg.timed and snap then
 		local left = (cfg.timeLimit or 180) - snap.time
 		self.timer.Text = mmss(left)
-		self.timer.TextColor3 = if left < 30 then Color3.fromRGB(232, 98, 42) else DIM
+		self.timer.TextColor3 = if left < 30 then Color3.fromRGB(232, 98, 42) else Ui.WHITE
 	else
 		self.timer.Text = ""
 	end
+	self.timerPill.Visible = self.timer.Text ~= ""
+	self.timerPill.Size = UDim2.fromOffset(if #self.timer.Text > 6 then 250 else 124, 42)
 
 	local banner = DisasterShapes.banner(self.disasterView)
 	if banner then
@@ -320,16 +378,30 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	else
 		self.callout.TextTransparency = 1
 	end
+	self.calloutOutline.Transparency = self.callout.TextTransparency
+	self.stageOutline.Transparency = self.stageName.TextTransparency
+	-- the combo card: through the countdown, and while its key is held
+	self.guideCard.Visible = self.guide.Text ~= "" and ((snap ~= nil and snap.state == "countdown") or self:comboHeld())
+	-- (a disaster's banner steps down under the card while it shows)
+	self.disaster.Position = UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 218 else 128)
 
 	local byIndex: { [number]: any } = {}
 	for _, st in states do
 		byIndex[st.index] = st
 	end
 	local mine = byIndex[self.localIndex]
+	-- the gold pill: what just happened to your ultimate, or, once it is full, what it waits on
+	local said = nil
 	if mine and chars[self.localIndex + 1] then
-		self.abilities.Text = if self.abilityUntil and os.clock() < self.abilityUntil then self.abilityMessage
-			else AbilityStatus.describe(mine, chars[self.localIndex + 1])
+		said = if self.abilityUntil and os.clock() < self.abilityUntil then self.abilityMessage else nil
+		if not said then
+			local ult = AbilityStatus.ultimate(mine, chars[self.localIndex + 1])
+			if string.sub(ult, 1, 5) == "READY" then said = "ULTIMATE " .. ult end
+		end
 	end
+	self.abilities.Text = said or ""
+	self.abilityPill.Visible = said ~= nil
+	if said then self.abilityPill.Size = UDim2.fromOffset(math.clamp(Ui.textWidth(said, 15) + 44, 200, 640), 30) end
 
 	local combos = ComboHud.view(self.combo, states, now)
 	for _, tile in self.tiles do
@@ -366,16 +438,24 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			tile.pct.TextColor3 = HudColors.percent(st.percent)
 			-- Stocks as pips, capped: past eight the count stops being readable at a glance and
 			-- the number would be better, but no mode here goes past a handful.
-			tile.stocks.Text = string.rep("●", math.clamp(st.stocks, 0, 8))
+			local stocks = math.clamp(st.stocks, 0, 8)
+			for k, pip in tile.pips do pip.Visible = k <= stocks end
 			local out = st.stocks <= 0 and not st.alive
-			tile.root.BackgroundTransparency = if out then 0.7 else 0.25
+			tile.root.BackgroundTransparency = if out then 0.6 else 0.08
 			tile.name.TextTransparency = if out then 0.6 else 0
 
 			if tile.ultBack.Visible then
 				local meter = math.min(1, st.ultCharge / Config.ULTIMATE.hitsRequired)
-				tile.ultFill.Size = UDim2.new(meter, 0, 1, 0)
+				local lit = math.floor(meter * ULT_BLOCKS + 1e-9)
 				local ready = st.ultCharge >= Config.ULTIMATE.hitsRequired
-				tile.ultFill.BackgroundColor3 = if ready then Color3.new(1, 1, 1) else tile.colour
+				for k, block in tile.ult do
+					block.BackgroundColor3 = if k > lit then SLATE elseif ready then GOLD else tile.colour
+				end
+			end
+			if tile.shield then
+				local up = st.state == "shield"
+				tile.shield.Text = if up then "SHIELD UP" else "SHIELD"
+				tile.shield.TextColor3 = if up then Color3.fromRGB(120, 220, 255) else DIM
 			end
 
 			-- The floating label, over the head and a little above it.

@@ -16,6 +16,7 @@ local Canvas2D = require(script.Parent.Canvas2D)
 local KitPortrait = require(script.Parent.KitPortrait)
 local PlazaArt = require(script.Parent.PlazaArt)
 local Realms = require(Shared.Realms)
+local Ui = require(script.Parent.Ui)
 
 local LobbySocial = {}
 LobbySocial.__index = LobbySocial
@@ -25,7 +26,6 @@ LobbySocial.SAY_SECONDS = 4.5
 LobbySocial.LOG_LINES = 6
 
 local INK = Color3.fromRGB(15, 18, 24)
-local PANEL = Color3.fromRGB(30, 34, 42)
 local PANEL2 = Color3.fromRGB(46, 52, 63)
 local TEXT = Color3.fromRGB(230, 225, 214)
 local DIM = Color3.fromRGB(138, 148, 166)
@@ -33,19 +33,24 @@ local PINK = Color3.fromRGB(200, 100, 60)
 local CYAN = Color3.fromRGB(127, 168, 184)
 local AMBER = Color3.fromRGB(232, 162, 74)
 
+-- The button bar: { panel, key, word, colour }.
+local SPECS: { { any } } = {
+	{ "Stamps", "T", "STAMP", Color3.fromRGB(214, 84, 120) },
+	{ "Say", "Y", "SAY", Color3.fromRGB(46, 120, 190) },
+	{ "People", "P", "PEOPLE", Color3.fromRGB(214, 132, 36) },
+	{ "Map", "M", "MAP", Color3.fromRGB(58, 150, 82) },
+}
+
 local function corner(parent: Instance, px: number)
 	local c = Instance.new("UICorner")
 	c.CornerRadius = UDim.new(0, px)
 	c.Parent = parent
 end
 
+-- A list button inside a panel: the kit's bevelled block, in body text so a line of words fits.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Instance.new("TextButton")
-	b.Name, b.Text, b.Font, b.TextSize = name, text, Enum.Font.GothamBold, 14
-	b.BackgroundColor3, b.TextColor3, b.BorderSizePixel, b.AutoButtonColor = colour or PANEL2, TEXT, 0, true
-	b.Parent = parent
-	corner(b, 6)
-	b.Activated:Connect(onClick)
+	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 14, small = true, textColour = TEXT })
+	b.Name = name
 	return b
 end
 
@@ -57,18 +62,12 @@ local function label(parent: Instance, name: string, text: string, size: number,
 	return t
 end
 
-local function panel(parent: Instance, name: string, title: string, w: number, h: number): Frame
-	local f = Instance.new("Frame")
-	f.Name, f.BackgroundColor3, f.BackgroundTransparency, f.BorderSizePixel = name, PANEL, 0.05, 0
+-- A panel over the button bar: the kit's card, with a band in its button's colour and its title.
+local function panel(parent: Instance, name: string, title: string, w: number, h: number, colour: Color3): Frame
+	local f = Ui.panel(parent, name, colour, title, 30)
 	f.AnchorPoint = Vector2.new(1, 1)
-	f.Position, f.Size = UDim2.new(1, -16, 1, -96), UDim2.fromOffset(w, h)
+	f.Position, f.Size = UDim2.new(1, -16, 1, -62), UDim2.fromOffset(w, h)
 	f.Visible = false
-	f.Parent = parent
-	corner(f, 10)
-	local s = Instance.new("UIStroke")
-	s.Color, s.Thickness, s.Parent = AMBER, 2, f
-	local t = label(f, "Title", title, 16, AMBER)
-	t.Position, t.Size = UDim2.fromOffset(14, 8), UDim2.new(1, -28, 0, 22)
 	return f
 end
 
@@ -94,17 +93,18 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	-- The button bar, bottom right.
 	local bar = Instance.new("Frame")
 	bar.Name, bar.BackgroundTransparency, bar.AnchorPoint = "Bar", 1, Vector2.new(1, 1)
-	bar.Position, bar.Size = UDim2.new(1, -16, 1, -44), UDim2.fromOffset(4 * 96 - 6, 40)
+	bar.Position, bar.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(4 * 124 - 8, 42)
 	bar.Parent = gui
-	local specs: { { any } } = { { "Stamps", "STAMP  T", PINK }, { "Say", "SAY  Y", CYAN }, { "People", "PEOPLE  P", AMBER }, { "Map", "MAP  M", Color3.fromRGB(127, 190, 110) } }
-	for i, sp in specs do
-		local b = button(bar, "Open" .. sp[1], sp[2], function() self:toggle(sp[1]) end, PANEL)
-		b.Position, b.Size, b.TextColor3 = UDim2.fromOffset((i - 1) * 96, 0), UDim2.fromOffset(90, 40), sp[3]
+	-- each button is its key on a cap and its word, in its own colour; its panel's band matches
+	for i, sp in SPECS do
+		local b = Ui.keyButton(bar, sp[2], sp[3], sp[4], function() self:toggle(sp[1]) end, 42, { size = 17 })
+		b.Name = "Open" .. sp[1]
+		b.Position, b.Size = UDim2.fromOffset((i - 1) * 124, 0), UDim2.fromOffset(116, 42)
 	end
 	self.bar = bar
 
 	-- Stamps: eight tiles with the icon drawn in each.
-	local stamps = panel(gui, "Stamps", "STAMPS", 4 * 74 + 20, 2 * 74 + 44)
+	local stamps = panel(gui, "Stamps", "STAMPS", 4 * 74 + 20, 2 * 74 + 44, SPECS[1][4])
 	for i, st in PLAZA.stamps do
 		local b = button(stamps, "Stamp_" .. st.id, "", function() self:stamp(st.id) end, PANEL2)
 		b.Position, b.Size = UDim2.fromOffset(10 + ((i - 1) % 4) * 74, 36 + math.floor((i - 1) / 4) * 74), UDim2.fromOffset(68, 68)
@@ -122,7 +122,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.stampsPanel = stamps
 
 	-- Quick messages.
-	local say = panel(gui, "Say", "SAY", 300, 38 + math.ceil(#PLAZA.messages / 2) * 34 + 8)
+	local say = panel(gui, "Say", "SAY", 300, 38 + math.ceil(#PLAZA.messages / 2) * 34 + 8, SPECS[2][4])
 	for i, m in PLAZA.messages do
 		local key = if i <= 9 then tostring(i) elseif i == 10 then "0" else ""
 		local b = button(say, "Say_" .. i, (if key ~= "" then key .. "  " else "") .. m, function() self:say(i) end, PANEL2)
@@ -132,7 +132,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.sayPanel = say
 
 	-- People.
-	local people = panel(gui, "People", "WHO IS HERE", 340, 380)
+	local people = panel(gui, "People", "WHO IS HERE", 340, 380, SPECS[3][4])
 	local list = Instance.new("ScrollingFrame")
 	list.Name, list.BackgroundTransparency, list.BorderSizePixel = "List", 1, 0
 	list.Position, list.Size = UDim2.fromOffset(8, 36), UDim2.new(1, -16, 1, -44)
@@ -143,7 +143,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.peoplePanel, self.peopleList = people, list
 
 	-- The roof map.
-	local map = panel(gui, "Map", "BAZAAR MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8)
+	local map = panel(gui, "Map", "BAZAAR MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8, SPECS[4][4])
 	for i, w in PLAZA.market.warps do
 		local b = button(map, "Warp_" .. w.id, `{i}  {Realms.place(w.id, w.name)}`, function() self:warp(w.id) end, PANEL2)
 		b.TextXAlignment = Enum.TextXAlignment.Left
@@ -154,7 +154,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	-- The log, bottom left.
 	local log = Instance.new("Frame")
 	log.Name, log.BackgroundColor3, log.BackgroundTransparency, log.BorderSizePixel = "Log", INK, 0.35, 0
-	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -96), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 12)
+	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 12)
 	log.Parent = gui
 	corner(log, 8)
 	self.logFrame = log

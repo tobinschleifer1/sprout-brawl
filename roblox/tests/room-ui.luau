@@ -181,11 +181,13 @@ for _ in shapes do n+=1 end
 assert(n==12)
 print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map grid with Random, map sets and voting, explicit bots, ready and host guards")
 
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
 	-- The results podium has its own test (podium-view); this one is about the match HUD.
 	require=function(name) if name=="PodiumView" then return {} end if name=="Callouts" then return Loader.load("Data/Callouts") end return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
-	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
+	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes,TextTruncate=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local hud=Hud.new(instance("PlayerGui"))
 local roster,chars={},{}
@@ -277,4 +279,57 @@ do
 	hud:bind(roster6, chars, 0, false)
 	assert(hud.tiles[3].colour == HudColors.PLAYER[3], "a free-for-all keeps the player colours")
 	print("PASS team HUD: team-coloured tiles and labels in team matches, player colours otherwise")
+end
+-- The cartoon fight HUD: stocks as blocks, the ultimate as a row of blocks (gold when full), a
+-- shield light on your own card only, a gold pill once your ultimate is ready (and why it waits),
+-- the clock's pill only when there is a clock, and the combo card through the countdown or while
+-- its key is held.
+do
+	local Config = Loader.load("Config")
+	local Ui = Loader.loadFrom("src/client/", "Ui")
+	local roster4 = {}
+	for i = 1, 4 do roster4[i] = { index = i - 1, team = (i - 1) % 2, name = `P{i}`, weapon = "Sword" } end
+	hud:bind(roster4, chars, 0, true)
+	hud.abilityUntil = nil            -- (the denial announced above has had its moment)
+	local full = Config.ULTIMATE.hitsRequired
+	local function st(i: number, over: any?): any
+		local x: any = { index = i - 1, percent = 10, stocks = 3, alive = true, ultCharge = 0, state = "idle", onGround = true, x = 0, y = 0 }
+		for k, v in over or {} do x[k] = v end
+		return x
+	end
+	local function shown(list: { any }): number
+		local n = 0
+		for _, f in list do if f.Visible then n += 1 end end
+		return n
+	end
+	local function coloured(list: { any }, colour: any): number
+		local n = 0
+		for _, f in list do if f.BackgroundColor3 == colour then n += 1 end end
+		return n
+	end
+	hud:update({ st(1, { ultCharge = full }), st(2, { stocks = 1, ultCharge = full / 2 }), st(3, { ultCharge = 1 }), st(4, { stocks = 0, alive = false }) },
+		{ state = "fight", time = 10 }, nil, chars, { timed = false })
+	local t = hud.tiles
+	assert(shown(t[1].pips) == 3 and shown(t[2].pips) == 1 and shown(t[4].pips) == 0, "the stock blocks do not count the stocks")
+	assert(coloured(t[2].ult, t[2].colour) == #t[2].ult / 2 and coloured(t[2].ult, Ui.GOLD) == 0, "half a meter does not light half the blocks in the player's colour")
+	assert(coloured(t[1].ult, Ui.GOLD) == #t[1].ult, "a full meter does not light every block gold")
+	assert(coloured(t[3].ult, t[3].colour) == 0, "one hit of charge lit a whole block (each is two)")
+	assert(t[1].shield and not t[2].shield, "the shield light belongs on your own card only")
+	assert(t[1].shield.Text == "SHIELD", "a shield that is down reads as down")
+	assert(hud.abilityPill.Visible and hud.abilities.Text == "ULTIMATE READY — press O", `the full ultimate's pill says {hud.abilities.Text}`)
+	assert(not hud.timerPill.Visible, "a stock match shows an empty clock")
+	assert(not hud.guideCard.Visible, "the combo card stays tucked away mid-fight")
+	hud:update({ st(1, { ultCharge = full, state = "shield" }), st(2), st(3), st(4) }, { state = "fight", time = 11 }, nil, chars, { timed = true, timeLimit = 180 })
+	assert(t[1].shield.Text == "SHIELD UP", "a raised shield does not light")
+	assert(hud.abilities.Text == "ULTIMATE READY — release shield first", `a shielding full ultimate says {hud.abilities.Text}`)
+	assert(hud.timerPill.Visible and hud.timer.Text == "2:49", `a timed match's clock reads {hud.timer.Text}`)
+	hud:update({ st(1, { ultCharge = 3 }), st(2), st(3), st(4) }, { state = "countdown", countdown = 120, time = 0 }, nil, chars, nil)
+	assert(not hud.abilityPill.Visible, "a charging ultimate showed the pill")
+	assert(hud.guideCard.Visible and hud.guide.Text ~= "", "the combo card does not show through the countdown")
+	local held = hud.comboHeld
+	hud.comboHeld = function() return true end
+	hud:update({ st(1), st(2), st(3), st(4) }, { state = "fight", time = 12 }, nil, chars, nil)
+	assert(hud.guideCard.Visible, "holding the combo key does not bring the card back")
+	hud.comboHeld = held
+	print("PASS cartoon HUD: stock blocks, ultimate blocks (gold when full), your shield light, the ready pill and what it waits on, the clock's pill, the combo card")
 end

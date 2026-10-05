@@ -26,6 +26,8 @@ local function instance(): any
 	obj.SetAttribute = function(_, key, value) obj.attributes[key] = value end
 	return obj
 end
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Plaza2D = luau.load(fs.readFile("src/client/Plaza2D.luau"), { environment = {
 	game = { GetService = function(_, name)
 		if name == "ReplicatedStorage" then return { Shared = shared } end
@@ -412,4 +414,27 @@ hub.input.frame.x = 1
 hub:step(1/60, false)
 hub:interact()
 assert(hub.model.p.x == x, "a hidden lobby cannot move during a match")
+-- The prompt: beside a station, the E key and the action in gold; away from one, a tip and no key.
+-- The controls row shows where it fits beside the social bar.
+do
+	local wasActive, wasBlocked = hub.active, hub.blocked
+	hub.active, hub.blocked = true, false
+	for _, st in PLAZA.market.stations do
+		if st.kind == "Format" then
+			stand(st)
+			hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
+			hub:draw(canvas(1280, 720), 1/60)
+			assert(hub.promptKey.Visible and string.find(hub.prompt.Text, "ENTER", 1, true) and not string.find(hub.prompt.Text, "[E", 1, true),
+				`beside {st.id} the prompt reads {hub.prompt.Text}`)
+			assert(hub.controls.Visible, "the controls row did not show on a wide screen")
+			break
+		end
+	end
+	hub.model:setScene(hub.model.data, { x = 0, z = 8 })
+	hub.gui.AbsoluteSize = { X = 812, Y = 375 }
+	hub:draw(canvas(812, 375), 1/60)
+	assert(not hub.promptKey.Visible and string.find(hub.prompt.Text, "Walk", 1, true), `away from a station the prompt reads {hub.prompt.Text}`)
+	assert(not hub.controls.Visible, "the controls row showed where it runs into the social bar")
+	hub.active, hub.blocked = wasActive, wasBlocked
+end
 print(`PASS lobby view: walking in depth, stations offered where they stand, modal/chat guards, {visits} finite bounded draws (peak {peak} primitives), depth order, wardrobe, CHARACTER button, district banners, lounges show the room`)

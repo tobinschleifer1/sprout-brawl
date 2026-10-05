@@ -31,6 +31,7 @@ local Realms = require(Shared.Realms)
 local PlazaArt = require(script.Parent.PlazaArt)
 local RealmArt = require(script.Parent.RealmArt)
 local PosedFighter = require(script.Parent.PosedFighter)
+local Ui = require(script.Parent.Ui)
 
 local PLAZA: any = Plaza.DATA
 local D = PLAZA.depth :: number
@@ -95,6 +96,9 @@ local function shownMap(room: any): any
 end
 Plaza2D.shownMap = shownMap
 
+-- How wide LobbySocial's button bar is at the bottom right, which the controls row stays clear of.
+Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8
+
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
 	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},
@@ -104,60 +108,63 @@ function Plaza2D.new(parent: Instance): any
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
 	gui.DisplayOrder, gui.Enabled, gui.Parent = 12, false, parent
 	self.gui = gui
-	local title = text(gui, "Title", string.upper(Realms.LOBBY.name), 22)
-	title.Position, title.Size = UDim2.fromOffset(16, 12), UDim2.new(1, -200, 0, 30)
+	-- The HUD is the shared cartoon kit (Ui): outlined display words, bevelled buttons, key caps.
+	local title = Ui.text(gui, string.upper(Realms.LOBBY.name), 26, Ui.GOLD, Ui.DISPLAY)
+	title.Name = "Title"
+	-- below Roblox's top bar, whose menu and chat buttons sit at the top left
+	local inset = Ui.topInset()
+	title.Position, title.Size = UDim2.fromOffset(18, inset + 6), UDim2.new(1, -220, 0, 32)
 	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = PINK
 	self.title = title
-	local directions = text(gui, "Directions", "", 12)
-	directions.Position, directions.Size = UDim2.fromOffset(16, 42), UDim2.new(1, -200, 0, 20)
+	local directions = Ui.text(gui, "", 13, Ui.WHITE)
+	directions.Name = "Directions"
+	directions.Position, directions.Size = UDim2.fromOffset(18, inset + 38), UDim2.new(1, -220, 0, 20)
 	directions.TextXAlignment = Enum.TextXAlignment.Left
 	self.directions = directions
 	-- The district you walked into, large, for a moment.
-	local banner = text(gui, "District", "", 34)
+	local banner = Ui.text(gui, "", 44, Ui.CYAN, Ui.DISPLAY)
+	banner.Name = "District"
 	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, 70), UDim2.fromOffset(600, 44)
-	banner.TextColor3, banner.TextStrokeTransparency = CYAN, 0.4
+	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, 70), UDim2.fromOffset(700, 52)
 	banner.TextTransparency = 1
 	self.banner = banner
-	local controls = text(gui, "Movement", "WASD / arrows: walk (up / down into the roof)   •   Space: hop   •   E: use", 13)
-	controls.Position, controls.Size = UDim2.new(0, 12, 1, -34), UDim2.new(1, -24, 0, 26)
-	local prompt = Instance.new("TextButton")
-	prompt.Name, prompt.Font, prompt.TextSize = "Interact", Enum.Font.GothamBold, 16
+	self.bannerOutline = Ui.outline(banner, 4)
+	self.bannerOutline.Transparency = 1
+	-- How to move, as key caps along the bottom.
+	-- (centred in the room the social bar leaves at the bottom right; hidden where it does not fit)
+	local controls, controlsW = Ui.hintRow(gui, "Movement", { { "A D", "WALK" }, { "W S", "STEP IN / OUT" }, { "SPACE", "HOP" }, { "E", "USE" } }, 24)
+	controls.Position, controls.Size = UDim2.new(0, 16, 1, -39), UDim2.new(1, -Plaza2D.SOCIAL_BAR_W - 48, 0, 26)
+	self.controls, self.controlsW = controls, controlsW
+	-- What you can do here: a card with the E key on it beside a station, or a tip when there is
+	-- nothing in reach (the cap hides, the words soften).
+	local prompt = Ui.make("TextButton", gui, { Name = "Interact", Font = Ui.DISPLAY, TextSize = 22, TextColor3 = Ui.GOLD,
+		BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0.04, BorderSizePixel = 0, AutoButtonColor = false, TextWrapped = true })
 	prompt.AnchorPoint = Vector2.new(0.5, 1)
-	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, -40), UDim2.new(1, -32, 0, 44)
-	local cap = Instance.new("UISizeConstraint")
-	cap.MaxSize, cap.Parent = Vector2.new(540, 44), prompt
-	prompt.BackgroundColor3, prompt.BackgroundTransparency, prompt.BorderSizePixel = INK, 0.15, 0
-	prompt.TextColor3, prompt.TextWrapped, prompt.Parent = AMBER, true, gui
-	local round = Instance.new("UICorner")
-	round.CornerRadius, round.Parent = UDim.new(0, 8), prompt
+	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, -62), UDim2.new(1, -32, 0, 50)
+	Ui.make("UISizeConstraint", prompt, { MaxSize = Vector2.new(596, 50) })
+	Ui.corner(prompt, 12)
+	self.promptEdge = Ui.stroke(prompt, Ui.INK, 3)
+	self.promptOutline = Ui.outline(prompt, 2)
+	self.promptPad = Ui.make("UIPadding", prompt, { PaddingLeft = UDim.new(0, 64), PaddingRight = UDim.new(0, 16) })
+	local key = Ui.keycap(prompt, "E", 20)
+	key.Position, key.Size = UDim2.new(0, 12, 0.5, -18), UDim2.fromOffset(36, 34)
+	self.promptKey = key
 	prompt.Activated:Connect(function() self:interact() end)
 	self.prompt = prompt
-	local character = Instance.new("TextButton")
-	character.Name, character.Font, character.TextSize = "CharacterButton", Enum.Font.GothamBold, 15
-	character.AnchorPoint = Vector2.new(1, 0)
-	character.Position, character.Size = UDim2.new(1, -16, 0, 12), UDim2.fromOffset(150, 38)
-	character.BackgroundColor3, character.BorderSizePixel = Color3.fromRGB(38, 43, 53), 0
-	character.TextColor3, character.Text, character.Parent = CYAN, "CHARACTER", gui
-	local round2 = Instance.new("UICorner")
-	round2.CornerRadius, round2.Parent = UDim.new(0, 8), character
-	character.Activated:Connect(function()
+	local character = Ui.button(gui, "CHARACTER", Ui.BLUE, function()
 		if self.active and not self.blocked and self.onCharacter then self.onCharacter() end
 	end)
+	character.Name = "CharacterButton"
+	character.AnchorPoint = Vector2.new(1, 0)
+	character.Position, character.Size = UDim2.new(1, -16, 0, inset + 8), UDim2.fromOffset(168, 42)
 	self.characterButton = character
 	-- Alone at a cabinet: take on the CPU (also C).
-	local cpu = Instance.new("TextButton")
-	cpu.Name, cpu.Font, cpu.TextSize, cpu.Visible = "CpuButton", Enum.Font.GothamBold, 15, false
-	cpu.AnchorPoint = Vector2.new(0.5, 1)
-	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, -92), UDim2.fromOffset(200, 38)
-	cpu.BackgroundColor3, cpu.BorderSizePixel, cpu.TextColor3, cpu.Text = Color3.fromRGB(38, 43, 53), 0, AMBER, "VS CPU  (C)"
-	cpu.Parent = gui
-	local round3 = Instance.new("UICorner")
-	round3.CornerRadius, round3.Parent = UDim.new(0, 8), cpu
-	cpu.Activated:Connect(function()
+	local cpu = Ui.keyButton(gui, "C", "VS CPU", Ui.PURPLE, function()
 		if self.active and not self.blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
-	end)
+	end, 42)
+	cpu.Name, cpu.Visible = "CpuButton", false
+	cpu.AnchorPoint = Vector2.new(0.5, 1)
+	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, -126), UDim2.fromOffset(190, 42)
 	self.cpuButton = cpu
 	self.cabinets = {}
 	self.labelLayer = gui
@@ -830,7 +837,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	end
 	local age = clock - self.bannerAt
 	self.banner.TextTransparency = if age < 2 then 0 elseif age < 3 then age - 2 else 1
-	self.banner.TextStrokeTransparency = math.max(0.4, self.banner.TextTransparency)
+	self.bannerOutline.Transparency = self.banner.TextTransparency
 
 	local near = self:seatStation() or model:nearest()
 	local cabinetWord = nil
@@ -844,10 +851,24 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	end
 	self:endLabels()
 	c:finish()
+	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0
+	self.controls.Visible = gw - Plaza2D.SOCIAL_BAR_W - 64 >= self.controlsW
+	local action = not self.blocked and near ~= nil
 	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
-		elseif near then `[E / X]  {if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
+		elseif near then `{if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
 		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade and the climb are east, the tailor is west."
-	self.prompt.Active = not self.blocked and near ~= nil
+	self.prompt.Active = action
+	-- an action (the E key, gold words, a gold rim) or a tip (soft words, no key)
+	if self.promptAction ~= action then
+		self.promptAction = action
+		self.promptKey.Visible = action
+		self.prompt.Font = if action then Ui.DISPLAY else Ui.LABEL
+		self.prompt.TextSize = if action then 22 else 15
+		self.prompt.TextColor3 = if action then Ui.GOLD else Ui.WHITE
+		self.promptOutline.Enabled = action
+		self.promptEdge.Color = if action then Ui.GOLD else Ui.INK
+		self.promptPad.PaddingLeft = UDim.new(0, if action then 64 else 16)
+	end
 	self.gui:SetAttribute("NearbyStation", if near then near.id else "")
 	self.gui:SetAttribute("FighterX", p.x)
 	self.gui:SetAttribute("FighterZ", p.z)

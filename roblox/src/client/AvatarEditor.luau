@@ -24,6 +24,7 @@ local Canvas2D = require(script.Parent.Canvas2D)
 local Fighter2D = require(script.Parent.Fighter2D)
 local KitPortrait = require(script.Parent.KitPortrait)
 local PosedFighter = require(script.Parent.PosedFighter)
+local Ui = require(script.Parent.Ui)
 
 local KIT: any = AvatarKit.KIT
 local PARKOUR: any = require(Shared.Data.Parkour)
@@ -31,15 +32,16 @@ local PARKOUR: any = require(Shared.Data.Parkour)
 local AvatarEditor = {}
 AvatarEditor.__index = AvatarEditor
 
-local INK = Color3.fromRGB(16, 20, 27)
-local PANEL = Color3.fromRGB(28, 34, 44)
-local PANEL2 = Color3.fromRGB(38, 46, 59)
-local LINE = Color3.fromRGB(58, 69, 86)
-local TEXT = Color3.fromRGB(232, 236, 242)
-local DIM = Color3.fromRGB(140, 150, 166)
-local AMBER = Color3.fromRGB(239, 176, 90)
-local CYAN = Color3.fromRGB(127, 212, 255)
-local GOOD = Color3.fromRGB(95, 208, 104)
+-- the look is the shared kit's (Ui)
+local INK = Ui.INK
+local PANEL = Ui.PANEL
+local PANEL2 = Ui.PANEL2
+local LINE = Ui.EDGE
+local TEXT = Ui.WHITE
+local DIM = Ui.DIM
+local AMBER = Ui.GOLD
+local GOOD = Ui.GREEN
+local HEADER = Color3.fromRGB(26, 44, 82)        -- the studio's top band
 
 AvatarEditor.MAX_UNDO = 60
 local POSES = { { "idle", "Stand" }, { "run", "Run" }, { "air", "Jump" }, { "attack", "Attack" }, { "victory", "Cheer" } }
@@ -66,7 +68,7 @@ local function label(parent: Instance, name: string, text: string, size: number,
 	local t = Instance.new("TextLabel")
 	t.Name = name
 	t.BackgroundTransparency = 1
-	t.Font = Enum.Font.GothamBold
+	t.Font = Ui.LABEL
 	t.TextSize = size
 	t.TextColor3 = colour or TEXT
 	t.Text = text
@@ -76,18 +78,31 @@ local function label(parent: Instance, name: string, text: string, size: number,
 	return t
 end
 
+-- A worded control: the kit's bevelled button.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
+	local b = Ui.button(parent, text, colour or PANEL2, onClick, { size = 16 })
+	b.Name = name
+	return b
+end
+
+-- A picture tile (an option, a colour, a saved character): a rounded block with a darker lip and
+-- no border of its own, so the picked ring (stroke "Pick") is the only outline it wears.
+local function tile(parent: Instance, name: string, onClick: () -> (), colour: Color3): TextButton
 	local b = Instance.new("TextButton")
 	b.Name = name
+	b.Text = ""
 	b.AutoButtonColor = true
 	b.BorderSizePixel = 0
-	b.BackgroundColor3 = colour or PANEL2
-	b.Font = Enum.Font.GothamBold
-	b.TextSize = 14
-	b.TextColor3 = TEXT
-	b.Text = text
+	b.BackgroundColor3 = colour
 	b.Parent = parent
-	corner(b, 6)
+	corner(b, 8)
+	local lip = Instance.new("Frame")
+	lip.Name = "Lip"
+	lip.BorderSizePixel = 0
+	lip.BackgroundColor3 = Ui.shade(colour, -0.4)
+	lip.Position, lip.Size = UDim2.new(0, 3, 1, -5), UDim2.new(1, -6, 0, 3)
+	lip.Parent = b
+	corner(lip, 2)
 	b.Activated:Connect(onClick)
 	return b
 end
@@ -161,7 +176,8 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "BlockfallCreator"
 	gui.ResetOnSpawn = false
-	gui.IgnoreGuiInset = true
+	-- below Roblox's top bar: its menu and chat buttons sat over the studio's title
+	gui.IgnoreGuiInset = false
 	gui.DisplayOrder = 20
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Enabled = false
@@ -175,17 +191,23 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position = UDim2.fromScale(0.5, 0.5)
 	panel.Size = UDim2.new(1, -24, 1, -24)
-	corner(panel, 12)
+	corner(panel, 14)
+	Ui.stroke(panel, INK, 3)
 	local cap = Instance.new("UISizeConstraint")
 	cap.MaxSize = Vector2.new(1440, 900)
 	cap.Parent = panel
 	self.panel = panel
 
 	-- Top bar: title, your characters, undo / redo / randomise / close.
-	local top = frame(panel, "Top")
+	local top = frame(panel, "Top", HEADER, 0)
 	top.Size = UDim2.new(1, 0, 0, 56)
+	corner(top, 14)
+	local square = frame(top, "Square", HEADER, 0)
+	square.Position, square.Size = UDim2.new(0, 0, 1, -14), UDim2.new(1, 0, 0, 14)
 	self.top = top
-	local title = label(top, "Title", "CHARACTER STUDIO", 20, CYAN)
+	local title = Ui.text(top, "CHARACTER STUDIO", 24, AMBER, Ui.DISPLAY)
+	title.Name = "Title"
+	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
 	self.title = title
 	local chips = frame(top, "Slots")
@@ -199,19 +221,20 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local tools = frame(top, "Tools")
 	tools.AnchorPoint = Vector2.new(1, 0)
 	tools.Position, tools.Size = UDim2.new(1, -12, 0, 8), UDim2.fromOffset(256, 40)
-	local undo = button(tools, "Undo", "UNDO", function() self:undo() end)
+	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, Color3.fromRGB(52, 64, 88))
 	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 40)
-	local redo = button(tools, "Redo", "REDO", function() self:redo() end)
+	local redo = button(tools, "Redo", "REDO", function() self:redo() end, Color3.fromRGB(52, 64, 88))
 	redo.Position, redo.Size = UDim2.fromOffset(62, 0), UDim2.fromOffset(58, 40)
-	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Color3.fromRGB(64, 52, 96))
+	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Ui.PURPLE)
 	rand.Position, rand.Size = UDim2.fromOffset(124, 0), UDim2.fromOffset(80, 40)
-	local close = button(tools, "Close", "X", function() self:close() end, Color3.fromRGB(96, 40, 44))
+	local close = button(tools, "Close", "X", function() self:close() end, Color3.fromRGB(176, 60, 60))
 	close.Position, close.Size = UDim2.fromOffset(208, 0), UDim2.fromOffset(48, 40)
 	self.undoButton, self.redoButton = undo, redo
 
 	-- Preview: the real fighter, posed, with its controls.
 	local preview = frame(panel, "Preview", INK, 0)
-	corner(preview, 10)
+	corner(preview, 12)
+	Ui.stroke(preview, LINE, 2)
 	self.preview = preview
 	local stage = frame(preview, "PreviewCanvas")
 	self.stage = stage
@@ -236,15 +259,16 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	nameBox.Name = "Name"
 	nameBox.BackgroundColor3 = PANEL2
 	nameBox.BorderSizePixel = 0
-	nameBox.Font = Enum.Font.GothamBold
-	nameBox.TextSize = 16
+	nameBox.Font = Ui.DISPLAY
+	nameBox.TextSize = 20
 	nameBox.TextColor3 = TEXT
 	nameBox.PlaceholderText = "Name your fighter"
 	nameBox.PlaceholderColor3 = DIM
 	nameBox.ClearTextOnFocus = false
 	nameBox.Text = self.name
 	nameBox.Parent = preview
-	corner(nameBox, 6)
+	corner(nameBox, 8)
+	Ui.stroke(nameBox, INK, 2)
 	nameBox.FocusLost:Connect(function()
 		local clean = cleanName(nameBox.Text)
 		self.name = if #clean > 0 then clean else self.name
@@ -293,7 +317,8 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	grid.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	grid.CanvasSize = UDim2.new()
 	grid.Parent = editor
-	corner(grid, 8)
+	corner(grid, 10)
+	Ui.stroke(grid, LINE, 2)
 	local pad = Instance.new("UIPadding")
 	pad.PaddingTop, pad.PaddingLeft, pad.PaddingRight, pad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = grid
@@ -312,24 +337,24 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.status = status
 	local hint = label(footer, "Hint", "Arrows: option / part    Q E: tab    R: random    Ctrl+Z / Y: undo / redo", 11, DIM)
 	self.hint = hint
-	local delete = button(footer, "Delete", "DELETE", function() self:confirm("Delete this character?", function() self:delete() end) end, Color3.fromRGB(80, 38, 42))
-	local saveNew = button(footer, "SaveNew", "SAVE AS NEW", function() self:save(true) end)
-	local save = button(footer, "Save", "SAVE & WEAR", function() self:save(false) end, Color3.fromRGB(40, 110, 64))
+	local delete = button(footer, "Delete", "DELETE", function() self:confirm("Delete this character?", function() self:delete() end) end, Color3.fromRGB(150, 52, 58))
+	local saveNew = button(footer, "SaveNew", "SAVE AS NEW", function() self:save(true) end, Ui.BLUE)
+	local save = button(footer, "Save", "SAVE & WEAR", function() self:save(false) end, Color3.fromRGB(52, 160, 84))
 	self.deleteButton, self.saveNewButton, self.saveButton = delete, saveNew, save
 
 	-- A small confirmation, for the two things that lose work.
-	local confirm = frame(panel, "Confirm", INK, 0.05)
+	local confirm = frame(panel, "Confirm", PANEL, 0)
 	confirm.AnchorPoint = Vector2.new(0.5, 0.5)
 	confirm.Position, confirm.Size = UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(360, 140)
 	confirm.Visible = false
 	confirm.ZIndex = 50
 	corner(confirm, 10)
-	stroke(confirm, AMBER, 2)
+	stroke(confirm, AMBER, 3)
 	local question = label(confirm, "Question", "", 16)
 	question.TextXAlignment = Enum.TextXAlignment.Center
 	question.Position, question.Size = UDim2.fromOffset(16, 12), UDim2.new(1, -32, 0, 60)
 	question.ZIndex = 51
-	local yes = button(confirm, "Yes", "YES", function() confirm.Visible = false; if self.onYes then self.onYes() end end, Color3.fromRGB(110, 44, 48))
+	local yes = button(confirm, "Yes", "YES", function() confirm.Visible = false; if self.onYes then self.onYes() end end, Color3.fromRGB(176, 60, 60))
 	yes.Position, yes.Size, yes.ZIndex = UDim2.new(0, 16, 1, -52), UDim2.new(0.5, -24, 0, 40), 51
 	local no = button(confirm, "No", "NO", function() confirm.Visible = false end)
 	no.Position, no.Size, no.ZIndex = UDim2.new(0.5, 8, 1, -52), UDim2.new(0.5, -24, 0, 40), 51
@@ -819,7 +844,7 @@ function AvatarEditor.rebuildCategories(self: any)
 	for i, c in cats do
 		local b = button(self.catBar, "Cat_" .. c.id, string.upper(c.name), function() self:selectCategory(c.id) end)
 		b.LayoutOrder = i
-		b.TextSize = 12
+		b.TextSize = 15
 		b.Size = UDim2.new(1 / math.max(1, #cats), -6, 1, 0)
 		self.catButtons[c.id] = b
 	end
@@ -846,9 +871,9 @@ function AvatarEditor.rebuildTiles(self: any)
 			end
 		end
 		for i, e in entries do
-			local b = button(self.grid, e.kind .. e.id, "", function()
+			local b = tile(self.grid, e.kind .. e.id, function()
 				if e.kind == "Preset_" then self:applyPreset(e.id) else self:pick(self.category, e.id) end
-			end, PANEL)
+			end, PANEL2)
 			b.LayoutOrder = i
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
@@ -856,7 +881,7 @@ function AvatarEditor.rebuildTiles(self: any)
 			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
-			local pick = stroke(b, AMBER, 3)
+			local pick = stroke(b, AMBER, 4)
 			pick.Enabled = false
 			self.tiles[e.id] = { button = b, canvas = Canvas2D.inFrame(thumb), pick = pick, label = name, kind = e.kind }
 		end
@@ -912,7 +937,7 @@ function AvatarEditor.rebuildColours(self: any)
 		g.SortOrder = Enum.SortOrder.LayoutOrder
 		g.Parent = sw
 		for i, hex in c.list do
-			local b = button(sw, `Swatch_{slot}_{i - 1}`, "", function() self:paint(slot, i - 1) end, Canvas2D.hex(hex, INK))
+			local b = tile(sw, `Swatch_{slot}_{i - 1}`, function() self:paint(slot, i - 1) end, Canvas2D.hex(hex, INK))
 			b.LayoutOrder = i
 			local pick = stroke(b, TEXT, 2)
 			pick.Enabled = false
@@ -937,7 +962,7 @@ function AvatarEditor.rebuildChips(self: any)
 	local count = math.max(#self.slots, self.editing)
 	for i = 1, count do
 		local slot = self.slots[i]
-		local b = button(self.chipBar, "Slot_" .. i, "", function() self:openSlot(i) end, if i == self.editing then PANEL2 else INK)
+		local b = tile(self.chipBar, "Slot_" .. i, function() self:openSlot(i) end, if i == self.editing then PANEL2 else INK)
 		b.LayoutOrder = i
 		b.Size = UDim2.fromOffset(44, 44)
 		local thumb = frame(b, "Thumb")
@@ -954,7 +979,7 @@ function AvatarEditor.rebuildChips(self: any)
 		self.chips[i] = { button = b, canvas = canvas, code = code }
 	end
 	if count < (self.max or 8) then
-		local add = button(self.chipBar, "SlotNew", "+", function() self:newSlot() end)
+		local add = button(self.chipBar, "SlotNew", "+", function() self:newSlot() end, Ui.BLUE)
 		add.LayoutOrder = count + 1
 		add.TextSize = 22
 		add.Size = UDim2.fromOffset(44, 44)
@@ -978,21 +1003,19 @@ function AvatarEditor.refreshFooter(self: any)
 end
 
 function AvatarEditor.refresh(self: any)
+	-- the chosen tab is gold, the chosen part and pose blue (with the kit's shine and lip)
 	for id, b in self.groupButtons do
-		b.BackgroundColor3 = if id == self.group then AMBER else PANEL2
-		b.TextColor3 = if id == self.group then INK else TEXT
+		Ui.paint(b, if id == self.group then AMBER else PANEL2, TEXT)
 	end
 	for id, b in self.catButtons or {} do
-		b.BackgroundColor3 = if id == self.category then CYAN else PANEL2
-		b.TextColor3 = if id == self.category then INK else TEXT
+		Ui.paint(b, if id == self.category then Ui.BLUE else PANEL2, TEXT)
 		b.Text = string.upper(AvatarKit.category(id).name) .. (if self.locks[id] then " *" else "")
 	end
 	for id, b in self.poseButtons do
-		b.BackgroundColor3 = if id == self.pose then CYAN else PANEL2
-		b.TextColor3 = if id == self.pose then INK else TEXT
+		Ui.paint(b, if id == self.pose then Ui.BLUE else PANEL2, TEXT)
 	end
 	self.lockButton.Text = if self.locks[self.category] then "LOCKED" else "LOCK"
-	self.lockButton.BackgroundColor3 = if self.locks[self.category] then AMBER else PANEL2
+	Ui.paint(self.lockButton, if self.locks[self.category] then AMBER else PANEL2, TEXT)
 	self.undoButton.AutoButtonColor, self.redoButton.AutoButtonColor = #self.undoStack > 0, #self.redoStack > 0
 	self.undoButton.TextTransparency = if #self.undoStack > 0 then 0 else 0.6
 	self.redoButton.TextTransparency = if #self.redoStack > 0 then 0 else 0.6

@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 const [,, input, output] = process.argv;
 const d = JSON.parse(fs.readFileSync(input, 'utf8'));
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, ' ');
 const FONTS = { 'Font.LuckiestGuy': "'Luckiest Guy', Impact, sans-serif", 'Font.GothamBlack': "'Montserrat', Arial Black, sans-serif",
   'Font.GothamBold': "'Montserrat', Arial, sans-serif", 'Font.FredokaOne': "'Fredoka', Arial, sans-serif" };
 let out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${d.w} ${d.h}" width="${d.w}" height="${d.h}">`
@@ -23,17 +23,21 @@ for (const n of d.nodes) {
       + (n.stroke ? ` stroke="${n.stroke}" stroke-width="${n.strokeW}"` : '') + '/>';
   }
   if (n.text) {
-    const tx = n.align === 'start' ? n.x : n.align === 'end' ? n.x + n.w : n.x + n.w / 2;
-    const font = FONTS[n.font] || "'Montserrat', Arial, sans-serif";
-    const weight = n.font === 'Font.GothamBlack' ? 900 : 700;
-    const stroke = n.textStroke ? ` stroke="${n.textStroke}" stroke-width="${Math.max(2, n.size / 7)}" paint-order="stroke" stroke-linejoin="round"` : '';
+    // a UIPadding insets the text, not the box
+    const left = n.x + (n.padL || 0), right = n.x + n.w - (n.padR || 0);
+    const tx = n.align === 'start' ? left : n.align === 'end' ? right : (left + right) / 2;
+    const font = FONTS[n.font] || FONTS['Font.' + n.font] || "'Montserrat', Arial, sans-serif";
+    const weight = n.font.endsWith('GothamBlack') ? 900 : 700;
+    const sw = n.textStrokeW ? n.textStrokeW * 2 : Math.max(2, n.size / 7);   // SVG strokes straddle the edge
+    const stroke = n.textStroke ? ` stroke="${n.textStroke}" stroke-width="${sw}" paint-order="stroke" stroke-linejoin="round"` : '';
     // TextWrapped labels wrap at their width, as Roblox does (by an average glyph width)
-    let lines = [n.text];
-    if (n.wrap) {
-      const per = Math.max(1, Math.floor(n.w / (n.size * (n.font === 'Font.LuckiestGuy' ? 0.52 : 0.6))));
-      lines = [];
+    // (and at every newline)
+    let lines = [];
+    const per = Math.max(1, Math.floor((right - left) / (n.size * (n.font.endsWith('LuckiestGuy') ? 0.52 : 0.6))));
+    for (const para of String(n.text).split('\n')) {
+      if (!n.wrap) { lines.push(para); continue; }
       let cur = '';
-      for (const word of String(n.text).split(' ')) {
+      for (const word of para.split(' ')) {
         if ((cur + ' ' + word).trim().length > per && cur) { lines.push(cur); cur = word; } else cur = (cur + ' ' + word).trim();
       }
       if (cur) lines.push(cur);

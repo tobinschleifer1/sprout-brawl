@@ -2,7 +2,9 @@
 -- Local-player feedback, never implying that an opponent's full meter belongs to you.
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Status = {}
-function Status.describe(state: any, char: any): string
+-- The ultimate's part alone: CHARGING n/20, ACTIVE, or READY and what is in the way of it. The
+-- fight HUD shows it once it begins with READY - the only time there is something to do.
+function Status.ultimate(state: any, char: any): string
 	local charge = math.min(Config.ULTIMATE.hitsRequired, math.floor(state.ultCharge or 0))
 	local ultimate = `CHARGING {charge}/{Config.ULTIMATE.hitsRequired}`
 	if state.moveId == "Ultimate" then ultimate = "ACTIVE"
@@ -12,6 +14,10 @@ function Status.describe(state: any, char: any): string
 		elseif state.state == "shield" then ultimate = "READY — release shield first"
 		elseif state.state ~= "idle" and state.state ~= "run" and state.state ~= "air" then ultimate = "READY — finish current action" end
 	end
+	return ultimate
+end
+function Status.describe(state: any, char: any): string
+	local ultimate = Status.ultimate(state, char)
 	local shield = if state.state == "shield" then "ACTIVE" else if not state.onGround then "land to shield" else "hold I / Ctrl"
 	return `YOU · {char.weapon.name}   |   SHIELD: {shield}   |   ULTIMATE: {ultimate}`
 end

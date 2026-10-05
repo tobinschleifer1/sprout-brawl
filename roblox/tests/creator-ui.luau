@@ -80,6 +80,8 @@ Canvas.tri = function() blocks += 1 end
 Canvas.line = function() blocks += 1 end
 local Fighter2D = Loader.loadFrom("src/client/", "Fighter2D")
 
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Editor = luau.load(fs.readFile("src/client/AvatarEditor.luau"), { debugName = "AvatarEditor", environment = {
 	game = { GetService = function(_, name)
 		if name == "ReplicatedStorage" then return { Shared = shared } end
@@ -345,5 +347,13 @@ do
 	assert(ed.tiles.skylineCrown.label.Text == "Skyline Crown", "earned while looking at it, it loses its lock")
 	click(root, "Option_skylineCrown")
 	assert(ed.spec.parts.headwear == "skylineCrown", "and can be worn")
+end
+-- the chosen tab is gold, the others are not
+do
+	local Ui = Loader.loadFrom("src/client/", "Ui")
+	ed:selectGroup("hair")
+	assert(ed.groupButtons.hair.BackgroundColor3 == Ui.GOLD and ed.groupButtons.body.BackgroundColor3 ~= Ui.GOLD, "the chosen tab is not the gold one")
+	ed:selectGroup("body")
+	assert(ed.groupButtons.body.BackgroundColor3 == Ui.GOLD and ed.groupButtons.hair.BackgroundColor3 ~= Ui.GOLD, "the gold tab did not follow the choice")
 end
 print("PASS creator: tiles show your character per option and redraw only on change; options, colours, presets, undo/redo; locked Randomise; keyboard; save / save-as-new / delete; unsaved work guarded; saving-off said; real fighter preview in five poses; phone, tablet and desktop layouts")

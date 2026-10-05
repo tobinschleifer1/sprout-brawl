@@ -30,20 +30,16 @@ local FxArt = require(script.Parent.FxArt)
 local Fighter2D = require(script.Parent.Fighter2D)
 local HudColors = require(script.Parent.HudColors)
 local WeaponStats = require(script.Parent.WeaponStats)
+local Ui = require(script.Parent.Ui)
 
 local SelectScreen = {}
 SelectScreen.__index = SelectScreen
 
-local DISPLAY = Enum.Font.LuckiestGuy
-local LABEL = Enum.Font.GothamBlack
-local INK = Color3.fromRGB(11, 16, 32)
-local PANEL = Color3.fromRGB(16, 24, 42)
-local EDGE = Color3.fromRGB(64, 98, 150)
-local WHITE = Color3.fromRGB(240, 244, 252)
-local DIM = Color3.fromRGB(150, 168, 196)
-local GOLD = Color3.fromRGB(255, 210, 74)
-local GREEN = Color3.fromRGB(92, 224, 122)
-local RED = Color3.fromRGB(232, 92, 84)
+-- the look is the shared kit's (Ui)
+local DISPLAY = Ui.DISPLAY
+local INK, PANEL, EDGE, WHITE, DIM = Ui.INK, Ui.PANEL, Ui.EDGE, Ui.WHITE, Ui.DIM
+local GOLD, GREEN, RED = Ui.GOLD, Ui.GREEN, Ui.RED
+local SLATE = Color3.fromRGB(40, 54, 80)          -- an unchosen chip, an unlit stat block
 local STAT_NAMES = { damage = "DMG", defense = "DEF", dexterity = "DEX", speed = "SPD" }
 local DIFFICULTIES = { "easy", "normal", "hard" }
 
@@ -131,34 +127,18 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 end
 
 -- ------------------------------------------------------------------ gui helpers ----
-local function make(class: string, parent: Instance?, props: any): any
-	local o: any = Instance.new(class)
-	for k, v in props do o[k] = v end
-	if parent then o.Parent = parent end
-	return o
-end
-local function corner(parent: Instance, r: number)
-	make("UICorner", parent, { CornerRadius = UDim.new(0, r) })
-end
-local function stroke(parent: Instance, colour: Color3, thick: number): any
-	return make("UIStroke", parent, { Color = colour, Thickness = thick, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
-end
-local function text(parent: Instance, value: string, size: number, colour: Color3, font: any?): any
-	local t = make("TextLabel", parent, { BackgroundTransparency = 1, Text = value, TextSize = size, TextColor3 = colour,
-		Font = font or LABEL, TextXAlignment = Enum.TextXAlignment.Center })
-	-- display text gets the heavy dark outline the genre's UI reads by
-	if font == DISPLAY then make("UIStroke", t, { Color = INK, Thickness = 2 }) end
-	return t
-end
+local make, corner, stroke, text = Ui.make, Ui.corner, Ui.stroke, Ui.text
 -- `small` buttons (the difficulty chips) skip the text outline, which fills small letters in
 local function button(parent: Instance, value: string, colour: Color3, onClick: () -> (), small: boolean?): any
-	local b = make("TextButton", parent, { Text = value, Font = DISPLAY, TextSize = 18, TextColor3 = WHITE,
-		BackgroundColor3 = colour, AutoButtonColor = true, BorderSizePixel = 0 })
-	corner(b, 8)
-	stroke(b, INK, 2)
-	if not small then make("UIStroke", b, { Color = INK, Thickness = 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual }) end
-	b.Activated:Connect(onClick)
-	return b
+	return Ui.button(parent, value, colour, onClick, { small = small })
+end
+-- A stat block: a square of colour with a lit top row and a shadowed bottom row, like a pixel
+-- tile. `lit` is gold, otherwise slate.
+local function paintBlock(block: any, lit: boolean)
+	local c = if lit then GOLD else SLATE
+	block.frame.BackgroundColor3 = c
+	block.hi.BackgroundColor3 = Ui.shade(c, if lit then 0.5 else 0.12)
+	block.lo.BackgroundColor3 = Ui.shade(c, -0.32)
 end
 local function hexOf(c: Color3): string
 	return string.format("#%02X%02X%02X", math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
@@ -279,7 +259,8 @@ function SelectScreen.build(self: any, L: any)
 	for _, c in self.chips do c:Destroy() end
 	self.cells, self.cards, self.tags, self.mapCards, self.ruleCards, self.chips = {}, {}, {}, {}, {}, {}
 	local s = L.s
-	place(self.title, 24 * s, 12 * s, 420 * s, 36 * s)
+	-- below Roblox's top bar where it has one: its menu and chat buttons sit at the top left
+	place(self.title, 24 * s, math.max(12 * s, Ui.topInset() + 4), 420 * s, 36 * s)
 	self.title.TextSize = math.floor(26 * s)
 	place(self.bar, L.W / 2 - 300 * s, 14 * s, 600 * s, 38 * s)
 	place(self.rules, 14 * s, 0, 572 * s, 38 * s)
@@ -315,24 +296,32 @@ function SelectScreen.build(self: any, L: any)
 	-- a card per pedestal
 	for _, p in L.pedestals do
 		local team = HudColors.TEAM[(p.team % 2) + 1]
+		-- the card: an ink border with the team's colour as a ring inside it (green once ready), and
+		-- a header band in the team's colour with the player's name outlined in it
 		local card = make("Frame", self.pickPage, { Name = "Card" .. p.slot, BackgroundColor3 = PANEL, BackgroundTransparency = 0, BorderSizePixel = 0 })
 		place(card, p.x, p.cardY, p.cardW, p.cardH)
-		corner(card, 10)
-		local edge = stroke(card, team, 2)
+		corner(card, 12)
+		stroke(card, INK, 3)
+		local ring = make("Frame", card, { Name = "Ring", BackgroundTransparency = 1, BorderSizePixel = 0 })
+		place(ring, 2, 2, p.cardW - 4, p.cardH - 4)
+		corner(ring, 10)
+		local edge = stroke(ring, team, 2)
 		local band = make("Frame", card, { Name = "Band", BackgroundColor3 = team, BorderSizePixel = 0 })
-		place(band, 0, 0, p.cardW, 22 * s)
-		corner(band, 10)
-		local who = text(band, "", math.floor(12 * s), INK)
+		place(band, 0, 0, p.cardW, 24 * s)
+		corner(band, 12)
+		local square = make("Frame", band, { Name = "Square", BackgroundColor3 = team, BorderSizePixel = 0 })
+		place(square, 0, 12 * s, p.cardW, 12 * s)
+		local who = text(band, "", math.floor(14 * s), WHITE, DISPLAY)
 		who.Name = "Who"
-		place(who, 8 * s, 0, p.cardW - 16 * s, 22 * s)
+		place(who, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		who.TextXAlignment = Enum.TextXAlignment.Left
-		local status = text(band, "", math.floor(11 * s), INK)
+		local status = text(band, "", math.floor(13 * s), WHITE, DISPLAY)
 		status.Name = "State"
-		place(status, 8 * s, 0, p.cardW - 16 * s, 22 * s)
+		place(status, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		status.TextXAlignment = Enum.TextXAlignment.Right
 		local weapon = text(card, "", math.floor(22 * s), WHITE, DISPLAY)
 		weapon.Name = "Weapon"
-		place(weapon, 8 * s, 24 * s, p.cardW - 16 * s, 26 * s)
+		place(weapon, 8 * s, 27 * s, p.cardW - 16 * s, 24 * s)
 		local kind = text(card, "", math.floor(11 * s), DIM)
 		kind.Name = "Kind"
 		place(kind, 8 * s, 48 * s, p.cardW - 16 * s, 14 * s)
@@ -345,12 +334,18 @@ function SelectScreen.build(self: any, L: any)
 			place(tag, 10 * s, y, 34 * s, rowH)
 			tag.TextXAlignment = Enum.TextXAlignment.Left
 			tag.Name = "Stat" .. key
-			local segs = {}
+			local segs: any = { blocks = {} }
 			local segW = (p.cardW - 62 * s) / 10
+			local segH = math.max(6, math.floor(rowH * 0.56))
+			local px = math.max(1, math.floor(segH / 5))       -- one "pixel" of the block's shading
 			for n = 1, 10 do
-				local seg = make("Frame", card, { BorderSizePixel = 0, BackgroundColor3 = Color3.fromRGB(40, 54, 80) })
-				place(seg, 48 * s + (n - 1) * segW, y + rowH * 0.25, segW - 2, math.max(4, rowH * 0.5))
+				local seg = make("Frame", card, { BorderSizePixel = 0, BackgroundColor3 = SLATE })
+				place(seg, 48 * s + (n - 1) * segW, y + (rowH - segH) / 2, segW - 3, segH)
+				local hi = make("Frame", seg, { Name = "Hi", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, px) })
+				local lo = make("Frame", seg, { Name = "Lo", BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -px), Size = UDim2.new(1, 0, 0, px) })
 				segs[n] = seg
+				segs.blocks[n] = { frame = seg, hi = hi, lo = lo }
+				paintBlock(segs.blocks[n], false)
 			end
 			bars[key] = segs
 			segs.tag = tag
@@ -368,7 +363,7 @@ function SelectScreen.build(self: any, L: any)
 		place(addBot, p.cardW * 0.12, 36 * s, p.cardW * 0.76, 38 * s)
 		local chips = {}
 		for k, d in DIFFICULTIES do
-			local chip = button(open, string.upper(d), Color3.fromRGB(40, 54, 80), function()
+			local chip = button(open, string.upper(d), SLATE, function()
 				self.difficulty = d
 				self:render()
 			end, true)
@@ -560,7 +555,7 @@ function SelectScreen.render(self: any)
 		card.who.Text = if human then `{if slot.userId == room.host then "★ " else ""}{string.upper(slot.name or "PLAYER")}`
 			elseif bot then `CPU · {string.upper(slot.bot)}` else `PLAYER {i}`
 		card.status.Text = if human then (if slot.ready then "READY" else "SELECTING") elseif bot then "READY" else ""
-		card.status.TextColor3 = INK
+		card.status.TextColor3 = WHITE
 		card.edge.Color = if human and slot.ready then GREEN else card.team
 		card.edge.Thickness = if human and slot.ready then 3 else 2
 		card.weapon.Visible, card.kind.Visible = filled, filled
@@ -573,7 +568,7 @@ function SelectScreen.render(self: any)
 				segs.tag.Visible = true
 				for n = 1, 10 do
 					segs[n].Visible = true
-					segs[n].BackgroundColor3 = if n <= stats[key] then GOLD else Color3.fromRGB(40, 54, 80)
+					paintBlock(segs.blocks[n], n <= stats[key])
 				end
 			end
 		else
@@ -590,21 +585,20 @@ function SelectScreen.render(self: any)
 		card.addBot.Active = vote == nil
 		card.addBot.Text = if vote then "VOTE RUNNING" else "+ ADD BOT"
 		for d, chip in card.chips do
-			chip.BackgroundColor3 = if d == self.difficulty then GOLD else Color3.fromRGB(40, 54, 80)
-			chip.TextColor3 = if d == self.difficulty then INK else WHITE
+			Ui.paint(chip, if d == self.difficulty then GOLD else SLATE, if d == self.difficulty then INK else WHITE)
 		end
 		if voting then
 			local mineBallot = vote.ballots and vote.ballots[tostring(self.userId)]
 			card.question.Text = if vote.value == false then "REMOVE THE BOT?" else `ADD {string.upper(vote.value)} BOT?`
 			card.tally.Text = `{vote.yes} YES · {vote.no} NO  ·  {vote.voters} VOTING`
-			card.yes.BackgroundColor3 = if mineBallot == true then GREEN else Color3.fromRGB(46, 88, 60)
-			card.no.BackgroundColor3 = if mineBallot == false then RED else Color3.fromRGB(88, 46, 46)
+			Ui.paint(card.yes, if mineBallot == true then GREEN else Color3.fromRGB(46, 88, 60))
+			Ui.paint(card.no, if mineBallot == false then RED else Color3.fromRGB(88, 46, 46))
 		end
 	end
 
 	-- the bottom row
 	self.ready.Text = if mine and mine.ready then "READY ✓" else "READY"
-	self.ready.BackgroundColor3 = if mine and mine.ready then GREEN else Color3.fromRGB(46, 120, 76)
+	Ui.paint(self.ready, if mine and mine.ready then GREEN else Color3.fromRGB(46, 120, 76))
 	self.phaseEndsAt = if room.phaseLeft then os.clock() + room.phaseLeft else nil
 	local last = room.lastVote
 	local arena = room.mapResult and Stages.BY_ID[room.mapResult]

@@ -54,6 +54,8 @@ local function resolve(name: string): any
 	return Loader.load(name)
 end
 local enumNames = setmetatable({}, { __index = function(_, k) return setmetatable({}, { __index = function(_, v) return k .. "." .. v end }) end })
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = new }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = enumNames }
 local Screen = luau.load(fs.readFile("src/client/SelectScreen.luau"), { debugName = "SelectScreen", environment = {
 	game = { GetService = function() return { Shared = shared } end },
 	script = { Parent = names },

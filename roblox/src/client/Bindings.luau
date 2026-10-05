@@ -35,7 +35,4 @@ function Bindings.pad(id: string): string
 	local code = (Bindings.gamepad :: any)[id]
 	return names[code] or code or "Stick / D-pad"
 end
-function Bindings.hint(): string
-	return `Ultimate [{Bindings.key("ult")}] / L-stick   •   Shield [{Bindings.key("guard")}] / RB   •   Pickup [{Bindings.key("pickup")}] / R-stick`
-end
 return Bindings

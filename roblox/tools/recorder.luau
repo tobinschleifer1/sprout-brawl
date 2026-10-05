@@ -81,4 +81,148 @@ function Recorder.texts(made: { any }, W: number, H: number): { any }
 	return texts
 end
 
+-- A fuller Instance stub for screens built from the UI kit: it tracks parents and children (and
+-- FindFirstChild / GetChildren), signals, attributes and property-changed signals, so a module can
+-- build and update its tree as in Roblox. Returns `new` and every object made, in creation order.
+function Recorder.gui(W: number, H: number): ((string) -> any, { any })
+	local made = {}
+	local function signal(): any
+		local fns = {}
+		return { Connect = function(_, fn) table.insert(fns, fn); return { Disconnect = function() end } end,
+			Fire = function(_, ...) for _, fn in fns do fn(...) end end }
+	end
+	local function new(class: string?): any
+		local props: any = { ClassName = class or "Frame", Visible = true, Enabled = true, Activated = signal(), FocusLost = signal(),
+			Name = class or "Frame", _children = {}, attributes = {} }
+		local self: any
+		props.Destroy = function()
+			props.destroyed = true
+			for _, ch in table.clone(props._children) do ch:Destroy() end
+		end
+		props.ClearAllChildren = function() for _, ch in table.clone(props._children) do ch:Destroy() end end
+		props.FindFirstChild = function(_, name) for _, ch in props._children do if ch.Name == name and not ch.destroyed then return ch end end return nil end
+		props.GetChildren = function() local out = {} for _, ch in props._children do if not ch.destroyed then table.insert(out, ch) end end return out end
+		props.IsA = function(_, c) return props.ClassName == c end
+		props.SetAttribute = function(_, k, v) props.attributes[k] = v end
+		props.GetPropertyChangedSignal = function() return signal() end
+		self = setmetatable({}, { __index = props, __newindex = function(_, k, v)
+			props[k] = v
+			if k == "Parent" and v and v._children then table.insert(v._children, self) end
+		end })
+		if class == "ScreenGui" then props.AbsoluteSize = Rbx.Vector2.new(W, H) end
+		table.insert(made, self)
+		return self
+	end
+	return new, made
+end
+
+-- Every visible Frame, label, button and text box among `made`, resolved to its absolute rectangle
+-- through its parents, with its corner radius, border, text outline, padding and text - for
+-- tools/gui-svg.mjs. Ordered as Roblox draws them: by their ScreenGui's DisplayOrder, then made.
+local BOXES = { Frame = true, TextLabel = true, TextButton = true, TextBox = true, ScrollingFrame = true }
+function Recorder.nodes(made: { any }, W: number, H: number): { any }
+	local function rect(o: any): (number, number, number, number)
+		local p = o.Parent
+		local px, py, pw, ph = 0, 0, W, H
+		if p and BOXES[p.ClassName] then px, py, pw, ph = rect(p) end
+		local pos, sz = o.Position or Rbx.UDim2.new(), o.Size or Rbx.UDim2.new(1, 0, 1, 0)
+		-- a UIListLayout or UIGridLayout in the parent places its boxes in LayoutOrder, as Roblox does
+		local layout = nil
+		if p and p._children then
+			for _, ch in p._children do
+				if (ch.ClassName == "UIListLayout" or ch.ClassName == "UIGridLayout") and not ch.destroyed then layout = ch end
+			end
+		end
+		if layout then
+			local sibs = {}
+			for _, ch in p._children do if BOXES[ch.ClassName] and not ch.destroyed then table.insert(sibs, ch) end end
+			table.sort(sibs, function(a, b) return (a.LayoutOrder or 0) < (b.LayoutOrder or 0) end)
+			local at = table.find(sibs, o) or 1
+			local x, y = 0, 0
+			if layout.ClassName == "UIGridLayout" then
+				local cs, gap = layout.CellSize or Rbx.UDim2.fromOffset(100, 100), layout.CellPadding or Rbx.UDim2.fromOffset(4, 4)
+				local cw, ch = pw * cs.X.Scale + cs.X.Offset, ph * cs.Y.Scale + cs.Y.Offset
+				local inner = pw
+				for _, c in p._children do
+					if c.ClassName == "UIPadding" then inner -= (c.PaddingLeft and c.PaddingLeft.Offset or 0) + (c.PaddingRight and c.PaddingRight.Offset or 0) end
+				end
+				local cols = math.max(1, math.floor((inner + gap.X.Offset) / (cw + gap.X.Offset)))
+				local pad = 0
+				for _, c in p._children do if c.ClassName == "UIPadding" then pad = c.PaddingLeft and c.PaddingLeft.Offset or 0 end end
+				x = pad + ((at - 1) % cols) * (cw + gap.X.Offset)
+				y = pad + math.floor((at - 1) / cols) * (ch + gap.Y.Offset)
+				return px + x, py + y, cw, ch
+			end
+			local horizontal = string.find(tostring(layout.FillDirection or ""), "Horizontal") ~= nil
+			local padPx = layout.Padding and layout.Padding.Offset or 0
+			for k = 1, at - 1 do
+				local sz2 = sibs[k].Size or Rbx.UDim2.new()
+				if horizontal then x += pw * sz2.X.Scale + sz2.X.Offset + padPx else y += ph * sz2.Y.Scale + sz2.Y.Offset + padPx end
+			end
+			return px + x, py + y, pw * sz.X.Scale + sz.X.Offset, ph * sz.Y.Scale + sz.Y.Offset
+		end
+		local w, h = pw * sz.X.Scale + sz.X.Offset, ph * sz.Y.Scale + sz.Y.Offset
+		for _, ch in o._children do
+			if ch.ClassName == "UISizeConstraint" and ch.MaxSize then w, h = math.min(w, ch.MaxSize.X), math.min(h, ch.MaxSize.Y) end
+		end
+		local x, y = px + pw * pos.X.Scale + pos.X.Offset, py + ph * pos.Y.Scale + pos.Y.Offset
+		if o.AnchorPoint then x -= o.AnchorPoint.X * w; y -= o.AnchorPoint.Y * h end
+		return x, y, w, h
+	end
+	local function root(o: any): any
+		local cur = o
+		while cur and cur.ClassName ~= "ScreenGui" do cur = cur.Parent end
+		return cur
+	end
+	local function shown(o: any): boolean
+		local cur = o
+		while cur do
+			if cur.destroyed or cur.Visible == false or (cur.ClassName == "ScreenGui" and cur.Enabled == false) then return false end
+			cur = cur.Parent
+		end
+		return true
+	end
+	local list = {}
+	for i, o in made do
+		local cls = o.ClassName
+		if BOXES[cls] and shown(o) then
+			local x, y, w, h = rect(o)
+			local node: any = { x = x, y = y, w = w, h = h }
+			if o.BackgroundTransparency == nil or o.BackgroundTransparency < 1 then
+				node.bg, node.bgAlpha = hex(o.BackgroundColor3 or Rbx.Color3.new(0.6, 0.6, 0.6)), 1 - (o.BackgroundTransparency or 0)
+			end
+			for _, ch in o._children do
+				if ch.destroyed then continue end
+				if ch.ClassName == "UICorner" then node.radius = ch.CornerRadius.Offset end
+				if ch.ClassName == "UIStroke" and ch.Enabled ~= false then
+					if tostring(ch.ApplyStrokeMode) == "ApplyStrokeMode.Border" or tostring(ch.ApplyStrokeMode) == "Border" then
+						node.stroke, node.strokeW = hex(ch.Color), ch.Thickness
+					elseif cls ~= "Frame" then
+						node.textStroke, node.textStrokeW = hex(ch.Color or Rbx.Color3.new()), ch.Thickness
+					end
+				end
+				if ch.ClassName == "UIPadding" then
+					node.padL = ch.PaddingLeft and ch.PaddingLeft.Offset or 0
+					node.padR = ch.PaddingRight and ch.PaddingRight.Offset or 0
+				end
+			end
+			if (cls == "TextLabel" or cls == "TextButton" or cls == "TextBox") and o.Text and o.Text ~= "" and (o.TextTransparency or 0) < 1 then
+				local txt = o.Text
+				if o.RichText then txt = string.gsub(txt, "<[^>]+>", "") end
+				node.text, node.colour, node.size = txt, hex(o.TextColor3 or Rbx.Color3.new(1, 1, 1)), o.TextSize or 14
+				node.font = tostring(o.Font or "")
+				node.wrap = o.TextWrapped == true
+				local a = tostring(o.TextXAlignment or "")
+				node.align = if string.find(a, "Left") then "start" elseif string.find(a, "Right") then "end" else "middle"
+			end
+			local r = root(o)
+			table.insert(list, { order = (r and r.DisplayOrder or 0), i = i, node = node })
+		end
+	end
+	table.sort(list, function(a, b) if a.order ~= b.order then return a.order < b.order end return a.i < b.i end)
+	local nodes = {}
+	for _, e in list do table.insert(nodes, e.node) end
+	return nodes
+end
+
 return Recorder

@@ -73,6 +73,12 @@ local Vector2Shim = {
 
 local Loader = {}
 
+-- The Roblox GUI globals (Instance, UDim, UDim2, Enum) for client modules loaded through here, set
+-- by a GUI test before it loads its screen. The shared UI kit (src/client/Ui.luau) builds
+-- Instances on the screen's behalf, so it has to build them with that test's own Instance stub -
+-- the one the test walks to find and press buttons. Looked up on every use, not copied at load.
+Loader.gui = {} :: { [string]: any }
+
 -- Modules outside src/shared are loaded by their own root. Channels.luau is the case this exists
 -- for: it is client code because it is rendering, but it is pure arithmetic with no Roblox API in
 -- it, so it is testable exactly like the shared modules and is held to the JavaScript the same way.
@@ -102,6 +108,14 @@ function Loader.loadFrom(root: string, name: string): any
 			error("test loader: unsupported require target " .. tostring(target))
 		end,
 	}
+	-- (Proxies rather than a metatable on env: injectGlobals replaces env's metatable with its own.)
+	for _, global in { "Instance", "UDim", "UDim2", "Enum" } do
+		(env :: any)[global] = setmetatable({}, { __index = function(_, k)
+			local real = Loader.gui[global]
+			if real == nil then error(`test loader: {global}.{k} used, but the test set no Loader.gui.{global}`) end
+			return real[k]
+		end })
+	end
 	local chunk = luau.load(source, { debugName = name, environment = env, injectGlobals = true })
 	loaded[key] = chunk()
 	return loaded[key]

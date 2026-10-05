@@ -8,6 +8,7 @@
 -- only draws them. Rows are made once and refilled, so a new board costs no new instances.
 
 local Shared = game:GetService("ReplicatedStorage").Shared
+local Ui = require(script.Parent.Ui)
 local PARKOUR: any = require(Shared.Data.Parkour)
 
 local ClimbRecords = {}
@@ -15,13 +16,15 @@ ClimbRecords.__index = ClimbRecords
 
 ClimbRecords.ROWS = 25
 
-local PANEL = Color3.fromRGB(30, 34, 42)
-local PANEL2 = Color3.fromRGB(46, 52, 63)
-local TEXT = Color3.fromRGB(230, 225, 214)
-local DIM = Color3.fromRGB(138, 148, 166)
-local AMBER = Color3.fromRGB(232, 162, 74)
-local CYAN = Color3.fromRGB(127, 168, 184)
-local YOU = Color3.fromRGB(127, 190, 110)
+-- the look is the shared cartoon kit's (Ui)
+local PANEL = Ui.PANEL
+local TEXT = Ui.WHITE
+local DIM = Ui.DIM
+local AMBER = Ui.GOLD
+local CYAN = Ui.CYAN
+local YOU = Ui.GREEN
+-- the podium's metals, for ranks one to three
+local MEDALS = { Ui.GOLD, Color3.fromRGB(196, 206, 222), Color3.fromRGB(214, 140, 84) }
 local CHECKPOINTS = PARKOUR.course.checkpoints
 
 -- 4995 frames -> "1:23.25", as the climb's own timer shows it.
@@ -47,7 +50,7 @@ end
 
 local function text(parent: Instance, name: string, value: string, size: number, colour: Color3, align: Enum.TextXAlignment?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, value, Enum.Font.GothamBold, size
+	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, size
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment = 1, colour, align or Enum.TextXAlignment.Left
 	t.TextTruncate = Enum.TextTruncate.AtEnd
 	t.Parent = parent
@@ -55,14 +58,10 @@ local function text(parent: Instance, name: string, value: string, size: number,
 end
 
 local function column(parent: Instance, name: string, title: string, x: number): any
-	local f = Instance.new("Frame")
-	f.Name, f.BackgroundColor3, f.BorderSizePixel = name, PANEL2, 0
-	f.Position, f.Size = UDim2.new(x, if x == 0 then 12 else 6, 0, 44), UDim2.new(0.5, -18, 1, -104)
-	f.Parent = parent
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius, corner.Parent = UDim.new(0, 8), f
-	local head = text(f, "Title", title, 15, AMBER)
-	head.Position, head.Size = UDim2.fromOffset(10, 6), UDim2.new(1, -20, 0, 20)
+	-- a card per board: its title outlined in a gold band
+	local f = Ui.panel(parent, name, Color3.fromRGB(150, 96, 20), title, 28)
+	f.BackgroundColor3 = Ui.INK
+	f.Position, f.Size = UDim2.new(x, if x == 0 then 12 else 6, 0, 52), UDim2.new(0.5, -18, 1, -112)
 	local list = Instance.new("ScrollingFrame")
 	list.Name, list.BackgroundTransparency, list.BorderSizePixel = "List", 1, 0
 	list.Position, list.Size = UDim2.fromOffset(4, 30), UDim2.new(1, -8, 1, -34)
@@ -75,8 +74,15 @@ local function column(parent: Instance, name: string, title: string, x: number):
 		local row = Instance.new("Frame")
 		row.Name, row.BackgroundTransparency, row.LayoutOrder, row.Visible = `Row{i}`, 1, i, false
 		row.Size, row.Parent = UDim2.new(1, -6, 0, 22), list
-		local rank = text(row, "Rank", tostring(i), 13, DIM, Enum.TextXAlignment.Right)
-		rank.Position, rank.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(26, 22)
+		-- the rank on a badge: gold, silver and bronze for the top three
+		local rank = text(row, "Rank", tostring(i), 13, DIM, Enum.TextXAlignment.Center)
+		rank.Font = Ui.DISPLAY
+		rank.Position, rank.Size = UDim2.fromOffset(4, 1), UDim2.fromOffset(22, 20)
+		Ui.corner(rank, 10)
+		if MEDALS[i] then
+			rank.BackgroundTransparency, rank.BackgroundColor3, rank.TextColor3 = 0, MEDALS[i], Ui.INK
+			Ui.stroke(rank, Ui.INK, 2)
+		end
 		local who = text(row, "Name", "", 13, TEXT)
 		who.Position, who.Size = UDim2.fromOffset(34, 0), UDim2.new(1, -150, 0, 22)
 		local value = text(row, "Value", "", 13, CYAN, Enum.TextXAlignment.Right)
@@ -104,26 +110,16 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 	gui.Parent = parent
 	self.gui = gui
 
-	local p = Instance.new("Frame")
-	p.Name, p.BackgroundColor3, p.BackgroundTransparency, p.BorderSizePixel = "Panel", PANEL, 0.03, 0
+	-- the board: the kit's card with the climb's name outlined in a band across its top
+	local p, _, title = Ui.panel(gui, "Panel", Color3.fromRGB(26, 44, 82), "SKYLINE CLIMB  ·  RECORDS", 44)
 	p.AnchorPoint, p.Position, p.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.new(1, -32, 1, -64)
-	p.Parent = gui
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize, limit.Parent = Vector2.new(720, 520), p
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius, corner.Parent = UDim.new(0, 12), p
-	local stroke = Instance.new("UIStroke")
-	stroke.Color, stroke.Thickness, stroke.Parent = AMBER, 2, p
-	local title = text(p, "Title", "SKYLINE CLIMB  ·  RECORDS", 18, AMBER)
-	title.Position, title.Size = UDim2.fromOffset(16, 10), UDim2.new(1, -120, 0, 26)
-	local close = Instance.new("TextButton")
-	close.Name, close.Text, close.Font, close.TextSize = "Close", "CLOSE", Enum.Font.GothamBold, 14
-	close.BackgroundColor3, close.TextColor3, close.BorderSizePixel = PANEL2, TEXT, 0
-	close.AnchorPoint, close.Position, close.Size = Vector2.new(1, 0), UDim2.new(1, -12, 0, 8), UDim2.fromOffset(90, 30)
-	close.Parent = p
-	local cc = Instance.new("UICorner")
-	cc.CornerRadius, cc.Parent = UDim.new(0, 6), close
-	close.Activated:Connect(function() self:close() end)
+	title.TextColor3, title.Size = AMBER, UDim2.new(1, -140, 1, 0)
+	local close = Ui.button(p, "CLOSE", Color3.fromRGB(176, 60, 60), function() self:close() end, { size = 16 })
+	close.Name = "Close"
+	close.AnchorPoint, close.Position, close.Size = Vector2.new(1, 0), UDim2.new(1, -10, 0, 6), UDim2.fromOffset(96, 32)
+	close.ZIndex = 3
 	self.closeButton = close
 
 	self.fastest = column(p, "Fastest", "FASTEST CLIMBS", 0)

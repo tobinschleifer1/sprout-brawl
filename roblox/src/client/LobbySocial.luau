@@ -56,7 +56,7 @@ end
 
 local function label(parent: Instance, name: string, text: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, text, Enum.Font.GothamBold, size
+	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, size
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment, t.TextWrapped = 1, colour or TEXT, Enum.TextXAlignment.Left, true
 	t.Parent = parent
 	return t
@@ -156,7 +156,8 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	log.Name, log.BackgroundColor3, log.BackgroundTransparency, log.BorderSizePixel = "Log", INK, 0.35, 0
 	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 12)
 	log.Parent = gui
-	corner(log, 8)
+	corner(log, 10)
+	Ui.stroke(log, Ui.INK, 2)
 	self.logFrame = log
 	self.logLines = {}
 	for i = 1, LobbySocial.LOG_LINES do
@@ -288,22 +289,24 @@ function LobbySocial.setMembers(self: any, list: any)
 	end
 	for i, m in list do
 		local row = Instance.new("Frame")
-		row.Name, row.BackgroundColor3, row.BorderSizePixel, row.LayoutOrder = "Member_" .. tostring(m.userId), PANEL2, 0, i
+		row.Name, row.BackgroundColor3, row.BorderSizePixel, row.LayoutOrder = "Member_" .. tostring(m.userId), Ui.PANEL2, 0, i
 		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
-		corner(row, 6)
+		corner(row, 8)
+		Ui.stroke(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
 		if type(m.avatar) == "string" and string.sub(m.avatar, 1, 2) == "k1" then
 			KitPortrait.draw(Canvas2D.inFrame(face), m.avatar, "head", 44, 44)
 		end
-		local name = label(row, "Name", (if m.userId == self.localId then m.name .. "  (you)" else tostring(m.name)), 14)
+		local name = label(row, "Name", (if m.userId == self.localId then m.name .. "  (you)" else tostring(m.name)), 15)
+		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
 		local where = label(row, "Where", tostring(m.where or ""), 12, if m.place == "fight" then PINK elseif m.place == "room" then AMBER else DIM)
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
 		if m.place == "market" and m.userId ~= self.localId and m.x then
 			local go = button(row, "WarpTo", "WARP", function()
 				if self.opts.warpTo and self.opts.warpTo(m) then self:closeAll() end
-			end, Color3.fromRGB(40, 90, 110))
+			end, Ui.BLUE)
 			go.Position, go.Size = UDim2.new(1, -78, 0, 8), UDim2.fromOffset(70, 32)
 		end
 	end

@@ -19,6 +19,7 @@ local RealmArt = require(script.Parent.RealmArt)
 local Realms = require(Shared.Realms)
 local Fighter2D = require(script.Parent.Fighter2D)
 local ClimbRecords = require(script.Parent.ClimbRecords)
+local Ui = require(script.Parent.Ui)
 
 local PARKOUR: any = Parkour.DATA
 local COURSE = PARKOUR.course
@@ -45,23 +46,25 @@ local function hash(a: number, b: number): number
 	return ((a * 73856093 + b * 19349663) % 1000003) / 1000003
 end
 
+-- The HUD is the shared cartoon kit's (Ui): body words in GothamBlack, display words outlined.
 local function text(parent: Instance, name: string, value: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, value, Enum.Font.GothamBold, size
+	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, size
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment = 1, colour or TEXT, Enum.TextXAlignment.Left
 	t.TextStrokeTransparency = 0.6
 	t.Parent = parent
 	return t
 end
 
-local function button(parent: Instance, name: string, value: string, onClick: () -> ()): TextButton
-	local b = Instance.new("TextButton")
-	b.Name, b.Text, b.Font, b.TextSize = name, value, Enum.Font.GothamBold, 14
-	b.BackgroundColor3, b.TextColor3, b.BorderSizePixel = SLATE, AMBER, 0
-	b.Parent = parent
-	local r = Instance.new("UICorner")
-	r.CornerRadius, r.Parent = UDim.new(0, 8), b
-	b.Activated:Connect(onClick)
+-- Display words with the kit's ink outline (in place of the soft text stroke); returns the outline.
+local function display(t: TextLabel, thick: number): any
+	t.Font, t.TextStrokeTransparency = Ui.DISPLAY, 1
+	return Ui.outline(t, thick)
+end
+
+local function button(parent: Instance, name: string, value: string, onClick: () -> (), colour: Color3?): TextButton
+	local b = Ui.button(parent, value, colour or Ui.PANEL2, onClick, { size = 15 })
+	b.Name = name
 	return b
 end
 
@@ -79,7 +82,8 @@ function ParkourView.new(parent: Instance, opts: any): any
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset, gui.DisplayOrder, gui.Enabled = "BlockfallClimb", false, true, 12, false
 	gui.Parent = parent
 	self.gui = gui
-	local title = text(gui, "Title", "SKYLINE CLIMB", 22, AMBER)
+	local title = text(gui, "Title", "SKYLINE CLIMB", 26, AMBER)
+	display(title, 2)
 	-- This ScreenGui ignores the inset (so world labels line up with the canvas), which puts its top
 	-- 58 px under Roblox's own top bar and its top right under the player list: seen in Studio, the
 	-- SKIP button could not be clicked there. So the HUD text starts below the bar, and every button
@@ -87,41 +91,53 @@ function ParkourView.new(parent: Instance, opts: any): any
 	title.Position, title.Size = UDim2.fromOffset(16, TOP), UDim2.fromOffset(400, 28)
 	self.checkpointLabel = text(gui, "Checkpoint", "", 15)
 	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, TOP + 30), UDim2.fromOffset(500, 20)
+	-- the clock in a pill (behind it, not its parent, so the label stays placed on the screen)
+	local pill = Ui.pill(gui, "TimerPill", Ui.EDGE)
+	pill.Position, pill.Size = UDim2.fromOffset(12, TOP + 50), UDim2.fromOffset(140, 36)
 	self.timerLabel = text(gui, "Timer", "0:00.00", 26, TEXT)
-	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(300, 30)
+	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(12, TOP + 50), UDim2.fromOffset(140, 36)
+	self.timerLabel.TextXAlignment = Enum.TextXAlignment.Center
+	display(self.timerLabel, 2)
 	self.fallsLabel = text(gui, "Falls", "", 13, DIM)
-	self.fallsLabel.Position, self.fallsLabel.Size = UDim2.fromOffset(16, TOP + 84), UDim2.fromOffset(500, 18)
+	self.fallsLabel.Position, self.fallsLabel.Size = UDim2.fromOffset(16, TOP + 90), UDim2.fromOffset(500, 18)
 	self.bestLabel = text(gui, "Best", "", 13, DIM)
-	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 102), UDim2.fromOffset(500, 18)
-	local banner = text(gui, "Banner", "", 34, AMBER)
+	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 108), UDim2.fromOffset(500, 18)
+	-- the lines under the title sit on a bright sky: an ink outline, not the soft stroke, keeps them
+	for _, t in { self.checkpointLabel, self.fallsLabel, self.bestLabel } do
+		t.TextStrokeTransparency = 1
+		Ui.outline(t, 1.5)
+	end
+	self.fallsLabel.TextColor3, self.bestLabel.TextColor3 = Color3.fromRGB(214, 224, 240), Color3.fromRGB(214, 224, 240)
+	local banner = text(gui, "Banner", "", 40, AMBER)
+	self.bannerOutline = display(banner, 4)
 	banner.AnchorPoint, banner.TextXAlignment = Vector2.new(0.5, 0), Enum.TextXAlignment.Center
 	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, TOP + 110), UDim2.fromOffset(760, 84)
 	banner.TextTransparency, banner.TextWrapped = 1, true
 	self.banner = banner
-	local hint = text(gui, "Controls", "A / D  run   •   Space  jump (again in the air to double jump)   •   S  drop through a plank", 13, DIM)
-	hint.AnchorPoint, hint.TextXAlignment = Vector2.new(0.5, 1), Enum.TextXAlignment.Center
-	hint.Position, hint.Size = UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(800, 20)
-	local leave = button(gui, "Leave", "◂ " .. string.upper(Realms.LOBBY.name), function() self:leave() end)
+	-- how to climb, as key caps along the bottom (clear of the button column at the right)
+	local hint = Ui.hintRow(gui, "Controls", { { "A D", "RUN" }, { "SPACE", "JUMP · AGAIN IN THE AIR" }, { "S", "DROP THROUGH" } }, 24)
+	hint.Position, hint.Size = UDim2.new(0, 16, 1, -40), UDim2.new(1, -312, 0, 26)
+	local leave = button(gui, "Leave", "◂ " .. string.upper(Realms.LOBBY.name), function() self:leave() end, Ui.BLUE)
 	self.leaveButton = leave
-	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -126), UDim2.fromOffset(130, 34)
+	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -134), UDim2.fromOffset(150, 38)
 	local restart = button(gui, "Restart", "RESTART FROM THE BOTTOM", function()
 		if self.opts.restart then self.opts.restart() end
-	end)
-	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -86), UDim2.fromOffset(250, 34)
+	end, Color3.fromRGB(150, 96, 20))
+	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -90), UDim2.fromOffset(264, 38)
 	self.restartButton = restart
 	local records = button(gui, "Records", "RECORDS", function()
 		if self.opts.records then self.opts.records() end
-	end)
-	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 1), UDim2.new(1, -152, 1, -126), UDim2.fromOffset(114, 34)
+	end, Ui.PURPLE)
+	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 1), UDim2.new(1, -172, 1, -134), UDim2.fromOffset(108, 38)
 	self.recordsButton = records
 	-- SKIP: buy the next checkpoint (SkipProducts). The server moves you once the purchase is
 	-- saved (ClimbView.skipTo -> skipTo), so nothing moves on the click itself.
 	local skip = button(gui, "Skip", "", function()
 		local pk = self.pk
 		if pk and self.opts.skip then self.opts.skip(pk.reached + 1) end       -- hidden at the Summit
-	end)
-	skip.AnchorPoint, skip.Position, skip.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -42), UDim2.fromOffset(250, 38)
-	skip.TextColor3, skip.Visible = TEXT, false
+	end, Color3.fromRGB(52, 160, 84))
+	skip.AnchorPoint, skip.Position, skip.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -44), UDim2.fromOffset(264, 40)
+	skip.Visible = false
 	self.skipButton = skip
 	return self
 end
@@ -237,6 +253,7 @@ local function label(self: any, c: any, id: string, value: string, x: number, y:
 	if not t then
 		t = text(self.gui, "World_" .. id, value, size, colour)
 		t.TextXAlignment = Enum.TextXAlignment.Center
+		display(t, 2)
 		self.labels[id] = t
 	end
 	local at = c:project(x, y)
@@ -363,6 +380,7 @@ function ParkourView.draw(self: any, c: any, dt: number)
 	for id, t in self.labels do if not self.used[id] then t.Visible = false end end
 	local age = clock - self.bannerAt
 	self.banner.TextTransparency = if age < 2.2 then 0 elseif age < 3 then (age - 2.2) / 0.8 else 1
+	self.bannerOutline.Transparency = self.banner.TextTransparency
 	self.gui:SetAttribute("Checkpoint", reached)
 	self.gui:SetAttribute("ClimberX", f.x)
 	self.gui:SetAttribute("ClimberY", f.y)

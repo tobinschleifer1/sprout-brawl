@@ -44,6 +44,9 @@ local FakeFighter2D = { draw = function(c: any, st: any, char: any, _t: number, 
 	local m = c.m
 	table.insert(drawn, { state = st.state, index = st.index, feetX = m.e, feetY = m.f, ppu = m.a, flipped = m.d < 0, height = char.height })
 end }
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2,
+	Enum = setmetatable({}, { __index = function() return codes end }) }
 local View = luau.load(fs.readFile("src/client/PodiumView.luau"), { environment = {
 	game = { GetService = function() return { Shared = { Fighter = "Fighter", Snapshot = "Snapshot" } } end },
 	script = { Parent = codes },
@@ -51,10 +54,10 @@ local View = luau.load(fs.readFile("src/client/PodiumView.luau"), { environment 
 		if name == "Canvas2D" then return Canvas end
 		if name == "Fighter2D" then return FakeFighter2D end
 		if name == "Podium" then return Podium end
-		if name == "HudColors" or name == "PosedFighter" then return Loader.loadFrom("src/client/", name) end
+		if name == "HudColors" or name == "PosedFighter" or name == "Ui" then return Loader.loadFrom("src/client/", name) end
 		return Loader.load(name)
 	end,
-	Enum = { Font = codes, TextXAlignment = codes, TextTruncate = codes },
+	Enum = { Font = codes, TextXAlignment = codes, TextTruncate = codes, ApplyStrokeMode = codes },
 	Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Instance = { new = instance },
 }, injectGlobals = true })()
 
@@ -103,14 +106,23 @@ assert(string.find(root:FindFirstChild("PodiumTitle").Text, "P1 wins", 1, true),
 
 view:draw(10)
 assert(#drawn == 4, `{#drawn} figures drawn, want 4`)
--- Three rectangles a pillar - body, lit edge, cap - at the layout's geometry, the winner's cap gold.
-assert(#rects == 12, `{#rects} pillar rectangles, want 12`)
+-- The sky's bands, then View.PILLAR_RECTS rectangles a pillar - its body first, its cap at CAP_AT
+-- - at the layout's geometry, the winner's cap gold.
+local GOLD = Loader.loadFrom("src/client/", "Ui").GOLD
+local sky, per = View.SKY_BANDS, View.PILLAR_RECTS
+assert(#rects == sky + 4 * per, `{#rects} rectangles, want {sky} sky bands and {per} for each of 4 pillars`)
+for b = 1, sky do assert(rects[b].x == 0 and rects[b].w == W, `sky band {b} does not span the screen`) end
 for i = 1, 4 do
-	local body, cap = rects[(i - 1) * 3 + 1], rects[(i - 1) * 3 + 3]
+	local body, cap = rects[sky + (i - 1) * per + 1], rects[sky + (i - 1) * per + View.CAP_AT]
 	local s = slots[i]
 	assert(body.x == s.pillar.x and body.y == s.pillar.y and body.w == s.pillar.w and body.h == s.pillar.h, `pillar {i} geometry`)
-	assert(cap.x == s.cap.x and cap.y == s.cap.y, `cap {i} geometry`)
-	assert((cap.colour == Rbx.Color3.fromRGB(255, 213, 138)) == (i == 1), `only first place has a gold cap (pillar {i})`)
+	assert(cap.x == s.cap.x and cap.y == s.cap.y and cap.w == s.cap.w and cap.h == s.cap.h, `cap {i} geometry`)
+	assert((cap.colour == GOLD) == (i == 1), `only first place has a gold cap (pillar {i})`)
+	for k = 2, per do
+		local r = rects[sky + (i - 1) * per + k]
+		assert(r.x >= s.pillar.x - 1e-9 and r.x + r.w <= s.pillar.x + s.pillar.w + 1e-9 or k >= View.CAP_AT,
+			`pillar {i}'s detail {k} spills off the pillar`)
+	end
 end
 for i, d in drawn do
 	local s = slots[i]
@@ -122,8 +134,15 @@ for i, d in drawn do
 	assert(d.flipped, "figures are drawn y-up, as the match draws them")
 end
 
+assert(not root:FindFirstChild("GGBubble").Visible, "a GG bubble shows before anyone said GG")
 view.gg.Activated:Fire()
 assert(gg == 1, "Say: GG! reaches its handler")
+view:draw(10.5)
+local bubble = root:FindFirstChild("GGBubble")
+assert(bubble.Visible and bubble.Text == "GG!", "saying GG puts no bubble up")
+assert(math.abs(bubble.Position.X.Offset + bubble.Size.X.Offset / 2 - slots[1].cx) < 1, "the GG bubble is not over the winner")
+view:draw(13)
+assert(not bubble.Visible, "the GG bubble outstays its two seconds")
 
 -- Teams: green (0) beat orange (1). Both winners share first and both celebrate.
 table.clear(drawn)

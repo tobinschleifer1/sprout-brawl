@@ -44,16 +44,18 @@ local codes = setmetatable({}, { __index = function(_, name) return name end })
 local shared = setmetatable({ Data = codes }, { __index = function(_, name) return name end })
 
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Panel = luau.load(fs.readFile("src/client/RoomPanel.luau"), {environment={
  game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
  require=function(name)
   if name=="Canvas2D" then return Canvas end
-  if name=="Weapons2D" or name=="StageThumb" then return Loader.loadFrom("src/client/",name) end
+  if name=="Weapons2D" or name=="StageThumb" or name=="Ui" then return Loader.loadFrom("src/client/",name) end
   if name=="Rules" then return Loader.load("Data/Rules") end
   if name=="Realms" then return Loader.load("Realms") end
   return Loader.load("Data/"..name)
  end,
- Enum={Font=codes,AutomaticSize=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
+ Enum={Font=codes,AutomaticSize=codes,TextXAlignment=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local Rooms=Loader.loadFrom("src/server/","Rooms")
 local model=Rooms.new()
@@ -179,10 +181,25 @@ assert(not panel.gui.Enabled, "background room update must not reopen a closed s
 local n=0
 for _ in shapes do n+=1 end
 assert(n==12)
+-- The notice: a card of its own (not the room panel) - waiting has no button, a problem has OK,
+-- which closes it; opening a station afterwards shows the panel, not the notice.
+do
+	panel:waiting("Loading arena and fighters…")
+	local n = panel.notice
+	assert(panel.gui.Enabled and n.card.Visible and not panel.panel.Visible, "waiting did not show the notice card alone")
+	local BLUE = Loader.loadFrom("src/client/", "Ui").BLUE
+	assert(n.message.Text == "Loading arena and fighters…" and not n.ok.Visible and n.title.Text == "GET READY", "the waiting notice reads wrong")
+	assert(n.band.BackgroundColor3 == BLUE, "waiting is not shown in blue")
+	panel:show("That match could not be run: no arena")
+	assert(n.ok.Visible and n.title.Text == "HOLD ON" and n.band.BackgroundColor3 ~= BLUE, "a problem is not shown as one")
+	n.ok.Activated:Fire()
+	assert(not panel.gui.Enabled, "OK did not close the notice")
+	panel:openStation("Players")
+	assert(panel.gui.Enabled and panel.panel.Visible and not n.card.Visible, "a station opened over a stale notice")
+	panel:hide()
+end
 print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, map grid with Random, map sets and voting, explicit bots, ready and host guards")
 
--- the shared UI kit builds with these too (Loader.gui)
-Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
 	-- The results podium has its own test (podium-view); this one is about the match HUD.

@@ -3,11 +3,13 @@
 -- stand-in Instances (Recorder.gui), with anything it draws on the game canvas recorded - written as
 -- JSON for tools/gui-svg.mjs, so a screen can be looked at without Studio.
 --
---   lune run tools/render-ui <out.json> <plaza|studio|hud> [width] [height] [variant]
+--   lune run tools/render-ui <out.json> <plaza|studio|hud|results|records|notice|people|climb> [width] [height] [variant]
 --     plaza   variant: "x,z" where you stand (beside a station shows its prompt; the default shows
 --             the tip), or "stamps" to open the stamp panel
 --     studio  variant: a tab - presets, body, face, hair, outfit, extras
 --     hud     variant: "fight" (mid-fight, a full ultimate) or "countdown" (the combo card, "3")
+--     results variant: "teams" for a team match (the winners share first); a GG has just been said
+--     notice  variant: "error" for a refused match (with OK); otherwise the loading notice
 --
 -- Pictures drawn into a GUI frame (Canvas2D.inFrame: the studio's tiles and preview, the stamp
 -- icons) are not placed - only the screen-wide canvas is - so those frames show empty.
@@ -31,7 +33,9 @@ local new, made = Recorder.gui(W, H)
 local enumNames = setmetatable({}, { __index = function(_, k) return setmetatable({}, { __index = function(_, v) return k .. "." .. v end }) end })
 Loader.gui = { Instance = { new = new }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = enumNames }
 -- frames' own canvases draw nowhere (see above)
+local frameCanvas = nil      -- a screen-wide frame's canvas (the podium's) is the screen's own
 Canvas.inFrame = function()
+	if frameCanvas then return frameCanvas end
 	local f = Recorder.canvas(Canvas, 100, 100)
 	f.pool, f.poolState = {}, {}
 	return f
@@ -67,6 +71,7 @@ end
 local playerGui = new("PlayerGui")
 local KIT = Loader.load("Data/AvatarKit")
 local c = Recorder.canvas(Canvas, W, H)
+c.pool, c.poolState = {}, {}          -- (for a module that calls Canvas2D.finish itself)
 
 if screen == "plaza" then
 	local Plaza2D = load("Plaza2D")
@@ -125,6 +130,70 @@ elseif screen == "hud" then
 		Canvas.rect(c, 0, b * H / 12, W, H / 12 + 1, Rbx.Color3.new(0.12 + 0.2 * k, 0.1 + 0.12 * k, 0.3 + 0.2 * k), 1)
 	end
 	hud:update(states, snap, nil, chars, { fighters = roster, timed = true, timeLimit = 180 })
+elseif screen == "results" then
+	local View = load("PodiumView")
+	local Loadout = Loader.load("Loadout")
+	local chars, rows = {}, {}
+	local looks = { "knight", "ninja", "samurai", "robot" }
+	for i, id in looks do
+		local code = "Classic"
+		for _, p in KIT.presets do if p.id == id then code = p.code end end
+		chars[i] = Loadout.build(code, ({ "Sword", "Scythe", "Hammer", "Daggers" })[i])
+	end
+	for i, idx in { 0, 2, 1, 3 } do
+		table.insert(rows, { index = idx, name = ({ "etondes", "Rival", "Ally", "CPU" })[idx + 1], team = idx % 2,
+			score = 5 - i, kos = 4 - i, falls = i, sds = 0, damage = 120 * (5 - i), taken = 80 * i })
+	end
+	frameCanvas = c
+	local view = View.new(new("ScreenGui"), { rows = rows, winnerTeam = 0, teams = variant == "teams" }, chars, Rbx.Vector2.new(W, H), nil)
+	frameCanvas = nil
+	-- gui-svg paints the canvas under every Frame, but in Roblox the podium's canvas is a child of
+	-- its backdrop and draws over it: see through the backdrop so the picture matches
+	view.root.BackgroundTransparency = 1
+	view.gg.Activated:Fire()
+	table.clear(shapes)
+	view:draw(1)
+elseif screen == "records" then
+	local Records = load("ClimbRecords")
+	local r = Records.new(playerGui, { localId = 2, now = function() return 1000 end })
+	local names = { "ada", "etondes", "bo", "cy", "dee", "eve", "fox" }
+	local speed, levels = {}, {}
+	for i, n in names do
+		table.insert(speed, { rank = i, userId = i, name = n, frames = 60 * (55 + i * 9) })
+		table.insert(levels, { rank = i, userId = i, name = n, best = math.max(0, 7 - i), summits = math.max(0, 4 - i) })
+	end
+	r:set({ speed = speed, levels = levels, nextAt = 1000 + 3600 })
+	r:setMine({ best = 5, summits = 1, bestFrames = 60 * 73 })
+	r:open()
+	c:screen()
+	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
+elseif screen == "notice" then
+	local Panel = load("RoomPanel")
+	local panel = Panel.new(playerGui)
+	if variant == "error" then panel:show("That match could not be run: the arena failed to load.") else panel:waiting("Loading arena and fighters…") end
+	c:screen()
+	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
+elseif screen == "people" then
+	local Social = load("LobbySocial")
+	local social = Social.new(playerGui, { localId = 1, clock = function() return 0 end, send = function() end })
+	social:setEnabled(true)
+	social:toggle("People")
+	social:setMembers({ { userId = 1, name = "etondes", where = "Skyhold Bazaar", place = "market", x = 0 },
+		{ userId = 2, name = "Rival", where = "In a fight · 2v2", place = "fight" },
+		{ userId = 3, name = "ada", where = "Skyhold Bazaar", place = "market", x = 40 },
+		{ userId = 4, name = "bo", where = "Room · 3v3", place = "room" } })
+	social:addLog("ada: GG!", Rbx.Color3.fromRGB(230, 225, 214))
+	social:addLog("You  [Wave]", Rbx.Color3.fromRGB(200, 100, 60))
+	c:screen()
+	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
+elseif screen == "climb" then
+	local View = load("ParkourView")
+	local code = "Classic"
+	for _, p in KIT.presets do if p.id == "knight" then code = p.code end end
+	local v = View.new(playerGui, { input = { sample = function() return {} end, reset = function() end }, send = function() end,
+		skip = function() end, price = function() return 7 end, records = function() end, restart = function() end })
+	v:start(code, 1)
+	for _ = 1, 10 do table.clear(shapes); v:step(1 / 60); v:draw(c, 1 / 60) end
 else
 	error("unknown screen " .. screen)
 end

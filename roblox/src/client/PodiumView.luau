@@ -8,16 +8,27 @@ local Fighter2D = require(script.Parent.Fighter2D)
 local PosedFighter = require(script.Parent.PosedFighter)
 local Podium = require(script.Parent.Podium)
 local HudColors = require(script.Parent.HudColors)
+local Ui = require(script.Parent.Ui)
 
 local PodiumView = {}
 PodiumView.__index = PodiumView
 
-local FONT = Enum.Font.GothamBold
-local GOLD = Color3.fromRGB(255, 213, 138)
+-- The look is the shared cartoon kit's (Ui): a pixel dusk sky, stone plinths with a capstone in
+-- the place's colour, ink-bordered cards with the place outlined in a band.
+local FONT = Ui.LABEL
+local GOLD = Ui.GOLD
 local STAT = Color3.fromRGB(143, 184, 232)
-local PILLAR = Color3.fromRGB(36, 49, 66)
-local PILLAR_LIT = Color3.fromRGB(46, 61, 81)
-local CARD = Color3.fromRGB(20, 30, 44)
+local STONE = Color3.fromRGB(72, 82, 106)
+local STONE_LIT = Color3.fromRGB(104, 116, 142)
+local STONE_DARK = Color3.fromRGB(44, 50, 66)
+local JOINT = Color3.fromRGB(58, 66, 86)
+local CARD = Ui.PANEL
+-- What draw paints, in order, so the test can find each part: the sky's bands across the whole
+-- screen, then per pillar its body, lit edge, shadowed edge, two joints, the cap and the cap's
+-- highlight.
+PodiumView.SKY_BANDS = 12
+PodiumView.PILLAR_RECTS = 7
+PodiumView.CAP_AT = 6
 
 local function frame(parent: Instance, x: number, y: number, w: number, h: number, colour: Color3, alpha: number): Frame
 	local f = Instance.new("Frame")
@@ -59,6 +70,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	self.slots = Podium.layout(#rows, W, H)
 	self.t0 = nil
 	self.ggUntil = 0
+	self.size = size
 
 	local root = frame(parent, 0, 0, W, H, Color3.fromRGB(11, 21, 38), 0.93)
 	root.Name = "Podium"
@@ -69,49 +81,61 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	stage.Name = "PodiumStage"
 	self.canvas = Canvas2D.inFrame(stage)
 
-	local title = text(root, 0, H * 0.1, W, H * 0.08, Podium.title(rows, res.teams), H * 0.065, GOLD, Enum.TextXAlignment.Center)
+	local title = text(root, 0, H * 0.1, W, H * 0.09, Podium.title(rows, res.teams), H * 0.075, GOLD, Enum.TextXAlignment.Center)
 	title.Name = "PodiumTitle"
+	title.Font = Ui.DISPLAY
+	title.TextTruncate = Enum.TextTruncate.None
+	Ui.outline(title, math.max(2, H * 0.006))
 
-	local gg = Instance.new("TextButton")
-	gg.Name = "SayGG"
-	gg.Text = "Say: GG!"
-	gg.Font = FONT
-	gg.TextSize = 16
-	gg.TextColor3 = Color3.new(1, 1, 1)
-	gg.BackgroundColor3 = Color3.fromRGB(43, 57, 74)
-	gg.BorderSizePixel = 0
-	gg.Size = UDim2.fromOffset(140, 34)
-	gg.Position = UDim2.fromOffset(W / 2 - 70, 12)
-	gg.Parent = root
-	gg.Activated:Connect(function()
+	local gg = Ui.button(root, "SAY GG!", Color3.fromRGB(52, 160, 84), function()
 		self.ggUntil = (self.clock or 0) + 2
 		if onGG then onGG() end
 	end)
+	gg.Name = "SayGG"
+	gg.Size = UDim2.fromOffset(150, 40)
+	gg.Position = UDim2.fromOffset(W / 2 - 75, 12)
 	self.gg = gg
+	-- The bubble a GG puts over a figure, while it lasts (placed in draw).
+	-- (ink letters on white, so no outline: on ink letters it only thickens them into a blot)
+	local bubble = Ui.make("TextLabel", root, { Name = "GGBubble", Text = "GG!", Font = Ui.DISPLAY, TextSize = 22,
+		TextColor3 = Ui.INK, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, BorderSizePixel = 0 })
+	Ui.corner(bubble, 12)
+	Ui.stroke(bubble, Ui.INK, 3)
+	bubble.Visible = false
+	self.bubble = bubble
 
 	self.cards = {}
 	for i, row in rows do
 		local s = self.slots[i]
 		local colour = if res.teams then HudColors.TEAM[(row.team % 2) + 1] else HudColors.PLAYER[(row.index % 8) + 1]
 		local first = self.places[i] == 1
-		local card = frame(root, s.card.x, s.card.y, s.card.w, s.card.h, CARD, 0.95)
+		-- an ink-bordered card (gold for the winners), its place outlined in a band of its colour
+		local card = frame(root, s.card.x, s.card.y, s.card.w, s.card.h, CARD, 0.96)
 		card.Name = `Card{i}`
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = if first then GOLD else Color3.fromRGB(59, 72, 88)
-		stroke.Thickness = 2
-		stroke.Parent = card
-		frame(card, 0, 0, s.card.w, math.max(3, s.rowH * 0.18), if first then GOLD else colour, 1).Name = "Band"
+		Ui.corner(card, 10)
+		Ui.stroke(card, if first then GOLD else Ui.INK, 3)
 		local rh = s.rowH
+		local bandH = rh * 1.3
+		local band = frame(card, 0, 0, s.card.w, bandH, if first then GOLD else colour, 1)
+		band.Name = "Band"
+		Ui.corner(band, 10)
+		frame(band, 0, bandH / 2, s.card.w, bandH / 2, if first then GOLD else colour, 1).Name = "Square"
 		local pad = s.card.w * 0.06
-		local place = text(card, 0, rh * 0.2, s.card.w, rh * 1.1, Podium.ordinal(self.places[i]), rh * 0.95, GOLD, Enum.TextXAlignment.Center)
+		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, Podium.ordinal(self.places[i]), rh * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"
-		local name = text(card, pad, rh * 1.3, s.card.w - pad * 2, rh * 0.7, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.6, colour)
+		place.Font = Ui.DISPLAY
+		Ui.outline(place, math.max(1.5, rh * 0.08))
+		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.62, colour)
 		name.Name = "Name"
+		name.Font = Ui.DISPLAY
+		Ui.outline(name, 1.5)
 		for k, stat in Podium.STATS do
 			local y = rh * (2.1 + (k - 1))
-			text(card, pad, y, s.card.w * 0.6, rh, stat[1], rh * 0.5, STAT).Name = `Label{k}`
-			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rh * 0.55, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
+			text(card, pad, y, s.card.w * 0.6, rh, stat[1], rh * 0.48, STAT).Name = `Label{k}`
+			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rh * 0.6, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
+			v.Font = Ui.DISPLAY
+			Ui.outline(v, 1.2)
 		end
 		self.cards[i] = card
 	end
@@ -125,13 +149,29 @@ function PodiumView.draw(self: any, clock: number)
 	local t = clock - self.t0
 	local sf = math.floor(t * 60)
 	local c = self.canvas
+	-- the sky: dusk in pixel bands, as the select screen's
+	Canvas2D.screen(c)
+	local W, H = self.size.X, self.size.Y
+	for b = 0, PodiumView.SKY_BANDS - 1 do
+		local k = b / (PodiumView.SKY_BANDS - 1)
+		Canvas2D.rect(c, 0, b * H / PodiumView.SKY_BANDS, W, H / PodiumView.SKY_BANDS + 1,
+			Color3.new(0.07 + 0.2 * k, 0.09 + 0.1 * k, 0.2 + 0.18 * k), 1)
+	end
 	for i, row in self.rows do
 		local s = self.slots[i]
 		Canvas2D.screen(c)
 		local colour = if self.res.teams then HudColors.TEAM[(row.team % 2) + 1] else HudColors.PLAYER[(row.index % 8) + 1]
-		Canvas2D.rect(c, s.pillar.x, s.pillar.y, s.pillar.w, s.pillar.h, PILLAR, 1)
-		Canvas2D.rect(c, s.pillar.x, s.pillar.y, s.pillar.w * 0.12, s.pillar.h, PILLAR_LIT, 1)
-		Canvas2D.rect(c, s.cap.x, s.cap.y, s.cap.w, s.cap.h, if self.places[i] == 1 then GOLD else colour, 1)
+		-- a stone plinth: lit on the left, shadowed on the right, two joints across it
+		local p = s.pillar
+		Canvas2D.rect(c, p.x, p.y, p.w, p.h, STONE, 1)
+		Canvas2D.rect(c, p.x, p.y, p.w * 0.12, p.h, STONE_LIT, 1)
+		Canvas2D.rect(c, p.x + p.w * 0.9, p.y, p.w * 0.1, p.h, STONE_DARK, 1)
+		Canvas2D.rect(c, p.x, p.y + p.h / 3, p.w, math.max(2, p.h * 0.02), JOINT, 1)
+		Canvas2D.rect(c, p.x, p.y + p.h * 2 / 3, p.w, math.max(2, p.h * 0.02), JOINT, 1)
+		-- the capstone in the place's colour, with a highlight along its top
+		local capColour = if self.places[i] == 1 then GOLD else colour
+		Canvas2D.rect(c, s.cap.x, s.cap.y, s.cap.w, s.cap.h, capColour, 1)
+		Canvas2D.rect(c, s.cap.x, s.cap.y, s.cap.w, math.max(2, s.cap.h * 0.25), Ui.shade(capColour, 0.4), 1)
 		local char = self.chars[row.index + 1]
 		if char then
 			local won = if self.res.teams then row.team == self.res.winnerTeam else i == 1
@@ -141,11 +181,14 @@ function PodiumView.draw(self: any, clock: number)
 			pcall(Fighter2D.draw, c, st, char, t, nil)
 		end
 	end
-	if clock < self.ggUntil and self.slots[1] then
-		-- The bubble goes over the local player's figure when they are on the podium, else the winner.
+	-- The GG bubble goes over the local player's figure when they are on the podium, else the winner.
+	local saying = clock < self.ggUntil and self.slots[1] ~= nil
+	self.bubble.Visible = saying
+	if saying then
 		local s = self.slots[self.localPlace or 1]
-		Canvas2D.screen(c)
-		Canvas2D.rect(c, s.cx - s.figureH * 0.32, s.top - s.figureH * 1.38, s.figureH * 0.64, s.figureH * 0.24, Color3.new(1, 1, 1), 0.95)
+		self.bubble.Position = UDim2.fromOffset(s.cx - s.figureH * 0.32, s.top - s.figureH * 1.4)
+		self.bubble.Size = UDim2.fromOffset(s.figureH * 0.64, s.figureH * 0.26)
+		self.bubble.TextSize = math.floor(s.figureH * 0.16)
 	end
 	Canvas2D.finish(c)
 end

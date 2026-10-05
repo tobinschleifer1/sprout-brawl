@@ -35,10 +35,15 @@ end
 
 local codes = setmetatable({}, { __index = function(_, name) return name end })
 local shared = setmetatable({ Data = setmetatable({}, { __index = function(_, k) return "Data/" .. k end }) }, { __index = function(_, name) return name end })
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local Records = luau.load(fs.readFile("src/client/ClimbRecords.luau"), { debugName = "ClimbRecords", environment = {
 	game = { GetService = function(_, name) if name == "ReplicatedStorage" then return { Shared = shared } end error(name) end },
 	script = { Parent = codes },
-	require = function(name) return Loader.load(name) end,
+	require = function(name)
+		if type(name) == "string" and fs.isFile("src/client/" .. name .. ".luau") then return Loader.loadFrom("src/client/", name) end
+		return Loader.load(name)
+	end,
 	Instance = { new = instance }, Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim = Rbx.UDim, UDim2 = Rbx.UDim2,
 	Enum = setmetatable({}, { __index = function() return codes end }),
 }, injectGlobals = true })()
@@ -109,4 +114,15 @@ r:toggle()
 assert(r:isOpen(), "toggle opens")
 find(panel, "Close").Activated:Fire()
 assert(not r:isOpen(), "CLOSE closes")
+-- ranks one to three wear gold, silver and bronze badges; the rest none
+do
+	local GOLD = Loader.loadFrom("src/client/", "Ui").GOLD
+	local badges = {}
+	for i = 1, 4 do
+		local rank = find(row(fastest, i), "Rank")
+		badges[i] = rank.BackgroundTransparency == 0 and rank.BackgroundColor3 or false
+	end
+	assert(badges[1] == GOLD and badges[2] and badges[3] and badges[2] ~= GOLD and badges[3] ~= badges[2], "the top three do not wear three medals")
+	assert(badges[4] == false, "fourth place wears a medal")
+end
 print("PASS records ui: both boards from the server, you marked, countdown, your record, offline and empty, rows reused, open and close")

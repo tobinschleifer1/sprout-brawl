@@ -41,6 +41,7 @@ local Predictor = require(script.Predictor)
 local Hud = require(script.Hud)
 local Select = require(script.RoomPanel)
 local SelectScreen = require(script.SelectScreen)
+local Ui = require(script.Ui)
 local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
@@ -264,12 +265,12 @@ end)
 local watchGui = Instance.new("ScreenGui")
 watchGui.Name, watchGui.ResetOnSpawn, watchGui.DisplayOrder, watchGui.Enabled = "BlockfallWatching", false, 14, false
 watchGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-local stopWatching = Instance.new("TextButton")
-stopWatching.Name, stopWatching.Text, stopWatching.Font, stopWatching.TextSize = "StopWatching", "STOP WATCHING", Enum.Font.GothamBold, 15
-stopWatching.AnchorPoint, stopWatching.Position, stopWatching.Size = Vector2.new(1, 0), UDim2.new(1, -16, 0, 12), UDim2.fromOffset(170, 38)
-stopWatching.BackgroundColor3, stopWatching.TextColor3, stopWatching.BorderSizePixel = Color3.fromRGB(28, 24, 44), Color3.fromRGB(255, 79, 163), 0
-stopWatching.Parent = watchGui
-stopWatching.Activated:Connect(function() Net.remote("CabinetAction"):FireServer({ action = "unwatch" }) end)
+-- (the kit's button, at the bottom right: Roblox's own top bar and player list hang over the top)
+local stopWatching = Ui.button(watchGui, "STOP WATCHING", Color3.fromRGB(214, 84, 120), function()
+	Net.remote("CabinetAction"):FireServer({ action = "unwatch" })
+end)
+stopWatching.Name = "StopWatching"
+stopWatching.AnchorPoint, stopWatching.Position, stopWatching.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -16), UDim2.fromOffset(190, 42)
 Net.remote("Members").OnClientEvent:Connect(function(list: any) social:setMembers(list) end)
 Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 	editor:setView(view)

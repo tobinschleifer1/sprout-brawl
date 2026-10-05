@@ -17,6 +17,8 @@ local function instance(): any
 	obj.SetAttribute = function(_, key, value) obj.attributes[key] = value end
 	return obj
 end
+-- the shared UI kit builds with these too (Loader.gui)
+Loader.gui = { Instance = { new = instance }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = setmetatable({}, { __index = function() return codes end }) }
 local View = luau.load(fs.readFile("src/client/ParkourView.luau"), { debugName = "ParkourView", environment = {
 	game = { GetService = function(_, name) if name == "ReplicatedStorage" then return { Shared = shared } end error(name) end },
 	script = { Parent = codes },

@@ -8,10 +8,12 @@ local Art = require(script.Parent.Weapons2D)
 local StageThumb = require(script.Parent.StageThumb)
 local Realms = require(Shared.Realms)
 local Rules = require(game:GetService("ReplicatedStorage").Shared.Data.Rules)
+local Ui = require(script.Parent.Ui)
 local RoomPanel = {}
 RoomPanel.__index = RoomPanel
 
-local INK, STEEL, GOLD, WHITE = Color3.fromRGB(16,21,28), Color3.fromRGB(44,57,66), Color3.fromRGB(235,173,80), Color3.fromRGB(233,230,218)
+-- the look is the shared cartoon kit's (Ui)
+local INK, STEEL, GOLD, WHITE = Ui.INK, Ui.PANEL2, Ui.GOLD, Ui.WHITE
 -- A stage's layout as a small diagram, drawn from the same stage data the engine collides against:
 -- solid ground with its lit cap and grabbable ledges, drop-through shelves, and a moving shelf's
 -- travel. The map board shows this beside each name, because a map is chosen by its shape.
@@ -25,18 +27,16 @@ function RoomPanel.drawThumb(c: any, shapes: { any })
 end
 local function label(parent: Instance, value: string, height: number): TextLabel
 	local t = Instance.new("TextLabel")
-	t.BackgroundTransparency, t.TextColor3, t.Font = 1, WHITE, Enum.Font.GothamBold
+	t.BackgroundTransparency, t.TextColor3, t.Font = 1, WHITE, Ui.LABEL
 	t.Text, t.TextSize, t.TextWrapped = value, 14, true
 	t.Size, t.Parent = UDim2.new(1, 0, 0, height), parent
 	return t
 end
+-- The kit's bevelled button; a chosen one is gold.
 local function button(parent: Instance, value: string, callback: () -> (), selected: boolean?): TextButton
-	local b = Instance.new("TextButton")
-	b.Name, b.Text, b.Font, b.TextSize = value, value, Enum.Font.GothamBold, 14
+	local b = Ui.button(parent, value, if selected then GOLD else STEEL, callback, { size = 15 })
+	b.Name = value
 	b.Size, b.TextWrapped = UDim2.new(1, 0, 0, 42), true
-	b.BackgroundColor3, b.TextColor3, b.BorderSizePixel = if selected then GOLD else STEEL, if selected then INK else WHITE, 0
-	b.Parent = parent
-	b.Activated:Connect(callback)
 	return b
 end
 function RoomPanel.new(parent: Instance): any
@@ -48,10 +48,15 @@ function RoomPanel.new(parent: Instance): any
 	local panel = Instance.new("Frame")
 	panel.Name, panel.AnchorPoint = "Room", Vector2.new(0.5, 0.5)
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.5), UDim2.new(1, -24, 1, -96)
-	panel.BackgroundColor3, panel.BackgroundTransparency, panel.Parent = INK, 0.08, gui
+	panel.BackgroundColor3, panel.BackgroundTransparency, panel.Parent = Ui.PANEL, 0.02, gui
+	Ui.corner(panel, 14)
+	Ui.stroke(panel, INK, 3)
+	self.panel = panel
 	local cap = Instance.new("UISizeConstraint")
 	cap.MaxSize, cap.Parent = Vector2.new(680, 680), panel
 	self.title = label(panel, "MATCH ROOM", 44)
+	self.title.Font, self.title.TextSize, self.title.TextColor3 = Ui.DISPLAY, 22, GOLD
+	Ui.outline(self.title, 2)
 	self.status = label(panel, "", 44)
 	self.status.Position = UDim2.fromOffset(0, 44)
 	self.status.TextSize = 12
@@ -69,7 +74,40 @@ function RoomPanel.new(parent: Instance): any
 		if self.room and self.room.host == self.userId and self.room.canStart then self:send("start") end
 	end)
 	self.start.Position, self.start.Size = UDim2.new(2/3,0,0,0), UDim2.new(1/3,-4,1,0)
+	self:buildNotice()
 	return self
+end
+-- The notice: what the lobby has to say while a fight is fetched or refused, as a small card of its
+-- own rather than the whole room panel - a band (blue while waiting, red for a problem), the
+-- message, and OK for a problem.
+function RoomPanel.buildNotice(self: any)
+	local card, band, title = Ui.panel(self.gui, "Notice", Ui.BLUE, "", 34)
+	card.AnchorPoint, card.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
+	card.Size = UDim2.new(1, -48, 0, 150)
+	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })
+	card.Visible = false
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	local message = Ui.text(card, "", 15, WHITE)
+	message.Name = "Message"
+	message.TextWrapped = true
+	message.Position, message.Size = UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 58)
+	local ok = Ui.button(card, "OK", Ui.BLUE, function() self:hide() end)
+	ok.Name = "Ok"
+	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(120, 38)
+	self.notice = { card = card, band = band, title = title, message = message, ok = ok }
+end
+-- `waiting`: a fight is on its way (no button); otherwise a problem to acknowledge.
+function RoomPanel.say(self: any, message: string, waiting: boolean)
+	local n = self.notice
+	n.title.Text = if waiting then "GET READY" else "HOLD ON"
+	n.band.BackgroundColor3 = if waiting then Ui.BLUE else Color3.fromRGB(176, 60, 60)
+	local square = n.band:FindFirstChild("Square")
+	if square then square.BackgroundColor3 = n.band.BackgroundColor3 end
+	n.message.Text = message
+	n.ok.Visible = not waiting
+	n.card.Visible = true
+	self.panel.Visible = false
+	self.gui.Enabled = true
 end
 function RoomPanel.send(self: any, action: string, value: any?, slot: number?)
 	if self.onAction then self.onAction({ action = action, value = value, slot = slot,
@@ -81,13 +119,14 @@ function RoomPanel.openStation(self: any, page: string)
 	if not table.find({ "Maps", "Weapons", "Rules", "Players" }, page) then return end
 	self.page = page
 	self:render()
+	self.notice.card.Visible = false
+	self.panel.Visible = true
 	self.gui.Enabled = true
 end
 function RoomPanel.show(self: any, message: string?)
-	self.gui.Enabled = true
-	self.status.Text = message or ""
+	self:say(message or "", false)
 end
-function RoomPanel.waiting(self: any, message: string) self:show(message) end
+function RoomPanel.waiting(self: any, message: string) self:say(message, true) end
 function RoomPanel.update(self: any, room: any, userId: number)
 	local entering = not self.room or self.room.left or self.room.id ~= room.id
 	self.room, self.userId = room, userId

@@ -1,0 +1,120 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Weapon drops</title>
+<style>
+  body { margin: 0; background: #11151b; color: #cbd3de; font: 13px ui-monospace, Menlo, monospace; padding: 16px 20px 60px; }
+  h1 { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: #8fa0b4; margin: 0 0 4px; }
+  p.note { color: #6c7a8c; margin: 0 0 18px; max-width: 90ch; line-height: 1.55; }
+  h2 { font-size: 14px; margin: 18px 0 6px; color: #e8edf4; }
+  .strip { display: flex; gap: 8px; flex-wrap: wrap; }
+  figure { margin: 0; }
+  figcaption { color: #5f6d80; font-size: 11px; margin-top: 2px; text-align: center; }
+  canvas { image-rendering: pixelated; border-radius: 3px; display: block; background: #0d1015; width: 460px; height: 290px; }
+  canvas.live { width: 960px; height: 540px; }
+</style>
+<h1>Weapon drops</h1>
+<p class="note">
+  Weapon drops (DROPS in config.js) drawn by the match's own renderer from real simulations: drops
+  falling in their column of light, a fresh drop's cache and a thrown weapon lying where it landed,
+  the throw's body, and each kind of throw in flight. The wide canvas runs four bots live with drops on.
+</p>
+<div id="out"></div>
+<script type="module">
+import { STAGES } from './src/data/stages/index.js';
+import { Renderer2D } from './src/render2d/renderer2d.js';
+import { Match } from './src/engine/match.js';
+import { buildArmed } from './src/data/loadout.js';
+const EMPTY = () => ({ x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false,
+  grab: false, taunt: false, pickup: false, ult: false, jumpHeld: false, guardHeld: false,
+  heavyHeld: false, lightHeld: false, downTap: false, anyPress: false });
+class ScriptInput {
+  constructor() { this.kb2Active = false; this.next = {}; }
+  poll() {} get(s) { const f = Object.assign(EMPTY(), this.next[s] || {}); return f; }
+}
+const out = document.getElementById('out');
+function newMatch(kits, seed = 1) {
+  const input = new ScriptInput();
+  const fighters = kits.map((ws, i) => ({ ...buildArmed(['Classic', 'Noir', 'Ember', 'Moss'][i], ws), skin: 0, team: i, source: 'p' + i, isBot: false, name: 'P' + i }));
+  const m = new Match({ mode: 'StockFFA', stocks: 3, timeLimit: 0, items: false, weaponDrops: true, seed,
+    input, stage: STAGES.find((s) => s.id === 'FoundryFloor'), fighters });
+  m._input = input;
+  while (m.state === 'countdown') m.step();
+  m.combat.drops.length = 0; m.combat.dropTimer = -99999;
+  return m;
+}
+function park(m, xs) {
+  m.fighters.forEach((f, i) => { f.x = xs[i]; f.y = 0; f.vx = 0; f.vy = 0; f.onGround = true; f.platform = m.stage.main; f.setState('idle'); f.invincible = 0; });
+  m.fighters[0].facing = 1;
+}
+const press = (m, k, p) => { m._input.next = { ['p' + k]: p }; m.step(); m._input.next = {}; };
+const run = (m, n) => { for (let i = 0; i < n; i++) m.step(); };
+function shot(row, m, caption) {
+  const fig = document.createElement('figure');
+  const c = document.createElement('canvas');
+  c.width = 480; c.height = 300;
+  fig.appendChild(c);
+  const cap = document.createElement('figcaption'); cap.textContent = caption; fig.appendChild(cap);
+  row.appendChild(fig);
+  const view = new Renderer2D(c);
+  view.frame(m, 1 / 60, m.frame / 60, true);
+}
+function section(title) {
+  const h = document.createElement('h2'); h.textContent = title; out.appendChild(h);
+  const row = document.createElement('div'); row.className = 'strip'; out.appendChild(row);
+  return row;
+}
+
+// drops: falling, the cache, a thrown weapon lying
+{
+  const row = section('Drops');
+  const m = newMatch([['Sword', 'Hammer'], ['Daggers', 'Axe']]);
+  park(m, [-20, 20]);
+  m.combat.spawnDrop(-8, 16); m.combat.spawnDrop(6, 22);
+  run(m, 10);
+  shot(row, m, 'falling: the column of light');
+  const m2 = newMatch([['Sword', 'Hammer'], ['Daggers', 'Axe']]);
+  park(m2, [-20, 20]);
+  m2.combat.spawnDrop(-6, 1); m2.combat.spawnDrop(4, 1, 'Hammer'); m2.combat.spawnDrop(12, 1, 'Pike');
+  run(m2, 40);
+  shot(row, m2, 'landed: a fresh cache, a thrown hammer and pike');
+}
+// the throw's body
+{
+  const row = section('The throw');
+  for (const [frames, label] of [[3, 'wind-up'], [6, 'release'], [12, 'settle']]) {
+    const m = newMatch([['Hammer', 'Sword'], ['Daggers', 'Axe']]);
+    park(m, [-4, 14]);
+    m.combat.spawnDrop(-4, 0.5); run(m, 3); press(m, 0, { pickup: true, anyPress: true }); run(m, 4);
+    press(m, 0, { pickup: true, anyPress: true });
+    run(m, frames);
+    shot(row, m, `${label} (frame ${frames + 1})`);
+  }
+}
+// throws in flight
+{
+  const row = section('Throws in flight');
+  for (const w of ['Hammer', 'Pike', 'Shield', 'Daggers']) {
+    const m = newMatch([[w, w], ['Sword', 'Axe']]);
+    park(m, [-14, 30]);
+    m.combat.spawnDrop(-14, 0.5); run(m, 3); press(m, 0, { pickup: true, anyPress: true }); run(m, 4);
+    press(m, 0, { pickup: true, anyPress: true });
+    run(m, w === 'Shield' ? 26 : 14);
+    shot(row, m, `${w} thrown`);
+  }
+}
+// live
+{
+  const row = section('Four bots, drops on (live)');
+  const m = newMatch([['Sword', 'Hammer'], ['Daggers', 'Axe'], ['Pike', 'Shield'], ['Scythe', 'Flail']], 7);
+  m.combat.dropTimer = 0;
+  m.fighters.forEach((f) => { f.isBot = true; f.botLevel = 'hard'; });
+  const c = document.createElement('canvas'); c.className = 'live'; c.width = 960; c.height = 540; row.appendChild(c);
+  const view = new Renderer2D(c);
+  const t0 = performance.now();
+  const tick = () => { m.step(); view.frame(m, 1 / 60, (performance.now() - t0) / 1000, false); if (m.state !== 'results') requestAnimationFrame(tick); };
+  // a few seconds in, so there is something on the stage at once
+  for (let i = 0; i < 60 * 6; i++) m.step();
+  tick();
+}
+window.__ready = true;
+</script>

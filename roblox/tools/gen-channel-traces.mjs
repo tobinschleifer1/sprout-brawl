@@ -19,6 +19,10 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { channelsFor } = await import('../../web/src/render2d/channels.js');
 const { buildLoadout } = await import('../../web/src/data/loadout.js');
+const { THROW_GROUND } = await import('../../web/src/engine/fighter.js');
+// Weapon drops: the throw is a move of no weapon's - the same one for all - so it is added to every
+// kit's attack sweep by name, and resolved to THROW_GROUND wherever a move is looked up.
+const moveOf = (char, id) => (id === 'WeaponThrow' ? THROW_GROUND : char.moves[id]);
 
 const n = (v) => (typeof v === 'number' ? String(v) : v);
 
@@ -41,20 +45,22 @@ const KITS = [
   ['Classic', 'Sword'], ['Noir', 'Scythe'], ['Ember', 'Blasters'], ['Moss', 'Grimoire'],
   ['Vapor', 'Axe'], ['Steel', 'Pike'], ['Classic', 'Gauntlets'], ['Noir', 'Hammer'],
   ['Ember', 'Longbow'], ['Moss', 'Flail'], ['Vapor', 'Shield'], ['Steel', 'Daggers'],
+  // and the fists, what a fighter holds between weapons (weapon drops)
+  ['Classic', 'Fists'],
 ];
 const TIMES = ['0', '0.37', '1.84', '7.25'];
 
 const probes = [];
 for (const [avatar, weapon] of KITS) {
   const char = buildLoadout(avatar, weapon);
-  const moveIds = Object.keys(char.moves);
+  const moveIds = [...Object.keys(char.moves), 'WeaponThrow'];
   for (const state of STATES) {
     // Attacks sweep every move of the kit and every frame of each; everything else sweeps its own
     // state frame. A move's pose is a function of mf against startupEff/active/recovery, so the
     // sweep has to cross all three boundaries or the wind/strike/settle branches go untested.
     const ids = state === 'attack' ? moveIds : [null];
     for (const moveId of ids) {
-      const m = moveId ? char.moves[moveId] : null;
+      const m = moveId ? moveOf(char, moveId) : null;
       const span = m ? (m.startup + m.active + m.recovery + 4) : 26;
       // `t` is wall clock, and almost nothing reads it: the ordinary attack bodies are driven
       // entirely by mf. Only the held stances (counter, spray) and three of the ultimates breathe
@@ -111,7 +117,7 @@ function fighterFor(p) {
     x: Number(p.x), y: Number(p.y), vx: Number(p.vx), vy: Number(p.vy),
     facing: Number(p.facing), state: p.state,
     sf: Number(p.sf), mf: Number(p.mf),
-    moveId: p.moveId, move: p.moveId ? char.moves[p.moveId] : null,
+    moveId: p.moveId, move: p.moveId ? moveOf(char, p.moveId) : null,
     startupEff: Number(p.startupEff), frameCount: Number(p.frameCount),
     lastHitFrame: Number(p.lastHitFrame),
     charge: Number(p.charge), hitlag: Number(p.hitlag),

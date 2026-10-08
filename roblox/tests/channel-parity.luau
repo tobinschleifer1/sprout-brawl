@@ -17,6 +17,7 @@ local serde = require("@lune/serde")
 local Loader = require("./loader")
 
 local Loadout = Loader.load("Loadout")
+local Fighter = Loader.load("Fighter")
 local Channels = Loader.loadFrom("src/client/", "Channels")
 
 local function fail(msg: string): never
@@ -86,7 +87,8 @@ for i, p in trace.probes do
 		chillStacks = tonumber(p.chillStacks),
 		ledgeAction = p.ledgeAction,
 	}
-	local move = if p.moveId then char.moves[p.moveId] else nil
+	-- the throw is no weapon's move (weapon drops): the same THROW_GROUND for every kit
+	local move = if p.moveId == "WeaponThrow" then Fighter.THROW_GROUND elseif p.moveId then char.moves[p.moveId] else nil
 	local ch = Channels.For(f, char, move, tonumber(p.t))
 	local want = trace.outputs[i]
 

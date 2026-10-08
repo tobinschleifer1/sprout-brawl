@@ -22,6 +22,7 @@ import { drawSky, drawScenery, drawSurface } from './backdrop2d.js';
 import { drawHead, drawTorsoMark } from './avatar2d.js';
 import { drawPixelPart } from './pixels2d.js';
 import { drawItem, drawRivet } from './items2d.js';
+import { dropShapes } from './dropShapes.js';
 import { ITEMS as ITEMS_BY_ID } from '../data/items.js';
 import { featuresOf } from '../data/avatars.js';
 import { drawAmbient } from './ambient2d.js';
@@ -151,6 +152,7 @@ export class Renderer2D {
     this._summons(match.combat);
     this._orbMarks(match);
     this._items(match.combat);
+    this._drops(match.combat, match.frame);
     for (const f of fighters) if (f !== caster || !cine.active) this._fighter(f, t);
     // Hazards a fighter is INSIDE — steam, dust, water jets — draw over them, so the fighter is
     // swallowed by the column rather than pasted on top of it.
@@ -794,6 +796,15 @@ export class Renderer2D {
         orbSparks(this.fx, p.x, p.y, p.vx, pal.glow, Math.random);
       } else if (p.shape === 'rivet') {
         drawRivet(b, p.x, p.y, dir, '#FFD37A');
+      } else if (p.shape === 'weapon') {
+        // A thrown weapon is the weapon (weapon drops): its own sprite, tumbling end over end -
+        // except the two that fly like a spear or a bolt, which point along their flight.
+        const reach = REACH[p.weaponDrop] || 2;
+        b.save(); b.translate(p.x, p.y);
+        b.rotate(p.pierce || p.weaponDrop === 'Longbow' ? Math.atan2(p.vy, p.vx) : -this.time * 16 * dir);
+        b.translate(-reach / 2, 0);
+        drawSprite(b, p.weaponDrop);
+        b.restore();
       } else if (p.itemDef) {
         // A thrown item is the SAME drawing as the one on the floor, tumbling. Anything else and
         // a keg in the air would not read as the keg you just picked up.
@@ -839,6 +850,23 @@ export class Renderer2D {
       b.globalAlpha = fading ? 0.45 : 1;
       drawItem(b, it.def, it.x, it.y + bob, this.time, { uses: it.uses, hp: it.def.guard ? it.hp / it.def.guard.hp : null });
       b.globalAlpha = 1;
+    }
+  }
+
+  // Weapon drops: the shapes both builds draw (dropShapes.js), and a thrown weapon lying where it
+  // landed as its own sprite on top.
+  _drops(C, frame) {
+    const b = this.b;
+    for (const d of C.drops) {
+      const { shapes, sprite } = dropShapes(d, frame);
+      this._paintShapes(shapes);
+      if (sprite) {
+        b.save(); b.translate(sprite.x, sprite.y); b.rotate(sprite.angle);
+        b.globalAlpha = sprite.alpha;
+        drawSprite(b, sprite.id);
+        b.globalAlpha = 1;
+        b.restore();
+      }
     }
   }
 

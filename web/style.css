@@ -141,6 +141,9 @@ table.ctl.small{font-size:.78rem}table.ctl.small td,table.ctl.small th{padding:.
    when full, and it pulses so a ready ultimate is visible in peripheral vision mid-fight. */
 .ult{display:flex;align-items:center;gap:.4rem;margin-top:.25rem}
 .ult.hidden{display:none}
+.arms{display:flex;gap:4px;margin-top:2px}
+.arm{font-family:var(--body);font-size:.58rem;font-weight:900;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;opacity:.55}
+.arm.held{color:#1A1206;background:var(--gold, #C9A227);border-color:var(--gold, #C9A227);opacity:1}
 .ult-label{font-family:var(--body);font-size:.6rem;font-weight:900;color:var(--muted);letter-spacing:.1em}
 .ult-bar{flex:1;height:8px;background:var(--line);border-radius:999px;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
 .ult-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pc),#FFD37A);transition:width .12s}

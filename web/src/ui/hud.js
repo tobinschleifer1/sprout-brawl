@@ -75,12 +75,14 @@ export class HUD {
           <span class="who"><span class="mark">${PLAYER_MARKS[f.index]}</span><span class="pname">${f.name}</span>
           ${who ? `<span class="aname">${who}</span>` : ''}<span class="cname">${f.char.name}</span></span></div>
         <div class="tile-mid"><span class="pct">0%</span><span class="stocks"></span></div>
+        ${f.kit ? `<div class="arms">${f.kit.map((k) => `<span class="arm">${k.weapon.name}</span>`).join('')}</div>` : ''}
         <div class="res"><span class="res-label"></span><span class="res-bar"><i></i></span></div>
         <div class="ult"><span class="ult-label">ULT</span><span class="ult-bar"><i></i></span><span class="ult-n">0/${ULTIMATE.hitsRequired}</span></div>`;
       if (f.source === 'kb1' || f.source === 'kb2' || f.source.startsWith('pad')) t.classList.add('local');
       this.tiles.appendChild(t);
       this.tileEls.push({ el: t, portrait: t.querySelector('.portrait'), painted: false, pct: t.querySelector('.pct'), stocks: t.querySelector('.stocks'), resLabel: t.querySelector('.res-label'), resBar: t.querySelector('.res-bar i'), res: t.querySelector('.res'),
-        ult: t.querySelector('.ult'), ultBar: t.querySelector('.ult-bar i'), ultN: t.querySelector('.ult-n') });
+        ult: t.querySelector('.ult'), ultBar: t.querySelector('.ult-bar i'), ultN: t.querySelector('.ult-n'),
+        arms: [...t.querySelectorAll('.arm')] });
       const L = el('div', 'label'); L.style.setProperty('--pc', color); L.innerHTML = `<span class="mark">${PLAYER_MARKS[f.index]}</span><span class="lp">0%</span>`;
       this.labels.appendChild(L);
       this.labelEls.push({ el: L, pct: L.querySelector('.lp') });
@@ -111,6 +113,8 @@ export class HUD {
       T.pct.textContent = pctText; T.pct.style.color = percentColor(f.percent);
       if (f.percent !== this.lastPercents[i]) { T.pct.classList.remove('pop'); void T.pct.offsetWidth; T.pct.classList.add('pop'); this.lastPercents[i] = f.percent; }
       T.pct.classList.toggle('pulse', f.percent >= 150);
+      // weapon drops: both weapons on the tile, the one in hand lit
+      T.arms.forEach((a, k) => a.classList.toggle('held', f.armed === k));
       const stocks = M.training ? 0 : f.stocksLeft();
       T.stocks.textContent = M.timed ? `KO ${f.stats.kos - f.stats.selfDestructs}` : '●'.repeat(Math.min(stocks, 8));
       T.el.classList.toggle('dead', !M.training && !f.alive && stocks === 0);

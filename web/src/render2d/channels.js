@@ -113,6 +113,7 @@ export function bodyCategory(m) {
   if (id === 'LightSide2') return 'side2';
   if (id === 'Finisher') return 'finisher';
   if (id === 'AirFinisher') return m.angle > 180 ? 'airslam' : 'airlaunch';
+  if (id === 'WeaponThrow') return 'throw';           // weapon drops: letting the weapon go
   return id.startsWith('LightNeutral') ? 'jab'
     : id.startsWith('LightSide') || id === 'ItemSwing' ? 'side'
     : id === 'LightDown' ? 'down' : id === 'LightUp' ? 'up'
@@ -505,6 +506,23 @@ function attackChannels(ch, f, t) {
   const wLag2 = lagged(f, m, 2), wLag3 = lagged(f, m, 3), wLag4 = lagged(f, m, 4);
 
   switch (cat2) {
+    case 'throw':
+      // An overhand throw (weapon drops). The arm cocks up and back over the shoulder while the body
+      // leans away; the release drives everything forward at once; the settle brings the empty hand
+      // home. By phase rather than one formula in `w`, because a throw's cocked pose is not on the
+      // line from rest to extension - the arm goes up and back first, then comes forward past rest.
+      if (s.phase === 'wind') {
+        ch.armR.z = 2.8 * -w; ch.armL.z = 0.8 * -w;
+        ch.lean = -0.25 * -w; ch.legL = 0.2 * -w; ch.head = -0.15 * -w;
+      } else if (s.phase === 'strike') {
+        ch.armR.z = 2.8 + (F - 0.3 - 2.8) * w; ch.armL.z = 0.8 - 1.1 * w;
+        ch.lean = -0.25 + 0.6 * w; ch.legR = 0.4 * w; ch.legL = 0.2 - 0.4 * w; ch.head = -0.15 + 0.3 * w;
+        ch.sx = 1 + 0.08 * w;
+      } else {
+        ch.armR.z = (F - 0.3) * w; ch.armL.z = -0.3 * w;
+        ch.lean = 0.35 * w; ch.legR = 0.4 * w; ch.legL = -0.2 * w; ch.head = 0.15 * w;
+      }
+      break;
     case 'jab':
       ch.armR.z = w < 0 ? -0.55 * -w : F * w;
       ch.armL.z = -0.25 - 0.5 * Math.abs(wLag2);

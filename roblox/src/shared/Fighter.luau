@@ -119,7 +119,9 @@ end
 
 -- ---------------------------------------------------------------- construction ----
 local Fighter = {}
-
+-- the throw moves, for whatever has to recognise or replay one (the pose traces, the renderer)
+Fighter.THROW_GROUND = THROW_GROUND
+Fighter.THROW_AIR = THROW_AIR
 function Fighter.new(opts: any): any
 	local self = setmetatable({}, meta)
 	self.index = opts.index

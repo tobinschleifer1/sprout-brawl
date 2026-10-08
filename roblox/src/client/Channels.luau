@@ -123,6 +123,7 @@ function Channels.bodyCategory(m: any): string
 	if id == "LightSide2" then return "side2" end
 	if id == "Finisher" then return "finisher" end
 	if id == "AirFinisher" then return if m.angle > 180 then "airslam" else "airlaunch" end
+	if id == "WeaponThrow" then return "throw" end   -- weapon drops: letting the weapon go
 	if string.sub(id, 1, 12) == "LightNeutral" then return "jab" end
 	if string.sub(id, 1, 9) == "LightSide" or id == "ItemSwing" then return "side" end
 	if id == "LightDown" then return "down" end
@@ -538,7 +539,21 @@ local function attackChannels(ch: any, f: any, char: any, move: any, t: number)
 	local wLag2, wLag3, wLag4 = lagged(f, m, 2), lagged(f, m, 3), lagged(f, m, 4)
 	local function pos(v: number): number return math.max(0, v) end
 
-	if cat2 == "jab" then
+	if cat2 == "throw" then
+		-- An overhand throw (weapon drops), by phase: cocked up and back, driven forward, settled
+		-- home. See channels.js.
+		if s.phase == "wind" then
+			ch.armR.z = 2.8 * -w; ch.armL.z = 0.8 * -w
+			ch.lean = -0.25 * -w; ch.legL = 0.2 * -w; ch.head = -0.15 * -w
+		elseif s.phase == "strike" then
+			ch.armR.z = 2.8 + (F - 0.3 - 2.8) * w; ch.armL.z = 0.8 - 1.1 * w
+			ch.lean = -0.25 + 0.6 * w; ch.legR = 0.4 * w; ch.legL = 0.2 - 0.4 * w; ch.head = -0.15 + 0.3 * w
+			ch.sx = 1 + 0.08 * w
+		else
+			ch.armR.z = (F - 0.3) * w; ch.armL.z = -0.3 * w
+			ch.lean = 0.35 * w; ch.legR = 0.4 * w; ch.legL = -0.2 * w; ch.head = 0.15 * w
+		end
+	elseif cat2 == "jab" then
 		ch.armR.z = if w < 0 then -0.55 * -w else F * w
 		ch.armL.z = -0.25 - 0.5 * math.abs(wLag2)
 		ch.lean = if w < 0 then -0.12 * -w else 0.2 * w

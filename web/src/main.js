@@ -177,7 +177,7 @@ class App {
       if (e.type === 'shrink') this.hud.message(C.shrink.text, 'sd', C.shrink.ms);
     }
     match.events.length = 0;
-    if (!this.settings.shake) this.view.fx.shake = 0;
+    if (!this.settings.shake) { this.view.fx.shake = 0; this.view.fx.flash = 0; }
   }
 
   loop(now) {

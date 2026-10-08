@@ -53,6 +53,7 @@ function snapEvents(evts) {
     row.push(e.perfect === undefined ? null : e.perfect);
     row.push(e.heavy === undefined ? null : e.heavy);
     row.push(e.finisher === undefined ? null : e.finisher);
+    row.push(e.kill === undefined ? null : e.kill);
     return row;
   });
 }
@@ -162,6 +163,12 @@ const pressesAt = (total, presses, set) => {
 const L = { light: true, anyPress: true }, H = { heavy: true, heavyHeld: true, anyPress: true };
 const TIMED = [[4, L], [11, L], [19, L], [29, H]];
 const timedString = (extra = []) => pressesAt(110, [...TIMED, ...extra].sort((p, q) => p[0] - q[0]), { 1: { percent: 150 } });
+// The kill hit (KILL_HIT): a signature into a victim at kill percent says `kill`, and one into a
+// victim at low percent does not - the event flag the screen marks a KO coming with.
+S.push({ name: 'a kill hit is marked', stage: 'FoundryFloor', who: [['Classic', 'Hammer'], ['Noir', 'Sword']], at: [-1.2, 1.2],
+  segments: pressesAt(140, [[4, { heavy: true, heavyHeld: true, x: 1, anyPress: true }]], { 1: { percent: 300 } }) });
+S.push({ name: 'the same hit, not a kill', stage: 'FoundryFloor', who: [['Classic', 'Hammer'], ['Noir', 'Sword']], at: [-1.2, 1.2],
+  segments: pressesAt(140, [[4, { heavy: true, heavyHeld: true, x: 1, anyPress: true }]], { 1: { percent: 20 } }) });
 S.push({ name: 'timed string, scaled', stage: 'FoundryFloor', pin: true, who: SWORDS, at: [-1.2, 1.2],
   segments: timedString() });
 // ...and the victim breaks out with a Dodge in the fourth hit's freeze: the launch never happens,

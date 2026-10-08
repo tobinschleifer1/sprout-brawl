@@ -11,8 +11,12 @@ Effects.SHAKE_DECAY = 9
 Effects.RING_SEGMENTS = 16
 
 function Effects.new(): any
-	return { parts = {}, rings = {}, shake = 0, shields = {} }
+	return { parts = {}, rings = {}, shake = 0, shields = {}, flash = 0 }
 end
+-- A hit's strength is its launch over HIT_FULL, 0 to 1; a kill hit flashes the screen KILL_FLASH s.
+Effects.HIT_FULL = 150
+Effects.KILL_FLASH = 0.12
+Effects.KILL_FLASH_ALPHA = 0.35    -- at its brightest
 Effects.SHIELD_FLARE = 0.3
 
 -- The last impact on fighter i's shield, as Shield.shapes takes it (effects.js shieldHit).
@@ -53,11 +57,20 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 	end
 	local t = e.type
 	if t == "hit" then
-		local heavy = e.heavy == true
+		-- how hard it sent them, 0..1: sparks, speed, size, life and shake grow with it (effects.js)
+		local k = math.max(math.clamp((e.launch or 0) / Effects.HIT_FULL, 0, 1), if e.heavy == true then 0.6 else 0)
 		local col = glow(e.attacker) or "#FFFFFF"
-		push(e.x, e.y, if heavy then 16 else 7, col, if heavy then 26 else 14, if heavy then 0.5 else 0.28, if heavy then 0.32 else 0.2)
-		push(e.x, e.y, if heavy then 8 else 4, "#FFFFFF", if heavy then 18 else 10, 0.24, 0.22)
-		if heavy then ring(e.x, e.y, 2.6, 0.34, col, true, rand() * PI); shake(0.5) else shake(0.14) end
+		push(e.x, e.y, math.floor(6 + 12 * k + 0.5), col, 12 + 16 * k, 0.26 + 0.3 * k, 0.18 + 0.16 * k)
+		push(e.x, e.y, math.floor(3 + 6 * k + 0.5), "#FFFFFF", 9 + 11 * k, 0.24, 0.22)
+		if k >= 0.5 then ring(e.x, e.y, 1.8 + 1.4 * k, 0.34, col, true, rand() * PI) end
+		shake(0.12 + 0.5 * k)
+		-- the kill hit: a white burst, a ring twice any other hit's and a flash of the whole screen
+		if e.kill == true then
+			push(e.x, e.y, 14, "#FFFFFF", 38, 0.36, 0.3)
+			ring(e.x, e.y, 4.2, 0.4, "#FFFFFF", true, rand() * PI)
+			shake(1.2)
+			fx.flash = Effects.KILL_FLASH
+		end
 	elseif t == "explosion" then
 		push(e.x, e.y, 22, "#FFC44D", 30, 0.5, 0.34); ring(e.x, e.y, e.radius or 3, 0.4, "#FFD37A", true, 0); shake(0.7)
 	elseif t == "block" then
@@ -187,6 +200,7 @@ function Effects.step(fx: any, dt: number)
 	end
 	fx.rings = rings
 	fx.shake = math.max(0, fx.shake - dt * Effects.SHAKE_DECAY)
+	fx.flash = math.max(0, (fx.flash or 0) - dt)
 	for k, s in fx.shields do
 		s.life -= dt
 		if s.life <= 0 then fx.shields[k] = nil end

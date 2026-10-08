@@ -1,0 +1,57 @@
+<!doctype html><meta charset="utf-8">
+<title>Brawl preview</title>
+<!-- A bot match drawn by the match's own renderer, frames laid out for reading a fight
+     (docs/briefs/combat-plan.md). Query: n fighters (default 6), seed, stage, ffa=1 for free-for-all,
+     big=1 for full-size frames, at=frame list; `kN` in the list means N frames after the first kill
+     hit. Each frame lists every fighter, the live effects and the events of that second.
+     Open with --allow-file-access-from-files, or serve web/. -->
+<style>body{margin:0;background:#111;display:flex;flex-wrap:wrap;gap:4px} img{width:var(--w,640px)} p{color:#ccc;font:12px monospace;width:640px;margin:0}</style>
+<div id="out"></div>
+<script>window.onerror=(m)=>{document.body.insertAdjacentHTML("beforeend","<p>ERR "+m+"</p>")};window.addEventListener("unhandledrejection",e=>document.body.insertAdjacentHTML("beforeend","<p>REJ "+e.reason+"</p>"))</script>
+<script type="module">
+import { STAGES } from './src/data/stages/index.js';
+import { Renderer2D } from './src/render2d/renderer2d.js';
+import { Match } from './src/engine/match.js';
+import { buildArmed } from './src/data/loadout.js';
+const q = new URLSearchParams(location.search);
+if (q.get('big')) document.body.style.setProperty('--w', '1280px');
+const n = +(q.get('n') || 6), seed = +(q.get('seed') || 3), stage = q.get('stage') || 'FoundryFloor';
+// `at` takes frames, or kN: N frames after the first kill hit (KILL_HIT)
+const atList = (q.get('at') || '600,900,1200,1500,1800,2100').split(',');
+const shots = atList.filter((a) => a[0] !== 'k').map(Number);
+const afterKill = atList.filter((a) => a[0] === 'k').map((a) => +a.slice(1));
+let killAt = null;
+const EMPTY = () => ({ x:0,y:0,jump:false,light:false,heavy:false,dodge:false,guard:false,grab:false,taunt:false,pickup:false,ult:false,jumpHeld:false,guardHeld:false,heavyHeld:false,lightHeld:false,downTap:false,anyPress:false });
+const input = { kb2Active:false, poll(){}, get(){ return EMPTY(); } };
+const KITS = [['Sword','Hammer'],['Daggers','Axe'],['Pike','Shield'],['Scythe','Flail'],['Gauntlets','Longbow'],['Blasters','Grimoire']];
+const LOOKS = ['Classic','Noir','Ember','Moss','Classic','Noir'];
+const fighters = KITS.slice(0, n).map((ws, i) => ({ ...buildArmed(LOOKS[i], ws), skin: Math.floor(i/4), team: q.get('ffa') ? i : i % 2, source: 'p'+i, isBot: true, botLevel: 'hard', name: 'P'+(i+1) }));
+const m = new Match({ mode: q.get('ffa') ? 'StockFFA' : 'StockTeams', stocks: 3, timeLimit: 0, items: true, weaponDrops: true, seed, input, stage: STAGES.find(s => s.id === stage), fighters });
+m.fighters.forEach(f => { f.isBot = true; f.botLevel = 'hard'; });
+const c = document.createElement('canvas');
+c.style.cssText = 'position:fixed;left:0;top:0;width:1280px;height:720px;visibility:hidden';
+document.body.appendChild(c);
+const view = new Renderer2D(c);
+view.setStage(m.stage);
+const out = document.getElementById('out');
+const hist = {};
+for (let fr = 1; fr <= (afterKill.length ? 60 * 400 : Math.max(...shots)); fr++) {
+  m.step();
+  for (const e of m.events) { if (e.type === 'hit' && e.kill && killAt === null) { killAt = fr; for (const k of afterKill) shots.push(fr + k); } view.handle(e, m); hist[e.type] = (hist[e.type] || 0) + 1; }
+  m.events.length = 0;
+  if (fr % 60 === 0) { for (const k in hist) delete hist[k]; }
+  view.frame(m, 1/60, fr/60, false);
+  if (shots.includes(fr)) {
+    const img = new Image(); img.src = c.toDataURL(); out.appendChild(img);
+    const p = document.createElement('p');
+    p.textContent = 'f' + fr + ' ' + m.fighters.map(f => 'P'+(f.index+1)+'(t'+f.team+') '+Math.round(f.percent)+'% s'+f.stocksLeft()+' '+f.state+(f.armed>=0?' '+f.char.weapon.id:' fists')).join(' | ');
+    out.appendChild(p);
+    const p2 = document.createElement('p');
+    const byC = {}; for (const pt of view.fx.parts) byC[pt.c] = (byC[pt.c] || 0) + 1;
+    p2.textContent = 'parts ' + view.fx.parts.length + ' ' + JSON.stringify(byC) + ' rings ' + view.fx.rings.length + ' bursts ' + m.combat.bursts.length + ' (' + m.combat.bursts.map(b => (b.rect.x2-b.rect.x1).toFixed(1)).join(',') + ') events this second ' + JSON.stringify(hist);
+    out.appendChild(p2);
+  }
+  if (m.state === 'results' || (afterKill.length && killAt !== null && fr > killAt + Math.max(...afterKill))) break;
+}
+window.__done = true;
+</script>

@@ -148,6 +148,14 @@ function FightScene.draw(c: any, S: any): any
 			end
 		end
 	end)
+	-- The kill hit (Config.KILL_HIT): the whole view flashes white for Effects.KILL_FLASH, so the
+	-- hit that sends someone out is seen as that by everyone, not just by whoever was watching it.
+	if S.fx and (S.fx.flash or 0) > 0 then
+		local vp = c:viewport()
+		Canvas2D.screen(c)
+		Canvas2D.rect(c, 0, 0, vp.X, vp.Y, WHITE, Effects.KILL_FLASH_ALPHA * S.fx.flash / Effects.KILL_FLASH)
+		c:world(view.x, view.y, view.ppu, S.shakeX, S.shakeY)
+	end
 	-- The impact frame: a white (or caster-coloured) flash over the whole view, for a few
 	-- hundredths of a second, when an ultimate lands its big moment.
 	if S.player and S.player.flash > 0.01 then

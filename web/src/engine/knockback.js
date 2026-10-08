@@ -1,4 +1,4 @@
-import { HITSTUN_CAP, HITLAG_CAP, DI_MAX, KNOCKBACK } from '../config.js';
+import { HITSTUN_CAP, HITLAG_CAP, DI_MAX, KNOCKBACK, FRAME, GRAVITY, LAUNCH_DRAG, KILL_HIT } from '../config.js';
 
 // launch = (base + growth × damage × (percent × slope + floor)) × (100 / weight)
 // See KNOCKBACK in config.js for why the slope is 1/140 and not 1/100.
@@ -38,6 +38,22 @@ export function velocity(launch, angleDeg, facing, di) {
   }
   const rad = (angle * Math.PI) / 180;
   return { vx: Math.cos(rad) * launch * facing, vy: Math.sin(rad) * launch };
+}
+
+// Whether a fighter at (x, y) moving at (vx, vy), in hitstun for `stun` frames, leaves through a side
+// or the top of `blast` before they could act - the fighter's own airborne integration (gravity, the
+// tumble's terminal speed, hitstun drag), with no DI and nothing in the way. The bottom is left out:
+// a launch downward meets the floor first far more often than it falls past one.
+export function carriesOut(x, y, vx, vy, stun, blast) {
+  const frames = stun + KILL_HIT.drift;
+  for (let i = 0; i < frames; i++) {
+    vy -= GRAVITY * FRAME;
+    if (vy < -80) vy = -80;
+    if (i < stun) vx *= LAUNCH_DRAG;
+    x += vx * FRAME; y += vy * FRAME;
+    if (x < blast.left || x > blast.right || y > blast.top) return true;
+  }
+  return false;
 }
 
 // On-block advantage for a move hitting on its first active frame (for the frame data screen).

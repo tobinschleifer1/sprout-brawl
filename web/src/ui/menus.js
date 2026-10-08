@@ -451,7 +451,7 @@ export class Menus {
     return `<div class="screen simple"><button data-act="title">← Back</button><h2>Settings</h2>
       <div class="card settings-card">
         <label><input type="checkbox" data-setting="hitboxes" ${s.hitboxes ? 'checked' : ''}> Show hitboxes and blast zones</label>
-        <label><input type="checkbox" data-setting="shake" ${s.shake ? 'checked' : ''}> Camera shake</label>
+        <label><input type="checkbox" data-setting="shake" ${s.shake ? 'checked' : ''}> Camera shake and flashes</label>
         <label>Music <input type="range" min="0" max="1" step="0.05" data-setting="music" value="${s.music}"></label>
         <label>Sound effects <input type="range" min="0" max="1" step="0.05" data-setting="sfx" value="${s.sfx}"></label>
       </div></div>`;

@@ -1,5 +1,5 @@
 import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage } from '../config.js';
-import { launchSpeed, stunSpeed, hitlag as hitlagFor } from './knockback.js';
+import { launchSpeed, stunSpeed, hitlag as hitlagFor, velocity as launchVelocity, carriesOut } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
 // Math.hypot avoided, deliberately. V8 computes it with a scaled algorithm that is a touch more
@@ -235,7 +235,8 @@ export class Combat {
     if (direct && move.dragVictim && hb && hb.rehitEvery && victim.pendingLaunch) victim.pendingLaunch = { vx: attacker.vx * 0.95, vy: 6 };
     this.onHitLanded(attacker, victim, move, isMelee);
     if (victim.item && damage >= ITEM_CFG.knockOutDamage) this.dropItem(victim, true);
-    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits, finisher: !!move.finisher });
+    const kill = this.killHit(victim);
+    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits, finisher: !!move.finisher, kill });
     return true;
   }
 
@@ -271,7 +272,23 @@ export class Combat {
     victim.hitlag = 2;
     if (tangle) victim._applyEffects({ tangle: 1 });
     attacker.stats.damageDealt += damage;
-    this.emit({ type: 'hit', x: victim.x, y: victim.cy, damage, launch, heavy: true, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle: td.angle, facing, throw: true });
+    const kill = this.killHit(victim);
+    this.emit({ type: 'hit', x: victim.x, y: victim.cy, damage, launch, heavy: true, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle: td.angle, facing, throw: true, kill });
+  }
+
+  // The kill hit (KILL_HIT): whether the launch `victim` was just given carries them out, left alone.
+  // Read-only: it predicts, and the hit event carries the answer.
+  killHit(victim) {
+    if (!victim.alive || victim.state !== 'hitstun') return false;
+    const p = victim.pendingLaunch;
+    let vx = victim.vx, vy = victim.vy;
+    if (p && p.vx !== undefined) { vx = p.vx; vy = p.vy; }
+    else if (p) {
+      const v = launchVelocity(p.launch, p.angle, p.facing, null);
+      vx = v.vx; vy = v.vy;
+      if (victim.onGround && vy < 0) vy = -vy * 0.8;
+    }
+    return carriesOut(victim.x, victim.y, vx, vy, victim.hitstun, this.stage.blast);
   }
 
   checkGrab(f) {
@@ -291,7 +308,8 @@ export class Combat {
     if (f.untouchable) return;
     const facing = sign(f.x - p.x || 1);
     f.applyHit({ damage: p.damage, launch: p.launch, angle: p.angle, facing, attacker: null, hitlag: 6 });
-    this.emit({ type: 'hit', x: f.x, y: f.cy, damage: p.damage, launch: p.launch, heavy: false, weight: f.weight, attacker: -1, victim: f.index, angle: p.angle, facing });
+    const kill = this.killHit(f);
+    this.emit({ type: 'hit', x: f.x, y: f.cy, damage: p.damage, launch: p.launch, heavy: false, weight: f.weight, attacker: -1, victim: f.index, angle: p.angle, facing, kill });
   }
 
   // ---------- move triggers ----------

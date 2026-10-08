@@ -20,6 +20,8 @@ const height = (i) => heights[i] ?? 5;
 const E = (type, extra = {}) => ({ type, x: 3.25, y: 7.5, ...extra });
 const cases = [
   ['light hit', [E('hit', { attacker: 0 })]], ['heavy hit', [E('hit', { attacker: 2, heavy: true })]],
+  ['hits by strength', [E('hit', { attacker: 0, launch: 20 }), E('hit', { attacker: 2, launch: 75 }), E('hit', { attacker: 3, launch: 149.5 }), E('hit', { attacker: 0, launch: 400 }), E('hit', { attacker: 2, launch: 30, heavy: true })]],
+  ['kill hit', [E('hit', { attacker: 2, launch: 180, kill: true }), E('hit', { attacker: 1, launch: 90, kill: false })]],
   ['hit by glowless', [E('hit', { attacker: 1, heavy: true })]], ['explosion', [E('explosion', { radius: 4.5 }), E('explosion')]],
   ['block', [E('block'), E('block', { perfect: true, victim: 2 }), E('block', { victim: 0 })]], ['ko', [E('ko', { fighter: 5 })]],
   ['projectile', [E('projectile'), E('beam')]], ['land', [E('land'), E('land', { hard: true })]],
@@ -38,6 +40,7 @@ const dump = (fx) => ({
   parts: fx.parts.map((p) => [p.x, p.y, p.vx, p.vy, p.life, p.max, p.c, p.s].map(S)),
   rings: fx.rings.map((r) => [r.x, r.y, r.r, r.life, r.max, r.c, r.heavy, r.rot].map(S)),
   shake: S(fx.shake),
+  flash: S(fx.flash),
   shields: Object.keys(fx.shields).sort().map((k) => [k, S(fx.shields[k].life), S(fx.shields[k].x), S(fx.shields[k].y)]),
   shapes: effectShapes(fx).map((sh) => sh.map(S)),
 });

@@ -394,10 +394,11 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	if victim.item and damage >= ITEM_CFG.knockOutDamage then
 		Combat.dropItem(self, victim, true)
 	end
+	local kill = Combat.killHit(self, victim)
 	Combat.emit(self, { type = "hit", x = cx, y = cy, damage = dealt, launch = launch,
 		heavy = not not move.heavy, weight = victim.weight, attacker = attacker.index,
 		victim = victim.index, angle = angle, facing = facing, combo = victim.comboHits,
-		finisher = not not move.finisher })
+		finisher = not not move.finisher, kill = kill })
 	return true
 end
 
@@ -455,9 +456,30 @@ function Combat.resolveThrow(self, attacker: any, victim: any, td: any, tangle: 
 		victim:_applyEffects({ tangle = 1 })
 	end
 	attacker.stats.damageDealt += damage
+	local kill = Combat.killHit(self, victim)
 	Combat.emit(self, { type = "hit", x = victim.x, y = victim.cy, damage = damage, launch = launch,
 		heavy = true, weight = victim.weight, attacker = attacker.index, victim = victim.index,
-		angle = td.angle, facing = facing, throw = true })
+		angle = td.angle, facing = facing, throw = true, kill = kill })
+end
+
+-- The kill hit (Config.KILL_HIT): whether the launch `victim` was just given carries them out, left
+-- alone. Read-only: it predicts, and the hit event carries the answer.
+function Combat.killHit(self, victim: any): boolean
+	if not victim.alive or victim.state ~= "hitstun" then
+		return false
+	end
+	local p = victim.pendingLaunch
+	local vx, vy = victim.vx, victim.vy
+	if p and p.vx ~= nil then
+		vx, vy = p.vx, p.vy
+	elseif p then
+		local v = Knockback.velocity(p.launch, p.angle, p.facing, nil)
+		vx, vy = v.vx, v.vy
+		if victim.onGround and vy < 0 then
+			vy = -vy * 0.8
+		end
+	end
+	return Knockback.carriesOut(victim.x, victim.y, vx, vy, victim.hitstun, self.match.stage.blast)
 end
 
 local UNGRABBABLE = { grabbed = true, holding = true, ko = true, respawn = true, ledge = true }
@@ -487,8 +509,9 @@ function Combat.hazardHit(self, f: any, p: any)
 	local facing = sign(if d ~= 0 then d else 1)
 	f:applyHit({ damage = p.damage, launch = p.launch, angle = p.angle, facing = facing,
 		attacker = nil, hitlag = 6 })
+	local kill = Combat.killHit(self, f)
 	Combat.emit(self, { type = "hit", x = f.x, y = f.cy, damage = p.damage, launch = p.launch,
-		heavy = false, weight = f.weight, attacker = -1, victim = f.index, angle = p.angle, facing = facing })
+		heavy = false, weight = f.weight, attacker = -1, victim = f.index, angle = p.angle, facing = facing, kill = kill })
 end
 
 -- ---------------------------------------------------------------- bursts ----

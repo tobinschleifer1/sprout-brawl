@@ -10,7 +10,7 @@
 // scratch out of the simulation state.
 
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
-import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks, shieldHit } from './effects.js';
+import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks, shieldHit, KILL_FLASH, KILL_FLASH_ALPHA } from './effects.js';
 import { shieldShapes } from './shield.js';
 import { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } from '../data/teams.js';
 import { channelsFor } from './channels.js';
@@ -161,6 +161,12 @@ export class Renderer2D {
     this._bursts(match.combat);
     this._particles(dt);
     drawAmbient(this.b, match.stage, t, 'front');
+    // The kill hit (KILL_HIT in config.js): the whole view flashes white, so the hit that sends
+    // someone out is seen as that by everyone, not just by whoever was watching it.
+    if (this.fx.flash > 0) {
+      this._screen(); this.b.globalAlpha = KILL_FLASH_ALPHA * this.fx.flash / KILL_FLASH;
+      this.b.fillStyle = '#FFFFFF'; this.b.fillRect(0, 0, this.BW, BH); this.b.globalAlpha = 1; this._world();
+    }
     if (caster && (cine.active || cine.glow)) {
       // Everyone but the caster falls into shadow, and the caster stands in gold for exactly the
       // frames they cannot be hit.

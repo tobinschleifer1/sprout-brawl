@@ -56,6 +56,29 @@ function Knockback.velocity(launch: number, angleDeg: number, facing: number, di
 	return { vx = math.cos(rad) * launch * facing, vy = math.sin(rad) * launch }
 end
 
+-- Whether a fighter at (x, y) moving at (vx, vy), in hitstun for `stun` frames, leaves through a side
+-- or the top of `blast` before they could act: the fighter's own airborne integration (gravity, the
+-- tumble's terminal speed, hitstun drag), with no DI and nothing in the way. Not the bottom: a
+-- launch downward meets the floor far more often than it falls past one. knockback.js carriesOut.
+function Knockback.carriesOut(x: number, y: number, vx: number, vy: number, stun: number, blast: any): boolean
+	local frames = stun + Config.KILL_HIT.drift
+	for i = 0, frames - 1 do
+		vy -= Config.GRAVITY * Config.FRAME
+		if vy < -80 then
+			vy = -80
+		end
+		if i < stun then
+			vx *= Config.LAUNCH_DRAG
+		end
+		x += vx * Config.FRAME
+		y += vy * Config.FRAME
+		if x < blast.left or x > blast.right or y > blast.top then
+			return true
+		end
+	end
+	return false
+end
+
 -- On-block advantage for a move hitting on its first active frame (for the frame data screen).
 function Knockback.onBlock(move: { damage: number, active: number, recovery: number }): number
 	return Knockback.blockstun(move.damage) - ((move.active - 1) + move.recovery)

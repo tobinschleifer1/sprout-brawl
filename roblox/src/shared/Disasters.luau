@@ -54,8 +54,9 @@ function Disasters.hit(ctx: any, f: any, p: any): boolean
 	local stun = Knockback.stunSpeed(p.base, p.growth, p.damage, after, f.weight)
 	f:applyHit({ damage = p.damage, launch = launch, stun = stun, angle = p.angle, facing = facing,
 		attacker = nil, hitlag = if p.hitlag ~= nil then p.hitlag else 6 })
+	local kill = ctx.match.combat:killHit(f)
 	ctx.match.combat:emit({ type = "hit", x = f.x, y = f.cy, damage = p.damage, launch = launch, heavy = false,
-		weight = f.weight, attacker = -1, victim = f.index, angle = p.angle, facing = facing, disaster = p.kind })
+		weight = f.weight, attacker = -1, victim = f.index, angle = p.angle, facing = facing, disaster = p.kind, kill = kill })
 	return true
 end
 

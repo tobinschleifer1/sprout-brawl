@@ -123,6 +123,18 @@ export const INPUT_BUFFER = 6;
 // the new move's hitbox meets where the victim will be when it comes out, at up to `chaseSpeed`.
 // Every hit sends its victim away, so without it no aerial reaches the next one; mashed links do
 // not chase, so they whiff, and the skill stays in the timing.
+// The kill hit (readability): a hit whose launch, left alone, carries the victim past a blast line.
+// The hit event says `kill`, so everyone on screen sees the KO coming before it lands. `drift` is how
+// long after hitstun the launch is followed: the tumble a victim cannot yet act out of. A prediction,
+// not a promise: DI and a recovery can still save them, which is the point of marking it.
+// Measured over 24 bot matches: at 10, 83% of marked hits KO and half the side and top KOs are
+// marked; at 30 it marked more but only 55% KO'd, every miss a victim who used their recovery. A
+// bottom KO is a failed recovery seconds later, not a kill hit, and is never marked.
+// It marks the hit and changes nothing else. A longer freeze on kill hits was tried and measured: it
+// halved the top bot's edge over the one below (4.0x to 2.0x across 64 games), so it was changing
+// fights, not just showing them.
+export const KILL_HIT = { drift: 10 };
+
 export const COMBO = {
   perfectLate: 4, perfectStartupCut: 2, perfectMinStartup: 2, perfectDamage: 1, perfectCharge: 1.25,
   scaleFrom: 3, scaleStep: 0.08, scaleFloor: 0.5,

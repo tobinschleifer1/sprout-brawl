@@ -17,7 +17,12 @@ export const GRAVITY = 26;       // studs/s^2 on a spark
 export const SHAKE_DECAY = 9;    // shake units per second
 export const RING_SEGMENTS = 16;
 
-export function newEffects() { return { parts: [], rings: [], shake: 0, shields: {} }; }
+export function newEffects() { return { parts: [], rings: [], shake: 0, shields: {}, flash: 0 }; }
+// A hit's strength is its launch over HIT_FULL (a launch that sends anyone a long way), 0 to 1.
+export const HIT_FULL = 150;
+// Seconds the screen flashes white for a kill hit (KILL_HIT in config.js); the renderer draws it.
+export const KILL_FLASH = 0.12;
+export const KILL_FLASH_ALPHA = 0.35;   // at its brightest
 export const SHIELD_FLARE = 0.3;   // seconds a struck shield flares where it was hit
 
 // The last impact on fighter i's shield, as render2d/shield.js takes it: { k: 1 fresh .. 0, x, y }.
@@ -48,11 +53,24 @@ export function spawnEffect(fx, e, glow, rand, height = () => 5) {
   const shake = (v) => { fx.shake = Math.max(fx.shake, v); };
   switch (e.type) {
     case 'hit': {
-      const heavy = !!e.heavy;
+      // How hard it sent them: sparks, their speed, size and life, and the shake all grow with the
+      // launch, so a jab and a smash do not look alike - they did, every non-heavy hit drew the same
+      // seven sparks. A heavy move still reads as heavy whatever it launched.
+      const k = Math.max(clamp01((e.launch || 0) / HIT_FULL), e.heavy ? 0.6 : 0);
       const col = glow(e.attacker) || '#FFFFFF';
-      push(e.x, e.y, heavy ? 16 : 7, col, heavy ? 26 : 14, heavy ? 0.5 : 0.28, heavy ? 0.32 : 0.2);
-      push(e.x, e.y, heavy ? 8 : 4, '#FFFFFF', heavy ? 18 : 10, 0.24, 0.22);
-      if (heavy) { ring(e.x, e.y, 2.6, 0.34, col, true, rand() * PI); shake(0.5); } else shake(0.14);
+      push(e.x, e.y, Math.floor(6 + 12 * k + 0.5), col, 12 + 16 * k, 0.26 + 0.3 * k, 0.18 + 0.16 * k);
+      push(e.x, e.y, Math.floor(3 + 6 * k + 0.5), '#FFFFFF', 9 + 11 * k, 0.24, 0.22);
+      if (k >= 0.5) ring(e.x, e.y, 1.8 + 1.4 * k, 0.34, col, true, rand() * PI);
+      shake(0.12 + 0.5 * k);
+      // The kill hit (KILL_HIT in config.js): the one that sends them out gets a white burst, a
+      // ring bigger than any other hit's and a flash of the whole screen - short, so the burst never
+      // hides where the victim is flying (at 5.2 studs and half a second it did).
+      if (e.kill) {
+        push(e.x, e.y, 14, '#FFFFFF', 38, 0.36, 0.3);
+        ring(e.x, e.y, 4.2, 0.4, '#FFFFFF', true, rand() * PI);
+        shake(1.2);
+        fx.flash = KILL_FLASH;
+      }
       break;
     }
     case 'explosion':
@@ -165,6 +183,7 @@ export function stepEffect(fx, dt) {
   fx.parts = parts;
   fx.rings = fx.rings.filter((r) => { r.life -= dt; return r.life > 0; });
   fx.shake = Math.max(0, fx.shake - dt * SHAKE_DECAY);
+  fx.flash = Math.max(0, (fx.flash || 0) - dt);
   for (const k of Object.keys(fx.shields)) {
     fx.shields[k].life -= dt;
     if (fx.shields[k].life <= 0) delete fx.shields[k];

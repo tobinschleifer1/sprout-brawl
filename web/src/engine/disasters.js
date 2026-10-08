@@ -46,8 +46,9 @@ export function disasterHit(ctx, f, p) {
   const launch = launchSpeed(p.base, p.growth, p.damage, after, f.weight);
   const stun = stunSpeed(p.base, p.growth, p.damage, after, f.weight);
   f.applyHit({ damage: p.damage, launch, stun, angle: p.angle, facing, attacker: null, hitlag: p.hitlag ?? 6 });
+  const kill = ctx.match.combat.killHit(f);
   ctx.match.combat.emit({ type: 'hit', x: f.x, y: f.cy, damage: p.damage, launch, heavy: false, weight: f.weight,
-    attacker: -1, victim: f.index, angle: p.angle, facing, disaster: p.kind });
+    attacker: -1, victim: f.index, angle: p.angle, facing, disaster: p.kind, kill });
   return true;
 }
 

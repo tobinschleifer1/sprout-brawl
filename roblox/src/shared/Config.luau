@@ -98,6 +98,11 @@ Config.INPUT_BUFFER = 6
 -- the `scaleFrom`th hit of a combo (knockback does not); from the `breakFrom`th the victim can break
 -- out with a Dodge during that hit's freeze. A timed link into an aerial, or the first aerial after a
 -- cancel, chases the fighter just hit (see Fighter._chase).
+-- The kill hit (readability): a hit whose launch, left alone, carries its victim past a side or the
+-- top blast line. Marks the hit event (`kill`) and changes nothing else. See config.js beside
+-- KILL_HIT for the measurements behind `drift`, and why there is no extra freeze.
+Config.KILL_HIT = { drift = 10 }
+
 Config.COMBO = {
 	perfectLate = 4, perfectStartupCut = 2, perfectMinStartup = 2, perfectDamage = 1, perfectCharge = 1.25,
 	scaleFrom = 3, scaleStep = 0.08, scaleFloor = 0.5,

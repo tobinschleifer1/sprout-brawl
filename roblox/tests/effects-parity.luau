@@ -49,6 +49,7 @@ local function compare(fx: any, want: any, where: string)
 		for j, v in { r.x, r.y, r.r, r.life, r.max, r.c, r.heavy, r.rot } do near(want.rings[i][j], v, `{where} ring {i}.{j}`) end
 	end
 	near(want.shake, fx.shake, `{where} shake`)
+	near(want.flash, fx.flash, `{where} flash`)
 	local keys = {}
 	for k in fx.shields do table.insert(keys, k) end
 	table.sort(keys)
@@ -112,8 +113,25 @@ assert(heavy.shake > light.shake and light.shake > 0, "every hit shakes, heavy h
 assert(#heavy.parts > #light.parts, "heavy hits throw more sparks")
 for _ = 1, 120 do Fx.step(heavy, 1 / 60) end
 assert(#heavy.parts == 0 and #heavy.rings == 0 and heavy.shake == 0, "everything burns out within two seconds")
+-- a hit's look follows how hard it sent them, and the kill hit flashes the screen
+local function hitFx(launch: number, kill: boolean?): any
+	local fx = Fx.new()
+	Fx.spawn(fx, { type = "hit", x = 0, y = 0, attacker = 0, launch = launch, kill = kill }, function() return "#B77DFF" end, lcg)
+	return fx
+end
+local jab, mid, smash, kill = hitFx(15), hitFx(80), hitFx(170), hitFx(170, true)
+assert(#jab.parts < #mid.parts and #mid.parts < #smash.parts, `sparks by strength: {#jab.parts}, {#mid.parts}, {#smash.parts}`)
+assert(jab.shake < mid.shake and mid.shake < smash.shake, "a harder hit shakes harder")
+assert(#jab.rings == 0 and #smash.rings == 1, "a strong hit rings, a jab does not")
+assert(smash.flash == 0 and kill.flash > 0, "only the kill hit flashes the screen")
+assert(#kill.rings == 2 and #kill.parts > #smash.parts and kill.shake > smash.shake, "the kill hit is bigger than any other hit")
+local biggest = 0
+for _, ring in kill.rings do biggest = math.max(biggest, ring.r) end
+for _, ring in smash.rings do assert(ring.r * 1.2 < biggest, "the kill hit's ring is bigger than a strong hit's") end
+for _ = 1, 30 do Fx.step(kill, 1 / 60) end
+assert(kill.flash == 0, "the flash is gone in half a second")
 -- dust starts at the fighter's feet, not their middle
 local tall = Fx.new()
 Fx.spawn(tall, { type = "jump", x = 0, y = 10, fighter = 0 }, function() return nil end, lcg, function() return 6 end)
 for _, p in tall.parts do assert(p.y == 7, `jump dust at y {p.y}, the feet are at 7`) end
-print("effects: every event visible, sparks in the weapon's glow, heavy hits ring and shake harder, dust at the feet, all burn out")
+print("effects: every event visible, sparks in the weapon's glow, hits by strength (sparks, ring, shake), the kill hit's burst, ring and flash, dust at the feet, all burn out")

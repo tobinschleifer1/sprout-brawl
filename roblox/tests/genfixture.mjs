@@ -36,6 +36,17 @@ for (const l of [8, 20, 33.5, 45, 60, 88]) for (const a of [20, 40, 55, 70, 88, 
       velocity.push([l, a, f, di ? di.x : 0, di ? di.y : 0, di ? 1 : 0, r9(v.vx), r9(v.vy)]);
     }
 
+// The kill hit (carriesOut): a sweep dense enough that the answer flips inside it along every axis
+// - speed, angle, where they are, how long the stun is - against Foundry Floor's blast lines.
+const BLAST = { left: -115, right: 115, top: 102, bottom: -60 };
+const carries = [];
+for (let speed = 40; speed <= 260; speed += 1) for (const angle of [5, 25, 40, 55, 70, 88])
+  for (const [x, y] of [[0, 0], [60, 10], [-85, 30], [0, 55]]) for (const facing of [1, -1]) {
+    const v = K.velocity(speed, angle, facing, null);
+    const stun = K.hitstun(speed * 0.8);
+    carries.push([x, y, r9(v.vx), r9(v.vy), stun, K.carriesOut(x, y, v.vx, v.vy, stun, BLAST) ? 1 : 0]);
+  }
+
 const misc = [];
 for (const d of [0, 1, 2, 3, 5, 8, 12, 15, 17, 20, 30]) misc.push([d, K.blockstun(d), K.hitlag(d, false), K.hitlag(d, true)]);
 
@@ -67,7 +78,7 @@ for (const w of [60, 72, 82, 89, 90, 91, 94, 100, 104, 105, 106, 110, 118, 125, 
 }
 
 const out = new URL('./knockback-fixture.json', import.meta.url);
-fs.writeFileSync(out, JSON.stringify({ launch, velocity, misc, config, weightClass }));
+fs.writeFileSync(out, JSON.stringify({ launch, velocity, misc, config, weightClass, carries, blast: BLAST }));
 const leaves = JSON.stringify(config).match(/"[^"]*"\s*:/g)?.length ?? 0;
 console.log(`fixture regenerated: ${launch.length} launch rows, ${velocity.length} velocity rows, `
   + `${misc.length} misc rows, ${leaves} config keys`);

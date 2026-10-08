@@ -74,6 +74,19 @@ for _, row in fixture.velocity do
 	end
 end
 
+-- the kill hit's prediction
+local carriesYes = 0
+for _, row in fixture.carries do
+	local x, y, vx, vy, stun, expect = row[1], row[2], row[3], row[4], row[5], row[6] == 1
+	local got = Knockback.carriesOut(x, y, vx, vy, stun, fixture.blast)
+	checked += 1
+	if got then carriesYes += 1 end
+	if got ~= expect then
+		fail(string.format("carriesOut(%g,%g,%g,%g,%d) = %s, JS says %s", x, y, vx, vy, stun, tostring(got), tostring(expect)))
+	end
+end
+assert(carriesYes > 0 and carriesYes < #fixture.carries, "the carriesOut sweep must have both answers in it")
+
 -- blockstun + hitlag
 for _, row in fixture.misc do
 	local d, expectBlock, expectLagLight, expectLagHeavy = row[1], row[2], row[3], row[4]

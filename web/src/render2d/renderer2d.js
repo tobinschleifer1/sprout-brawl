@@ -10,6 +10,7 @@
 // scratch out of the simulation state.
 
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
+import { dangerPercent, dangerLevel, dangerShapes } from './danger.js';
 import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks, shieldHit, KILL_FLASH, KILL_FLASH_ALPHA } from './effects.js';
 import { shieldShapes } from './shield.js';
 import { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } from '../data/teams.js';
@@ -154,6 +155,11 @@ export class Renderer2D {
     this._items(match.combat);
     this._drops(match.combat, match.frame);
     for (const f of fighters) if (f !== caster || !cine.active) this._fighter(f, t);
+    // Danger: anyone close to being KO'd smokes (render2d/danger.js says how close is measured).
+    for (const f of fighters) {
+      if (!f.alive || f.state === 'ko' || f.state === 'respawn') continue;
+      this._paintShapes(dangerShapes(f.x, f.y, f.h, dangerLevel(f.percent, dangerPercent(f.weight, match.stage.blast)), match.frame));
+    }
     // Hazards a fighter is INSIDE — steam, dust, water jets — draw over them, so the fighter is
     // swallowed by the column rather than pasted on top of it.
     drawHazards(this.b, match.stage, t, 'front');
@@ -916,8 +922,11 @@ export class Renderer2D {
   // Signature hits get a ring plus a shower of sparks; ordinary hits get a small pop. This is the
   // "effects when coming into contact" the ultimates are supposed to have.
   handle(e, match) {
+    // In a team match a hit's sparks are its team's colour, so who landed it reads at a glance;
+    // otherwise the weapon's glow.
     const glow = (i) => {
       const f = match.fighters[i];
+      if (f && this.teamsOn && TEAM_COLORS[f.team]) return TEAM_COLORS[f.team];
       const pal = f && (f.char.weaponPalette || f.char.palette);
       return (pal && pal.glow) || null;
     };

@@ -119,12 +119,16 @@ World2D.effects = fx
 local pendingFx: { any } = {}
 -- Your own fighter's movement is predicted, so its dust comes from the prediction the moment you
 -- act; the server's copy of those events would arrive a round trip and an interpolation late.
-local LOCAL_FX: { [string]: boolean } = { jump = true, doublejump = true, dash = true, dodge = true, land = true, ledge = true, tech = true }
+local LOCAL_FX: { [string]: boolean } = { jump = true, doublejump = true, dash = true, dodge = true, land = true, ledge = true, tech = true, movestart = true }
 local function heightOf(i: number?): number
 	local entry = if i ~= nil then roster[i + 1] else nil
 	return if entry and entry.height then entry.height else 5
 end
+-- A hit's spark colour: in a team match its team's colour, so who landed it reads at a glance
+-- (renderer2d.js); otherwise the weapon's glow.
+local teamHex: { [number]: string }? = nil
 local function glowOf(i: number?): string?
+	if teamHex and i ~= nil and teamHex[i] then return teamHex[i] end
 	local char = if i ~= nil then chars[i + 1] else nil
 	local pal = char and (char.weaponPalette or char.palette)
 	return pal and pal.glow or nil
@@ -434,13 +438,15 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	end
 	-- In a team match every fighter stands in their team's colour.
 	Fighter2D.teamColours = nil
+	teamHex = nil
 	if string.find(cfg.mode or "", "Teams", 1, true) then
-		local teams = {}
+		local teams, hexes = {}, {}
 		for _, entry in roster do
 			local hex = Teams.colours[(entry.team or 0) + 1]
-			if hex then teams[entry.index] = Canvas2D.hex(hex, Color3.new(1, 1, 1)) end
+			if hex then teams[entry.index] = Canvas2D.hex(hex, Color3.new(1, 1, 1)); hexes[entry.index] = hex end
 		end
 		Fighter2D.teamColours = teams
+		teamHex = hexes
 	end
 	hud:bind(roster, chars, localIndex, string.find(cfg.mode or "", "Teams", 1, true) ~= nil)
 

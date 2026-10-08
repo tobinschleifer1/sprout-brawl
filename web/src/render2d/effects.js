@@ -23,6 +23,8 @@ export const HIT_FULL = 150;
 // Seconds the screen flashes white for a kill hit (KILL_HIT in config.js); the renderer draws it.
 export const KILL_FLASH = 0.12;
 export const KILL_FLASH_ALPHA = 0.35;   // at its brightest
+// The heavy-startup glint: its ring's radius (studs) and life (seconds).
+export const GLINT = { r: 0.9, life: 0.24 };
 export const SHIELD_FLARE = 0.3;   // seconds a struck shield flares where it was hit
 
 // The last impact on fighter i's shield, as render2d/shield.js takes it: { k: 1 fresh .. 0, x, y }.
@@ -95,6 +97,11 @@ export function spawnEffect(fx, e, glow, rand, height = () => 5) {
     case 'ultimate':
       push(e.x, e.y, 30, glow(e.fighter) || '#FFFFFF', 30, 0.6, 0.4); shake(1.4); break;
     case 'ultready': shake(0.2); break;
+    // The telegraph: a heavy or signature starting up glints on the fighter's upper body - a small
+    // spiked star, the platform fighter's "a big one is coming" - so it can be seen and answered.
+    case 'movestart':
+      if (e.heavy) ring(e.x, e.y + height(e.fighter) * 0.2, GLINT.r, GLINT.life, '#FFF6C8', true, PI / 4);
+      break;
     case 'soulescape': push(e.x, e.y, 12, '#FFFFFF', 24, 0.35, 0.26); break;
     case 'crater':
       // rock and light thrown out of the floor where the greatsword landed

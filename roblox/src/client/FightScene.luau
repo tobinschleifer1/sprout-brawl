@@ -26,6 +26,7 @@ local World2D = require(script.Parent.World2D)
 local Fighter2D = require(script.Parent.Fighter2D)
 local UltWorld = require(script.Parent.UltWorld)
 local FxPlayer = require(script.Parent.FxPlayer)
+local Danger = require(script.Parent.Danger)
 
 -- a shield shatters in its owner's colour (FxPlayer reads this for `shieldbreak`)
 FxPlayer.shieldColour = function(index: number?): string
@@ -117,6 +118,20 @@ function FightScene.draw(c: any, S: any): any
 				Fighter2D.draw(c, st, char, S.t, if surface then surface.top else nil)
 			end)
 		end
+	end
+	-- Danger: anyone close to being KO'd smokes (Danger.luau says how close is measured).
+	if S.stage and S.stage.blast then
+		guard(-8, "the danger smoke failed to draw", function()
+			for _, st in S.states do
+				local char = S.chars[st.index + 1]
+				if char and st.alive and st.state ~= "ko" and st.state ~= "respawn" then
+					local k = Danger.level(st.percent or 0, Danger.percent(char.weight, S.stage.blast))
+					for _, sh in Danger.shapes(st.x, st.y, char.height, k, math.floor(S.t * 60)) do
+						Canvas2D.rect(c, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], WHITE), sh[7])
+					end
+				end
+			end
+		end)
 	end
 	if scene and S.stage then
 		guard(-6, "the hazards failed to draw", function()

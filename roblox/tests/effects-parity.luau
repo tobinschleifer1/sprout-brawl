@@ -130,8 +130,13 @@ for _, ring in kill.rings do biggest = math.max(biggest, ring.r) end
 for _, ring in smash.rings do assert(ring.r * 1.2 < biggest, "the kill hit's ring is bigger than a strong hit's") end
 for _ = 1, 30 do Fx.step(kill, 1 / 60) end
 assert(kill.flash == 0, "the flash is gone in half a second")
+-- the telegraph: a heavy starting up glints above the fighter's middle; anything else does not
+local glint, quiet = Fx.new(), Fx.new()
+Fx.spawn(glint, { type = "movestart", x = 0, y = 5, fighter = 0, heavy = true }, function() return nil end, lcg, function() return 6 end)
+Fx.spawn(quiet, { type = "movestart", x = 0, y = 5, fighter = 0, heavy = false }, function() return nil end, lcg, function() return 6 end)
+assert(#glint.rings == 1 and glint.rings[1].y > 5 and #quiet.rings == 0 and #quiet.parts == 0, "a heavy's startup glints on the upper body, a light's does not")
 -- dust starts at the fighter's feet, not their middle
 local tall = Fx.new()
 Fx.spawn(tall, { type = "jump", x = 0, y = 10, fighter = 0 }, function() return nil end, lcg, function() return 6 end)
 for _, p in tall.parts do assert(p.y == 7, `jump dust at y {p.y}, the feet are at 7`) end
-print("effects: every event visible, sparks in the weapon's glow, hits by strength (sparks, ring, shake), the kill hit's burst, ring and flash, dust at the feet, all burn out")
+print("effects: every event visible, sparks in the weapon's glow, hits by strength (sparks, ring, shake), the kill hit's burst, ring and flash, heavy startups glint, dust at the feet, all burn out")

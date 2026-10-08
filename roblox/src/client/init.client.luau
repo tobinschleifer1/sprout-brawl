@@ -816,7 +816,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 			hud:comboEvent(e)
 			if e.type == "ko" then
 				local entry = roster[(e.fighter or 0) + 1]
-				hud:announce("ko", `{Callouts.ko.text}  {HudColors.MARKS[((e.fighter or 0) % 8) + 1]} {if entry then entry.name else ""}`)
+				-- and who did it, unless nobody did (a self-destruct): main.js says it the same way
+				local by = if e.by ~= nil and e.by >= 0 and e.by ~= e.fighter then roster[e.by + 1] else nil
+				local credit = if by then `  by {HudColors.MARKS[(e.by % 8) + 1]} {by.name}` else ""
+				hud:announce("ko", `{Callouts.ko.text}  {HudColors.MARKS[((e.fighter or 0) % 8) + 1]} {if entry then entry.name else ""}{credit}`)
 			elseif e.type == "suddendeath" or e.type == "shrink" or e.type == "game" then
 				hud:announce(e.type)
 			end

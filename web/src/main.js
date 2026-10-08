@@ -171,7 +171,12 @@ class App {
       const C = CALLOUTS;
       if (e.type === 'count') this.hud.message(String(e.n), 'count', C.count.ms);
       if (e.type === 'go') this.hud.message(C.go.text, 'go', C.go.ms);
-      if (e.type === 'ko') { const f = match.fighters[e.fighter]; this.hud.message(`${C.ko.text} <small>${PLAYER_MARKS[f.index]} ${f.name}</small>`, 'ko', C.ko.ms); }
+      if (e.type === 'ko') {
+        // who went, and who did it - unless nobody did (a self-destruct)
+        const f = match.fighters[e.fighter], by = e.by >= 0 && e.by !== e.fighter ? match.fighters[e.by] : null;
+        const credit = by ? ` by ${PLAYER_MARKS[by.index]} ${by.name}` : '';
+        this.hud.message(`${C.ko.text} <small>${PLAYER_MARKS[f.index]} ${f.name}${credit}</small>`, 'ko', C.ko.ms);
+      }
       if (e.type === 'suddendeath') this.hud.message(C.suddendeath.text, 'sd', C.suddendeath.ms);
       if (e.type === 'game') { this.hud.message(C.game.text, 'game', C.game.ms); setTimeout(() => this.endMatch(true), 1700); this.music.setIntensity(0); }
       if (e.type === 'shrink') this.hud.message(C.shrink.text, 'sd', C.shrink.ms);

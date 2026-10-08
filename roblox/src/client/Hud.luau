@@ -32,6 +32,8 @@ Hud.__index = Hud
 
 -- The look is the shared cartoon kit's (Ui): outlined display numbers, ink-bordered cards, key caps.
 local FONT = Ui.LABEL
+-- the floating label over each fighter: its width, and how near the screen's top or bottom it may go
+local FLOAT_W, FLOAT_EDGE = 130, 26
 local DIM = Color3.fromRGB(198, 204, 214)
 local PANEL = Ui.PANEL
 local GOLD = Ui.GOLD                            -- a timed link's colour (FxPlayer.PERFECT)
@@ -256,7 +258,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 
 		-- The floating percent over the fighter's own head, which is what a player actually reads
 		-- mid-fight: the tiles are for the glance between stocks.
-		local float = display(self.gui, UDim2.fromOffset(90, 22), UDim2.fromOffset(0, 0), "0%", 17, Color3.new(1, 1, 1))
+		local float = display(self.gui, UDim2.fromOffset(FLOAT_W, 22), UDim2.fromOffset(0, 0), "0%", 17, Color3.new(1, 1, 1))
 		float.TextXAlignment = Enum.TextXAlignment.Center
 		-- The player's mark in their (team) colour ahead of the percent, as the web's label has it.
 		float.RichText = true
@@ -266,6 +268,15 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		float.Parent = self.gui
 		table.insert(self.floats, float)
 	end
+end
+
+-- Where a floating label goes for a head projected to `p` on a `vp` screen: over the head while
+-- it is on screen; held at the nearest edge with an arrow pointing out at them while it is not, so
+-- a fighter launched off screen is still somewhere you can read (the web clamps its labels the
+-- same way). Returns the label's centre and the arrow ("" on screen).
+function Hud.floatPlace(p: Vector2, vp: Vector2): (number, number, string)
+	local arrow = if p.X < 0 then "◀ " elseif p.X > vp.X then "▶ " elseif p.Y < 0 then "▲ " elseif p.Y > vp.Y then "▼ " else ""
+	return math.clamp(p.X, FLOAT_W / 2, vp.X - FLOAT_W / 2), math.clamp(p.Y, FLOAT_EDGE, vp.Y - FLOAT_EDGE), arrow
 end
 
 local function mmss(t: number): string
@@ -477,11 +488,12 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			local char = chars[i]
 			local h = if char then char.height else 5
 			if st.alive and st.state ~= "ko" and canvas then
-				local p = canvas:project(st.x, st.y + h + 1.4)
-				local vp = canvas:viewport()
-				float.Visible = p.X > -60 and p.X < vp.X + 60 and p.Y > -40 and p.Y < vp.Y + 40
-				float.Position = UDim2.fromOffset(p.X - 45, p.Y - 22)
-				float.Text = `{self.floatMarks[i] or ""} {pct}%`
+				local x, y, arrow = Hud.floatPlace(canvas:project(st.x, st.y + h + 1.4), canvas:viewport())
+				float.Visible = true
+				float.Position = UDim2.fromOffset(x - FLOAT_W / 2, y - 22)
+				-- your own fighter says so: in a room of six it is the first thing you look for
+				local you = if tile.index == self.localIndex then "YOU " else ""
+				float.Text = `{arrow}{you}{self.floatMarks[i] or ""} {pct}%`
 				float.TextColor3 = HudColors.percent(st.percent)
 			else
 				float.Visible = false

@@ -230,6 +230,38 @@ hud:abilityEvent({type="ultready",fighter=1})
 assert(not hud.abilityMessage,"another player's full meter must not be announced as yours")
 hud:abilityEvent({type="ultdenied",fighter=0,reason="charge"})
 assert(hud.abilityMessage:find("not charged",1,true),"index-zero local fighter receives rejection feedback")
+-- The floating labels: over the head on screen; at the nearest edge, pointing out, off it; and
+-- your own says YOU.
+do
+	local vp = Rbx.Vector2.new(1280, 720)
+	local function at(x: number, y: number): (number, number, string) return Hud.floatPlace(Rbx.Vector2.new(x, y), vp) end
+	local x, y, arrow = at(400, 300)
+	assert(x == 400 and y == 300 and arrow == "", "on screen, the label sits over the head")
+	x, y, arrow = at(1900, 300)
+	assert(x < 1280 and x > 1100 and y == 300 and arrow == "▶ ", `off the right it holds at the edge and points out ({x}, {arrow})`)
+	x, y, arrow = at(-500, 300)
+	assert(x > 0 and x < 180 and arrow == "◀ ", "off the left the same")
+	x, y, arrow = at(600, -900)
+	assert(y > 0 and y < 60 and arrow == "▲ ", "launched off the top it holds at the top")
+	x, y, arrow = at(600, 2000)
+	assert(y < 720 and y > 660 and arrow == "▼ ", "and off the bottom at the bottom")
+	local states = {}
+	for i = 1, 6 do
+		states[i] = { index = i - 1, x = (i - 3) * 8, y = 0, percent = 40 * i, stocks = 3, alive = true, state = "idle", ultCharge = 0 }
+	end
+	states[2].x = 400                           -- far off to the right
+	local canvas = { project = function(_, wx: number, wy: number) return Rbx.Vector2.new(640 + wx * 10, 400 - wy * 10) end,
+		viewport = function() return vp end }
+	hud:bind(roster, chars, 0)
+	hud:update(states, { state = "fight", time = 5 }, canvas, chars, nil)
+	local mine, gone = hud.floats[1], hud.floats[2]
+	assert(mine.Visible and string.find(mine.Text, "YOU", 1, true), `your label says YOU: "{mine.Text}"`)
+	assert(not string.find(hud.floats[3].Text, "YOU", 1, true), "nobody else's does")
+	assert(gone.Visible and string.find(gone.Text, "▶", 1, true), `a fighter off screen keeps a label at the edge: "{gone.Text}"`)
+	local gx = gone.Position.X.Offset
+	assert(gx >= 0 and gx + gone.Size.X.Offset <= 1280, "and it is on the screen")
+	print("PASS floating labels: over the head, held at the edge pointing out when off screen, YOU on your own")
+end
 -- The disaster banner: cool with a countdown while it warns, hot once it strikes, gone after.
 do
 	local COOL, HOT = Rbx.Color3.fromHex("#7FD4FF"), Rbx.Color3.fromHex("#F08B60")

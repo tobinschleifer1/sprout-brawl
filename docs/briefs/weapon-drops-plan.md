@@ -31,7 +31,11 @@ twelve weapons.
    shield skips off floors (platforms and solids' tops, not their sides). Kill percents by the
    signatures' own oracle (balance.mjs koPercent): Hammer 174, Axe 185, Flail 217, Sword 226,
    Scythe 236, Shield 247, Pike 253; the five light throws never kill.
-3. **Bots**: go for drops unarmed, throw at range, punch when they must.
+3. **Bots** (done): `weaponAction` in ai.js - go for the nearest drop (jump, double jump, step up
+   via a platform in between, drop through a soft one), fight on fists when it is on you, throw at
+   a target in a clear lane, twice as readily with a killing throw at kill percent. Two new level
+   dials, `arm` and `throws`. Four normal bots are armed ~80% of a fight, median ~3 s on fists.
+   No generator draws unless drops are on.
 4. **Look and feel (web)**: fist animations, drops falling in a beam, the spinning thrown weapon,
    pickup flash, both weapons on the HUD card.
 5. **Roblox client**: snapshot codec (hands, drops), prediction, renderer, HUD.

@@ -16,20 +16,22 @@
 --     when two are equidistant.
 
 local Input = require(script.Parent.Input)
-local COMBO = require(script.Parent.Config).COMBO
+local Config = require(script.Parent.Config)
+local COMBO = Config.COMBO
 
 local Ai = {}
 
 -- combo / timing / cancel / breakOut: how well each level strings, times, cancels and breaks out
--- (Config.COMBO) - see ai.js.
+-- (Config.COMBO) - see ai.js. arm / throws: how eagerly a bot on fists goes for a weapon drop, and
+-- how often it throws the one in hand (Config.DROPS).
 Ai.LEVELS = {
 	dummy = nil,
-	easy = { sight = 26, reaction = 22, commit = 20, aggression = 0.35, defence = 0.15, kill = 0.5, dodge = 0.1, ult = 0.2, edge = 0.0, slip = 0.30, chains = 0, combo = 0.2, timing = 0.1, cancel = 0, breakOut = 0 },
-	normal = { sight = 15, reaction = 12, commit = 16, aggression = 0.55, defence = 0.35, kill = 0.7, dodge = 0.25, ult = 0.5, edge = 0.15, slip = 0.15, chains = 1, combo = 0.5, timing = 0.35, cancel = 0.15, breakOut = 0.1 },
-	hard = { sight = 9, reaction = 6, commit = 13, aggression = 0.7, defence = 0.55, kill = 0.9, dodge = 0.4, ult = 0.75, edge = 0.4, slip = 0.07, chains = 2, combo = 0.75, timing = 0.7, cancel = 0.5, breakOut = 0.35 },
-	elite = { sight = 5, reaction = 3, commit = 11, aggression = 0.85, defence = 0.7, kill = 1.0, dodge = 0.6, ult = 0.9, edge = 0.65, slip = 0.03, chains = 3, combo = 0.9, timing = 0.85, cancel = 0.75, breakOut = 0.6 },
-	impossible = { sight = 2, reaction = 1, commit = 9, aggression = 0.95, defence = 0.85, kill = 1.0, dodge = 0.8, ult = 1.0, edge = 0.8, slip = 0.01, chains = 3, combo = 1.0, timing = 0.95, cancel = 0.9, breakOut = 0.85 },
-	just_dont = { sight = 0, reaction = 1, commit = 8, aggression = 1.0, defence = 1.0, kill = 1.0, dodge = 1.0, ult = 1.0, edge = 0.95, slip = 0.0, chains = 3, combo = 1.0, timing = 1.0, cancel = 1.0, breakOut = 1.0 },
+	easy = { sight = 26, reaction = 22, commit = 20, aggression = 0.35, defence = 0.15, kill = 0.5, dodge = 0.1, ult = 0.2, edge = 0.0, slip = 0.30, chains = 0, combo = 0.2, timing = 0.1, cancel = 0, breakOut = 0, arm = 0.5, throws = 0.05 },
+	normal = { sight = 15, reaction = 12, commit = 16, aggression = 0.55, defence = 0.35, kill = 0.7, dodge = 0.25, ult = 0.5, edge = 0.15, slip = 0.15, chains = 1, combo = 0.5, timing = 0.35, cancel = 0.15, breakOut = 0.1, arm = 0.7, throws = 0.12 },
+	hard = { sight = 9, reaction = 6, commit = 13, aggression = 0.7, defence = 0.55, kill = 0.9, dodge = 0.4, ult = 0.75, edge = 0.4, slip = 0.07, chains = 2, combo = 0.75, timing = 0.7, cancel = 0.5, breakOut = 0.35, arm = 0.85, throws = 0.2 },
+	elite = { sight = 5, reaction = 3, commit = 11, aggression = 0.85, defence = 0.7, kill = 1.0, dodge = 0.6, ult = 0.9, edge = 0.65, slip = 0.03, chains = 3, combo = 0.9, timing = 0.85, cancel = 0.75, breakOut = 0.6, arm = 0.95, throws = 0.3 },
+	impossible = { sight = 2, reaction = 1, commit = 9, aggression = 0.95, defence = 0.85, kill = 1.0, dodge = 0.8, ult = 1.0, edge = 0.8, slip = 0.01, chains = 3, combo = 1.0, timing = 0.95, cancel = 0.9, breakOut = 0.85, arm = 1.0, throws = 0.35 },
+	just_dont = { sight = 0, reaction = 1, commit = 8, aggression = 1.0, defence = 1.0, kill = 1.0, dodge = 1.0, ult = 1.0, edge = 0.95, slip = 0.0, chains = 3, combo = 1.0, timing = 1.0, cancel = 1.0, breakOut = 1.0, arm = 1.0, throws = 0.4 },
 }
 Ai.LEVELS.imposible = Ai.LEVELS.impossible     -- the misspelling is in the JavaScript too
 
@@ -291,6 +293,77 @@ local function itemAction(f: any, match: any, L: any, st: any, tv: any, dir: num
 	return false
 end
 
+-- ------------------------------------------------------------------------ weapon drops ----
+-- On fists, a weapon is the plan: go to the nearest drop and take it, stepping up via a platform
+-- in between for one too high to jump to, dropping through a soft platform for one below. Armed,
+-- throw now and then. The same draws in the same order as ai.js weaponAction, and none at all
+-- unless drops are on.
+local function weaponAction(f: any, match: any, L: any, st: any, tv: any, adx: number, dy: number, frame: any): boolean
+	if not match.dropsOn or not f.kit then
+		return false
+	end
+	local DROPS = Config.DROPS
+	if f.armed < 0 then
+		if st.dropCd > 0 then st.dropCd -= 1; return false end
+		if not st.wantArm then
+			if not chance(L.arm) then st.dropCd = 30; return false end
+			st.wantArm = true
+		end
+		local best, bd = nil, 1e9
+		for _, d in match.combat.drops do
+			local ddx, ddy = math.abs(d.x - f.x), d.y - f.y
+			if not (ddx > 40 or ddy < -20 or ddy > 30) then
+				local cost = ddx + math.abs(ddy) * 1.2
+				if cost < bd then bd = cost; best = d end
+			end
+		end
+		if not best then st.dropFetch = 0; return false end
+		if adx < 4 and bd > 6 then return false end
+		local ddx, ddy = math.abs(best.x - f.x), best.y - f.y
+		if ddx < DROPS.reach[1] * 0.8 and math.abs(ddy) < DROPS.reach[2] then
+			frame.pickup = true; frame.anyPress = true; st.chain = nil; st.dropFetch = 0; st.wantArm = false
+			return true
+		end
+		st.dropFetch = (st.dropFetch or 0) + 1
+		if st.dropFetch > 150 then st.dropFetch = 0; st.dropCd = 120; st.wantArm = false; return false end
+		local gx, gy = best.x, best.y
+		if ddy > 12 then
+			local step, sd = nil, 1e9
+			for _, p in match.stage.platforms do
+				if not (p.top < f.y + 4 or p.top > best.y - 2) then
+					local sx = math.max(p.x1 + 1, math.min(p.x2 - 1, f.x))
+					if math.abs(sx - f.x) < sd then sd = math.abs(sx - f.x); step = { x = sx, y = p.top } end
+				end
+			end
+			if step then gx = step.x; gy = step.y end
+		end
+		local gdx, gdy = math.abs(gx - f.x), gy - f.y
+		frame.x = if gdx > 0.6 then sign(gx - f.x) else 0
+		if gdy > 2.5 and gdx < 8 and st.jumpCd <= 0 then
+			if f.onGround then frame.jump = true; st.jumpCd = 18
+			elseif f.jumpsLeft > 0 and f.vy < 2 and f.y < gy then frame.jump = true; st.jumpCd = 14 end
+		end
+		if ddy < -2.5 and ddx < 4 and f.onGround and f.platform and f.platform.soft then
+			frame.y = -1; frame.downTap = true
+		end
+		st.chain = nil
+		return true
+	end
+	st.wantArm = false
+	if st.throwCd > 0 then st.throwCd -= 1; return false end
+	st.throwCd = 30
+	local T = f.char.weapon.thrown or DROPS.thrown
+	if sign(tv.x - f.x) ~= f.facing or adx < 7 or adx > 26 or math.abs(dy) > 5 then
+		return false
+	end
+	local kills = T.growth >= 5 and tv.percent >= 150
+	if not chance(L.throws * (if kills then 2 else 1)) then
+		return false
+	end
+	frame.pickup = true; frame.anyPress = true; st.chain = nil
+	return true
+end
+
 local decide
 
 function Ai.computeBotInput(f: any, match: any): any
@@ -303,7 +376,8 @@ function Ai.computeBotInput(f: any, match: any): any
 	if not f.ai then
 		f.ai = { timer = 0, plan = "approach", hold = 0, jumpCd = 0, lastState = "", ultCd = 0,
 			defCd = 0, punish = 0, chain = nil, noFumble = false, fetch = 0, fetchCd = 0,
-			comboMove = -1, combo = nil, airFollow = 0, breakTry = -9999 }
+			comboMove = -1, combo = nil, airFollow = 0, breakTry = -9999,
+			dropCd = 0, dropFetch = 0, wantArm = false, throwCd = 0 }
 	end
 	f.ai.noFumble = false
 	return fumble(decide(f, match, L, f.ai), L, f.ai)
@@ -573,6 +647,9 @@ function decide(f: any, match: any, L: any, st: any): any
 
 	-- ---- items ----
 	if itemAction(f, match, L, st, tv, dir, adx, frame) then
+		return frame
+	end
+	if weaponAction(f, match, L, st, tv, adx, dy, frame) then
 		return frame
 	end
 

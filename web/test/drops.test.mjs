@@ -15,6 +15,8 @@
 //     do not kill at 300%);
 //   * every weapon throws its own way, and kills in its band (heavy, medium, light); the pike goes
 //     through everyone on the line; the shield skips off the floor;
+//   * bots arm themselves (climbing and dropping through platforms for drops), throw, spend most
+//     of a fight armed and still finish matches; without drops they never touch any of it;
 //   * the same seed and inputs drop the same drops in the same places.
 //
 //     node test/drops.test.mjs
@@ -23,6 +25,8 @@ import { DROPS, dropsOnStage, FRAME } from '../src/config.js';
 import { WEAPONS, WEAPON_BY_ID, FISTS } from '../src/data/weapons/index.js';
 import { buildArmed } from '../src/data/loadout.js';
 import { koPercent } from './balance.mjs';
+import { LEVELS, weaponAction } from '../src/engine/ai.js';
+import { emptyFrame } from '../src/engine/input.js';
 const buildArmedFor = (w) => buildArmed('Classic', [w, w]);
 import { ITEMS } from '../src/data/items.js';
 
@@ -329,6 +333,68 @@ function throwAt(weapon, pc = 0, d = 5) {
     kills.push(`${mv} ${hit ? (ko ? 'KILLED' : 'chipped') : 'missed'}`);
   }
   check("the fists' heavies land and do not kill even at 300%", kills.every((k) => k.endsWith('chipped')), kills.join(', '));
+}
+
+// ---- bots (phase 3) ----
+// Four bots with drops on: they go for drops (up and through platforms), throw what they hold, and
+// spend most of the fight armed; matches still end. Measured when this was written (six normal
+// four-bot matches): armed about two thirds of the time, a median of four seconds on fists before
+// a pickup. Before bots climbed and dropped through platforms for drops it was under half, and
+// one stretch in ten ran past forty seconds.
+{
+  const KITS = [['Sword', 'Hammer'], ['Daggers', 'Axe'], ['Pike', 'Shield'], ['Scythe', 'Flail']];
+  let arms = 0, throws = 0, armed = 0, alive = 0, ended = 0;
+  const waits = [];
+  const games = 3;
+  for (let g = 0; g < games; g++) {
+    const m = skipCountdown(makeMatch({ armed: KITS.map((k, i) => [['Classic', 'Noir', 'Ember', 'Moss'][i], k]), seed: 100 + g, stocks: 2 }));
+    m.fighters.forEach((f) => { f.isBot = true; f.botLevel = 'normal'; });
+    const since = m.fighters.map(() => 0);
+    for (let i = 0; i < 60 * 240 && m.state !== 'results'; i++) {
+      m.step();
+      m.fighters.forEach((f, k) => { if (!f.alive) return; alive++; if (f.armed >= 0) armed++; else if (f.state !== 'respawn') since[k]++; });
+      for (const e of m.events) { if (e.type === 'arm') arms++; if (e.type === 'throwweapon') throws++; if (e.type === 'droptake') { waits.push(since[e.fighter]); since[e.fighter] = 0; } }
+      m.events.length = 0;
+    }
+    if (m.state === 'results') ended++;
+  }
+  waits.sort((a, b) => a - b);
+  const share = armed / alive, median = waits[Math.floor(waits.length / 2)] / 60;
+  check('bots arm themselves from drops and throw what they hold', arms >= games * 6 && throws >= games,
+    `${arms} pickups and ${throws} throws over ${games} four-bot matches`);
+  check('bots spend most of a fight armed, and are not left on fists for long', share > 0.55 && median < 6,
+    `armed ${(share * 100).toFixed(0)}% of the time; median ${median.toFixed(1)}s on fists before a pickup`);
+  check('bot matches with drops still end', ended === games, `${ended}/${games} finished inside four minutes`);
+}
+{
+  // Reaching a drop: on the first platform up (a jump and a double jump), and on the top one (too
+  // high to jump to - the bot steps up via a platform in between). One bot, no opponent near.
+  const reach = (x, y) => {
+    const { m, a, b } = planted({ ax: 0, bx: 34 });
+    a.isBot = true; a.botLevel = 'just_dont'; b.x = 34;
+    const d = m.combat.spawnDrop(x, y);
+    for (let i = 0; i < 60 * 10; i++) { m.step(); b.x = 34; b.vx = 0; if (a.armed >= 0) return i; if (!m.combat.drops.includes(d)) return null; }
+    return null;
+  };
+  const side = reach(-21, 15), top = reach(0, 28);
+  check('a bot climbs to a drop: a platform up, and the top one by way of another', side !== null && top !== null,
+    `side platform: ${side === null ? 'never' : (side / 60).toFixed(1) + 's'}; top platform: ${top === null ? 'never' : (top / 60).toFixed(1) + 's'}`);
+}
+{
+  // A bot match WITHOUT drops must draw nothing from the match's generator in the drop logic, or
+  // every bot match in the game replays differently from before drops existed. Called directly,
+  // in every state a bot can be in, with a generator that counts.
+  const m = skipCountdown(makeMatch({ seed: 9 }));
+  const [a, b] = m.fighters;
+  let draws = 0;
+  const counting = () => { draws++; return 0.5; };
+  const st = { dropCd: 0, dropFetch: 0, wantArm: false, throwCd: 0, jumpCd: 0 };
+  const tv = { x: b.x, y: b.y, percent: 200, state: 'idle' };
+  let acted = false;
+  for (const L of Object.values(LEVELS).filter(Boolean)) {
+    for (const adx of [2, 10, 30]) acted = weaponAction(a, m, L, st, tv, adx, 0, emptyFrame(), counting) || acted;
+  }
+  check('without drops, the bots\' drop logic draws nothing and does nothing', draws === 0 && !acted, `${draws} draws, acted: ${acted}`);
 }
 
 // ---- seeded ----

@@ -64,7 +64,9 @@ local idle = {
 for _, spec in T.scenarios do
 	local fighters = {}
 	for i, who in spec.who do
-		table.insert(fighters, { char = Loadout.build(who[1], who[2]), skin = 0,
+		-- with `drops`, the weapon is a pair the fighter arms from drops
+		local A = if spec.drops then Loadout.buildArmed(who[1], who[2]) else { char = Loadout.build(who[1], who[2]) }
+		table.insert(fighters, { char = A.char, kit = A.kit, fists = A.fists, skin = 0,
 			team = if spec.teamOf then num(spec.teamOf[i]) else i - 1,
 			source = `p{i - 1}`, isBot = true, botLevel = who[3], name = `P{i - 1}` })
 	end
@@ -73,7 +75,7 @@ for _, spec in T.scenarios do
 		seed = num(spec.seed),
 		stocks = if spec.stocks ~= nil then num(spec.stocks) else 3,
 		timeLimit = if spec.timeLimit ~= nil then num(spec.timeLimit) else 180,
-		items = not not spec.items, fighters = fighters,
+		items = not not spec.items, weaponDrops = not not spec.drops, fighters = fighters,
 	})
 
 	if spec.percent then
@@ -102,6 +104,18 @@ for _, spec in T.scenarios do
 				if num(d.at) == frame - 1 then
 					Combat.spawnItem(m.combat, ItemData.BY_ID[d.item], num(d.x), num(d.y))
 				end
+			end
+		end
+		-- `ops`: see gen-ai-traces.mjs
+		for _, op in (spec.ops and spec.ops[tostring(frame - 1)]) or {} do
+			if op.set then
+				for k, kv in op.set do
+					for field, value in kv do m.fighters[num(k) + 1][field] = value end
+				end
+			end
+			if op.dropAt ~= nil then
+				local f = m.fighters[num(op.dropAt) + 1]
+				Combat.spawnDrop(m.combat, f.x, f.y + 0.5)
 			end
 		end
 		table.clear(m.events)

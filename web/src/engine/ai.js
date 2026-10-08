@@ -1,5 +1,5 @@
 import { emptyFrame } from './input.js';
-import { COMBO } from '../config.js';
+import { COMBO, DROPS } from '../config.js';
 
 // `ult` is how well a bot spends its ultimate: at 0.2 it throws it out roughly whenever the bar
 // fills, at 1.0 it waits for the range the move actually wants and for a target worth spending it
@@ -35,14 +35,18 @@ import { COMBO } from '../config.js';
 // the finisher - rather than late, `cancel` the chance of using a move's cancel, and `breakOut` the
 // chance of trying the combo break in a freeze that allows one. Weak levels mostly drop strings or
 // link them late; the top levels time them, take the finisher and break out.
+//
+// Weapon drops (DROPS in config.js): `arm` is how eagerly a bot on fists goes for a drop - checked
+// every half second, so a weak bot dawdles on fists - and `throws` the chance, each half second a
+// target stands in a clear lane, of throwing the weapon in hand at them.
 export const LEVELS = {
   dummy: null,
-  easy: { sight: 26, reaction: 22, commit: 20, aggression: 0.35, defence: 0.15, kill: 0.5, dodge: 0.1, ult: 0.2, edge: 0.0, slip: 0.30, chains: 0, combo: 0.2, timing: 0.1, cancel: 0, breakOut: 0 },
-  normal: { sight: 15, reaction: 12, commit: 16, aggression: 0.55, defence: 0.35, kill: 0.7, dodge: 0.25, ult: 0.5, edge: 0.15, slip: 0.15, chains: 1, combo: 0.5, timing: 0.35, cancel: 0.15, breakOut: 0.1 },
-  hard: { sight: 9, reaction: 6, commit: 13, aggression: 0.7, defence: 0.55, kill: 0.9, dodge: 0.4, ult: 0.75, edge: 0.4, slip: 0.07, chains: 2, combo: 0.75, timing: 0.7, cancel: 0.5, breakOut: 0.35 },
-  elite: { sight: 5, reaction: 3, commit: 11, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6, ult: 0.9, edge: 0.65, slip: 0.03, chains: 3, combo: 0.9, timing: 0.85, cancel: 0.75, breakOut: 0.6 },
-  impossible: { sight: 2, reaction: 1, commit: 9, aggression: 0.95, defence: 0.85, kill: 1.0, dodge: 0.8, ult: 1.0, edge: 0.8, slip: 0.01, chains: 3, combo: 1.0, timing: 0.95, cancel: 0.9, breakOut: 0.85 },
-  just_dont: { sight: 0, reaction: 1, commit: 8, aggression: 1.0, defence: 1.0, kill: 1.0, dodge: 1.0, ult: 1.0, edge: 0.95, slip: 0.0, chains: 3, combo: 1.0, timing: 1.0, cancel: 1.0, breakOut: 1.0 },
+  easy: { sight: 26, reaction: 22, commit: 20, aggression: 0.35, defence: 0.15, kill: 0.5, dodge: 0.1, ult: 0.2, edge: 0.0, slip: 0.30, chains: 0, combo: 0.2, timing: 0.1, cancel: 0, breakOut: 0, arm: 0.5, throws: 0.05 },
+  normal: { sight: 15, reaction: 12, commit: 16, aggression: 0.55, defence: 0.35, kill: 0.7, dodge: 0.25, ult: 0.5, edge: 0.15, slip: 0.15, chains: 1, combo: 0.5, timing: 0.35, cancel: 0.15, breakOut: 0.1, arm: 0.7, throws: 0.12 },
+  hard: { sight: 9, reaction: 6, commit: 13, aggression: 0.7, defence: 0.55, kill: 0.9, dodge: 0.4, ult: 0.75, edge: 0.4, slip: 0.07, chains: 2, combo: 0.75, timing: 0.7, cancel: 0.5, breakOut: 0.35, arm: 0.85, throws: 0.2 },
+  elite: { sight: 5, reaction: 3, commit: 11, aggression: 0.85, defence: 0.7, kill: 1.0, dodge: 0.6, ult: 0.9, edge: 0.65, slip: 0.03, chains: 3, combo: 0.9, timing: 0.85, cancel: 0.75, breakOut: 0.6, arm: 0.95, throws: 0.3 },
+  impossible: { sight: 2, reaction: 1, commit: 9, aggression: 0.95, defence: 0.85, kill: 1.0, dodge: 0.8, ult: 1.0, edge: 0.8, slip: 0.01, chains: 3, combo: 1.0, timing: 0.95, cancel: 0.9, breakOut: 0.85, arm: 1.0, throws: 0.35 },
+  just_dont: { sight: 0, reaction: 1, commit: 8, aggression: 1.0, defence: 1.0, kill: 1.0, dodge: 1.0, ult: 1.0, edge: 0.95, slip: 0.0, chains: 3, combo: 1.0, timing: 1.0, cancel: 1.0, breakOut: 1.0, arm: 1.0, throws: 0.4 },
 };
 LEVELS.imposible = LEVELS.impossible;
 const sign = (v) => (v < 0 ? -1 : 1);
@@ -253,12 +257,86 @@ function itemAction(f, match, L, st, tv, dir, adx, frame) {
   return false;
 }
 
+// ------------------------------------------------------------------------- weapon drops -----
+// On fists, a weapon is the plan: go to the nearest drop and take it - jumping (and jumping again)
+// for one on a platform above, dropping through a soft platform for one below. Measured before
+// those two moves existed: 88 of 151 drops faded where no bot went, the unreachable ones filled
+// the stage's quota, and a bot could stand on fists for a minute. With somebody right on top of
+// you and the drop far off, fight with what you have. Armed, throw now and then - at a target in a clear lane, facing them, and
+// more readily when it is a throw that kills and they are at the percent it kills at.
+//
+// Draws nothing from the match's generator unless drops are on: every bot match without them
+// replays exactly as it did before this existed.
+// Exported for test/drops.test.mjs, which calls it with a counting generator to prove a match
+// without drops draws nothing here. `rng` stands in for the match's generator for that one call.
+export function weaponAction(f, match, L, st, tv, adx, dy, frame, rng) {
+  if (rng) RNG = rng;
+  if (!match.dropsOn || !f.kit) return false;
+  if (f.armed < 0) {
+    if (st.dropCd > 0) { st.dropCd--; return false; }
+    if (!st.wantArm) {
+      if (!chance(L.arm)) { st.dropCd = 30; return false; }
+      st.wantArm = true;
+    }
+    let best = null, bd = 1e9;
+    for (const d of match.combat.drops) {
+      const ddx = Math.abs(d.x - f.x), ddy = d.y - f.y;
+      if (ddx > 40 || ddy < -20 || ddy > 30) continue;
+      const cost = ddx + Math.abs(ddy) * 1.2;
+      if (cost < bd) { bd = cost; best = d; }
+    }
+    if (!best) { st.dropFetch = 0; return false; }
+    if (adx < 4 && bd > 6) return false;                              // it is on you: fists first
+    const ddx = Math.abs(best.x - f.x), ddy = best.y - f.y;
+    if (ddx < DROPS.reach[0] * 0.8 && Math.abs(ddy) < DROPS.reach[1]) {
+      frame.pickup = true; frame.anyPress = true; st.chain = null; st.dropFetch = 0; st.wantArm = false;
+      return true;
+    }
+    // The fetch timeout, for the reason itemAction has one: a drop you are not getting to is a
+    // drop to give up on, or two bots walk at an unreachable ledge until the clock runs out.
+    st.dropFetch = (st.dropFetch || 0) + 1;
+    if (st.dropFetch > 150) { st.dropFetch = 0; st.dropCd = 120; st.wantArm = false; return false; }
+    // Too high for the jumps you have (the top platform on most stages): a platform between here
+    // and there is the step, so go for that first and climb on from it.
+    let gx = best.x, gy = best.y;
+    if (ddy > 12) {
+      let step = null, sd = 1e9;
+      for (const p of match.stage.platforms) {
+        if (p.top < f.y + 4 || p.top > best.y - 2) continue;
+        const sx = Math.max(p.x1 + 1, Math.min(p.x2 - 1, f.x));
+        if (Math.abs(sx - f.x) < sd) { sd = Math.abs(sx - f.x); step = { x: sx, y: p.top }; }
+      }
+      if (step) { gx = step.x; gy = step.y; }
+    }
+    const gdx = Math.abs(gx - f.x), gdy = gy - f.y;
+    frame.x = gdx > 0.6 ? sign(gx - f.x) : 0;
+    if (gdy > 2.5 && gdx < 8 && st.jumpCd <= 0) {
+      // up to it: a jump from the floor, and the next jump at the top of that one if still short
+      if (f.onGround) { frame.jump = true; st.jumpCd = 18; }
+      else if (f.jumpsLeft > 0 && f.vy < 2 && f.y < gy) { frame.jump = true; st.jumpCd = 14; }
+    }
+    if (ddy < -2.5 && ddx < 4 && f.onGround && f.platform && f.platform.soft) { frame.y = -1; frame.downTap = true; }
+    st.chain = null;
+    return true;
+  }
+  st.wantArm = false;
+  if (st.throwCd > 0) { st.throwCd--; return false; }
+  st.throwCd = 30;
+  const T = f.char.weapon.thrown || DROPS.thrown;
+  if (sign(tv.x - f.x) !== f.facing || adx < 7 || adx > 26 || Math.abs(dy) > 5) return false;
+  const kills = T.growth >= 5 && tv.percent >= 150;
+  if (!chance(L.throws * (kills ? 2 : 1))) return false;
+  frame.pickup = true; frame.anyPress = true; st.chain = null;
+  return true;
+}
+
 export function computeBotInput(f, match) {
   // Draw from the match's own generator, so a bot match replays from its seed.
   RNG = (match.stage && match.stage.rng) || Math.random;
   if (f.botLevel === 'dummy') return emptyFrame();            // dummy stands still
   const L = LEVELS[f.botLevel] || LEVELS.normal;
-  if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false, fetch: 0, fetchCd: 0, comboMove: -1, combo: null, airFollow: 0, breakTry: -9999 };
+  if (!f.ai) f.ai = { timer: 0, plan: 'approach', hold: 0, jumpCd: 0, lastState: '', ultCd: 0, defCd: 0, punish: 0, chain: null, noFumble: false, fetch: 0, fetchCd: 0, comboMove: -1, combo: null, airFollow: 0, breakTry: -9999,
+    dropCd: 0, dropFetch: 0, wantArm: false, throwCd: 0 };
   f.ai.noFumble = false;
   return fumble(decide(f, match, L, f.ai), L, f.ai);
 }
@@ -418,6 +496,7 @@ function decide(f, match, L, st) {
   // match with a bot in it, which is most matches. Nothing in here ever pressed for one.
   const itemPlan = itemAction(f, match, L, st, tv, dir, adx, frame);
   if (itemPlan) return frame;
+  if (weaponAction(f, match, L, st, tv, adx, dy, frame)) return frame;
 
   // A chain in progress owns the next few frames outright - that is the whole point of it.
   if (st.chain && runChain(frame, st, { dir, tv, f })) return frame;

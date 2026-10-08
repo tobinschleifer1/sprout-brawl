@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { Match } = await import('../../web/src/engine/match.js');
 const { STAGES } = await import('../../web/src/data/stages/index.js');
-const { buildLoadout } = await import('../../web/src/data/loadout.js');
+const { buildLoadout, buildArmed } = await import('../../web/src/data/loadout.js');
 const { emptyFrame } = await import('../../web/src/engine/input.js');
 const { ITEM_BY_ID } = await import('../../web/src/data/items.js');
 
@@ -24,9 +24,9 @@ const n = (v) => (typeof v === 'number' ? String(v) : v);
 const nn = (v) => (v === null || v === undefined ? null : String(v));
 
 const F = ['x', 'y', 'vx', 'vy', 'facing', 'state', 'percent', 'onGround', 'jumpsLeft', 'alive',
-  'stocks', 'moveId', 'ultCharge', 'ultShots', 'hitstun', 'comboHits', 'perfectStreak', 'breakCooldown'];
+  'stocks', 'moveId', 'ultCharge', 'ultShots', 'hitstun', 'comboHits', 'perfectStreak', 'breakCooldown', 'armed'];
 const AI = ['timer', 'plan', 'hold', 'jumpCd', 'ultCd', 'defCd', 'punish', 'fetch', 'fetchCd', 'noFumble',
-  'comboMove', 'airFollow', 'breakTry'];
+  'comboMove', 'airFollow', 'breakTry', 'dropCd', 'dropFetch', 'wantArm', 'throwCd'];
 
 const idle = { poll() {}, get() { return emptyFrame(); }, kb2Active: false };
 
@@ -34,9 +34,10 @@ function run(spec) {
   const data = STAGES.find((s) => s.id === spec.stage);
   const m = new Match({
     mode: spec.mode || 'StockFFA', stage: data, input: idle, seed: spec.seed,
-    stocks: spec.stocks ?? 3, timeLimit: spec.timeLimit ?? 180, items: !!spec.items,
+    stocks: spec.stocks ?? 3, timeLimit: spec.timeLimit ?? 180, items: !!spec.items, weaponDrops: !!spec.drops,
+    // with `drops`, each fighter's weapon is a pair [w1, w2] they arm from drops (DROPS)
     fighters: spec.who.map(([a, w, level], i) => ({
-      char: buildLoadout(a, w), skin: 0, team: spec.teamOf ? spec.teamOf[i] : i,
+      ...(spec.drops ? buildArmed(a, w) : { char: buildLoadout(a, w) }), skin: 0, team: spec.teamOf ? spec.teamOf[i] : i,
       source: `p${i}`, isBot: true, botLevel: level, name: `P${i}`,
     })),
   });
@@ -62,6 +63,13 @@ function run(spec) {
     // directly is the only way itemAction's fetch path runs.
     if (spec.drop) for (const d of spec.drop) {
       if (d.at === i) m.combat.spawnItem(ITEM_BY_ID[d.item], d.x, d.y);
+    }
+    // `ops` (weapon drops): on a chosen frame, write fields onto fighters (spread them apart) or
+    // put a weapon drop at a fighter's feet - so arming, and throwing at range, happen often enough
+    // in a trace to show every branch, rather than whenever two bots wander far enough apart.
+    for (const op of (spec.ops && spec.ops[i]) || []) {
+      if (op.set) for (const [k, kv] of Object.entries(op.set)) Object.assign(m.fighters[Number(k)], kv);
+      if (op.dropAt != null) { const f = m.fighters[op.dropAt]; m.combat.spawnDrop(f.x, f.y + 0.5); }
     }
     m.events.length = 0;
     m.step();
@@ -145,6 +153,34 @@ S.push({ name: 'bot teams', stage: 'FoundryFloor', mode: 'StockTeams', seed: 808
   teamOf: [0, 0, 1, 1], frames: 2400,
   who: [['Classic', 'Sword', 'hard'], ['Noir', 'Pike', 'hard'],
     ['Ember', 'Axe', 'hard'], ['Moss', 'Flail', 'hard']] });
+
+// Weapon drops: bots on fists going for drops - up a platform, through one, across the floor - and
+// throwing what they hold. Mixed levels, so every `arm` and `throws` value draws.
+S.push({ name: 'bots with weapon drops', stage: 'FoundryFloor', seed: 4711, stocks: 2, drops: true, frames: 3000,
+  who: [['Classic', ['Sword', 'Hammer'], 'hard'], ['Noir', ['Daggers', 'Axe'], 'elite']] });
+S.push({ name: 'four bots with weapon drops', stage: 'FoundryFloor', seed: 2222, stocks: 2, drops: true, frames: 3600,
+  who: [['Classic', ['Pike', 'Shield'], 'easy'], ['Noir', ['Scythe', 'Flail'], 'normal'],
+    ['Ember', ['Gauntlets', 'Longbow'], 'impossible'], ['Moss', ['Blasters', 'Grimoire'], 'just_dont']] });
+// Easy bots, who often decline to go for a drop (`arm` 0.5) and wait to think again.
+S.push({ name: 'easy bots dawdle on fists', stage: 'FoundryFloor', seed: 5555, stocks: 3, drops: true, frames: 3600,
+  who: [['Classic', ['Sword', 'Hammer'], 'easy'], ['Noir', ['Axe', 'Flail'], 'easy']] });
+// Heavy throws at targets already at kill percent, where a bot throws twice as readily. Every four
+// seconds the two are put 30 studs apart with a drop at each one's feet: they arm, and every
+// approach crosses the range they throw from.
+{
+  const ops = {};
+  for (let at = 300; at < 3000; at += 240) {
+    ops[at] = [{ set: { 0: { x: -15, vx: 0, percent: 160 }, 1: { x: 15, vx: 0, percent: 160 } } }];
+    ops[at + 20] = [{ dropAt: 0 }, { dropAt: 1 }];
+  }
+  S.push({ name: 'kill throws', stage: 'FoundryFloor', seed: 6666, stocks: 9, drops: true, frames: 3000, ops,
+    who: [['Classic', ['Hammer', 'Axe'], 'just_dont'], ['Noir', ['Hammer', 'Axe'], 'normal']] });
+  // and the same for easy bots, who often decline a drop (`arm` 0.5) and think again later
+  S.push({ name: 'easy bots on fists, drops at their feet', stage: 'FoundryFloor', seed: 7777, stocks: 9, drops: true, frames: 3000, ops,
+    who: [['Classic', ['Sword', 'Flail'], 'easy'], ['Noir', ['Daggers', 'Scythe'], 'easy']] });
+}
+S.push({ name: 'weapon drops on smeltworks', stage: 'Smeltworks', seed: 3333, stocks: 2, drops: true, frames: 2400,
+  who: [['Classic', ['Sword', 'Axe'], 'hard'], ['Noir', ['Hammer', 'Pike'], 'hard']] });
 
 // A timed match that runs into sudden death with bots still playing.
 S.push({ name: 'bot timed', stage: 'FoundryFloor', mode: 'TimedFFA', seed: 909, stocks: 3,

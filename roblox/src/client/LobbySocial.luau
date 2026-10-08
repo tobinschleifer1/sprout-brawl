@@ -24,6 +24,8 @@ LobbySocial.__index = LobbySocial
 LobbySocial.STAMP_SECONDS = 2.6
 LobbySocial.SAY_SECONDS = 4.5
 LobbySocial.LOG_LINES = 6
+-- Room at the right end of the bottom row for the plaza's CHARACTER button (Plaza2D.CHARACTER_W).
+LobbySocial.RIGHT_GAP = 168 + 8
 
 local INK = Color3.fromRGB(15, 18, 24)
 local PANEL2 = Color3.fromRGB(46, 52, 63)
@@ -93,7 +95,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	-- The button bar, bottom right.
 	local bar = Instance.new("Frame")
 	bar.Name, bar.BackgroundTransparency, bar.AnchorPoint = "Bar", 1, Vector2.new(1, 1)
-	bar.Position, bar.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(4 * 124 - 8, 42)
+	bar.Position, bar.Size = UDim2.new(1, -16 - LobbySocial.RIGHT_GAP, 1, -10), UDim2.fromOffset(4 * 124 - 8, 42)
 	bar.Parent = gui
 	-- each button is its key on a cap and its word, in its own colour; its panel's band matches
 	for i, sp in SPECS do

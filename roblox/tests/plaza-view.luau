@@ -437,4 +437,15 @@ do
 	assert(not hub.controls.Visible, "the controls row showed where it runs into the social bar")
 	hub.active, hub.blocked = wasActive, wasBlocked
 end
+-- The top row sits below Roblox's top bar, and follows it when the bar's height arrives late (it is
+-- 0 when the client starts): placed at 58 it moves down, and the next frame (here, no bar) back up.
+do
+	hub:placeTop(58)
+	assert(hub.title.Position.Y.Offset == 64 and hub.directions.Position.Y.Offset == 96,
+		`under a 58 px bar the top row is at {hub.title.Position.Y.Offset}`)
+	-- and the CHARACTER button is not up there at all: Roblox's player list hangs from the top right
+	assert(hub.characterButton.Position.Y.Scale == 1 and hub.characterButton.AnchorPoint.Y == 1, "the CHARACTER button is not in the bottom row")
+	hub:draw(canvas(1280, 720), 1/60)
+	assert(hub.title.Position.Y.Offset == 6, "the top row did not follow the bar's height on the next frame")
+end
 print(`PASS lobby view: walking in depth, stations offered where they stand, modal/chat guards, {visits} finite bounded draws (peak {peak} primitives), depth order, wardrobe, CHARACTER button, district banners, lounges show the room`)

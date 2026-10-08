@@ -96,8 +96,20 @@ local function shownMap(room: any): any
 end
 Plaza2D.shownMap = shownMap
 
--- How wide LobbySocial's button bar is at the bottom right, which the controls row stays clear of.
-Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8
+-- The top row, below Roblox's top bar (its menu and chat buttons sit at the top left). Placed again
+-- whenever that bar's height changes: it is still 0 when the client starts and builds this HUD,
+-- which in a playtest left the title under Roblox's buttons.
+function Plaza2D.placeTop(self: any, inset: number)
+	if self.inset == inset then return end
+	self.inset = inset
+	self.title.Position = UDim2.fromOffset(18, inset + 6)
+	self.directions.Position = UDim2.fromOffset(18, inset + 38)
+end
+
+-- The bottom row's right end: the CHARACTER button, and LobbySocial's button bar to its left
+-- (LobbySocial.RIGHT_GAP leaves the button its room). The controls row stays clear of the lot.
+Plaza2D.CHARACTER_W = 168
+Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
@@ -111,14 +123,12 @@ function Plaza2D.new(parent: Instance): any
 	-- The HUD is the shared cartoon kit (Ui): outlined display words, bevelled buttons, key caps.
 	local title = Ui.text(gui, string.upper(Realms.LOBBY.name), 26, Ui.GOLD, Ui.DISPLAY)
 	title.Name = "Title"
-	-- below Roblox's top bar, whose menu and chat buttons sit at the top left
-	local inset = Ui.topInset()
-	title.Position, title.Size = UDim2.fromOffset(18, inset + 6), UDim2.new(1, -220, 0, 32)
+	title.Size = UDim2.new(1, -220, 0, 32)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	self.title = title
 	local directions = Ui.text(gui, "", 13, Ui.WHITE)
 	directions.Name = "Directions"
-	directions.Position, directions.Size = UDim2.fromOffset(18, inset + 38), UDim2.new(1, -220, 0, 20)
+	directions.Size = UDim2.new(1, -220, 0, 20)
 	directions.TextXAlignment = Enum.TextXAlignment.Left
 	self.directions = directions
 	-- The district you walked into, large, for a moment.
@@ -155,8 +165,10 @@ function Plaza2D.new(parent: Instance): any
 		if self.active and not self.blocked and self.onCharacter then self.onCharacter() end
 	end)
 	character.Name = "CharacterButton"
-	character.AnchorPoint = Vector2.new(1, 0)
-	character.Position, character.Size = UDim2.new(1, -16, 0, inset + 8), UDim2.fromOffset(168, 42)
+	-- At the bottom right, in the row with the social buttons. Not the top right: Roblox's player list
+	-- hangs there under its top bar, and in a playtest the button could not be clicked through it.
+	character.AnchorPoint = Vector2.new(1, 1)
+	character.Position, character.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
 	self.characterButton = character
 	-- Alone at a cabinet: take on the CPU (also C).
 	local cpu = Ui.keyButton(gui, "C", "VS CPU", Ui.PURPLE, function()
@@ -168,6 +180,7 @@ function Plaza2D.new(parent: Instance): any
 	self.cpuButton = cpu
 	self.cabinets = {}
 	self.labelLayer = gui
+	self:placeTop(Ui.topInset())
 	return self
 end
 
@@ -851,6 +864,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	end
 	self:endLabels()
 	c:finish()
+	self:placeTop(Ui.topInset())
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0
 	self.controls.Visible = gw - Plaza2D.SOCIAL_BAR_W - 64 >= self.controlsW
 	local action = not self.blocked and near ~= nil

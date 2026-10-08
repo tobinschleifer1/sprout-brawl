@@ -113,9 +113,11 @@ local function full(room: any): boolean
 	for _, slot in room.slots do if not slot.player and not slot.bot then return false end end
 	return true
 end
--- Back to weapon select: votes cleared, everyone un-readied.
+-- Back to weapon select: votes cleared (the bot vote's too, and its result - after a fight it read
+-- "Vote passed: bot added" over a pedestal the fight had emptied), everyone un-readied.
 function Rooms.toPick(room: any)
 	room.phase, room.phaseEnds = "pick", nil
+	room.botVote, room.lastVote = nil, nil
 	for _, slot in room.slots do slot.vote, slot.ruleVote = nil, nil end
 	invalidate(room)
 end

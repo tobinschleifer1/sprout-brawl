@@ -304,7 +304,9 @@ do
 	for _, q in p do assert(edit(model, q, "rule", "current")) end
 	model:advance(room)
 	room.state = "setup"
+	room.lastVote = { passed = true, value = "normal", slot = 2 }
 	Rooms.toPick(room)
+	if room.lastVote or room.botVote then fail("a room back from its fight still reports its last bot vote") end
 	model:advance(room)
 	if room.phase ~= "pick" or room.slots[1].ruleVote then fail("a room back from its fight did not start at pick") end
 	if not room.phaseEnds then fail("a full room back from its fight is not counting down to the map vote") end

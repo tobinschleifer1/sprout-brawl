@@ -176,6 +176,8 @@ end
 local sent = {}
 local screen = Screen.new(new("Folder"))
 screen.onAction = function(a: any) table.insert(sent, a) end
+local now = 0
+screen.now = function() return now end
 local function lastSent(): any return sent[#sent] end
 local function room(over: any?): any
 	local r: any = { id = 7, host = 1, name = "2v2", state = "setup", revision = 4, stage = "FoundryFloor", stocks = 3,
@@ -245,6 +247,11 @@ local ring
 for _, ch in undertow._children do if ch.ClassName == "UIStroke" then ring = ch end end
 if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness ~= 5 then fail("your arena has no gold ring") end
 if math.abs(find("MapNameUndertow").TextColor3.B - find("MapNameRandom").TextColor3.B) < 0.1 then fail("your arena's name is not picked out") end
+-- the page just replaced another under the pointer: a click this soon is not a vote
+local before = #sent
+find("MapRandom").Activated:Fire()
+if #sent ~= before then fail("a click the moment the map page appeared cast a vote") end
+now += Screen.SETTLE
 for _, id in { "Random", Stages.LIST[1].id } do
 	find("Map" .. id).Activated:Fire()
 	if lastSent().action ~= "vote" or lastSent().value ~= id or lastSent().id ~= 7 then fail(`the {id} arena card sent {lastSent().action}/{tostring(lastSent().value)}`) end
@@ -284,6 +291,10 @@ if not page("rules") or page("map") or page("pick") then fail("the rules phase d
 -- (the Undertow, by its realm's name, as on its card)
 if not string.find(find("Rules").Text, "MAP: VIKING HARBOR", 1, true) then fail(`the rules bar says "{find("Rules").Text}" after the map vote`) end
 if find("Clock").Text ~= "9" then fail(`the rules vote's clock says "{find("Clock").Text}"`) end
+before = #sent
+find("Rulechaos").Activated:Fire()
+if #sent ~= before then fail("a click the moment the rules page replaced the map page cast a vote") end
+now += Screen.SETTLE
 for _, preset in Rules.presets do
 	local card = find("Rule" .. preset.id)
 	local n = if preset.id == "chaos" then "1 VOTE" else ""
@@ -317,6 +328,18 @@ if #shapes ~= 0 then fail(`the screen redrew at 60 Hz, not {Screen.REDRAW_HZ}`) 
 screen:draw(c, 1 / 60)
 if first < 200 or #shapes < 200 then fail(`the scene drew only {first} shapes`) end
 if not snap or screen.fighters.roster1.snap ~= snap then fail("a still portrait was re-made on the next frame") end
+-- built at the gui's size, then drawn on a screen of another size (the gui's size was stale when
+-- it opened): the next draw lays it out for the screen it is drawn on
+do
+	local big = Recorder.canvas(Canvas, 1514, 806)
+	screen:draw(big, 1)
+	if screen.L.W ~= 1514 or screen.L.H ~= 806 then fail(`drawn on 1514x806, the screen is laid out for {screen.L.W}x{screen.L.H}`) end
+	local card = find("Card1")
+	local p = screen.L.pedestals[1]
+	if math.abs(card.Position.X.Offset - p.x) > 1 then fail("the cards were not rebuilt for the new size") end
+	screen:draw(c, 1)
+	if screen.L.W ~= W then fail("drawn back at the first size, the layout stayed at the other") end
+end
 -- a fight starts (playing), then comes back (setup): the screen comes back with it
 screen:hide()
 screen:update(room({ state = "playing" }), 1)

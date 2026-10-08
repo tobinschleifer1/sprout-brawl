@@ -147,7 +147,8 @@ end
 -- ------------------------------------------------------------------ construction ----
 function SelectScreen.new(parent: Instance): any
 	local self: any = setmetatable({ open = false, minimised = false, room = nil, userId = 0, cards = {}, cells = {},
-		tags = {}, difficulty = "normal", fighters = {}, chars = {}, voteEndsAt = 0, built = nil }, SelectScreen)
+		tags = {}, difficulty = "normal", fighters = {}, chars = {}, voteEndsAt = 0, built = nil,
+		now = os.clock }, SelectScreen)        -- (`now` is replaceable, for the tests)
 	local gui = make("ScreenGui", parent, { Name = "BlockfallSelect", ResetOnSpawn = false, IgnoreGuiInset = true,
 		DisplayOrder = 15, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
 	self.gui = gui
@@ -204,6 +205,14 @@ function SelectScreen.new(parent: Instance): any
 end
 
 -- ------------------------------------------------------------------ actions ----
+-- A vote page ignores clicks for its first moments: the rules page replaces the map page under the
+-- pointer, and in a playtest a click meant for an arena landed on the rule card that took its
+-- place, voting for rules nobody had read.
+SelectScreen.SETTLE = 0.6
+function SelectScreen.settled(self: any): boolean
+	return self.now() - (self.phaseShownAt or -math.huge) >= SelectScreen.SETTLE
+end
+
 function SelectScreen.send(self: any, action: string, value: any?, slot: number?)
 	if self.onAction then
 		self.onAction({ action = action, value = value, slot = slot, id = self.room and self.room.id,
@@ -429,7 +438,7 @@ function SelectScreen.buildVotes(self: any, L: any)
 			q.Name = "RandomMark"
 			place(q, 0, 0, m.w, m.h)
 		end
-		b.Activated:Connect(function() self:send("vote", m.id) end)
+		b.Activated:Connect(function() if self:settled() then self:send("vote", m.id) end end)
 		table.insert(self.mapCards, { id = m.id, button = b, ring = ring, name = name, count = count, m = m })
 	end
 	for _, r in L.rules do
@@ -466,7 +475,7 @@ function SelectScreen.buildVotes(self: any, L: any)
 		local count = text(card, "", math.floor(18 * s), GOLD, DISPLAY)
 		count.Name = "Count"
 		place(count, 0, r.h - 36 * s, r.w, 30 * s)
-		card.Activated:Connect(function() self:send("rule", r.id) end)
+		card.Activated:Connect(function() if self:settled() then self:send("rule", r.id) end end)
 		table.insert(self.ruleCards, { id = r.id, root = card, ring = ring, facts = facts, count = count, preset = preset, r = r })
 	end
 end
@@ -478,8 +487,12 @@ local function ruleFacts(rules: any): { string }
 	return { how, `ITEMS {if rules.items then "ON" else "OFF"}`, `DISASTERS {string.upper(rules.disasters or "off")}` }
 end
 
+-- The screen's size: the canvas's, once draw has seen it (it fills the same screen), else this
+-- gui's. Not this gui's alone: a ScreenGui's AbsoluteSize is a deferred layout result, and read in
+-- the frame it is enabled it was stale - in a playtest the screen laid itself out for 890x500 on a
+-- 1514x806 window and stayed that way.
 function SelectScreen.viewport(self: any): (number, number)
-	local size = self.gui.AbsoluteSize
+	local size = self.seen or self.gui.AbsoluteSize
 	return math.max(320, size.X), math.max(240, size.Y)
 end
 
@@ -506,6 +519,7 @@ function SelectScreen.render(self: any)
 		else "MAP: " .. string.upper(Realms.name(Stages.BY_ID[room.stage] or { name = room.stage }))
 	self.rules.Text = `{mode}   ·   ITEMS {if room.items then "ON" else "OFF"}   ·   DISASTERS {string.upper(room.disasters or "off")}   ·   {map}`
 
+	if phase ~= self.shownPhase then self.shownPhase, self.phaseShownAt = phase, self.now() end
 	for name, page in self.pages do page.Visible = name == phase end
 	self.voteTitle.Visible = phase ~= "pick"
 	self.clock.Visible = phase ~= "pick"
@@ -732,6 +746,14 @@ SelectScreen.REDRAW_HZ = 30
 function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 	local room, L = self.room, self.L
 	if not room or not L then return end
+	-- the canvas knows the real screen size; lay out again if it is not what this was built for
+	self.seen = c:viewport()
+	local W, H = self:viewport()
+	if W ~= L.W or H ~= L.H then
+		self:render()
+		L = self.L
+		self.sinceDraw = nil
+	end
 	local t = os.clock()
 	self.sinceDraw = (self.sinceDraw or math.huge) + dt
 	if self.sinceDraw < 1 / SelectScreen.REDRAW_HZ - 1e-3 then

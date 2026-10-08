@@ -19,6 +19,7 @@ local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
 local AvatarCompose = require(script.Parent.AvatarCompose)
 local KIT_PARTS = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit).parts
+local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
 local BLACK = Color3.new(0, 0, 0)
 
@@ -74,7 +75,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	end
 	-- `move` is not on the wire: everything the poses read off it is static weapon data the
 	-- client already has, so it is looked up from moveId here.
-	local move = if s.moveId then char.moves[s.moveId] else nil
+	local move = Fighter.moveOf(char, s.moveId)        -- (the throw is no weapon's move)
 	local ch = Channels.For(s, char, move, t)
 	local glow = if Fighter2D.glows then Fighter2D.glows[s.index] else nil
 	if glow and not ch.tint then ch.tint = glow.colour end     -- the pose's own flash wins

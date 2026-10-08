@@ -67,7 +67,9 @@ end
 
 -- ---------------------------------------------------------------- start ----
 -- `roster` is a list of { player = Player? , avatar = string, weapon = string, isBot = boolean?,
--- botLevel = string? }. A nil player means a bot, which is how a single player tests against a CPU.
+-- botLevel = string?, kit = { string, string }? }. A nil player means a bot, which is how a single
+-- player tests against a CPU. With `opts.weaponDrops` every fighter carries `kit`, the two weapons
+-- it arms from drops (or `weapon` twice), and starts on fists.
 function MatchService.start(self: any, roster: { any }, opts: any?)
 	local o = opts or {}
 	self:stop()
@@ -91,8 +93,11 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 			self.userIds[source] = entry.player.UserId
 		end
 		self.input:register(source)
+		local armed = if o.weaponDrops then Loadout.buildArmed(entry.avatar, entry.kit or { entry.weapon, entry.weapon }) else nil
 		table.insert(fighters, {
-			char = Loadout.build(entry.avatar, entry.weapon),
+			char = if armed then armed.char else Loadout.build(entry.avatar, entry.weapon),
+			kit = if armed then armed.kit else nil,
+			fists = if armed then armed.fists else nil,
 			skin = entry.skin or 0,
 			team = entry.team,
 			source = source,
@@ -109,6 +114,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 		stocks = o.stocks or 3,
 		timeLimit = o.timeLimit or 180,
 		items = o.items or false,
+		weaponDrops = o.weaponDrops or false,   -- two weapons each, fists between: see Config.DROPS
 		disasters = o.disasters or "off",   -- natural disasters; see shared/Disasters.luau
 		input = self.input,
 		-- The seed is what makes this match reproducible from its inputs. It is generated once,
@@ -144,6 +150,7 @@ function MatchService.description(self: any): any
 		-- The HUD needs to know whether there is a clock at all, and what it counts down from.
 		timed = self.match.timed,
 		timeLimit = self.match.timeLimit,
+		weaponDrops = self.match.dropsOn,
 		fighters = self:roster(),
 	}
 end
@@ -186,7 +193,10 @@ function MatchService.roster(self: any): { any }
 	for _, f in self.match.fighters do
 		table.insert(out, {
 			index = f.index, name = f.name, team = f.team,
-			avatar = f.char.avatar.id, weapon = f.char.weapon.id,
+			-- with drops, `weapon` is the first of the two and `kit` both: what is in hand changes
+			-- all fight, and the snapshot's `armed` says which
+			avatar = f.char.avatar.id, weapon = if f.kit then f.kit[1].weapon.id else f.char.weapon.id,
+			kit = if f.kit then { f.kit[1].weapon.id, f.kit[2].weapon.id } else nil,
 			isBot = f.isBot, source = f.source,
 			userId = self.userIds[f.source],
 			height = f.h, radius = f.r,
@@ -234,7 +244,12 @@ function MatchService.results(self: any): any
 	for _, row in r.rows do
 		table.insert(rows, {
 			index = row.index, name = row.name, team = row.team,
-			avatar = row.char.avatar.id, weapon = row.char.weapon.id,
+			-- with drops the row's char is whatever was in hand at the end: name the first weapon
+			avatar = row.char.avatar.id,
+			weapon = (function()
+				local f = m.fighters[row.index + 1]
+				return if f and f.kit then f.kit[1].weapon.id else row.char.weapon.id
+			end)(),
 			kos = row.kos, falls = row.falls, sds = row.sds,
 			damage = row.damage, taken = row.taken, percent = row.percent,
 			stocks = row.stocks, score = row.score,

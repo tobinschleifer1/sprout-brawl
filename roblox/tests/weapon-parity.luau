@@ -13,6 +13,7 @@ local serde = require("@lune/serde")
 local Loader = require("./loader")
 
 local Loadout = Loader.load("Loadout")
+local Fighter = Loader.load("Fighter")
 local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
 
 local function fail(msg: string): never
@@ -74,7 +75,7 @@ for i, p in trace.probes do
 		startupEff = tonumber(p.startupEff), charge = tonumber(p.charge),
 		ultCooldown = tonumber(p.ultCooldown), ultShots = tonumber(p.ultShots),
 	}
-	local move = if p.moveId then char.moves[p.moveId] else nil
+	local move = Fighter.moveOf(char, p.moveId)
 	local pose = WeaponPose.For(f, char, move, tonumber(p.t))
 
 	local got: { [string]: any } = {}

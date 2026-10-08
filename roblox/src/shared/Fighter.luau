@@ -122,6 +122,12 @@ local Fighter = {}
 -- the throw moves, for whatever has to recognise or replay one (the pose traces, the renderer)
 Fighter.THROW_GROUND = THROW_GROUND
 Fighter.THROW_AIR = THROW_AIR
+-- A move by id, for anything that has only a snapshot's moveId: the throw is no weapon's move.
+function Fighter.moveOf(char: any, id: string?): any
+	if id == nil then return nil end
+	if id == "WeaponThrow" then return THROW_GROUND end
+	return char.moves[id]
+end
 function Fighter.new(opts: any): any
 	local self = setmetatable({}, meta)
 	self.index = opts.index

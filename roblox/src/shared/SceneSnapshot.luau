@@ -8,7 +8,15 @@ function SceneSnapshot.encode(match: any): any
 	for _, p in combat.projectiles do
 		table.insert(out.projectiles, { x = p.x, y = p.y, vx = p.vx, vy = p.vy, w = p.w, h = p.h,
 			shape = p.shape, owner = if p.owner then p.owner.index else nil,
-			item = if p.itemDef then p.itemDef.id else nil, life = p.life, gravity = p.gravity })
+			item = if p.itemDef then p.itemDef.id else nil, life = p.life, gravity = p.gravity,
+			-- a thrown weapon (weapon drops): which one, and whether it flies point-first
+			weapon = p.weaponDrop, pierce = if p.pierce then true else nil })
+	end
+	-- Weapon drops lying about or falling: where, whether landed, how long left (they blink before
+	-- they go) and what a thrown one looks like.
+	out.drops = {}
+	for _, d in combat.drops or {} do
+		table.insert(out.drops, { x = d.x, y = d.y, onGround = d.onGround, life = d.life, look = d.look })
 	end
 	for _, it in combat.items do
 		table.insert(out.items, { id = it.def.id, x = it.x, y = it.y, life = it.life, uses = it.uses,

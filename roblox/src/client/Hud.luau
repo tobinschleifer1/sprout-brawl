@@ -17,6 +17,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Callouts = require(ReplicatedStorage.Shared.Data.Callouts)
+local WeaponData = require(ReplicatedStorage.Shared.Data.Weapons)
 local HudColors = require(script.Parent.HudColors)
 local Bindings = require(script.Parent.Bindings)
 local AbilityStatus = require(script.Parent.AbilityStatus)
@@ -220,7 +221,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		-- with no ultimate, so it never shows a meter that cannot fill.
 		local ultBack = Ui.make("Frame", root, { Name = "Ultimate", BackgroundTransparency = 1, BorderSizePixel = 0,
 			Position = UDim2.new(1, -8 - 76, 1, -15), Size = UDim2.fromOffset(76, 8) })
-		ultBack.Visible = chars[i] ~= nil and chars[i].moves.Ultimate ~= nil
+		-- (with weapon drops a fighter starts on fists, which have none - but the meter fills on fists
+		-- and waits for a weapon, so a fighter with a kit always shows it)
+		ultBack.Visible = chars[i] ~= nil and (chars[i].moves.Ultimate ~= nil or entry.kit ~= nil)
 		local blocks = {}
 		for k = 1, ULT_BLOCKS do
 			blocks[k] = Ui.make("Frame", ultBack, { BackgroundColor3 = SLATE, BorderSizePixel = 0,
@@ -247,6 +250,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		table.insert(self.tiles, {
 			root = root, pct = pct, pips = pips, name = name, weapon = weapon,
 			ultBack = ultBack, ult = blocks, colour = colour, index = entry.index, shield = shield,
+			kit = entry.kit, shownArmed = nil,
 			combo = combo, perfect = perfect, breakCd = breakCd,
 		})
 
@@ -438,6 +442,17 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			tile.pct.TextColor3 = HudColors.percent(st.percent)
 			-- Stocks as pips, capped: past eight the count stops being readable at a glance and
 			-- the number would be better, but no mode here goes past a handful.
+			-- weapon drops: both weapons on the tile, the one in hand in gold, written when it changes
+			if tile.kit and tile.shownArmed ~= st.armed then
+				tile.shownArmed = st.armed
+				local parts = {}
+				for k, id in tile.kit do
+					local name = string.upper((WeaponData.BY_ID[id] or { name = id }).name)
+					table.insert(parts, if st.armed == k - 1 then `<font color="#FFD24A">{name}</font>` else name)
+				end
+				tile.weapon.RichText = true
+				tile.weapon.Text = table.concat(parts, "  ·  ")
+			end
 			local stocks = math.clamp(st.stocks, 0, 8)
 			for k, pip in tile.pips do pip.Visible = k <= stocks end
 			local out = st.stocks <= 0 and not st.alive

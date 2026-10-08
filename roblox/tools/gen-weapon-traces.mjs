@@ -19,6 +19,10 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { weaponPose } = await import('../../web/src/render2d/weapons2d.js');
 const { buildLoadout } = await import('../../web/src/data/loadout.js');
+const { THROW_GROUND } = await import('../../web/src/engine/fighter.js');
+// Weapon drops: the throw is no weapon's move - the same one for all - so every kit's attack sweep
+// adds it by name, and it resolves to THROW_GROUND wherever a move is looked up.
+const moveOf = (char, id) => (id === 'WeaponThrow' ? THROW_GROUND : char.moves[id]);
 
 const n = (v) => (typeof v === 'number' ? String(v) : v);
 
@@ -38,11 +42,11 @@ const TIMES = ['0', '0.37', '1.84', '7.25'];
 const probes = [];
 for (const [avatar, weapon] of KITS) {
   const char = buildLoadout(avatar, weapon);
-  const moveIds = Object.keys(char.moves);
+  const moveIds = [...Object.keys(char.moves), 'WeaponThrow'];
   for (const state of STATES) {
     const ids = state === 'attack' ? moveIds : [null];
     for (const moveId of ids) {
-      const m = moveId ? char.moves[moveId] : null;
+      const m = moveId ? moveOf(char, moveId) : null;
       const span = m ? (m.startup + m.active + m.recovery + 4) : 20;
       // The ultimates and the aimed weapons read `t`; the ordinary swings are driven by mf alone.
       const usesTime = state !== 'attack' || moveId === 'Ultimate'
@@ -74,7 +78,7 @@ function fighterFor(p) {
     char, index: p.index, state: p.state,
     vx: Number(p.vx), vy: Number(p.vy), onGround: p.onGround,
     sf: Number(p.sf), mf: Number(p.mf),
-    moveId: p.moveId, move: p.moveId ? char.moves[p.moveId] : null,
+    moveId: p.moveId, move: p.moveId ? moveOf(char, p.moveId) : null,
     startupEff: Number(p.startupEff), charge: Number(p.charge),
     ultCooldown: Number(p.ultCooldown), ultShots: Number(p.ultShots),
   };

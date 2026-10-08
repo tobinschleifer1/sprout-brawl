@@ -32,6 +32,7 @@ local EXPECTED = {
 	"chillStacks", "ledgeAction",
 	"moveLanded", "comboTarget", "perfectStreak",
 	"comboHits", "breakable", "breakCooldown",
+	"armed",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation

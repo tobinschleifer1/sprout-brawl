@@ -164,6 +164,7 @@ echo "== parity: Match vs web/src/engine/match.js =="
 lune run tests/match-parity
 lune run tests/drops-parity
 lune run tests/drop-parity
+lune run tests/drops-client
 echo "== parity: Ai vs web/src/engine/ai.js =="
 lune run tests/ai-parity
 echo "== parity: Channels vs web/src/render2d/channels.js =="

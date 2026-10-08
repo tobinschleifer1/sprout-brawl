@@ -74,6 +74,10 @@ local roster: { any } = {}
 -- they never change during a match, and sending them every frame would be sixty copies a second of
 -- a constant.
 local chars: { any } = {}
+-- Weapon drops: each fighter's two weapons and fists, by fighter index + 1, when the match has
+-- drops. `chars` then holds whichever of the three the latest state says is in hand (see the frame
+-- loop), so everything that draws from `chars` follows the weapon without knowing about drops.
+local kits: { [number]: any } = {}
 local stageView: any = nil
 local buffer: { any } = {}        -- snapshots, oldest first, each tagged with arrival time
 -- The last snapshot received: what the server's next delta is made against (SnapshotCodec). Nil
@@ -394,9 +398,15 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	pendingFx = {}
 	roster = cfg.fighters
 	chars = {}
+	kits = {}
 	localIndex = nil
 	for i, entry in roster do
-		chars[i] = Loadout.build(entry.avatar, entry.weapon)
+		if entry.kit then
+			kits[i] = Loadout.buildArmed(entry.avatar, entry.kit)
+			chars[i] = kits[i].fists                  -- everyone starts on fists
+		else
+			chars[i] = Loadout.build(entry.avatar, entry.weapon)
+		end
 		if entry.userId and entry.userId == Players.LocalPlayer.UserId then
 			localIndex = entry.index
 		end
@@ -438,7 +448,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	if localIndex and stageView then
 		-- Rendering interpolates an older world. Prediction needs its own latest-snapshot
 		-- geometry, otherwise drawing a sinking/moving platform rewinds our collision floor.
-		predictor = Predictor.new(chars[localIndex + 1], localIndex, Stage.new(stageView.data, cfg.seed))
+		predictor = Predictor.new(chars[localIndex + 1], localIndex, Stage.new(stageView.data, cfg.seed), kits[localIndex + 1])
 	end
 	print(`[Blockfall] match: {cfg.stage} seed={cfg.seed} fighters={#roster}`
 		.. (if predictor then " (predicting)" else ""))
@@ -713,6 +723,16 @@ RunService.RenderStepped:Connect(function(dt: number)
 				-- eased from the last correction rather than jumping to it (Predictor.visual)
 				states[i] = predictor:visual(dt)
 				break
+			end
+		end
+	end
+	-- the loadout in each fighter's hand, from the state being drawn (weapon drops)
+	if states then
+		for _, st in states do
+			local k = kits[st.index + 1]
+			if k then
+				local armed = st.armed or -1
+				chars[st.index + 1] = if armed >= 0 then k.kit[armed + 1] else k.fists
 			end
 		end
 	end

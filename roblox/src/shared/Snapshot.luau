@@ -55,6 +55,9 @@ local FIELDS = {
 	-- the hit landed (removing any of them still replays tests/prediction-combos.luau exactly).
 	{ "moveLanded", "ml" }, { "comboTarget", "ct" }, { "perfectStreak", "ps" },
 	{ "comboHits", "co" }, { "breakable", "bk" }, { "breakCooldown", "bc" },
+	-- Weapon drops: which of the fighter's two weapons is in hand (0 or 1), -1 for the fists. The
+	-- client has both weapons from the roster, so this one number is the whole loadout in hand.
+	{ "armed", "ar" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test

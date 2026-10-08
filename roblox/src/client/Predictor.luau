@@ -38,6 +38,10 @@ local function stubCombat(fighters: { any }): any
 		dropItem = function() end,
 		itemNear = function() return nil end,
 		pickupItem = function() end,
+		-- weapon drops: no drop is ever in reach here, so a pickup is the server's to report. A
+		-- throw IS predicted - the move plays at once - and the weapon leaving arrives as `armed`.
+		dropNear = function() return nil end,
+		takeDrop = function() end,
 		hasFruit = function() return false end,
 		fruiting = function() end,
 		nearestNode = function() return nil end,
@@ -50,12 +54,15 @@ local function stubCombat(fighters: { any }): any
 	}
 end
 
-function Predictor.new(char: any, index: number, stage: any): any
+-- `armed` (weapon drops) is { kit = { loadout, loadout }, fists = loadout } when the match has drops:
+-- the fighter then carries both weapons and starts on fists, as the server's does.
+function Predictor.new(char: any, index: number, stage: any, armed: any?): any
 	local self = setmetatable({}, Predictor)
 	self.char = char
 	self.index = index
 	self.stage = stage
-	self.fighter = Fighter.new({ index = index, char = char, x = 0, y = 0, stocks = 3 })
+	self.fighter = Fighter.new({ index = index, char = char, x = 0, y = 0, stocks = 3,
+		kit = if armed then armed.kit else nil, fists = if armed then armed.fists else nil })
 	self.ctx = { stage = stage, combat = stubCombat({ self.fighter }), fighters = { self.fighter } }
 	-- Both indexed by SEQUENCE, the count of frames ever sampled. inputs[n] is the frame, snaps[n]
 	-- is our own full Fighter snapshot taken just after simulating it.
@@ -78,7 +85,8 @@ function Predictor.applyWire(self: any, w: any)
 	local f = self.fighter
 	for _, pair in Snapshot.FIELDS do
 		local name = pair[1]
-		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" and name ~= "comboTarget" then
+		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" and name ~= "comboTarget"
+			and name ~= "armed" then
 			-- Back through the name map: the snapshot calls them stateFrame and moveFrame, the
 			-- Fighter calls them sf and mf, and writing the snapshot's names onto a Fighter sets
 			-- two fields nothing reads while leaving the two that matter untouched.
@@ -88,7 +96,14 @@ function Predictor.applyWire(self: any, w: any)
 	-- `moveId` is a name and `move` is the table the state machine actually reads. Setting one
 	-- without the other leaves a fighter executing the move it was doing before the correction,
 	-- with the new move's frame counter - which reads as the right attack at the wrong speed.
-	f.move = if w.moveId then self.char.moves[w.moveId] else nil
+	-- Weapon drops: the loadout in hand is the server's. `armed` is a number, but what it selects -
+	-- size, weight, jumps, the moves - lives on the char, so the fighter is re-equipped, not just
+	-- relabelled (writing `armed` alone left it swinging the fists' moves with a sword in hand).
+	if f.kit and w.armed ~= nil and w.armed ~= f.armed then
+		f.armed = w.armed
+		f:equip(if w.armed >= 0 then f.kit[w.armed + 1] else f.fists)
+	end
+	f.move = Fighter.moveOf(f.char, w.moveId)
 	f.effects.chill.stacks = w.chillStacks or 0
 	-- The fighter we last hit, for the chase: the server sends an index, and the only stand-in we
 	-- have is that fighter as the same snapshot describes them (`others`, from reconcile). It does

@@ -5,6 +5,8 @@ local Canvas = require(script.Parent.Canvas2D)
 local Effects = require(script.Parent.Effects)
 local UltWorld = require(script.Parent.UltWorld)
 local FxArt = require(script.Parent.FxArt)
+local DropShapes = require(script.Parent.DropShapes)
+local Weapons2D = require(script.Parent.Weapons2D)
 local Items = require(game:GetService("ReplicatedStorage").Shared.Data.Items)
 local WHITE = Color3.new(1, 1, 1)
 local DARK = Color3.fromRGB(18, 25, 34)
@@ -66,7 +68,41 @@ function World2D.item(c: any, id: string, x: number, y: number, t: number, live:
 	Canvas.restore(c)
 end
 
+-- A weapon drop (weapon drops): the shapes both builds draw (DropShapes, held to the web's
+-- dropShapes.js), and a thrown weapon lying there as its own sprite on top.
+function World2D.drop(c: any, d: any, frame: number)
+	local shapes, sprite = DropShapes.shapes(d, frame)
+	for _, sh in shapes do
+		local col = Canvas.hex(sh[6], WHITE)
+		if sh[1] == "r" then rect(c, sh[2], sh[3], sh[4], sh[5], col, sh[7])
+		else Canvas.ellipse(c, sh[2], sh[3], sh[4], sh[5], col, sh[7]) end
+	end
+	if sprite then
+		Canvas.save(c)
+		Canvas.translate(c, sprite.x, sprite.y)
+		Canvas.rotate(c, sprite.angle)
+		Weapons2D.drawSprite(c, sprite.id, sprite.alpha)
+		Canvas.restore(c)
+	end
+end
+
+-- A thrown weapon: its own sprite, tumbling end over end - or point-first along its flight for the
+-- two that fly like a spear or a bolt - as renderer2d.js draws it.
+function World2D.thrownWeapon(c: any, p: any, t: number)
+	local reach = Weapons2D.REACH[p.weapon] or 2
+	local dir = if (p.vx or 0) < 0 then -1 else 1
+	Canvas.save(c)
+	Canvas.translate(c, p.x, p.y)
+	Canvas.rotate(c, if p.pierce or p.weapon == "Longbow" then math.atan2(p.vy or 0, p.vx or 1) else -t * 16 * dir)
+	Canvas.translate(c, -reach / 2, 0)
+	Weapons2D.drawSprite(c, p.weapon, 1)
+	Canvas.restore(c)
+end
+
 function World2D.entities(c: any, scene: any, chars: any, states: any, t: number)
+	for _, d in scene.drops or {} do
+		World2D.drop(c, d, scene.frame or 0)
+	end
 	for _, it in scene.items or {} do
 		local x, y = it.x, it.y
 		if it.held ~= nil then
@@ -89,6 +125,8 @@ function World2D.entities(c: any, scene: any, chars: any, states: any, t: number
 		local col = glow(chars, p.owner)
 		if UltWorld.projectile(c, p, states, chars, t) then
 			-- an ultimate's own projectile, drawn as what it is (UltWorld)
+		elseif p.weapon then
+			World2D.thrownWeapon(c, p, t)
 		elseif p.item then
 			World2D.item(c, p.item, p.x, p.y - 0.5, t, p)
 		elseif p.shape == "orb" then

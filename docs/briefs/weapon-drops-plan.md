@@ -36,9 +36,13 @@ twelve weapons.
    a target in a clear lane, twice as readily with a killing throw at kill percent. Two new level
    dials, `arm` and `throws`. Four normal bots are armed ~80% of a fight, median ~3 s on fists.
    No generator draws unless drops are on.
-4. **Look and feel (web)**: fist animations, drops falling in a beam, the spinning thrown weapon,
-   pickup flash, both weapons on the HUD card.
-5. **Roblox client**: snapshot codec (hands, drops), prediction, renderer, HUD.
+4. **Look and feel (web)** (done): the throw's body, drops falling in a beam (dropShapes.js, shared
+   with the Luau by tests/drop-parity), the spinning thrown weapon, both weapons on the HUD card.
+5. **Roblox client** (done; the HUD is unseen until the phase 6 playtest): `armed` on the fighter
+   wire, drops and thrown weapons on the scene wire, the predictor carrying the kit and taking the
+   server's loadout on correction (a pickup and a weapon leaving are the server's to decide; the
+   throw itself is predicted), drops and thrown weapons drawn, both weapon names on the HUD tile
+   with the held one gold. tests/drops-client.luau.
 6. **Select screen and rooms**: pick two weapons, drops on in rooms, a live playtest.
 
 After this: new weapons (whip, chakram, rocket boots), then KO effects / emotes, then progression.

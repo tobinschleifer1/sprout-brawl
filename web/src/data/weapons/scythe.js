@@ -42,6 +42,9 @@ export default {
   recovery: { kind: 'tether', range: 22, speed: 70, hopVy: 42 },
   signature: 'SigSide',
 
+  // Thrown (weapon drops): a wide wheel of blade, slower, hard to miss. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 38, vy: 8, gravity: 36, lifetime: 55, damage: 9, base: 30, growth: 8.2, angle: 50, size: [3.4, 2.4] },
+
   moves: {
     LightNeutral1: { label: 'Reap', startup: 6, active: 2, recovery: 9, damage: 3, base: 10, growth: 0.8, angle: 45, grounded: true,
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },

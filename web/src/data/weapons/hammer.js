@@ -45,6 +45,9 @@ export default {
   recovery: { kind: 'hop', vy: 46, vx: 12 },       // the worst recovery in the game, by design
   signature: 'SigDown',
 
+  // Thrown (weapon drops): a slow, high lob that lands like the hammer does. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 32, vy: 16, gravity: 60, lifetime: 70, damage: 14, base: 34, growth: 6.4, angle: 50, size: [3.0, 2.8] },
+
   moves: {
     // ---- light string ----
     LightNeutral1: { label: 'Hammer', startup: 9, active: 3, recovery: 14, damage: 6, base: 14, growth: 1.2, angle: 45, grounded: true, shieldDamageMul: 1.6,

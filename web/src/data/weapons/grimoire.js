@@ -39,6 +39,9 @@ export default {
   recovery: { kind: 'puff', vy: 64, vx: 13 },        // highest and narrowest: it goes up, not across
   signature: 'SigNeutral',
 
+  // Thrown (weapon drops): the book flutters: slow, floaty, lingers in the air. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 26, vy: 2, gravity: 8, lifetime: 80, damage: 7, base: 15, growth: 1.8, angle: 60, size: [2.2, 2.0] },
+
   moves: {
     LightNeutral1: { label: 'Spark', startup: 6, active: 2, recovery: 10, damage: 3, base: 10, growth: 0.8, angle: 45, grounded: true,
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },

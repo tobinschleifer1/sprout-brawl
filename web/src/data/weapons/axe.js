@@ -64,6 +64,9 @@ export default {
   recovery: { kind: 'hop', vy: 50, vx: 14 },     // poor: heavy weapons should fear the ledge
   signature: 'SigDown',
 
+  // Thrown (weapon drops): a heavy tumbling arc that kills like a signature. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 40, vy: 12, gravity: 50, lifetime: 60, damage: 12, base: 32, growth: 6.5, angle: 45, size: [2.8, 2.2] },
+
   moves: {
     // ---- light string ----
     // Even the lights are hauled rather than flicked. The first one is the only fast option the

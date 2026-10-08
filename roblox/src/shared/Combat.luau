@@ -1089,6 +1089,15 @@ function Combat.stepProjectiles(self)
 		if not p.grounded and not p.ghost then
 			for _, sp in self.match.stage.solids do
 				if p.x > sp.x1 and p.x < sp.x2 and p.y < sp.top and p.y > sp.bottom then
+					-- A thrown shield coming DOWN onto a solid's top skips off it; into its side,
+					-- it stops like anything else.
+					if (p.bounces or 0) > 0 and p.vy < 0 and py >= sp.top - 0.3 then
+						p.bounces -= 1
+						p.y = sp.top + 0.2
+						p.vy = -p.vy * p.restitution
+						Combat.emit(self, { type = "bounce", x = p.x, y = p.y })
+						break
+					end
 					dead = true
 					-- and a thrown weapon lands on top, not in the wall
 					if p.falling or p.weaponDrop then
@@ -1108,6 +1117,15 @@ function Combat.stepProjectiles(self)
 		if p.gravity ~= 0 and p.vy <= 0 then
 			for _, pl in self.match.stage.platforms do
 				if p.x > pl.x1 and p.x < pl.x2 and py >= pl.top - 0.2 and p.y < pl.top + 0.2 then
+					-- A thrown shield skips off the floor instead of stopping: up again at
+					-- `restitution` of the speed it came down at, `bounces` times.
+					if (p.bounces or 0) > 0 then
+						p.bounces -= 1
+						p.y = pl.top + 0.2
+						p.vy = -p.vy * p.restitution
+						Combat.emit(self, { type = "bounce", x = p.x, y = p.y })
+						break
+					end
 					dead = true
 					if p.explode then
 						Combat.explode(self, p)
@@ -1563,6 +1581,8 @@ function Combat.throwWeapon(self, f: any)
 		x = f.x + f.facing * 1.6, y = f.y + 3.2, vx = f.facing * T.speed + f.vx * 0.3, vy = T.vy,
 		w = T.size[1], h = T.size[2], life = T.lifetime, gravity = T.gravity, hitVictims = {},
 		facing = f.facing, item = false, shape = "weapon", weaponDrop = weapon.id,
+		-- the throw's own character: a pike goes through people, a shield skips
+		pierce = not not T.pierce, bounces = T.bounces or 0, restitution = T.restitution or 0,
 	}
 	pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)
 	table.insert(self.projectiles, pr)

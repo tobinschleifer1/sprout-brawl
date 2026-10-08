@@ -60,6 +60,9 @@ export default {
   recovery: { kind: 'hop', vy: 60, vx: 22 },
   signature: 'SigSide',
 
+  // Thrown (weapon drops): a javelin: fast, flat and through everyone on the line. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 66, vy: 3, gravity: 18, lifetime: 40, damage: 9, base: 28, growth: 5.5, angle: 30, size: [4.0, 0.8], pierce: true },
+
   moves: {
     // ---- light string ----
     // The jab is the whole weapon in miniature: slow to come out, enormous reach, nothing behind it.

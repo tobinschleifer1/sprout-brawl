@@ -27,7 +27,10 @@ twelve weapons.
 1. **Engine core** (done): `DROPS` config, the fists kit, `buildArmed`, `Fighter.equip/arm/disarm`,
    the throw move, drops (spawn, fall, land, fade, cap), the generic throw, landing a throw in the
    air. Ported to Luau in the same commit; `tests/drops-parity.luau` replays it.
-2. **Per-weapon throws and balance**: a `thrown` profile per weapon, kill percents measured.
+2. **Per-weapon throws and balance** (done): a `thrown` profile per weapon; the pike pierces, the
+   shield skips off floors (platforms and solids' tops, not their sides). Kill percents by the
+   signatures' own oracle (balance.mjs koPercent): Hammer 174, Axe 185, Flail 217, Sword 226,
+   Scythe 236, Shield 247, Pike 253; the five light throws never kill.
 3. **Bots**: go for drops unarmed, throw at range, punch when they must.
 4. **Look and feel (web)**: fist animations, drops falling in a beam, the spinning thrown weapon,
    pickup flash, both weapons on the HUD card.

@@ -51,6 +51,9 @@ export default {
   recovery: { kind: 'tether', range: 15, speed: 62, hopVy: 48 },
   signature: 'SigDown',
 
+  // Thrown (weapon drops): the ball drags the chain in an arc. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 36, vy: 10, gravity: 46, lifetime: 55, damage: 10, base: 30, growth: 7.5, angle: 48, size: [2.6, 2.6] },
+
   moves: {
     // ---- light string ----
     LightNeutral1: { label: 'Swing', startup: 8, active: 4, recovery: 13, damage: 4, base: 12, growth: 1.0, angle: 42, grounded: true,

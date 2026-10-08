@@ -47,6 +47,9 @@ export default {
   recovery: { kind: 'hop', vy: 66, vx: 26 },
   signature: 'SigNeutral',
 
+  // Thrown (weapon drops): a thrown fist: short and quick. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 54, vy: 5, gravity: 40, lifetime: 30, damage: 6, base: 13, growth: 1.4, angle: 45, size: [1.6, 1.4] },
+
   moves: {
     // ---- light string ----
     LightNeutral1: { label: 'Jab', startup: 3, active: 2, recovery: 6, damage: 2, base: 7, growth: 0.5, angle: 45, grounded: true,

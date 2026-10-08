@@ -11,13 +11,19 @@
 //   * an item in reach is taken before a throw; pickup and throw work in the air, and an air throw
 //     that lands before letting go still throws; a thrown weapon off the stage is gone; a lost
 //     stock loses the weapon in hand;
-//   * the fists never kill early (their growth is under half the weakest real heavy's);
+//   * the fists never kill early (their growth is under half the weakest real heavy's; their heavies
+//     do not kill at 300%);
+//   * every weapon throws its own way, and kills in its band (heavy, medium, light); the pike goes
+//     through everyone on the line; the shield skips off the floor;
 //   * the same seed and inputs drop the same drops in the same places.
 //
 //     node test/drops.test.mjs
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { DROPS, dropsOnStage, FRAME } from '../src/config.js';
-import { WEAPONS, FISTS } from '../src/data/weapons/index.js';
+import { WEAPONS, WEAPON_BY_ID, FISTS } from '../src/data/weapons/index.js';
+import { buildArmed } from '../src/data/loadout.js';
+import { koPercent } from './balance.mjs';
+const buildArmedFor = (w) => buildArmed('Classic', [w, w]);
 import { ITEMS } from '../src/data/items.js';
 
 let pass = 0, fail = 0;
@@ -129,7 +135,7 @@ const events = (m, type) => m.events.filter((e) => e.type === type);
     if (b.percent > before) hit = true;
     landed = m.combat.drops.find((d) => d.look === 'Sword') || null;
   }
-  check('the thrown weapon hits for damage', hit && b.percent - before === DROPS.thrown.damage, `victim ${before}% -> ${b.percent}%`);
+  check("the thrown weapon hits for its own throw's damage", hit && b.percent - before === a.kit[0].weapon.thrown.damage, `victim ${before}% -> ${b.percent}% (the sword's throw does ${a.kit[0].weapon.thrown.damage})`);
   check('...and lands as a drop that looks like it', !!landed, landed ? `drop at ${landed.x.toFixed(1)},${landed.y.toFixed(1)} looking like ${landed.look}` : 'no drop');
   // walk to it and take it: the OTHER weapon
   a.x = landed.x; a.y = landed.y; a.vx = 0;
@@ -214,6 +220,115 @@ const events = (m, type) => m.events.filter((e) => e.type === type);
   check('the fists are no weapon anyone can pick', !WEAPONS.includes(FISTS), 'not in WEAPONS');
   const bad = Object.entries(FISTS.moves).filter(([id, mv]) => mv.id !== id || mv.total !== mv.startup + mv.active + mv.recovery || !mv.kind || !mv.hitboxes);
   check("the fists' moves carry the fields every weapon's do", bad.length === 0, bad.length ? `missing on ${bad.map(([id]) => id).join(', ')}` : `${Object.keys(FISTS.moves).length} moves, each with id, total, kind and hitboxes`);
+}
+
+// ---- every weapon throws its own way (phase 2) ----
+// Kill power by the same oracle every signature's "kills N%" in the weapon files comes from
+// (balance.mjs koPercent: a 100-weight victim launched from the stage's centre, crossing a side or
+// the top blast line), so a throw's number means what a signature's does. Simulating a standing
+// victim instead measured whether they happened to fall off the stage - non-monotonic in percent,
+// since a launch that lands on a ledge is no KO. Bands by what each weapon is for:
+//   heavy  (Hammer, Axe)                       kill like a heavy signature: by 200%
+//   medium (Flail, Sword, Scythe, Shield, Pike) kill 200-260%
+//   light  (Daggers, Blasters, Gauntlets, Longbow, Grimoire)  pressure: never kill
+// At the time of writing: Hammer 174, Axe 185, Flail 217, Sword 226, Scythe 236, Shield 247,
+// Pike 253 (the Sword's signatures kill 172-185); the five light throws never kill.
+// And every throw has to connect, which only a simulation shows: thrown from 5 studs.
+function throwAt(weapon, pc = 0, d = 5) {
+  const m = skipCountdown(makeMatch({ armed: [['Classic', [weapon, weapon]], ['Noir', ['Sword', 'Sword']]] }));
+  const [a, b] = m.fighters;
+  const ax = -d / 2, bx = d / 2;
+  for (const [who, x] of [[a, ax], [b, bx]]) { who.x = x; who.y = 6; who.vx = 0; who.vy = 0; }
+  for (let i = 0; i < 240 && !(a.onGround && b.onGround && a.y < 1 && b.y < 1); i++) { m.step(); a.x = ax; b.x = bx; a.vx = 0; b.vx = 0; }
+  a.facing = 1; b.facing = -1; a.invincible = 0; b.invincible = 0;
+  m.combat.drops.length = 0; m.combat.dropTimer = -9999;
+  m.combat.spawnDrop(a.x, a.y + 0.5); run(m, 4); press(m, a, { pickup: true }); run(m, 4);
+  b.percent = pc;
+  press(m, a, { pickup: true });
+  let hit = false, ko = false;
+  for (let i = 0; i < 60 * 8 && !ko; i++) { m.step(); if (b.percent > pc) hit = true; ko = m.events.some((e) => e.type === 'ko' && e.fighter === b.index); m.events.length = 0; }
+  return { hit, ko };
+}
+{
+  const BANDS = { Hammer: [140, 200], Axe: [140, 200], Flail: [200, 260], Sword: [200, 260], Scythe: [200, 260], Shield: [200, 260], Pike: [200, 260] };
+  const LIGHT = ['Daggers', 'Blasters', 'Gauntlets', 'Longbow', 'Grimoire'];
+  const ko = (w) => { const T = WEAPON_BY_ID[w].thrown; return koPercent(T.base, T.growth, T.damage, 100, { angle: T.angle }); };
+  const bad = [], got = [];
+  for (const [id, [lo, hi]] of Object.entries(BANDS)) {
+    const k = ko(id);
+    got.push(`${id} ${k}`);
+    if (k === null || k < lo || k > hi) bad.push(`${id} kills at ${k}%, band ${lo}-${hi}`);
+  }
+  for (const id of LIGHT) if (ko(id) !== null) bad.push(`${id} kills at ${ko(id)}%`);
+  const heavy = Math.max(ko('Hammer'), ko('Axe')), medium = Math.min(...['Flail', 'Sword', 'Scythe', 'Shield', 'Pike'].map(ko));
+  check('every throw kills in its band: heavies by 200%, mediums 200-260%, lights never', bad.length === 0 && heavy < medium,
+    bad.length ? bad.join('; ') : `${got.join(', ')}; ${LIGHT.length} light throws never kill`);
+  const misses = WEAPONS.map((w) => w.id).filter((id) => !throwAt(id).hit);
+  check('every throw connects from 5 studs', misses.length === 0, misses.length ? `misses: ${misses.join(', ')}` : `all ${WEAPONS.length} hit a standing fighter 5 studs away`);
+  const profiles = WEAPONS.map((w) => JSON.stringify(w.thrown));
+  check('every weapon has a throw of its own', WEAPONS.every((w) => w.thrown) && new Set(profiles).size === WEAPONS.length,
+    `${new Set(profiles).size} different throws across ${WEAPONS.length} weapons`);
+}
+{
+  // the pike goes through everyone on the line
+  const m = skipCountdown(makeMatch({ armed: [['Classic', ['Pike', 'Pike']], ['Noir', ['Sword', 'Sword']], ['Ember', ['Sword', 'Sword']]] }));
+  const [a, b, c] = m.fighters;
+  const xs = [[a, -6], [b, -1], [c, 4]];
+  for (const [who, x] of xs) { who.x = x; who.y = 6; who.vx = 0; who.vy = 0; }
+  for (let i = 0; i < 240 && !xs.every(([w]) => w.onGround && w.y < 1); i++) { m.step(); for (const [w, x] of xs) { w.x = x; w.vx = 0; } }
+  for (const [w] of xs) w.invincible = 0;
+  a.facing = 1; m.combat.drops.length = 0; m.combat.dropTimer = -9999;
+  m.combat.spawnDrop(a.x, a.y + 0.5); run(m, 4); press(m, a, { pickup: true }); run(m, 4);
+  press(m, a, { pickup: true });
+  run(m, 60);
+  check('a thrown pike goes through everyone on the line', b.percent > 0 && c.percent > 0, `first in line ${b.percent}%, second ${c.percent}%`);
+}
+{
+  // the shield skips off the floor and keeps going
+  const { m, a } = planted({ ax: -20, bx: 30 });
+  const shield = buildArmedFor('Shield');
+  a.kit = shield.kit; a.nextArm = 0;
+  m.combat.spawnDrop(a.x, a.y + 0.5); run(m, 4); press(m, a, { pickup: true }); run(m, 4);
+  m.events.length = 0;
+  press(m, a, { pickup: true });
+  run(m, DROPS.throwMove.startup + 1);
+  // held still over the middle of the floor, so only the skips decide what happens
+  const pr = m.combat.projectiles.find((p) => p.weaponDrop === 'Shield');
+  pr.x = 0; pr.y = 6; pr.vx = 0; pr.vy = -10; pr.life = 9999;
+  let bounces = 0, flewOn = false, landed = null;
+  for (let i = 0; i < 240 && !landed; i++) {
+    m.events.length = 0;
+    m.step();
+    bounces += events(m, 'bounce').length;
+    if (bounces > 0 && m.combat.projectiles.includes(pr)) flewOn = true;
+    landed = m.combat.drops.find((d) => d.look === 'Shield') || null;
+  }
+  const want = WEAPON_BY_ID.Shield.thrown.bounces;
+  check('a thrown shield skips off the floor its number of times, then lands', bounces === want && flewOn && !!landed,
+    `${bounces} skips (it has ${want}), still flying after the first: ${flewOn}, then a drop: ${!!landed}`);
+  // ...and the same coming down fast enough to be inside the floor a frame later: the solid's own
+  // skip, which the gentle fall above never reaches (it meets the platform a frame early)
+  m.combat.drops.length = 0;
+  m.combat.spawnDrop(a.x, a.y + 0.5); run(m, 4); press(m, a, { pickup: true }); run(m, 4);
+  press(m, a, { pickup: true }); run(m, DROPS.throwMove.startup + 1);
+  const fast = m.combat.projectiles.find((p) => p.weaponDrop === 'Shield');
+  fast.x = 0; fast.y = 0.5; fast.vx = 0; fast.vy = -60; fast.life = 9999;
+  let hard = 0, down = null;
+  for (let i = 0; i < 240 && !down; i++) { m.events.length = 0; m.step(); hard += events(m, 'bounce').length; down = m.combat.drops.find((d) => d.look === 'Shield') || null; }
+  check('a shield driven into the floor skips its number of times too', hard === want && !!down, `${hard} skips, then a drop: ${!!down}`);
+}
+{
+  // the fists' heavies chip at 300% and do not kill
+  const kills = [];
+  for (const mv of ['SigNeutral', 'SigSide', 'SigDown']) {
+    const { m, a, b } = planted({ ax: -1.2, bx: 1.2 });
+    b.percent = 300;
+    a.startMove(mv);
+    let hit = false, ko = false;
+    for (let i = 0; i < 60 * 8 && !ko; i++) { m.step(); if (b.percent > 300) hit = true; ko = m.events.some((e) => e.type === 'ko' && e.fighter === b.index); m.events.length = 0; }
+    kills.push(`${mv} ${hit ? (ko ? 'KILLED' : 'chipped') : 'missed'}`);
+  }
+  check("the fists' heavies land and do not kill even at 300%", kills.every((k) => k.endsWith('chipped')), kills.join(', '));
 }
 
 // ---- seeded ----

@@ -43,6 +43,9 @@ export default {
   recovery: { kind: 'hop', vy: 58, vx: 20 },
   signature: 'SigSide',
 
+  // Thrown (weapon drops): a spinning blade, flat and quick. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 50, vy: 4, gravity: 30, lifetime: 45, damage: 9, base: 30, growth: 6.9, angle: 40, size: [2.6, 1.0] },
+
   moves: {
     // ---- light string ----
     LightNeutral1: { label: 'Slash', startup: 5, active: 2, recovery: 8, damage: 3, base: 10, growth: 0.8, angle: 45, grounded: true,

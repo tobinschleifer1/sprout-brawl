@@ -37,6 +37,17 @@ local WEAPONS = {
 			vx = 20,
 		},
 		signature = "SigSide",
+		thrown = {
+			speed = 50,
+			vy = 4,
+			gravity = 30,
+			lifetime = 45,
+			damage = 9,
+			base = 30,
+			growth = 6.9,
+			angle = 40,
+			size = { 2.6, 1 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Slash",
@@ -534,6 +545,17 @@ local WEAPONS = {
 			hopVy = 42,
 		},
 		signature = "SigSide",
+		thrown = {
+			speed = 38,
+			vy = 8,
+			gravity = 36,
+			lifetime = 55,
+			damage = 9,
+			base = 30,
+			growth = 8.2,
+			angle = 50,
+			size = { 3.4, 2.4 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Reap",
@@ -1034,6 +1056,17 @@ local WEAPONS = {
 			vx = 32,
 		},
 		signature = "SigDown",
+		thrown = {
+			speed = 60,
+			vy = 2,
+			gravity = 20,
+			lifetime = 30,
+			damage = 6,
+			base = 14,
+			growth = 1.4,
+			angle = 35,
+			size = { 1.6, 1 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Pop Shot",
@@ -1520,6 +1553,17 @@ local WEAPONS = {
 			vx = 13,
 		},
 		signature = "SigNeutral",
+		thrown = {
+			speed = 26,
+			vy = 2,
+			gravity = 8,
+			lifetime = 80,
+			damage = 7,
+			base = 15,
+			growth = 1.8,
+			angle = 60,
+			size = { 2.2, 2 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Spark",
@@ -2010,6 +2054,17 @@ local WEAPONS = {
 			vx = 14,
 		},
 		signature = "SigDown",
+		thrown = {
+			speed = 40,
+			vy = 12,
+			gravity = 50,
+			lifetime = 60,
+			damage = 12,
+			base = 32,
+			growth = 6.5,
+			angle = 45,
+			size = { 2.8, 2.2 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Chop",
@@ -2519,6 +2574,18 @@ local WEAPONS = {
 			vx = 22,
 		},
 		signature = "SigSide",
+		thrown = {
+			speed = 66,
+			vy = 3,
+			gravity = 18,
+			lifetime = 40,
+			damage = 9,
+			base = 28,
+			growth = 5.5,
+			angle = 30,
+			size = { 4, 0.8 },
+			pierce = true,
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Poke",
@@ -3036,6 +3103,17 @@ local WEAPONS = {
 			vx = 26,
 		},
 		signature = "SigNeutral",
+		thrown = {
+			speed = 54,
+			vy = 5,
+			gravity = 40,
+			lifetime = 30,
+			damage = 6,
+			base = 13,
+			growth = 1.4,
+			angle = 45,
+			size = { 1.6, 1.4 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Jab",
@@ -3535,6 +3613,17 @@ local WEAPONS = {
 			vx = 12,
 		},
 		signature = "SigDown",
+		thrown = {
+			speed = 32,
+			vy = 16,
+			gravity = 60,
+			lifetime = 70,
+			damage = 14,
+			base = 34,
+			growth = 6.4,
+			angle = 50,
+			size = { 3, 2.8 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Hammer",
@@ -4028,6 +4117,17 @@ local WEAPONS = {
 			vx = 18,
 		},
 		signature = "SigNeutral",
+		thrown = {
+			speed = 58,
+			vy = 2,
+			gravity = 16,
+			lifetime = 40,
+			damage = 7,
+			base = 15,
+			growth = 1.8,
+			angle = 30,
+			size = { 3.4, 0.8 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Draw",
@@ -4508,6 +4608,17 @@ local WEAPONS = {
 			hopVy = 48,
 		},
 		signature = "SigDown",
+		thrown = {
+			speed = 36,
+			vy = 10,
+			gravity = 46,
+			lifetime = 55,
+			damage = 10,
+			base = 30,
+			growth = 7.5,
+			angle = 48,
+			size = { 2.6, 2.6 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Swing",
@@ -5024,6 +5135,19 @@ local WEAPONS = {
 			vx = 16,
 		},
 		signature = "SigNeutral",
+		thrown = {
+			speed = 44,
+			vy = 6,
+			gravity = 50,
+			lifetime = 90,
+			damage = 9,
+			base = 30,
+			growth = 7.9,
+			angle = 50,
+			size = { 2.4, 2.4 },
+			bounces = 2,
+			restitution = 0.65,
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Bash",
@@ -5518,6 +5642,17 @@ local WEAPONS = {
 			vx = 28,
 		},
 		signature = "SigSide",
+		thrown = {
+			speed = 72,
+			vy = 1,
+			gravity = 10,
+			lifetime = 28,
+			damage = 5,
+			base = 12,
+			growth = 1.2,
+			angle = 35,
+			size = { 1.4, 0.6 },
+		},
 		moves = {
 			LightNeutral1 = {
 				label = "Slash",

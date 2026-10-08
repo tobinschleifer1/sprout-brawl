@@ -751,6 +751,9 @@ export class Combat {
       if (!p.grounded && !p.ghost) {
         for (const sp of this.stage.solids) {
           if (p.x > sp.x1 && p.x < sp.x2 && p.y < sp.top && p.y > sp.bottom) {
+            // A thrown shield coming DOWN onto a solid's top skips off it (see the platform
+            // landing below); into its side, it stops like anything else.
+            if (p.bounces > 0 && p.vy < 0 && py >= sp.top - 0.3) { p.bounces--; p.y = sp.top + 0.2; p.vy = -p.vy * p.restitution; this.emit({ type: 'bounce', x: p.x, y: p.y }); break; }
             dead = true;
             // burst ON the floor, not inside it - and a thrown weapon lands on top, not in the wall
             if (p.falling || p.weaponDrop) p.y = sp.top + 0.6;
@@ -765,7 +768,12 @@ export class Combat {
       // meant nobody standing under one could ever be hit.
       if (p.gravity && p.vy <= 0) {
         for (const pl of this.stage.platforms) {
-          if (p.x > pl.x1 && p.x < pl.x2 && py >= pl.top - 0.2 && p.y < pl.top + 0.2) { dead = true; if (p.explode) this.explode(p); break; }
+          if (p.x > pl.x1 && p.x < pl.x2 && py >= pl.top - 0.2 && p.y < pl.top + 0.2) {
+            // A thrown shield skips off the floor instead of stopping: up again at `restitution`
+            // of the speed it came down at, `bounces` times, then it lands like anything else.
+            if (p.bounces > 0) { p.bounces--; p.y = pl.top + 0.2; p.vy = -p.vy * p.restitution; this.emit({ type: 'bounce', x: p.x, y: p.y }); break; }
+            dead = true; if (p.explode) this.explode(p); break;
+          }
         }
       }
       // thorn walls stop projectiles
@@ -1111,6 +1119,8 @@ export class Combat {
       x: f.x + f.facing * 1.6, y: f.y + 3.2, vx: f.facing * T.speed + f.vx * 0.3, vy: T.vy,
       w: T.size[0], h: T.size[1], life: T.lifetime, gravity: T.gravity, hitVictims: new Set(),
       facing: f.facing, item: false, shape: 'weapon', weaponDrop: weapon.id,
+      // the throw's own character (phase 2): a pike goes through people, a shield skips
+      pierce: !!T.pierce, bounces: T.bounces || 0, restitution: T.restitution || 0,
     };
     pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
     this.projectiles.push(pr);

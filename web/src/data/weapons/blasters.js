@@ -43,6 +43,9 @@ export default {
   recovery: { kind: 'puff', vy: 46, vx: 32 },        // shortest vertical, longest horizontal: it recovers sideways
   signature: 'SigDown',       // the showcase move has to be one that can actually end a stock
 
+  // Thrown (weapon drops): tossed guns: fast and light, pressure not a kill. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 60, vy: 2, gravity: 20, lifetime: 30, damage: 6, base: 14, growth: 1.4, angle: 35, size: [1.6, 1.0] },
+
   moves: {
     LightNeutral1: { label: 'Pop Shot', startup: 6, active: 2, recovery: 12, damage: 2, base: 8, growth: 0.5, angle: 40, grounded: true, kind: 'projectile', ammo: 1,
       chains: { neutral: 'LightNeutral2', side: 'LightSide1', up: 'LightUp', down: 'LightDown' },

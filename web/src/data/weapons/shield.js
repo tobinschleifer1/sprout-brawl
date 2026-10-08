@@ -46,6 +46,9 @@ export default {
   recovery: { kind: 'hop', vy: 52, vx: 16 },
   signature: 'SigNeutral',
 
+  // Thrown (weapon drops): skips off the floor twice before it lands. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 44, vy: 6, gravity: 50, lifetime: 90, damage: 9, base: 30, growth: 7.9, angle: 50, size: [2.4, 2.4], bounces: 2, restitution: 0.65 },
+
   moves: {
     // ---- light string ----
     LightNeutral1: { label: 'Bash', startup: 7, active: 3, recovery: 12, damage: 5, base: 13, growth: 1.1, angle: 40, grounded: true, shieldDamageMul: 1.8,

@@ -48,6 +48,9 @@ export default {
   recovery: { kind: 'hop', vy: 68, vx: 28 },
   signature: 'SigSide',
 
+  // Thrown (weapon drops): the fastest and lightest thing you can throw. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 72, vy: 1, gravity: 10, lifetime: 28, damage: 5, base: 12, growth: 1.2, angle: 35, size: [1.4, 0.6] },
+
   moves: {
     // ---- light string ----
     // The longest light string in the game: four links rather than three, because the weapon is

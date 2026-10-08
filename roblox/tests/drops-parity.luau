@@ -73,6 +73,14 @@ for _, spec in T.scenarios do
 				local f = m.fighters[op.dropAt + 1]
 				Combat.spawnDrop(m.combat, f.x + (if op.dx then tonumber(op.dx) :: number else 0), f.y + 0.5)
 			end
+			if op.proj then
+				for _, q in m.combat.projectiles do
+					if q.weaponDrop then
+						for k, v in op.proj do q[k] = v end
+						break
+					end
+				end
+			end
 			if op.item then
 				local f = m.fighters[op.item[1] + 1]
 				Combat.spawnItem(m.combat, ItemData.BY_ID[op.item[2]], f.x, f.y + 0.5)
@@ -122,7 +130,7 @@ for _, spec in T.scenarios do
 		-- events
 		local ev = {}
 		local KEEP = { dropspawn = true, droptake = true, dropgone = true, arm = true, throwweapon = true,
-			ultdenied = true, ko = true, respawn = true, pickup = true }
+			ultdenied = true, ko = true, respawn = true, pickup = true, bounce = true }
 		for _, e in m.events do
 			if KEEP[e.type] then table.insert(ev, { e.type, e.fighter, e.weapon, e.slot, e.reason }) end
 		end

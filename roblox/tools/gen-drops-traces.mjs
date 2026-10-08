@@ -41,6 +41,7 @@ function run(spec) {
       if (op.drop) m.combat.spawnDrop(op.drop[0], op.drop[1]);
       if (op.dropAt != null) { const f = m.fighters[op.dropAt]; m.combat.spawnDrop(f.x + (op.dx || 0), f.y + 0.5); }
       if (op.item) { const f = m.fighters[op.item[0]]; m.combat.spawnItem(ITEMS[op.item[1]], f.x, f.y + 0.5); }
+      if (op.proj) { const p = m.combat.projectiles.find((q) => q.weaponDrop); if (p) Object.assign(p, op.proj); }
     }
     current = {};
     for (let k = 0; k < m.fighters.length; k++) {
@@ -56,7 +57,7 @@ function run(spec) {
       row.push([n(f.x), n(f.y), n(f.vx), n(f.vy), f.state, f.moveId, n(f.mf), n(f.armed), n(f.nextArm), f.char.weapon.id,
         n(f.r), n(f.h), n(f.weight), n(f.jumpsLeft), n(f.percent), n(f.stocks), f.mech.id ?? null, n(f.ultCharge)]);
     }
-    row.push(m.events.filter((e) => ['dropspawn', 'droptake', 'dropgone', 'arm', 'throwweapon', 'ultdenied', 'ko', 'respawn', 'pickup'].includes(e.type))
+    row.push(m.events.filter((e) => ['dropspawn', 'droptake', 'dropgone', 'arm', 'throwweapon', 'ultdenied', 'ko', 'respawn', 'pickup', 'bounce'].includes(e.type))
       .map((e) => [e.type, n(e.fighter), e.weapon ?? null, n(e.slot), e.reason ?? null]));
     rows.push(row);
     if (m.state === 'results') break;
@@ -133,7 +134,37 @@ S.push({ name: 'drops fall, cap and fade', stage: 'FoundryFloor', seed: 11, who:
   S.push({ name: 'reach and items', stage: 'FoundryFloor', seed: 9, who: TWO, frames: 560, script, ops });
 }
 
-// 5. A brawl: four fighters, eight different weapons (four mechanics among them), seeded random
+// 5. Every weapon's own throw (phase 2): armed, thrown at a fighter 5 studs away with another
+//    behind them - the pike goes through both, the shield skips off the floor, the rest land.
+for (const w of ['Sword', 'Scythe', 'Blasters', 'Grimoire', 'Axe', 'Pike', 'Gauntlets', 'Hammer', 'Longbow', 'Flail', 'Shield', 'Daggers']) {
+  const script = [], ops = {};
+  const at = (f, k, inp) => { (script[f] ||= [])[k] = inp; };
+  for (let f = 0; f < 6; f++) for (let k = 0; k < 3; k++) at(f + 212, k, { anyPress: true });
+  ops[300] = [{ set: { 0: { x: -6, vx: 0, facing: 1 }, 1: { x: -1, vx: 0, percent: 100 }, 2: { x: 3, vx: 0, percent: 50 } } }];
+  ops[340] = [{ set: { 0: { x: -6, vx: 0, facing: 1 }, 1: { x: -1, vx: 0 }, 2: { x: 3, vx: 0 } } }, { dropAt: 0 }];
+  at(350, 0, press(0, 'pickup'));
+  at(360, 0, press(0, 'pickup'));
+  S.push({ name: `${w} thrown`, stage: 'FoundryFloor', seed: 13, frames: 520, script, ops,
+    who: [['Classic', [w, w]], ['Noir', ['Sword', 'Sword']], ['Ember', ['Sword', 'Sword']]] });
+}
+
+// ...and the shield with nobody in the way, so it skips off the floor and lands.
+{
+  const script = [], ops = {};
+  const at = (f, k, inp) => { (script[f] ||= [])[k] = inp; };
+  for (let f = 0; f < 6; f++) at(f + 212, 0, { anyPress: true });
+  ops[300] = [{ set: { 0: { x: -14, vx: 0, facing: 1 }, 1: { x: 40 } } }];
+  ops[340] = [{ set: { 0: { x: -14, vx: 0, facing: 1 } } }, { dropAt: 0 }];
+  at(350, 0, press(0, 'pickup'));
+  at(360, 0, press(0, 'pickup'));
+  S.push({ name: 'Shield skips', stage: 'FoundryFloor', seed: 13, frames: 520, script, ops, who: [['Classic', ['Shield', 'Shield']], ['Noir', ['Sword', 'Sword']]] });
+  // and into the SIDE of a solid, below its top, where it stops like anything else (no skip)
+  const wall = JSON.parse(JSON.stringify({ script, ops }));
+  wall.ops[366] = [{ proj: { x: -36.5, y: -2, vx: 40, vy: -1 } }];
+  S.push({ name: 'Shield into a wall', stage: 'FoundryFloor', seed: 13, frames: 520, ...wall, who: [['Classic', ['Shield', 'Shield']], ['Noir', ['Sword', 'Sword']]] });
+}
+
+// 6. A brawl: four fighters, eight different weapons (four mechanics among them), seeded random
 //    inputs - walking, jumping, lights, heavies, dodges and a lot of pickups - for twenty seconds.
 {
   const rnd = lcg(2024);

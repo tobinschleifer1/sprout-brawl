@@ -49,6 +49,9 @@ export default {
   recovery: { kind: 'hop', vy: 60, vx: 18 },
   signature: 'SigNeutral',
 
+  // Thrown (weapon drops): the bow flies like its arrows: straight and long. Kill power measured in web/test/drops.test.mjs.
+  thrown: { speed: 58, vy: 2, gravity: 16, lifetime: 40, damage: 7, base: 15, growth: 1.8, angle: 30, size: [3.4, 0.8] },
+
   moves: {
     // ---- light string ----
     // Quick Shot is the only fast thing the bow owns and it is 3%: the string exists to buy space,

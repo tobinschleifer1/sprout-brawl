@@ -1,0 +1,37 @@
+# Weapon drops: two weapons, fists, throws
+
+The first of the "deeper fights" features, agreed 2026-10-08. Brawlhalla's core loop on Blockfall's
+twelve weapons.
+
+## The design (decided with the user)
+
+- **Two weapons per fighter.** Picked on the select screen. A fighter spawns on **fists** and holds
+  neither until they take a drop.
+- **Drops are generic.** Taking one arms you with whichever of your two you did not hold last
+  (`nextArm`). A drop only *looks* like a weapon when it is one somebody threw.
+- **The pickup button** (P): unarmed over a drop, take it; armed, throw. An item in reach is taken
+  before a throw while you hold no item. Works on the ground and in the air.
+- **Throws depend on the weapon** (phase 2): the hammer arcs heavy, the daggers fly fast and
+  straight, the shield bounces. Phase 1 gives every weapon the generic `DROPS.thrown`. A thrown
+  weapon hits for damage, then lands as a drop anyone can take.
+- **Fists**: a basic kit (jab, cross, shove, uppercut, sweep, kicks, three slow heavies), quick and
+  weak, no ultimate, no finishers, no mechanic; the meter keeps filling and waits for a weapon.
+  Their strongest hit has under half the knockback growth of any weapon's kill move.
+- **Your weapon is your stats**: weight, speed, size, jumps and mechanic come from what is in hand.
+- **Lost stock, lost weapon**: every life starts on fists.
+- **Off unless the match asks** (`cfg.weaponDrops`), so the replay suites' matches and their random
+  streams are untouched; rooms will turn it on (phase 6).
+
+## Phases
+
+1. **Engine core** (done): `DROPS` config, the fists kit, `buildArmed`, `Fighter.equip/arm/disarm`,
+   the throw move, drops (spawn, fall, land, fade, cap), the generic throw, landing a throw in the
+   air. Ported to Luau in the same commit; `tests/drops-parity.luau` replays it.
+2. **Per-weapon throws and balance**: a `thrown` profile per weapon, kill percents measured.
+3. **Bots**: go for drops unarmed, throw at range, punch when they must.
+4. **Look and feel (web)**: fist animations, drops falling in a beam, the spinning thrown weapon,
+   pickup flash, both weapons on the HUD card.
+5. **Roblox client**: snapshot codec (hands, drops), prediction, renderer, HUD.
+6. **Select screen and rooms**: pick two weapons, drops on in rooms, a live playtest.
+
+After this: new weapons (whip, chakram, rocket boots), then KO effects / emotes, then progression.

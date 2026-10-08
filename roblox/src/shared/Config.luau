@@ -79,6 +79,16 @@ Config.RESPAWN = { delay = 2.0, invinc = 120, height = 14 }
 -- items, most of which timed out untouched. 14 seconds keeps one in play most of the time without
 -- the match becoming about the floor.
 Config.ITEMS = { spawnEvery = 14, despawnAfter = 22, knockOutDamage = 12 }
+-- Weapon drops: see web/src/config.js DROPS, which says what each of these is.
+Config.DROPS = {
+	firstAt = 2, spawnEvery = 5, despawnAfter = 14, reach = { 3, 3.5 },
+	throwMove = { startup = 4, active = 1, recovery = 12 },
+	thrown = { speed = 46, vy = 6, gravity = 40, lifetime = 50, damage = 7, base = 15, growth = 1.4, angle = 42, size = { 2.4, 1.2 } },
+}
+-- How many drops may lie about at once, by fighters in the match.
+function Config.dropsOnStage(fighters: number): number
+	return math.min(4, 1 + fighters // 2)
+end
 Config.SUDDEN_DEATH = { percent = 300, shrinkEvery = 10, shrinkFactor = 0.8 }
 Config.INPUT_BUFFER = 6
 

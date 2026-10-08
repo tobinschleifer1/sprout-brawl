@@ -19,7 +19,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HERE, '../src/shared/Data');
 const WEB = '../../web/src/data';  // relative to THIS file, not to the cwd
 
-const { WEAPONS, DEFAULT_WEAPON } = await import(`${WEB}/weapons/index.js`);
+const { WEAPONS, DEFAULT_WEAPON, FISTS } = await import(`${WEB}/weapons/index.js`);
 const { AVATARS, BASE, DEFAULT_AVATAR } = await import(`${WEB}/avatars.js`);
 const { STAGES } = await import(`${WEB}/stages/index.js`);
 const { ITEM_LIST } = await import(`${WEB}/items.js`);
@@ -173,6 +173,7 @@ assertPlain(ART, 'ART');
 written.push(write('Art.luau', 'web/src/data/weaponArt.js', `return ${emit(ART, 0, 'ART')}`));
 
 assertPlain(WEAPONS, 'WEAPONS');
+assertPlain(FISTS, 'FISTS');
 written.push(write('Weapons.luau', 'web/src/data/weapons/*.js', `local WEAPONS = ${emit(WEAPONS, 0, 'WEAPONS')}
 
 -- Built here rather than emitted so the lookup holds the SAME tables as the list, which is what
@@ -182,7 +183,11 @@ for _, w in WEAPONS do
 	BY_ID[w.id] = w
 end
 
-return { LIST = WEAPONS, BY_ID = BY_ID, DEFAULT_ID = ${luaString(DEFAULT_WEAPON.id)} }`));
+-- What a fighter holds between weapons (weapon drops). Kept out of LIST and BY_ID, as the
+-- JavaScript keeps it out of WEAPONS and WEAPON_BY_ID: nothing that lists weapons offers it.
+local FISTS = ${emit(FISTS, 0, 'FISTS')}
+
+return { LIST = WEAPONS, BY_ID = BY_ID, DEFAULT_ID = ${luaString(DEFAULT_WEAPON.id)}, FISTS = FISTS }`));
 
 assertPlain(AVATARS, 'AVATARS');
 assertPlain(BASE, 'BASE');
@@ -237,7 +242,7 @@ for (const a of AVATARS) for (const w of WEAPONS) {
 }
 
 fs.writeFileSync(path.join(HERE, '../tests/data-fixture.json'),
-  JSON.stringify({ weapons: WEAPONS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA, parkour: PARKOUR }));
+  JSON.stringify({ weapons: WEAPONS, fists: FISTS, avatars: AVATARS, base: BASE, stages: STAGES, items: ITEM_LIST, loadouts, art: ART, rules: RULES, callouts: CALLOUTS, teams: TEAMS, kit: KIT, plaza: PLAZA, parkour: PARKOUR }));
 
 const count = (o) => JSON.stringify(o).length;
 console.log(`data generated: ${written.join(', ')}`);

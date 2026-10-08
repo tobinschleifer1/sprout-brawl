@@ -38,6 +38,7 @@ local RESPAWN = Config.RESPAWN
 local INPUT_BUFFER = Config.INPUT_BUFFER
 local COMBO = Config.COMBO
 local ULTIMATE = Config.ULTIMATE
+local DROPS = Config.DROPS
 
 -- JavaScript's local helper: sign(0) is +1, NOT 0. math.sign would change facing on a neutral stick.
 local function sign(v: number): number
@@ -66,6 +67,16 @@ local FREE_STATES = { idle = true, run = true, air = true }
 -- one combo (Config.COMBO); the first frame they are in anything else, the combo is over.
 local COMBO_HELD = { hitstun = true, knockdown = true, grabbed = true, frozen = true }
 local BUFFER_KEYS = { "jump", "light", "heavy", "dodge", "guard", "grab", "taunt", "ult", "pickup" }
+-- Throwing the weapon in hand (weapon drops): a move with no hitbox of its own whose first active
+-- frame lets the weapon go (Combat.throwWeapon), on the ground or in the air. Landing carries an air
+-- throw on as the ground throw rather than ending it (see _land), as in the JavaScript.
+local function throwMove(grounded: boolean): any
+	local T = DROPS.throwMove
+	return { id = "WeaponThrow", label = "Throw", kind = "weaponthrow", startup = T.startup, active = T.active,
+		recovery = T.recovery, total = T.startup + T.active + T.recovery, hitboxes = {}, grounded = grounded }
+end
+local THROW_GROUND = throwMove(true)
+local THROW_AIR = throwMove(false)
 
 local methods = {}
 local computed = {}
@@ -112,7 +123,13 @@ local Fighter = {}
 function Fighter.new(opts: any): any
 	local self = setmetatable({}, meta)
 	self.index = opts.index
-	self.char = opts.char
+	-- Weapon drops (Config.DROPS): `kit` is the two weapons this fighter carries, `fists` what they
+	-- fight with holding neither. Without a kit, `char` is the one weapon for the whole match.
+	self.kit = opts.kit
+	self.fists = opts.fists
+	self.armed = -1            -- which of `kit` is in hand (0 or 1, as in the JavaScript); -1 the fists
+	self.nextArm = 0           -- which one the next drop gives: the other one from the last held
+	self.char = if self.kit then self.fists else opts.char
 	self.skin = opts.skin or 0
 	self.team = if opts.team == nil then opts.index else opts.team
 	self.source = opts.source or "bot"
@@ -157,6 +174,48 @@ function methods._initMechanic(self)
 	elseif m.id == "Chill" then return { id = "Chill" }
 	end
 	return { id = m.id }
+end
+
+-- ---------------------------------------------------------------- weapons in hand ----
+-- Put a different loadout in this fighter's hands mid-fight (weapon drops). Everything a fighter
+-- takes from its weapon is refreshed; percent, stocks and the ultimate meter stay.
+function methods.equip(self, char: any)
+	self.char = char
+	self.r = char.radius; self.h = char.height; self.weight = char.weight
+	self.mech = methods._initMechanic(self)
+	self.jumpsLeft = math.min(self.jumpsLeft, char.jumps)
+	self.chargeMods = nil; self.bonusDamage = 0; self.launchMul = 1; self.rangeMul = 1
+end
+-- Take up the next of the two weapons (the one not held last). `armed` counts from 0, as the
+-- JavaScript's does, so the two builds' traces say the same thing; the kit table is 1-based.
+function methods.arm(self)
+	local i = self.nextArm
+	self.armed = i; self.nextArm = 1 - i
+	methods.equip(self, self.kit[i + 1])
+	methods.emit(self, { type = "arm", weapon = self.char.weapon.id, slot = i })
+end
+-- Back to the fists: the weapon has been thrown, or the stock lost.
+function methods.disarm(self)
+	if self.armed < 0 then return end
+	self.armed = -1
+	methods.equip(self, self.fists)
+end
+-- The pickup button in a match with drops: unarmed over a drop, take it; armed, throw. An item in
+-- reach comes first while you hold no item.
+function methods._weaponButton(self, ctx): boolean
+	if not self.kit or self.buffer.pickup <= 0 then return false end
+	local combat = ctx.combat
+	if self.armed < 0 then
+		local d = combat:dropNear(self)
+		if not d then return false end
+		self.buffer.pickup = 0
+		combat:takeDrop(self, d)
+		return true
+	end
+	if not self.item and combat:itemNear(self) then return false end
+	self.buffer.pickup = 0
+	methods.startMove(self, if self.onGround then THROW_GROUND else THROW_AIR)
+	return true
 end
 
 function methods.reset(self, x: number, y: number, opts: any?)
@@ -472,6 +531,7 @@ function methods._stepGround(self, ctx)
 		methods.dropThrough(self); return
 	end
 	if methods.consume(self, "jump") then methods.setState(self, "jumpsquat"); return end
+	if methods._weaponButton(self, ctx) then return end
 	if self.item then
 		if methods.consume(self, "light") then ctx.combat:useItem(self, "light"); return end
 		if methods.consume(self, "heavy") then ctx.combat:useItem(self, "heavy"); return end
@@ -649,6 +709,7 @@ function methods._stepAir(self, ctx)
 		methods.emit(self, { type = "doublejump" })
 	end
 	if methods._tryUltimate(self, ctx) then return end
+	if methods._weaponButton(self, ctx) then return end
 	if methods.consume(self, "light") then methods._startAerial(self, inp); return end
 	if methods.consume(self, "heavy") then
 		if inp.y < -0.5 then methods._startGroundPound(self) else methods._startRecovery(self, ctx) end
@@ -669,6 +730,12 @@ end
 -- invincibility on startup so an ultimate cannot be poked out of the air the frame it starts.
 function methods._tryUltimate(self, ctx): boolean
 	if self.buffer.ult <= 0 then
+		return false
+	end
+	-- Fists have no ultimate. The meter is the fighter's and waits for a weapon to spend it.
+	if not self.char.moves.Ultimate then
+		self.buffer.ult = 0
+		methods.emit(self, { type = "ultdenied", reason = "unarmed" })
 		return false
 	end
 	if not computed.ultReady(self) then
@@ -1350,6 +1417,10 @@ function methods._land(self, p: any, ctx: any)
 	self.ledgeGrabs = 0; self.fastFalling = false; self.dropTimer = 0
 	local s = self.state
 	methods.emit(self, { type = "land", hard = s == "groundpound" })
+	if s == "attack" and self.move == THROW_AIR then
+		self.move = THROW_GROUND
+		return
+	end
 	if s == "attack" and self.move and self.move.grounded == false then
 		local ended = self.mf > self.startupEff + self.move.active
 		self.lag = if ended then 4 else (self.move.landingLag or 8)
@@ -1605,6 +1676,7 @@ end
 function methods.respawn(self, x: number, opts: any?)
 	local o = opts or {}
 	self.alive = true
+	methods.disarm(self)          -- a lost stock loses the weapon in hand: every life starts on fists
 	methods.reset(self, x, RESPAWN.height,
 		{ state = "respawn", percent = o.percent or 0, invincible = RESPAWN.invinc })
 	self.facing = if x < 0 then 1 else -1
@@ -1762,6 +1834,8 @@ local SCALARS = {
 	"armorUsed", "bonusDamage", "launchMul", "rangeMul", "noGravityFrame", "frameCount",
 	"volleyCount", "inWater", "lastHitFrame", "skin", "team", "index", "r", "h", "weight",
 	"pendingLaunchFrame",
+	-- Weapon drops: which of the two is in hand, and which the next drop gives.
+	"armed", "nextArm",
 	-- Combos: the string the attacker is in and the combo the victim is held in. A rollback that
 	-- dropped these would forget a timed streak, or a combo count, mid-string.
 	"moveSerial", "linkPerfect", "perfectStreak", "chainDepth", "comboHits", "comboKey",
@@ -1778,6 +1852,8 @@ local SCALARS = {
 local REFS = { "platform", "ledge", "move", "holder", "lastHitBy", "char", "reflecting", "marking",
 	"comboTarget",
 	"ultTarget", "ultAnchor", "chargeMods", "item",
+	-- the two weapons carried and the fists: read-only loadouts, like `char`
+	"kit", "fists",
 	-- The match this fighter belongs to. A reference, never copied.
 	"_match" }
 

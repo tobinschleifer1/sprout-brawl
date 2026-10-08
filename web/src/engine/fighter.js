@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO } from '../config.js';
+import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO, DROPS } from '../config.js';
 import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockstunFor } from './knockback.js';
 import { emptyFrame } from './input.js';
 
@@ -27,11 +27,27 @@ const clampEnv = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const COMBO_HELD = new Set(['hitstun', 'knockdown', 'grabbed', 'frozen']);
 
 const NO_GRAVITY_STATES = new Set(['ledge', 'grabbed', 'holding', 'frozen', 'tether', 'ko', 'respawn', 'ledgeaction']);
+// Throwing the weapon in hand (DROPS): a move with no hitbox of its own whose first active frame
+// lets the weapon go (Combat.throwWeapon), on the ground or in the air. Landing does not end an
+// air throw the way it ends an aerial - it carries on as the ground throw (see _land) - because a
+// throw started just above the floor was eaten by the landing and the weapon never left.
+const T = DROPS.throwMove;
+const throwMove = (grounded) => ({ id: 'WeaponThrow', label: 'Throw', kind: 'weaponthrow', startup: T.startup, active: T.active,
+  recovery: T.recovery, total: T.startup + T.active + T.recovery, hitboxes: [], grounded });
+export const THROW_GROUND = throwMove(true);
+export const THROW_AIR = throwMove(false);
 
 export class Fighter {
   constructor(opts) {
     this.index = opts.index;
-    this.char = opts.char;
+    // Weapon drops (DROPS in config.js): `kit` is the two weapons this fighter carries, `fists`
+    // what they fight with holding neither. Without a kit - a match without drops - `char` is the
+    // one weapon for the whole match, as it always was. With one, the fighter starts on fists.
+    this.kit = opts.kit || null;
+    this.fists = opts.fists || null;
+    this.armed = -1;            // which of `kit` is in hand; -1 is the fists
+    this.nextArm = 0;           // which one the next drop gives: the other one from the last held
+    this.char = this.kit ? this.fists : opts.char;
     this.skin = opts.skin || 0;
     this.team = opts.team == null ? opts.index : opts.team;
     this.source = opts.source || 'bot';
@@ -71,6 +87,49 @@ export class Fighter {
       case 'Chill': return { id: 'Chill' };
       default: return { id: m.id };
     }
+  }
+
+  // ---------- weapons in hand (DROPS) ----------
+  // Put a different loadout in this fighter's hands mid-fight. Everything a fighter takes from its
+  // weapon - size, weight, jumps, its mechanic's state - is refreshed; the percent, the stocks and
+  // the ultimate meter are the fighter's own and stay.
+  equip(char) {
+    this.char = char;
+    this.r = char.radius; this.h = char.height; this.weight = char.weight;
+    this.mech = this._initMechanic();
+    this.jumpsLeft = Math.min(this.jumpsLeft, char.jumps);
+    this.chargeMods = null; this.bonusDamage = 0; this.launchMul = 1; this.rangeMul = 1;
+  }
+  // Take up the next of the two weapons (the one not held last).
+  arm() {
+    const i = this.nextArm;
+    this.armed = i; this.nextArm = 1 - i;
+    this.equip(this.kit[i]);
+    this.emit({ type: 'arm', weapon: this.char.weapon.id, slot: i });
+  }
+  // Back to the fists: the weapon has been thrown, or the stock lost.
+  disarm() {
+    if (this.armed < 0) return;
+    this.armed = -1;
+    this.equip(this.fists);
+  }
+  // The pickup button in a match with drops: unarmed over a drop, take it; armed, throw. Returns
+  // true if it did either. An item within reach comes first while you hold no item: pickup means
+  // pick up, and a throw is what the button does when there is nothing to take.
+  _weaponButton(ctx) {
+    if (!this.kit || this.buffer.pickup <= 0) return false;
+    const combat = ctx.combat;
+    if (this.armed < 0) {
+      const d = combat.dropNear(this);
+      if (!d) return false;
+      this.buffer.pickup = 0;
+      combat.takeDrop(this, d);
+      return true;
+    }
+    if (!this.item && combat.itemNear(this)) return false;
+    this.buffer.pickup = 0;
+    this.startMove(this.onGround ? THROW_GROUND : THROW_AIR);
+    return true;
   }
 
   reset(x, y, opts = {}) {
@@ -299,6 +358,7 @@ export class Fighter {
     const inp = this.input;
     if (inp.downTap && this.platform && this.platform.soft) { this.dropThrough(); return; }
     if (this.consume('jump')) { this.setState('jumpsquat'); return; }
+    if (this._weaponButton(ctx)) return;
     if (this.item) {
       if (this.consume('light')) { ctx.combat.useItem(this, 'light'); return; }
       if (this.consume('heavy')) { ctx.combat.useItem(this, 'heavy'); return; }
@@ -433,6 +493,7 @@ export class Fighter {
       this.emit({ type: 'doublejump' });
     }
     if (this._tryUltimate(ctx)) return;
+    if (this._weaponButton(ctx)) return;
     if (this.consume('light')) { this._startAerial(inp); return; }
     if (this.consume('heavy')) { if (inp.y < -0.5) this._startGroundPound(); else this._startRecovery(ctx); return; }
     if (this.consume('dodge') && !this.airDodgeUsed) { this._startAirDodge(inp); return; }
@@ -444,6 +505,8 @@ export class Fighter {
   // invincibility on startup so an ultimate cannot simply be poked out of the air the frame it starts.
   _tryUltimate(ctx) {
     if (this.buffer.ult <= 0) return false;
+    // Fists have no ultimate. The meter is the fighter's and waits for a weapon to spend it.
+    if (!this.char.moves.Ultimate) { this.buffer.ult = 0; this.emit({ type: 'ultdenied', reason: 'unarmed' }); return false; }
     if (!this.ultReady) { this.buffer.ult = 0; this.emit({ type: 'ultdenied', reason: 'charge' }); return false; }
     // A slam that opens the floor has to be standing on one. Without this the crater fired all
     // its bursts mid-air while the "planted in the floor" pose played in open sky.
@@ -981,6 +1044,7 @@ export class Fighter {
     this.jumpsLeft = this.char.jumps; this.airDodgeUsed = false; this.recoveryUsed = false; this.ledgeGrabs = 0; this.fastFalling = false; this.dropTimer = 0;
     const s = this.state;
     this.emit({ type: 'land', hard: s === 'groundpound' });
+    if (s === 'attack' && this.move === THROW_AIR) { this.move = THROW_GROUND; return; }
     if (s === 'attack' && this.move && this.move.grounded === false) {
       const ended = this.mf > this.startupEff + this.move.active;
       this.lag = ended ? 4 : (this.move.landingLag || 8);
@@ -1136,6 +1200,7 @@ export class Fighter {
   }
   respawn(x, opts = {}) {
     this.alive = true;
+    this.disarm();              // a lost stock loses the weapon in hand: every life starts on fists
     this.reset(x, RESPAWN.height, { state: 'respawn', percent: opts.percent || 0, invincible: RESPAWN.invinc });
     this.facing = x < 0 ? 1 : -1;
   }

@@ -68,6 +68,9 @@ function Match.new(cfg: any): any
 	self.time = 0
 	self.timeLimit = cfg.timeLimit or 180
 	self.itemsOn = not not cfg.items
+	-- Weapon drops (Config.DROPS): every fighter carries the two weapons in `fc.kit`, fights on
+	-- `fc.fists` between them, and drops fall through the fight.
+	self.dropsOn = not not cfg.weaponDrops
 	self.fighters = {}
 	for i, fc in cfg.fighters do
 		local spawns = self.stage.data.spawns
@@ -75,7 +78,8 @@ function Match.new(cfg: any): any
 		local f = Fighter.new({ index = i - 1, char = fc.char, skin = fc.skin,
 			team = if self.teams then fc.team else i - 1, source = fc.source, isBot = fc.isBot,
 			botLevel = fc.botLevel, name = fc.name, stocks = cfg.stocks or 3,
-			x = spawnX, y = RESPAWN.height })
+			x = spawnX, y = RESPAWN.height,
+			kit = if self.dropsOn then fc.kit else nil, fists = if self.dropsOn then fc.fists else nil })
 		f:setState("respawn")
 		f.invincible = 0
 		f.eliminatedAt = nil
@@ -179,6 +183,9 @@ function Match.step(self)
 	end
 	if self.itemsOn and self.state == "fight" then
 		Combat.maybeSpawnItem(self.combat, #self.fighters)
+	end
+	if self.dropsOn and (self.state == "fight" or self.state == "suddendeath") then
+		Combat.maybeSpawnDrop(self.combat, #self.fighters)
 	end
 	if self.state == "suddendeath" then
 		self.sdTimer += FRAME
@@ -382,6 +389,10 @@ function Match.resetTraining(self)
 	table.clear(self.combat.summons)
 	table.clear(self.combat.bursts)
 	table.clear(self.combat.items)
+	table.clear(self.combat.drops)
+	for _, f in self.fighters do
+		f:disarm()
+	end
 end
 
 return Match

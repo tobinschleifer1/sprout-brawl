@@ -66,6 +66,7 @@ local function compare(js: any, lua: any, path: string)
 end
 
 compare(fixture.weapons, Weapons.LIST, "weapons")
+compare(fixture.fists, Weapons.FISTS, "fists")
 compare(fixture.avatars, Avatars.LIST, "avatars")
 compare(fixture.base, Avatars.BASE, "avatars.BASE")
 compare(fixture.stages, Stages.LIST, "stages")
@@ -116,7 +117,9 @@ end
 -- nowhere in the simulation, the renderer or the UI - Fighter recomputes the same sum itself from
 -- startupEff. It is checked here anyway, because it is still evidence that the derivation loop ran.
 local moves = 0
-for _, w in Weapons.LIST do
+local everyKit = table.clone(Weapons.LIST)
+table.insert(everyKit, Weapons.FISTS)        -- the fists' moves are derived by the same loop
+for _, w in everyKit do
 	for id, m in w.moves do
 		moves += 1
 		leaves += 4

@@ -1,5 +1,5 @@
 import { Match } from '../src/engine/match.js';
-import { buildLoadout } from '../src/data/loadout.js';
+import { buildLoadout, buildArmed } from '../src/data/loadout.js';
 import { STAGES } from '../src/data/stages/index.js';
 export const EMPTY = () => ({ x:0,y:0,jump:false,light:false,heavy:false,dodge:false,guard:false,grab:false,taunt:false,pickup:false,
   jumpHeld:false,guardHeld:false,heavyHeld:false,lightHeld:false,downTap:false,anyPress:false });
@@ -12,8 +12,12 @@ export function makeMatch(o={}){
   const input=new FakeInput();
   const m=new Match({ mode:o.mode||'StockFFA', stage:STAGES.find(s=>s.id===(o.stageId||'FoundryFloor')), input,
     stocks:o.stocks??3, timeLimit:o.timeLimit??180, items:false, seed:o.seed??1, disasters:o.disasters, forceDisaster:o.forceDisaster, disasterFirstAt:o.disasterFirstAt,
+    // `armed` takes [avatarId, [weaponId, weaponId]] pairs and turns weapon drops on (DROPS);
     // `loadouts` takes [avatarId, weaponId] pairs; `fighters` still takes legacy character ids.
-    fighters:(o.loadouts
+    weaponDrops: !!o.armed,
+    fighters:(o.armed
+      ? o.armed.map(([a,ws],i)=>{ const A=buildArmed(a,ws); return {...A,skin:0,team:i,source:'p'+i,isBot:false,name:'P'+i}; })
+      : o.loadouts
       ? o.loadouts.map(([a,w],i)=>{ const L=buildLoadout(a,w); return {char:L,skin:0,team:i,source:'p'+i,isBot:false,name:L.weapon.id}; })
       : (o.fighters||[['Classic','Sword'],['Noir','Sword']]).map(([a,w],i)=>{ const L=buildLoadout(a,w); return {char:L,skin:0,team:i,source:'p'+i,isBot:false,name:L.weapon.id}; })) });
   m._input=input; return m;

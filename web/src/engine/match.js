@@ -23,9 +23,13 @@ export class Match {
     this.frame = 0; this.time = 0;
     this.timeLimit = cfg.timeLimit || 180;
     this.itemsOn = !!cfg.items;
+    // Weapon drops (DROPS in config.js): every fighter carries the two weapons in `fc.kit`, fights
+    // on `fc.fists` between them, and drops fall through the fight.
+    this.dropsOn = !!cfg.weaponDrops;
     this.fighters = cfg.fighters.map((fc, i) => {
       const spawnX = this.stage.data.spawns[i % this.stage.data.spawns.length];
-      const f = new Fighter({ index: i, char: fc.char, skin: fc.skin, team: this.teams ? fc.team : i, source: fc.source, isBot: fc.isBot, botLevel: fc.botLevel, name: fc.name, stocks: cfg.stocks || 3, x: spawnX, y: RESPAWN.height });
+      const f = new Fighter({ index: i, char: fc.char, skin: fc.skin, team: this.teams ? fc.team : i, source: fc.source, isBot: fc.isBot, botLevel: fc.botLevel, name: fc.name, stocks: cfg.stocks || 3, x: spawnX, y: RESPAWN.height,
+        kit: this.dropsOn ? fc.kit : null, fists: this.dropsOn ? fc.fists : null });
       f.setState('respawn'); f.invincible = 0; f.eliminatedAt = null; f.koTimer = 0; f._match = this;
       return f;
     });
@@ -82,6 +86,7 @@ export class Match {
       }
     }
     if (this.itemsOn && this.state === 'fight') this.combat.maybeSpawnItem(this.fighters.length);
+    if (this.dropsOn && (this.state === 'fight' || this.state === 'suddendeath')) this.combat.maybeSpawnDrop(this.fighters.length);
     if (this.state === 'suddendeath') {
       this.sdTimer += FRAME;
       if (this.sdTimer >= SUDDEN_DEATH.shrinkEvery) { this.sdTimer = 0; this.stage.shrink(SUDDEN_DEATH.shrinkFactor); this.events.push({ type: 'shrink' }); }
@@ -181,6 +186,8 @@ export class Match {
       f.alive = true; f.reset(spawnX, RESPAWN.height, { state: 'respawn', percent: 0, invincible: 0 });
     }
     this.combat.projectiles.length = 0; this.combat.summons.length = 0; this.combat.bursts.length = 0; this.combat.items.length = 0;
+    this.combat.drops.length = 0;
+    for (const f of this.fighters) f.disarm();
   }
 }
 

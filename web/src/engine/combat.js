@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO } from '../config.js';
+import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage } from '../config.js';
 import { launchSpeed, stunSpeed, hitlag as hitlagFor } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
@@ -25,6 +25,12 @@ export class Combat {
     this.projectiles = []; this.summons = []; this.bursts = []; this.items = []; this.plates = [];
     this.events = []; this.debugBoxes = [];
     this.itemTimer = 0;
+    // Weapon drops (DROPS): what is lying on the stage to arm yourself with, and the clock to the
+    // next one in whole frames (starting from DROPS.firstAt, not a full interval). Frames, not
+    // seconds: summing FRAME a hundred and twenty times comes to 1.9999999999999996, and the first
+    // drop fell two frames late.
+    this.drops = [];
+    this.dropTimer = Math.round((DROPS.spawnEvery - DROPS.firstAt) * 60);
   }
   get fighters() { return this.match.fighters; }
   get stage() { return this.match.stage; }
@@ -98,6 +104,7 @@ export class Combat {
     this.stepSummons();
     this.stepBursts();
     this.stepItems();
+    this.stepDrops();
     this.stepPlates();
   }
 
@@ -289,6 +296,7 @@ export class Combat {
 
   // ---------- move triggers ----------
   onMoveActive(f, m) {
+    if (m.kind === 'weaponthrow') { this.throwWeapon(f); return; }
     if (m.kind === 'beam' && m.charge) {
       const k = Math.min(1, f.charge / m.charge.maxHold);
       const lerp = (a, b) => a + (b - a) * k;
@@ -744,7 +752,8 @@ export class Combat {
         for (const sp of this.stage.solids) {
           if (p.x > sp.x1 && p.x < sp.x2 && p.y < sp.top && p.y > sp.bottom) {
             dead = true;
-            if (p.falling) p.y = sp.top + 0.6;             // burst ON the floor, not inside it
+            // burst ON the floor, not inside it - and a thrown weapon lands on top, not in the wall
+            if (p.falling || p.weaponDrop) p.y = sp.top + 0.6;
             if (p.explode) this.explode(p);
             else this.emit({ type: 'projectilebreak', x: p.x, y: p.y });
             break;
@@ -794,8 +803,14 @@ export class Combat {
           if (hit && !p.pierce) { dead = true; break; }
         }
       }
-      if (p.y < this.stage.blast.bottom - 10 || Math.abs(p.x) > 200) dead = true;
-      if (dead) this.projectiles.splice(i, 1);
+      const lost = p.y < this.stage.blast.bottom - 10 || Math.abs(p.x) > 200;
+      if (lost) dead = true;
+      if (dead) {
+        this.projectiles.splice(i, 1);
+        // A thrown weapon that hits, lands or is stopped falls where it is, for anyone to take.
+        // One that leaves the stage is gone.
+        if (p.weaponDrop && !lost) this.spawnDrop(p.x, Math.max(p.y, this.stage.blast.bottom), p.weaponDrop, { vx: -p.vx * 0.15, vy: 14 });
+      }
     }
   }
 
@@ -1063,6 +1078,67 @@ export class Combat {
     this.removeItem(it);
     f.lag = 12; f.setState('landing');
     this.emit({ type: 'throwitem', x: f.x, y: f.cy, item: it.def.id });
+  }
+
+  // ---------- weapon drops (DROPS in config.js) ----------
+  // A drop is not a particular weapon: taking one arms you with the next of YOUR two. `look` is
+  // only what it looks like lying there - the weapon someone threw, or nothing for a fresh drop.
+  spawnDrop(x, y, look = null, v = {}) {
+    const d = { x, y, vx: v.vx || 0, vy: v.vy || 0, onGround: false, life: DROPS.despawnAfter * 60, look };
+    this.drops.push(d);
+    this.emit({ type: 'dropspawn', x, y, weapon: look });
+    return d;
+  }
+  dropNear(f) {
+    const [rx, ry] = DROPS.reach;
+    for (const d of this.drops) if (Math.abs(d.x - f.x) < rx && Math.abs(d.y - f.y) < ry) return d;
+    return null;
+  }
+  takeDrop(f, d) {
+    const i = this.drops.indexOf(d);
+    if (i >= 0) this.drops.splice(i, 1);
+    f.arm();
+    this.emit({ type: 'droptake', x: d.x, y: d.y, fighter: f.index, weapon: f.char.weapon.id });
+  }
+  // The weapon in hand leaves as a projectile on the throw's first active frame, and the fighter
+  // is on fists from that frame. It flies like `thrown` and lands as a drop that looks like it.
+  throwWeapon(f) {
+    if (f.armed < 0) return;
+    const weapon = f.char.weapon;
+    const T = weapon.thrown || DROPS.thrown;
+    const pr = {
+      owner: f, move: { id: 'ThrownWeapon', damage: T.damage, base: T.base, growth: T.growth, angle: T.angle, kind: 'melee' },
+      x: f.x + f.facing * 1.6, y: f.y + 3.2, vx: f.facing * T.speed + f.vx * 0.3, vy: T.vy,
+      w: T.size[0], h: T.size[1], life: T.lifetime, gravity: T.gravity, hitVictims: new Set(),
+      facing: f.facing, item: false, shape: 'weapon', weaponDrop: weapon.id,
+    };
+    pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h);
+    this.projectiles.push(pr);
+    f.disarm();
+    this.emit({ type: 'throwweapon', x: f.x, y: f.cy, weapon: weapon.id, fighter: f.index });
+  }
+  stepDrops() {
+    for (let i = this.drops.length - 1; i >= 0; i--) {
+      const d = this.drops[i];
+      d.vy = Math.max(-40, d.vy - GRAVITY * FRAME);
+      const py = d.y;
+      d.x += d.vx * FRAME; d.y += d.vy * FRAME; d.vx *= 0.95;
+      d.onGround = false;
+      if (d.vy <= 0) for (const p of this.stage.platforms) {
+        if (d.x > p.x1 && d.x < p.x2 && py >= p.top - 0.3 && d.y <= p.top) { d.y = p.top; d.vy = 0; d.vx = 0; d.onGround = true; break; }
+      }
+      if (d.onGround) d.life--;
+      if (d.life <= 0 || d.y < this.stage.blast.bottom) { this.drops.splice(i, 1); this.emit({ type: 'dropgone', x: d.x, y: d.y }); }
+    }
+  }
+  maybeSpawnDrop(fighterCount) {
+    this.dropTimer++;
+    if (this.dropTimer < Math.round(DROPS.spawnEvery * 60)) return;
+    if (this.drops.length >= dropsOnStage(fighterCount)) return;
+    this.dropTimer = 0;
+    // From the match's seeded generator, like the items: where a drop falls is part of a replay.
+    const p = this.stage.itemSpawn();
+    this.spawnDrop(p.x, p.y);
   }
 
   // ---------- spring plates ----------

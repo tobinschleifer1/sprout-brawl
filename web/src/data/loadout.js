@@ -1,5 +1,5 @@
 import { BASE, avatarById, DEFAULT_AVATAR } from './avatars.js';
-import { WEAPON_BY_ID, DEFAULT_WEAPON } from './weapons/index.js';
+import { WEAPON_BY_ID, DEFAULT_WEAPON, FISTS } from './weapons/index.js';
 
 // A loadout is an avatar (cosmetic) plus a weapon (everything that matters). It is composed into
 // exactly the shape the engine already expected from a character file, so engine/fighter.js,
@@ -25,7 +25,8 @@ export function applyStats(weapon) {
 
 export function buildLoadout(avatarId, weaponId) {
   const avatar = avatarById(avatarId);   // resolves presets and player-made characters alike
-  const weapon = WEAPON_BY_ID[weaponId] || DEFAULT_WEAPON;
+  // 'Fists' is the unarmed kit, built like any weapon but never listed as one (weapons/index.js).
+  const weapon = weaponId === FISTS.id ? FISTS : (WEAPON_BY_ID[weaponId] || DEFAULT_WEAPON);
   return {
     id: `${avatar.id}:${weapon.id}`,
     name: weapon.name,                 // the HUD names the weapon; the avatar is who you look like
@@ -44,6 +45,14 @@ export function buildLoadout(avatarId, weaponId) {
     signature: weapon.signature,
     moves: weapon.moves,               // shared by reference: move objects are read-only at runtime
   };
+}
+
+// A fighter for a match with weapon drops: the two weapons they carry and the fists they hold
+// between them, all on one body. `char` is what they start with - the fists.
+export function buildArmed(avatarId, weaponIds) {
+  const kit = [buildLoadout(avatarId, weaponIds[0]), buildLoadout(avatarId, weaponIds[1] ?? weaponIds[0])];
+  const fists = buildLoadout(avatarId, FISTS.id);
+  return { char: fists, kit, fists };
 }
 
 // Convenience for menus and tests: every weapon on a default body.

@@ -61,8 +61,9 @@ end
 
 function Loadout.build(avatarId: string?, weaponId: string?): any
 	local avatar = Loadout.avatarById(avatarId)
-	local weapon = (if weaponId then Weapons.BY_ID[weaponId] else nil) or Weapons.BY_ID[Weapons.DEFAULT_ID]
-
+	-- "Fists" is the unarmed kit, built like any weapon but never listed as one (Data/Weapons).
+	local weapon = if weaponId == Weapons.FISTS.id then Weapons.FISTS
+		else (if weaponId then Weapons.BY_ID[weaponId] else nil) or Weapons.BY_ID[Weapons.DEFAULT_ID]
 	local out = Loadout.applyStats(weapon) :: any
 	out.id = `{avatar.id}:{weapon.id}`
 	out.name = weapon.name              -- the HUD names the weapon; the avatar is who you look like
@@ -82,4 +83,11 @@ function Loadout.build(avatarId: string?, weaponId: string?): any
 	return out
 end
 
+-- A fighter for a match with weapon drops: the two weapons they carry and the fists they hold
+-- between them, all on one body. `char` is what they start with - the fists.
+function Loadout.buildArmed(avatarId: string?, weaponIds: { string }): any
+	local kit = { Loadout.build(avatarId, weaponIds[1]), Loadout.build(avatarId, weaponIds[2] or weaponIds[1]) }
+	local fists = Loadout.build(avatarId, Weapons.FISTS.id)
+	return { char = fists, kit = kit, fists = fists }
+end
 return Loadout

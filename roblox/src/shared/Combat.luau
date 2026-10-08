@@ -22,6 +22,7 @@ local GRAB = Config.GRAB
 local GROUND_POUND = Config.GROUND_POUND
 local LEDGE = Config.LEDGE
 local ITEM_CFG = Config.ITEMS
+local DROPS = Config.DROPS
 
 local function hypot(x: number, y: number): number
 	return math.sqrt(x * x + y * y)
@@ -87,6 +88,10 @@ function Combat.new(match: any): any
 	self.events = {}
 	self.debugBoxes = {}
 	self.itemTimer = 0
+	-- Weapon drops: what is lying on the stage to arm yourself with, and the clock to the next one
+	-- in whole frames (from DROPS.firstAt, not a full interval).
+	self.drops = {}
+	self.dropTimer = math.floor((DROPS.spawnEvery - DROPS.firstAt) * 60 + 0.5)
 	return self
 end
 
@@ -200,6 +205,7 @@ function Combat.step(self)
 	Combat.stepSummons(self)
 	Combat.stepBursts(self)
 	Combat.stepItems(self)
+	Combat.stepDrops(self)
 	Combat.stepPlates(self)
 end
 
@@ -550,6 +556,10 @@ local ACTIVE_KINDS = { pulse = true }
 local FRAME_KINDS = {}
 
 function Combat.onMoveActive(self, f: any, m: any)
+	if m.kind == "weaponthrow" then
+		Combat.throwWeapon(self, f)
+		return
+	end
 	if m.kind == "beam" and m.charge then
 		local k = math.min(1, f.charge / m.charge.maxHold)
 		local function lerp(a: number, b: number): number
@@ -1080,7 +1090,8 @@ function Combat.stepProjectiles(self)
 			for _, sp in self.match.stage.solids do
 				if p.x > sp.x1 and p.x < sp.x2 and p.y < sp.top and p.y > sp.bottom then
 					dead = true
-					if p.falling then
+					-- and a thrown weapon lands on top, not in the wall
+					if p.falling or p.weaponDrop then
 						p.y = sp.top + 0.6                  -- burst ON the floor, not inside it
 					end
 					if p.explode then
@@ -1169,11 +1180,18 @@ function Combat.stepProjectiles(self)
 				end
 			end
 		end
-		if p.y < self.match.stage.blast.bottom - 10 or math.abs(p.x) > 200 then
+		local lost = p.y < self.match.stage.blast.bottom - 10 or math.abs(p.x) > 200
+		if lost then
 			dead = true
 		end
 		if dead then
 			table.remove(self.projectiles, i)
+			-- A thrown weapon that hits, lands or is stopped falls where it is, for anyone to take.
+			-- One that leaves the stage is gone.
+			if p.weaponDrop and not lost then
+				Combat.spawnDrop(self, p.x, math.max(p.y, self.match.stage.blast.bottom), p.weaponDrop,
+					{ vx = -p.vx * 0.15, vy = 14 })
+			end
 		end
 	end
 end
@@ -1499,6 +1517,101 @@ function Combat.stepPlates(self)
 			end
 		end
 	end
+end
+
+-- ---------------------------------------------------------------- weapon drops ----
+-- A drop is not a particular weapon: taking one arms you with the next of YOUR two. `look` is only
+-- what it looks like lying there - the weapon someone threw, or nil for a fresh drop.
+function Combat.spawnDrop(self, x: number, y: number, look: string?, v: any?)
+	local vel = v or {}
+	local d = { x = x, y = y, vx = vel.vx or 0, vy = vel.vy or 0, onGround = false,
+		life = DROPS.despawnAfter * 60, look = look }
+	table.insert(self.drops, d)
+	Combat.emit(self, { type = "dropspawn", x = x, y = y, weapon = look })
+	return d
+end
+
+function Combat.dropNear(self, f: any): any
+	local rx, ry = DROPS.reach[1], DROPS.reach[2]
+	for _, d in self.drops do
+		if math.abs(d.x - f.x) < rx and math.abs(d.y - f.y) < ry then
+			return d
+		end
+	end
+	return nil
+end
+
+function Combat.takeDrop(self, f: any, d: any)
+	local i = table.find(self.drops, d)
+	if i then
+		table.remove(self.drops, i)
+	end
+	f:arm()
+	Combat.emit(self, { type = "droptake", x = d.x, y = d.y, fighter = f.index, weapon = f.char.weapon.id })
+end
+
+-- The weapon in hand leaves as a projectile on the throw's first active frame, and the fighter is
+-- on fists from that frame. It flies like `thrown` and lands as a drop that looks like it.
+function Combat.throwWeapon(self, f: any)
+	if f.armed < 0 then
+		return
+	end
+	local weapon = f.char.weapon
+	local T = weapon.thrown or DROPS.thrown
+	local pr: any = {
+		owner = f, move = { id = "ThrownWeapon", damage = T.damage, base = T.base, growth = T.growth, angle = T.angle, kind = "melee" },
+		x = f.x + f.facing * 1.6, y = f.y + 3.2, vx = f.facing * T.speed + f.vx * 0.3, vy = T.vy,
+		w = T.size[1], h = T.size[2], life = T.lifetime, gravity = T.gravity, hitVictims = {},
+		facing = f.facing, item = false, shape = "weapon", weaponDrop = weapon.id,
+	}
+	pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)
+	table.insert(self.projectiles, pr)
+	f:disarm()
+	Combat.emit(self, { type = "throwweapon", x = f.x, y = f.cy, weapon = weapon.id, fighter = f.index })
+end
+
+function Combat.stepDrops(self)
+	for i = #self.drops, 1, -1 do
+		local d = self.drops[i]
+		d.vy = math.max(-40, d.vy - GRAVITY * FRAME)
+		local py = d.y
+		d.x += d.vx * FRAME
+		d.y += d.vy * FRAME
+		d.vx *= 0.95
+		d.onGround = false
+		if d.vy <= 0 then
+			for _, p in self.match.stage.platforms do
+				if d.x > p.x1 and d.x < p.x2 and py >= p.top - 0.3 and d.y <= p.top then
+					d.y = p.top
+					d.vy = 0
+					d.vx = 0
+					d.onGround = true
+					break
+				end
+			end
+		end
+		if d.onGround then
+			d.life -= 1
+		end
+		if d.life <= 0 or d.y < self.match.stage.blast.bottom then
+			table.remove(self.drops, i)
+			Combat.emit(self, { type = "dropgone", x = d.x, y = d.y })
+		end
+	end
+end
+
+function Combat.maybeSpawnDrop(self, fighterCount: number)
+	self.dropTimer += 1
+	if self.dropTimer < math.floor(DROPS.spawnEvery * 60 + 0.5) then
+		return
+	end
+	if #self.drops >= Config.dropsOnStage(fighterCount) then
+		return
+	end
+	self.dropTimer = 0
+	-- From the match's seeded generator, like the items: where a drop falls is part of a replay.
+	local p = self.match.stage:itemSpawn()
+	Combat.spawnDrop(self, p.x, p.y)
 end
 
 function Combat.stepItems(self)

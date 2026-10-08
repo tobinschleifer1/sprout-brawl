@@ -81,6 +81,26 @@ export const RESPAWN = { delay: 2.0, invinc: 120, height: 14 };
 // items, most of which timed out untouched. 14 seconds keeps one in play most of the time without
 // the match becoming about the floor.
 export const ITEMS = { spawnEvery: 14, despawnAfter: 22, knockOutDamage: 12 };
+
+// WEAPON DROPS. A fighter carries TWO weapons and spawns holding neither, fighting with the fists
+// kit (data/weapons/fists.js). Drops fall onto the stage; the pickup button over one arms you with
+// whichever of your two you did not hold last, and the same button, armed, throws the weapon you
+// hold - which lands as a drop anyone can take. Off unless the match asks (cfg.weaponDrops), so a
+// match without it is the game exactly as it was.
+//
+//   firstAt / spawnEvery   seconds to the first drop, and between drops
+//   maxOnStage             drops lying about at once, by fighters in the match: min(4, 1 + n/2)
+//   despawnAfter           seconds a drop lies on the ground before it fades
+//   reach                  how close (x, y studs from the fighter's feet) a drop has to be
+//   throwMove              the throw's own frames: the weapon leaves on its first active frame
+//   thrown                 the thrown weapon, for any weapon without its own (phase 2 gives each
+//                          weapon its own): an arcing projectile that lands as a drop
+export const DROPS = {
+  firstAt: 2, spawnEvery: 5, despawnAfter: 14, reach: [3, 3.5],
+  throwMove: { startup: 4, active: 1, recovery: 12 },
+  thrown: { speed: 46, vy: 6, gravity: 40, lifetime: 50, damage: 7, base: 15, growth: 1.4, angle: 42, size: [2.4, 1.2] },
+};
+export const dropsOnStage = (fighters) => Math.min(4, 1 + Math.floor(fighters / 2));
 export const SUDDEN_DEATH = { percent: 300, shrinkEvery: 10, shrinkFactor: 0.8 };
 export const INPUT_BUFFER = 6;
 

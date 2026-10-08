@@ -10,6 +10,9 @@
 --     between, the pedestals under the roster;
 --   * the vote pages fit too: a card per arena and Random, a card per rule set and "keep current",
 --     all on screen, none overlapping, between the title and the strip of who has voted;
+--   * two weapons (weapon drops): clicks fill the first hand then the second; one you hold is kept
+--     and its partner chosen next; both are ringed and named with their hand, the card names both,
+--     and the status says which hand is next;
 --   * every control sends its action: a portrait its weapon, ADD BOT the chosen difficulty for its
 --     slot, YES / NO the ballot, REMOVE a bot, READY, LEAVE; there is no START (the room starts
 --     itself); HIDE and the ROOM button minimise and restore; a vote shows its card and hides ADD BOT;
@@ -194,6 +197,42 @@ screen:update(room(), 1)
 if not screen.open or not screen.gui.Enabled then fail("joining a room did not open the screen") end
 find("PickHammer").Activated:Fire()
 if lastSent().action ~= "weapon" or lastSent().value ~= "Hammer" or lastSent().id ~= 7 or lastSent().revision ~= 4 then fail("a portrait did not send its weapon") end
+-- weapon drops: two weapons. The next click fills the second hand; one you already hold is kept,
+-- and its partner is chosen next. Both are ringed and named with their hand; the card names both.
+find("PickAxe").Activated:Fire()
+if lastSent().action ~= "weapon2" or lastSent().value ~= "Axe" then fail("the second click did not choose the second weapon") end
+do
+	local r = room()
+	r.slots[1].weapon, r.slots[1].weapon2 = "Hammer", "Axe"
+	r.slots[2].weapon2 = "Pike"
+	screen:update(r, 1)
+	if not string.find(screen.status.Text, "weapon 1", 1, true) then fail(`after a pair the status says "{screen.status.Text}", not that weapon 1 is next`) end
+	for _, c in { { "Hammer", "1 · WAR HAMMER" }, { "Axe", "2 · BATTLE AXE" } } do
+		local cell = find("Pick" .. c[1])
+		local ring
+		for _, ch in cell._children do if ch.ClassName == "UIStroke" then ring = ch end end
+		if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness ~= 5 then fail(`your {c[1]} has no gold ring`) end
+		if find("Name" .. c[1]).Text ~= c[2] then fail(`the {c[1]} portrait is named "{find("Name" .. c[1]).Text}", not "{c[2]}"`) end
+	end
+	if find("NameSword").Text ~= "SWORD" then fail("a weapon you do not hold is named with a hand") end
+	if inCard(1, "Weapon").Text ~= "WAR HAMMER + BATTLE AXE" or inCard(2, "Weapon").Text ~= "WAR HAMMER + WARPIKE" then
+		fail(`the cards say "{inCard(1, "Weapon").Text}" and "{inCard(2, "Weapon").Text}"`)
+	end
+	local pikeTags = 0
+	for _, o in made do if o.Name == "Tag" and not o.destroyed and o.Text == "P2" then pikeTags += 1 end end
+	if pikeTags ~= 2 then fail(`the rival's two weapons carry {pikeTags} tags`) end
+	local before = #sent
+	find("PickHammer").Activated:Fire()
+	if #sent ~= before then fail("clicking a weapon you hold sent a change") end
+	if not string.find(screen.status.Text, "weapon 2", 1, true) then fail("clicking your first weapon did not move on to its partner") end
+	find("PickPike").Activated:Fire()
+	if lastSent().action ~= "weapon2" or lastSent().value ~= "Pike" then fail("after keeping the hammer, the next pick was not its partner") end
+	find("PickAxe").Activated:Fire()
+	if #sent ~= before + 1 then fail("clicking your second weapon sent a change") end
+	find("PickPike").Activated:Fire()
+	if lastSent().action ~= "weapon" or lastSent().value ~= "Pike" then fail("after keeping the axe, the next pick was not the first hand") end
+	screen.hand = 1
+end
 inCard(3, "Difficultyhard").Activated:Fire()
 inCard(3, "AddBot").Activated:Fire()
 if lastSent().action ~= "bot" or lastSent().value ~= "hard" or lastSent().slot ~= 3 then fail(`ADD BOT sent {lastSent().action}/{tostring(lastSent().value)}/{tostring(lastSent().slot)}`) end

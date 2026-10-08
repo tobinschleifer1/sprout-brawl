@@ -143,7 +143,9 @@ function Fighter.new(opts: any): any
 	self.source = opts.source or "bot"
 	self.isBot = not not opts.isBot
 	self.botLevel = opts.botLevel or "normal"
-	self.name = opts.name or self.char.name
+	-- unnamed (a bot), a fighter is named for its weapon - with drops, its first, not the fists it
+	-- spawns holding
+	self.name = opts.name or (if self.kit then self.kit[1].name else self.char.name)
 	self.r = self.char.radius
 	self.h = self.char.height
 	self.weight = self.char.weight

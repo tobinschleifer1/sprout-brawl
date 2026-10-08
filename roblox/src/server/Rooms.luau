@@ -16,6 +16,12 @@ local BOT_LOOKS = {}
 for _, p in (AvatarKit.KIT :: any).presets do
 	if p.id ~= "rookie" then table.insert(BOT_LOOKS, p.code) end
 end
+-- Weapon drops: every fighter brings two weapons, and two different ones. A bot's second is by
+-- slot, from everything but its sword, so a room of bots shows the spread of the roster.
+local BOT_SECONDS = {}
+for _, w in Weapons.LIST do
+	if w.id ~= "Sword" then table.insert(BOT_SECONDS, w.id) end
+end
 
 -- The player's character changed (the creator saved or they switched): it is cosmetic, so unlike
 -- a rules change it un-readies nobody and does not bump the revision - a teammate's ready press
@@ -75,6 +81,7 @@ local function applyBot(room: any, i: number, value: any)
 	-- A bot wears a ready-made character (by slot, so it is stable), which also shows every
 	-- player what the kit can do before they open the creator.
 	slot.weapon, slot.avatar = "Sword", if value then BOT_LOOKS[(i * 5) % #BOT_LOOKS + 1] else "Classic"
+	slot.weapon2 = if value then BOT_SECONDS[(i * 3) % #BOT_SECONDS + 1] else "Hammer"
 	invalidate(room)
 end
 
@@ -210,7 +217,7 @@ function Rooms.tick(self: any): { any }
 	return changed
 end
 function Rooms.profile(self: any, id: number): any
-	if not self.profiles[id] then self.profiles[id] = { weapon = "Sword", avatar = "Classic" } end
+	if not self.profiles[id] then self.profiles[id] = { weapon = "Sword", weapon2 = "Hammer", avatar = "Classic" } end
 	return self.profiles[id]
 end
 function Rooms.get(self: any, id: number): any
@@ -272,7 +279,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	end
 	local profile = self:profile(player.UserId)
 	local slot = room.slots[place]
-	slot.player, slot.weapon, slot.avatar = player, profile.weapon, profile.avatar
+	slot.player, slot.weapon, slot.weapon2, slot.avatar = player, profile.weapon, profile.weapon2, profile.avatar
 	self.membership[player.UserId] = room.id
 	invalidate(room)
 	-- a newcomer takes a vote's slot (cancelling it) or joins the electorate
@@ -292,7 +299,7 @@ function Rooms.view(self: any, room: any): any
 	for _, slot in room.slots do
 		table.insert(slots, { userId = if slot.player then slot.player.UserId else nil,
 			name = if slot.player then slot.player.DisplayName else if slot.bot then "CPU" else "Open · bots off",
-			team = slot.team, bot = slot.bot, ready = slot.ready == true, weapon = slot.weapon, avatar = slot.avatar,
+			team = slot.team, bot = slot.bot, ready = slot.ready == true, weapon = slot.weapon, weapon2 = slot.weapon2, avatar = slot.avatar,
 			vote = slot.vote, ruleVote = slot.ruleVote })
 	end
 	local vote = nil
@@ -323,7 +330,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	-- looking at an out-of-date room is refused, and a duplicated ready cannot flip twice. Your own
 	-- weapon or avatar is an absolute choice about your own slot, so it is exempt - otherwise every
 	-- teammate's ready toggle made your loadout change fail with "Room changed".
-	local own_loadout = msg.action == "weapon" or msg.action == "avatar" or msg.action == "vote"
+	local own_loadout = msg.action == "weapon" or msg.action == "weapon2" or msg.action == "avatar" or msg.action == "vote"
 		or msg.action == "ballot" or msg.action == "rule"
 	if msg.revision ~= room.revision and not own_loadout then
 		return false, "Room changed. Please use the refreshed choices."
@@ -335,7 +342,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local action, value = msg.action, msg.value
 	local phase = room.phase or "pick"
 	-- Weapons, readiness and bots are the pick phase's; once the votes begin they are locked in.
-	if phase ~= "pick" and (action == "ready" or action == "weapon" or action == "bot" or action == "ballot") then
+	if phase ~= "pick" and (action == "ready" or action == "weapon" or action == "weapon2" or action == "bot" or action == "ballot") then
 		return false, "Weapons are locked in - the vote is on."
 	end
 	if action == "ready" then
@@ -386,13 +393,22 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		room.botVote.ballots[player.UserId] = value
 		self:settleVote(room)
 		return true, nil
-	elseif action == "weapon" or action == "avatar" then
+	elseif action == "weapon" or action == "weapon2" or action == "avatar" then
 		-- An avatar is a preset id or a kit code; Loadout.validAvatar hands back the canonical code,
 		-- so what is stored is always something every client can draw.
-		local clean = if action == "weapon" then (if type(value) == "string" and Weapons.BY_ID[value] then value else nil)
+		local clean = if action ~= "avatar" then (if type(value) == "string" and Weapons.BY_ID[value] then value else nil)
 			else Loadout.validAvatar(value)
 		if not clean then return false, "Unknown loadout." end
-		own[action] = clean; self:profile(player.UserId)[action] = clean
+		local profile = self:profile(player.UserId)
+		if action ~= "avatar" then
+			-- Your two weapons are two different ones: picking the one in your other hand swaps them.
+			local other = if action == "weapon" then "weapon2" else "weapon"
+			if own[other] == clean then
+				if not own[action] then return false, "You already have that weapon." end
+				own[other] = own[action]; profile[other] = own[action]
+			end
+		end
+		own[action] = clean; profile[action] = clean
 	elseif phase ~= "pick" then
 		-- The votes decide now: a host change mid-vote would rewrite what "keep current" means, or
 		-- (a preset) clear everyone's arena ballots.
@@ -485,10 +501,10 @@ function Rooms.roster(_self: any, room: any, rand: ((number) -> number)?): ({ an
 	local roster = {}
 	for _, slot in room.slots do
 		table.insert(roster, { player = slot.player, avatar = slot.avatar, weapon = slot.weapon,
-			team = slot.team, botLevel = slot.bot })
+			kit = { slot.weapon, slot.weapon2 or slot.weapon }, team = slot.team, botLevel = slot.bot })
 	end
 	return roster, { mode = if room.mode == "timed" then "TimedTeams" else "StockTeams", timeLimit = room.time,
 		stage = stage, stocks = room.stocks, items = room.items,
-		disasters = room.disasters }
+		disasters = room.disasters, weaponDrops = true }
 end
 return Rooms

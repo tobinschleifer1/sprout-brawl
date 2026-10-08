@@ -228,4 +228,38 @@ do
 	assert(edit(a, "mapSet", "all") and edit(a, "mapChoice", "vote") and edit(b, "vote", "Smeltworks") and edit(a, "preset", "tournament"))
 	assert(room.slots[2].vote == nil, "applying a preset clears the ballots")
 end
-print("PASS rooms: 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default), map choice by host, vote or random, map sets and weighted ballots, stock or timed, time limits and presets")
+-- Weapon drops: two weapons each, always two different ones, and the room's match has drops on.
+do
+	local model, a = Rooms.new(), player(70)
+	local room = model:join(a, "Duel")
+	local function edit(action: string, value: any?, slot: number?, revision: number?): boolean
+		return model:edit(a, { id = room.id, revision = revision or room.revision, action = action, value = value, slot = slot })
+	end
+	local mine = room.slots[1]
+	assert(mine.weapon == "Sword" and mine.weapon2 == "Hammer", "a newcomer brings two different weapons")
+	assert(edit("weapon2", "Axe") and mine.weapon == "Sword" and mine.weapon2 == "Axe", "weapon2 sets the second hand alone")
+	assert(edit("weapon", "Axe") and mine.weapon == "Axe" and mine.weapon2 == "Sword", "picking the other hand's weapon swaps the two")
+	assert(edit("weapon2", "Axe") and mine.weapon == "Sword" and mine.weapon2 == "Axe", "and back, from the second hand")
+	assert(not edit("weapon2", "Nonsense") and mine.weapon2 == "Axe", "an unknown second weapon is refused")
+	assert(edit("weapon2", "Pike", nil, room.revision - 3) and mine.weapon2 == "Pike", "your second weapon is your own: a stale revision does not refuse it")
+	local seen = model:view(room).slots[1]
+	assert(seen.weapon == "Sword" and seen.weapon2 == "Pike", "the room view carries both weapons")
+	-- the pair is remembered: a new room starts with it
+	model:leave(a)
+	room = model:join(a, "Duel")
+	assert(room.slots[1].weapon == "Sword" and room.slots[1].weapon2 == "Pike", "the profile keeps both weapons")
+	-- a bot brings a second weapon, not its sword again
+	assert(edit("bot", "hard", 2))
+	local bot = room.slots[2]
+	assert(bot.bot and bot.weapon and bot.weapon2 and bot.weapon2 ~= bot.weapon, "a bot brings two different weapons")
+	local roster, opts = model:roster(room, function() return 1 end)
+	assert(opts.weaponDrops == true, "a room's match has weapon drops on")
+	for i, entry in roster do
+		local slot = room.slots[i]
+		assert(entry.kit and entry.kit[1] == slot.weapon and entry.kit[2] == slot.weapon2 and entry.weapon == slot.weapon,
+			"every fighter's roster entry carries its pair")
+	end
+	room.phase = "map"
+	assert(not edit("weapon2", "Axe") and room.slots[1].weapon2 == "Pike", "the second weapon locks with the first once the votes begin")
+end
+print("PASS rooms: two weapons each (different, swapped on a repeat, remembered, a bot's too) and drops on for room matches; 2/4/6 humans, equal teams, readiness, ownership, bots opt-in, stale edits, host transfer, cleanup, fullest-room-first and loadout edits that survive a teammate's ready, host-only disasters (off by default), map choice by host, vote or random, map sets and weighted ballots, stock or timed, time limits and presets")

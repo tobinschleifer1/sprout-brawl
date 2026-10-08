@@ -147,7 +147,7 @@ end
 -- ------------------------------------------------------------------ construction ----
 function SelectScreen.new(parent: Instance): any
 	local self: any = setmetatable({ open = false, minimised = false, room = nil, userId = 0, cards = {}, cells = {},
-		tags = {}, difficulty = "normal", fighters = {}, chars = {}, voteEndsAt = 0, built = nil,
+		tags = {}, difficulty = "normal", hand = 1, fighters = {}, chars = {}, voteEndsAt = 0, built = nil,
 		now = os.clock }, SelectScreen)        -- (`now` is replaceable, for the tests)
 	local gui = make("ScreenGui", parent, { Name = "BlockfallSelect", ResetOnSpawn = false, IgnoreGuiInset = true,
 		DisplayOrder = 15, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
@@ -248,7 +248,22 @@ function SelectScreen.update(self: any, room: any, userId: number)
 	if room.left then self:hide(); self.room = nil; return end
 	if room.botVote then self.voteEndsAt = os.clock() + (room.botVote.left or 0) end
 	-- a new room, or this one back from a fight (a rematch), brings the screen up
-	if (entering or back) and room.state == "setup" then self:show() else self:render() end
+	if (entering or back) and room.state == "setup" then self.hand = 1; self:show() else self:render() end
+end
+
+-- Weapon drops: you bring two weapons. A click fills the hand being chosen and moves on to the
+-- other, so two clicks pick a pair; clicking one you already hold keeps it and chooses its
+-- partner next. (The server keeps the pair two different weapons: see Rooms, "weapon2".)
+function SelectScreen.pickWeapon(self: any, id: string)
+	local mine = nil
+	for _, slot in (self.room and self.room.slots) or {} do if slot.userId == self.userId then mine = slot end end
+	if mine and mine.weapon == id then self.hand = 2
+	elseif mine and mine.weapon2 == id then self.hand = 1
+	else
+		self:send(if self.hand == 1 then "weapon" else "weapon2", id)
+		self.hand = 3 - self.hand
+	end
+	self:render()
 end
 
 -- ------------------------------------------------------------------ building the layout ----
@@ -297,7 +312,7 @@ function SelectScreen.build(self: any, L: any)
 		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), math.floor(11 * s), DIM)
 		name.Name = "Name" .. r.id
 		place(name, r.x - L.cell, r.y + L.cell / 2 + 1, L.cell * 2, 14 * s)
-		b.Activated:Connect(function() self:send("weapon", r.id) end)
+		b.Activated:Connect(function() self:pickWeapon(r.id) end)
 		self.cells[i] = { button = b, ring = ring, name = name, id = r.id }
 		table.insert(self.tags, name)
 	end
@@ -528,9 +543,11 @@ function SelectScreen.render(self: any)
 	-- the roster: your pick in gold, everyone's tag over what they picked
 	local picked: { [string]: { any } } = {}
 	for i, slot in room.slots do
-		if (slot.userId or slot.bot) and slot.weapon then
-			picked[slot.weapon] = picked[slot.weapon] or {}
-			table.insert(picked[slot.weapon], { i = i, slot = slot })
+		for _, id in { slot.weapon, slot.weapon2 } do
+			if (slot.userId or slot.bot) and id then
+				picked[id] = picked[id] or {}
+				table.insert(picked[id], { i = i, slot = slot })
+			end
 		end
 	end
 	for k = #self.tags, 1, -1 do
@@ -539,10 +556,12 @@ function SelectScreen.render(self: any)
 	end
 	local L = self.L
 	for idx, c in self.cells do
-		local mineHere = mine and mine.weapon == c.id
-		c.ring.Color = if mineHere then GOLD else Color3.fromRGB(214, 228, 250)
-		c.ring.Thickness = if mineHere then 5 else 3
-		c.name.TextColor3 = if mineHere then GOLD else DIM
+		-- your two in gold, each named with its hand
+		local hand = if mine and mine.weapon == c.id then 1 elseif mine and mine.weapon2 == c.id then 2 else nil
+		c.ring.Color = if hand then GOLD else Color3.fromRGB(214, 228, 250)
+		c.ring.Thickness = if hand then 5 else 3
+		c.name.TextColor3 = if hand then GOLD else DIM
+		c.name.Text = (if hand then `{hand} · ` else "") .. string.upper(Weapons.BY_ID[c.id].name)
 		local list: { any } = picked[c.id] or {}
 		for n, entry in list do
 			local slot = entry.slot
@@ -575,7 +594,12 @@ function SelectScreen.render(self: any)
 		card.weapon.Visible, card.kind.Visible = filled, filled
 		local w = filled and Weapons.BY_ID[slot.weapon]
 		if w then
-			card.weapon.Text = string.upper(w.name)
+			-- both weapons named (a fit, so the longest pair stays on the card); the kind line and
+			-- the bars are the first's, the one shown on the pedestal
+			local w2 = slot.weapon2 and Weapons.BY_ID[slot.weapon2]
+			local name = string.upper(w.name) .. (if w2 then " + " .. string.upper(w2.name) else "")
+			card.weapon.Text = name
+			card.weapon.TextSize = math.floor(math.min(22 * self.L.s, (card.p.cardW - 16 * self.L.s) / (#name * 0.62)))
 			card.kind.Text = `{string.upper(w.archetype or "")}  {string.rep("★", w.difficulty or 1)}{string.rep("☆", 3 - (w.difficulty or 1))}`
 			local stats = WeaponStats.of(w.id)
 			for key, segs in card.bars do
@@ -623,7 +647,7 @@ function SelectScreen.render(self: any)
 			else "Bot vote failed.") else nil)
 		or (if phase == "map" then "Pick the arena. Most votes wins; a tie is drawn at random." else nil)
 		or (if phase == "rules" then "Pick the rules. Most votes wins." else nil)
-		or "Pick your weapon and ready up. When every pedestal is ready, the map vote begins."
+		or `Pick two weapons - choosing weapon {self.hand} - and ready up. When every pedestal is ready, the map vote begins.`
 	self:tickPhase(os.clock())
 end
 

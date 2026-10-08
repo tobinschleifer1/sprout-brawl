@@ -17,7 +17,7 @@ Bindings.actions = {
 	{ id = "dodge", name = "Dodge / dash", hint = "Use direction to dodge away or through a threat." },
 	{ id = "guard", name = "Shield", hint = "HOLD to shield. Release to recover shield energy." },
 	{ id = "grab", name = "Grab", hint = "Grab a nearby opponent; also Guard + Light." },
-	{ id = "pickup", name = "Pick up / drop", hint = "Stand near an item. Heavy uses the item you are holding." },
+	{ id = "pickup", name = "Pick up / throw", hint = "Take a weapon drop or an item. Holding a weapon, throw it. Heavy uses the item you are holding." },
 	{ id = "ult", name = "Ultimate", hint = "Press when your ultimate meter is FULL; hits build charge." },
 	{ id = "taunt", name = "Taunt", hint = "A cosmetic flourish between exchanges." },
 }

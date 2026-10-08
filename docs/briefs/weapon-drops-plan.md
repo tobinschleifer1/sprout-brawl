@@ -43,6 +43,16 @@ twelve weapons.
    server's loadout on correction (a pickup and a weapon leaving are the server's to decide; the
    throw itself is predicted), drops and thrown weapons drawn, both weapon names on the HUD tile
    with the held one gold. tests/drops-client.luau.
-6. **Select screen and rooms**: pick two weapons, drops on in rooms, a live playtest.
+6. **Select screen and rooms** (done): a room slot holds `weapon` and `weapon2`, always two
+   different ones (picking the other hand's weapon swaps them), remembered in the profile; a bot's
+   second is by slot. On the select screen clicks fill hand 1 then hand 2, a weapon you already
+   hold is kept and its partner chosen next, both are ringed gold and named with their hand, the
+   card names the pair. Rooms start with `weaponDrops`. Live Studio playtest (2026-10-09): picking
+   by real clicks, the longest pair fits its card, drops reach the client and draw as crates, the
+   HUD tiles name both weapons with the held one gold, a real P press armed, threw and re-armed
+   with the second weapon. It found one bug: an unnamed fighter (every bot) was named "Fists",
+   for the char it spawns holding - now named for its first weapon in both builds. Not seen in
+   Studio: a thrown weapon's sprite in flight or lying (covered by tests/drops-client's renderer
+   check only).
 
 After this: new weapons (whip, chakram, rocket boots), then KO effects / emotes, then progression.

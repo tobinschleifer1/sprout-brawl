@@ -27,6 +27,7 @@ import { buildArmed } from '../src/data/loadout.js';
 import { koPercent } from './balance.mjs';
 import { LEVELS, weaponAction } from '../src/engine/ai.js';
 import { emptyFrame } from '../src/engine/input.js';
+import { Fighter } from '../src/engine/fighter.js';
 const buildArmedFor = (w) => buildArmed('Classic', [w, w]);
 import { ITEMS } from '../src/data/items.js';
 
@@ -59,6 +60,14 @@ const events = (m, type) => m.events.filter((e) => e.type === type);
   const f = m.fighters[0];
   check('without weapon drops, the game is as it was', !m.dropsOn && !f.kit && f.char.weapon.id === 'Sword' && m.combat.drops.length === 0,
     `dropsOn=${m.dropsOn}, kit=${!!f.kit}, holding ${f.char.weapon.id}, ${m.combat.drops.length} drops after 12 s`);
+}
+
+// ---- an unnamed fighter (a bot) is named for its first weapon, not the fists it holds ----
+{
+  const A = buildArmed('Classic', ['Hammer', 'Sword']);
+  const f = new Fighter({ index: 0, ...A, x: 0, y: 0 });
+  check('a bot is named for its first weapon, not "Fists"', f.name === 'War Hammer' && f.char.weapon.id === 'Fists',
+    `named "${f.name}" holding ${f.char.weapon.id}`);
 }
 
 // ---- fists to start, no ultimate ----

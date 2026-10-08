@@ -81,6 +81,44 @@ for _, stage in Loader.load("Data/Stages").LIST do
 		cases += 1
 	end
 end
+-- A room's match (Rooms.roster): weapon drops on, every fighter with its pair. What the client is
+-- told, and what the wire then carries: the drops on the scene and the bots armed on the fighters.
+local Snapshot = Loader.load("Snapshot")
+local Rooms = Loader.loadFrom("src/server/", "Rooms")
+local drops = 0
+do
+	local model = Rooms.new()
+	local room = model:join(player, "Doubles")
+	for slot = 2, 4 do assert(model:edit(player, { id = room.id, revision = room.revision, action = "bot", value = "normal", slot = slot })) end
+	assert(model:edit(player, { id = room.id, revision = room.revision, action = "weapon2", value = "Pike" }))
+	local roster, opts = model:roster(room, function() return 1 end)
+	messages = {}
+	service:start(roster, opts)
+	local m = messages.Match[1]
+	assert(m.weaponDrops == true and service.match.dropsOn, "a room's match has weapon drops on, and the client is told")
+	for i, entry in m.fighters do
+		local slot = room.slots[i]
+		assert(entry.kit and entry.kit[1] == slot.weapon and entry.kit[2] == slot.weapon2, "the client is told every fighter's pair")
+		local f = service.match.fighters[i]
+		assert(f.kit[1].weapon.id == slot.weapon and f.kit[2].weapon.id == slot.weapon2 and f.armed == -1, "every fighter brings its pair and starts on fists")
+		-- a bot is named for its first weapon (Fighter.new), not the fists it spawns holding
+		if slot.bot then assert(entry.name == f.kit[1].name and entry.name ~= "Fists", `a bot is named "{entry.name}"`) end
+	end
+	for _ = 1, 60 * 14 do service:tick(1 / 60) end
+	local base, armed = nil, 0
+	for _, packed in messages.Snapshot do
+		base = SnapshotCodec.decode(packed, base)
+		for _, w in base.fighters do if Snapshot.decode(w).armed >= 0 then armed += 1 end end
+	end
+	local sceneBase = nil
+	for _, packet in messages.Scene do
+		sceneBase = SceneCodec.decode(packet, sceneBase)
+		drops = math.max(drops, #(sceneBase.drops or {}))
+	end
+	assert(drops > 0, "no drop ever reached the client's scene")
+	assert(armed > 0, "no fighter was ever armed on the wire: the bots never took a drop")
+	cases += 1
+end
 service:stop()
 assert(not service:rejoin(player), "no stale rejoin after match teardown")
-print(`PASS launch: {cases} real matches (2/3/4 fighters x six arenas), complete snapshots at 60Hz, scenes as keyframe and deltas, events, safe retry`)
+print(`PASS launch: {cases} real matches (2/3/4 fighters x six arenas, and a room's with drops on), complete snapshots at 60Hz, scenes as keyframe and deltas, events, safe retry; the room's match tells the client every pair, and its drops and armed bots reach the wire`)

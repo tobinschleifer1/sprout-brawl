@@ -53,7 +53,9 @@ export class Fighter {
     this.source = opts.source || 'bot';
     this.isBot = !!opts.isBot;
     this.botLevel = opts.botLevel || 'normal';
-    this.name = opts.name || this.char.name;
+    // unnamed (a bot), a fighter is named for its weapon - with drops, its first, not the fists it
+    // spawns holding
+    this.name = opts.name || (this.kit ? this.kit[0].name : this.char.name);
     this.r = this.char.radius;
     this.h = this.char.height;
     this.weight = this.char.weight;

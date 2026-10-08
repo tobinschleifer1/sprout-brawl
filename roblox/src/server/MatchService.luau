@@ -103,7 +103,9 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 			source = source,
 			isBot = entry.player == nil,
 			botLevel = entry.botLevel or "normal",
-			name = if entry.player then entry.player.DisplayName else nil,
+			-- a bot by its slot: named for its weapon, a room of three Sword bots read "KO! Sword by
+			-- Sword" in every callout
+			name = if entry.player then entry.player.DisplayName else `CPU {i}`,
 		})
 	end
 

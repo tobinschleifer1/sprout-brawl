@@ -20,8 +20,15 @@ KO effects and emotes, progression), which waits until this is done.
 
 ## Phases
 
-1. **Readability.** Who is who in a crowd, what is coming (heavy and signature startups), how hard
-   a hit was, who is in danger (kill percent), and who got the KO and the assist.
+1. **Readability** (done). The kill hit is predicted and marked (white flash, ring, burst); hit
+   sparks, ring and shake scale with the launch; anyone near their KO percent smokes (measured,
+   not guessed: the median real side/top KO is 122%); heavy startups glint; team matches spark in
+   team colours; Roblox labels hold at the screen edge with an arrow when a fighter is off screen
+   and say YOU on yours; KO callouts name who did it; bots in rooms are "CPU n". Checked live in
+   Studio (2v2, hard bots): YOU, edge arrows, smoke, "KO! ▲ CPU 3 by ■ CPU 2", and the flash on
+   a kill hit. Found on the way: in a 6-fighter match nearly everyone fights on fists for the
+   first 20 s (four drops for six people), and 136 of 184 KOs in bot matches are off the bottom
+   - failed recoveries, which is where depth and team saves should look.
 2. **Depth.** Wall and ceiling bounces for a launched fighter (techable), armour that heavy moves
    can push through light hits with, clashes (two attacks meeting cancel out), and stale moves
    (a move repeated loses power) so mashing one button stops working.

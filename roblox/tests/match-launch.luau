@@ -101,8 +101,9 @@ do
 		assert(entry.kit and entry.kit[1] == slot.weapon and entry.kit[2] == slot.weapon2, "the client is told every fighter's pair")
 		local f = service.match.fighters[i]
 		assert(f.kit[1].weapon.id == slot.weapon and f.kit[2].weapon.id == slot.weapon2 and f.armed == -1, "every fighter brings its pair and starts on fists")
-		-- a bot is named for its first weapon (Fighter.new), not the fists it spawns holding
-		if slot.bot then assert(entry.name == f.kit[1].name and entry.name ~= "Fists", `a bot is named "{entry.name}"`) end
+		-- a bot is named by its slot - not for its weapon (three Sword bots read "KO! Sword by
+		-- Sword"), and never for the fists it spawns holding
+		if slot.bot then assert(entry.name == `CPU {i}`, `a bot is named "{entry.name}"`) end
 	end
 	for _ = 1, 60 * 14 do service:tick(1 / 60) end
 	local base, armed = nil, 0

@@ -166,6 +166,14 @@ export const TEAM = { assistWindow: 480, assistMeter: 3,
 export const TEAM_FLING = { id: 'TeamFling', kind: 'melee', damage: TEAM.fling.damage, base: TEAM.fling.base, growth: TEAM.fling.growth,
   angle: TEAM.fling.angle, startup: 0, active: TEAM.fling.frames, recovery: 0 };
 
+// Lag compensation (combat phase 4). Online, a player sees everyone else a few frames in the past,
+// so their swings and grabs are judged against where they saw the victim, up to `maxFrames` back:
+// 9 frames is 150ms, a full rewind for a ping of about 200ms. Only the victim's position is rewound;
+// whether they can be hit at all - dodging, shielding, invincible - is as it is now, so a real dodge
+// is never undone by somebody else's connection. Nothing here rewinds: only the Roblox server sets
+// Combat.rewindOf, and a bot never looks at the past.
+export const LAG_COMP = { maxFrames: 9 };
+
 export const STALE = { memory: 8, step: 0.05, floor: 0.6 };
 export const staleMul = (landed, id) => {
   let n = 0;

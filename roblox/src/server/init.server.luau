@@ -157,11 +157,12 @@ Net.remote("Avatar").OnServerEvent:Connect(function(player: Player, msg: any)
 	end
 	sendAvatars(player, why)
 end)
-Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any)
+-- `view`: the snapshot frame the client was drawing, for lag compensation (MatchService.start)
+Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any, view: any)
 	local room = rooms:get(player.UserId)
 	local seat = arcade.seatOf[player.UserId]
 	local service = (room and services[room.id]) or (seat and cabinetServices[seat.n])
-	if service then service:receiveInput(player, packed, matchId, epoch) end
+	if service then service:receiveInput(player, packed, matchId, epoch, view) end
 end)
 Net.remote("Setup").OnServerEvent:Connect(function(player: Player)
 	if admitted(player, "hello", 1) then hub(player, "Use a 1v1, 2v2 or 3v3 entrance.") end

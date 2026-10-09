@@ -109,6 +109,18 @@ do
 		if slot.bot then assert(entry.name == `CPU {i}`, `a bot is named "{entry.name}"`) end
 	end
 	for _ = 1, 60 * 14 do service:tick(1 / 60) end
+	-- lag compensation (Config.LAG_COMP): a bot never looks at the past, whatever its slot's
+	-- input queue says - only a player sends the frame they were drawing
+	local bots = 0
+	for i, f in service.match.fighters do
+		if room.slots[i].bot then
+			bots += 1
+			service.input:push(f.source, { 0 }, service.match.frame - 4)
+			service.input:get(f.source)
+			assert(service.match.combat.rewindOf(f) == 0, "a bot's swings are judged in the past")
+		end
+	end
+	assert(bots > 0, "the room has no bots to check")
 	local base, armed = nil, 0
 	for _, packed in messages.Snapshot do
 		base = SnapshotCodec.decode(packed, base)

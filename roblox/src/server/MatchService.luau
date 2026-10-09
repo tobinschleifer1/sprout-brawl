@@ -124,6 +124,16 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 		seed = o.seed or math.random(1, 2 ^ 31 - 1),
 	})
 
+	-- Lag compensation (Config.LAG_COMP): a player's swings and grabs are judged against the frame
+	-- they were drawing everyone else at when they sampled the input this tick consumed - how far
+	-- that is behind this frame is how far Combat rewinds the victim. A bot looks at now.
+	local m = self.match
+	m.combat.rewindOf = function(f: any): number
+		if f.isBot then return 0 end
+		local view = self.input:viewOf(f.source)
+		return if view then m.frame - view else 0
+	end
+
 	self:send("Match", self:description())
 
 	self.accum = 0
@@ -386,7 +396,7 @@ function MatchService.acks(self: any): { any }?
 end
 
 -- ---------------------------------------------------------------- input ----
-function MatchService.receiveInput(self: any, player: Player, packed: any, matchId: any, epoch: any)
+function MatchService.receiveInput(self: any, player: Player, packed: any, matchId: any, epoch: any, view: any)
 		local source = self.sources[player.UserId]
 		if not source or matchId ~= self.generation or type(packed) ~= "table" then
 			return
@@ -397,11 +407,11 @@ function MatchService.receiveInput(self: any, player: Player, packed: any, match
 		if #packed > 16 then
 			return
 		end
-		self.input:push(source, packed)
+		self.input:push(source, packed, view)
 end
 function MatchService.bindRemotes(self: any)
-	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any)
-		self:receiveInput(player, packed, matchId, epoch)
+	Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any, view: any)
+		self:receiveInput(player, packed, matchId, epoch, view)
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		local source = self.sources[player.UserId]

@@ -89,9 +89,9 @@ local env: any = {
 service = luau.load(fs.readFile("src/server/MatchService.luau"), {environment=env,injectGlobals=true})()
 luau.load(fs.readFile("src/server/init.server.luau"), {environment=env,injectGlobals=true})()
 local people = {}
-local function send(id: number, name: string, data: any?, a: any?, b: any?)
+local function send(id: number, name: string, data: any?, a: any?, b: any?, c: any?)
 	now += 0.11
-	remote(name).OnServerEvent:Fire(people[id], data, a, b)
+	remote(name).OnServerEvent:Fire(people[id], data, a, b, c)
 end
 local function last(id: number, name: string): any
 	for i=#messages,1,-1 do local msg=messages[i]; if msg.player==people[id] and msg.name==name then return msg.data end end
@@ -259,6 +259,21 @@ assert(six.input:consumedBy("p1")==before,"outsider/wrong-match packets do not f
 send(1,"Input",{0},six.generation,0)
 run.PostSimulation:Fire(1/60)
 assert(six.input:consumedBy("p1")==before+1,"own-room input reaches own fighter")
+-- Lag compensation (Config.LAG_COMP): the snapshot frame a client was drawing comes up with its
+-- input, through the real entry point, and that fighter's swings are judged that far back.
+do
+	local m6 = six.match
+	local me = nil
+	for _, f in m6.fighters do if f.source == "p1" then me = f end end
+	local sent = m6.frame - 5
+	send(1,"Input",{0},six.generation,0,sent)
+	run.PostSimulation:Fire(1/60)
+	assert(six.input:viewOf("p1") == sent, `the view a client sent reached the server as {tostring(six.input:viewOf("p1"))}, not {sent}`)
+	assert(me and m6.combat.rewindOf(me) == m6.frame - sent and m6.frame - sent >= 5, "a fighter's swings are judged at the frame they were drawing")
+	send(1,"Input",{0},six.generation,0,"soon")
+	run.PostSimulation:Fire(1/60)
+	assert(six.input:viewOf("p1") == nil and m6.combat.rewindOf(me) == 0, "a view that is not a frame number is judged as now")
+end
 -- Leaving mid-fight cancels that room only, and returns humans with no auto-CPUs.
 players.PlayerRemoving:Fire(people[1])
 assert(last(2,"Select") and last(2,"RoomView").state=="setup")

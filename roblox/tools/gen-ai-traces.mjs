@@ -42,6 +42,9 @@ function run(spec) {
     })),
   });
 
+  // `rewind` (LAG_COMP): every fighter looking back a different 0..13 frames each frame, past the
+  // cap - so every swing and grab is judged against a kept hurtbox, as on the Roblox server.
+  if (spec.rewind) m.combat.rewindOf = (f) => (f.index * 5 + m.frame) % 14;
   // `percent`: where each fighter starts, so the combo planner's kill-percent cash-out and the
   // break (which needs a fourth hit) are reached inside a short trace.
   if (spec.percent) spec.percent.forEach((p, i) => { m.fighters[i].percent = p; });
@@ -153,6 +156,10 @@ S.push({ name: 'bots on smeltworks', stage: 'Smeltworks', seed: 707, stocks: 3, 
 S.push({ name: 'bot teams catching', stage: 'FoundryFloor', mode: 'StockTeams', seed: 26, stocks: 2,
   teamOf: [0, 0, 1, 1], frames: 900,
   who: [['Classic', 'Sword', 'elite'], ['Noir', 'Pike', 'elite'], ['Ember', 'Axe', 'elite'], ['Moss', 'Flail', 'elite']] });
+// Lag compensation: four elite bots, every swing and grab judged against where its attacker
+// "saw" the victim some frames back (LAG_COMP).
+S.push({ name: 'bots looking back (lag compensation)', stage: 'FoundryFloor', seed: 31, stocks: 3, frames: 2400, rewind: true,
+  who: [['Classic', 'Sword', 'elite'], ['Noir', 'Daggers', 'elite'], ['Ember', 'Hammer', 'elite'], ['Moss', 'Gauntlets', 'elite']] });
 
 // Teams, so the enemy filter has to exclude a team-mate.
 S.push({ name: 'bot teams', stage: 'FoundryFloor', mode: 'StockTeams', seed: 808, stocks: 2,

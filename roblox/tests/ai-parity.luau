@@ -78,6 +78,8 @@ for _, spec in T.scenarios do
 		items = not not spec.items, weaponDrops = not not spec.drops, fighters = fighters,
 	})
 
+	-- `rewind`: see gen-ai-traces.mjs
+	if spec.rewind then m.combat.rewindOf = function(f: any): number return (f.index * 5 + m.frame) % 14 end end
 	if spec.percent then
 		for i, p in spec.percent do m.fighters[i].percent = num(p) end
 	end

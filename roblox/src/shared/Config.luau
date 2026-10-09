@@ -121,6 +121,10 @@ Config.TEAM = { assistWindow = 480, assistMeter = 3,
 Config.TEAM_FLING = { id = "TeamFling", kind = "melee", damage = Config.TEAM.fling.damage, base = Config.TEAM.fling.base,
 	growth = Config.TEAM.fling.growth, angle = Config.TEAM.fling.angle, startup = 0, active = Config.TEAM.fling.frames, recovery = 0 }
 
+-- Lag compensation: a swing or grab judged against where its attacker saw the victim, up to 9
+-- frames (150ms) back; only the position is rewound (config.js).
+Config.LAG_COMP = { maxFrames = 9 }
+
 Config.STALE = { memory = 8, step = 0.05, floor = 0.6 }
 function Config.staleMul(landed: { string }, id: string): number
 	local n = 0

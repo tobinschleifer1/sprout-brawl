@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul, TEAM, TEAM_FLING } from '../config.js';
+import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul, TEAM, TEAM_FLING, LAG_COMP } from '../config.js';
 import { launchSpeed, stunSpeed, hitlag as hitlagFor, velocity as launchVelocity, carriesOut } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
@@ -31,6 +31,11 @@ export class Combat {
     // drop fell two frames late.
     this.drops = [];
     this.dropTimer = Math.round((DROPS.spawnEvery - DROPS.firstAt) * 60);
+    // Lag compensation (LAG_COMP): `rewindOf(f)` says how many frames in the past `f` saw everyone
+    // else, and each fighter's hurtbox is kept for that long. Null - no rewinding, nothing kept - in
+    // every build but the Roblox server's.
+    this.rewindOf = null;
+    this.hurtHistory = [];
   }
   get fighters() { return this.match.fighters; }
   get stage() { return this.match.stage; }
@@ -52,6 +57,27 @@ export class Combat {
   hitboxRect(f, hb) {
     const rm = f.rangeMul || 1;
     return rectFrom(f.x + hb.offset[0] * rm * f.facing, f.y + hb.offset[1], hb.size[0] * rm, hb.size[1]);
+  }
+
+  // The victim's hurtbox as the attacker saw it: `rewindOf(f)` frames ago, at most LAG_COMP.maxFrames,
+  // or now if nothing older is kept (or the victim was not alive then - a respawn is not a place).
+  hurtboxFor(f, v) {
+    const back = this.rewindOf ? Math.min(LAG_COMP.maxFrames, this.rewindOf(f)) : 0;
+    if (!(back > 0)) return v.hurtbox;
+    // The ring is written every frame, so the slot `back` frames ago is that frame's. Before the
+    // first lap it is empty (or, at a negative frame, not there), and the victim is judged as now.
+    const ring = this.hurtHistory[v.index];
+    const h = ring && ring[(this.match.frame - back) % (LAG_COMP.maxFrames + 1)];
+    return h && h.alive ? h.box : v.hurtbox;
+  }
+  // Where everyone is at the end of this frame, for a later rewind to it.
+  recordHurtboxes() {
+    if (!this.rewindOf) return;
+    const at = this.match.frame % (LAG_COMP.maxFrames + 1);
+    for (const f of this.fighters) {
+      const ring = this.hurtHistory[f.index] || (this.hurtHistory[f.index] = []);
+      ring[at] = { alive: f.alive, box: f.hurtbox };
+    }
   }
 
   activeHitboxes(f) {
@@ -80,7 +106,7 @@ export class Combat {
         const frameKey = f.state === 'attack' ? f.mf : f.sf;
         for (const v of this.fighters) {
           if (v === f || !v.alive || this.sameTeam(f, v)) continue;
-          if (!overlap(b.rect, v.hurtbox)) continue;
+          if (!overlap(b.rect, this.hurtboxFor(f, v))) continue;
           const last = f.hitVictims.get(v.index);
           if (last != null && (!b.hb.rehitEvery || frameKey - last < b.hb.rehitEvery)) continue;
           f.hitVictims.set(v.index, frameKey);
@@ -106,6 +132,7 @@ export class Combat {
     this.stepItems();
     this.stepDrops();
     this.stepPlates();
+    this.recordHurtboxes();
   }
 
   // ---------- hit resolution ----------
@@ -348,7 +375,7 @@ export class Combat {
     for (const v of this.fighters) {
       if (v === f || !v.alive || this.sameTeam(f, v) || !v.onGround || v.untouchable) continue;
       if (['grabbed', 'holding', 'ko', 'respawn', 'ledge'].includes(v.state)) continue;
-      if (!overlap(rect, v.hurtbox)) continue;
+      if (!overlap(rect, this.hurtboxFor(f, v))) continue;
       if (v.hold) v.releaseHold();
       f.startHold(v, { tangle: f.mech.id === 'Tangle' });
       return;

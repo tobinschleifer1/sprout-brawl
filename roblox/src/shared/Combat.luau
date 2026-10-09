@@ -23,6 +23,7 @@ local GROUND_POUND = Config.GROUND_POUND
 local LEDGE = Config.LEDGE
 local ITEM_CFG = Config.ITEMS
 local DROPS = Config.DROPS
+local LAG_COMP = Config.LAG_COMP
 
 local function hypot(x: number, y: number): number
 	return math.sqrt(x * x + y * y)
@@ -92,6 +93,10 @@ function Combat.new(match: any): any
 	-- in whole frames (from DROPS.firstAt, not a full interval).
 	self.drops = {}
 	self.dropTimer = math.floor((DROPS.spawnEvery - DROPS.firstAt) * 60 + 0.5)
+	-- Lag compensation (Config.LAG_COMP): `rewindOf(f)` says how many frames in the past `f` saw
+	-- everyone else, and each fighter's hurtbox is kept that long. Only MatchService sets it.
+	self.rewindOf = nil
+	self.hurtHistory = {}
 	return self
 end
 
@@ -141,6 +146,29 @@ function Combat.hitboxRect(self, f: any, hb: any): any
 	return rectFrom(f.x + hb.offset[1] * rm * f.facing, f.y + hb.offset[2], hb.size[1] * rm, hb.size[2])
 end
 
+-- The victim's hurtbox as the attacker saw it: `rewindOf(f)` frames ago, at most LAG_COMP.maxFrames,
+-- or now if nothing older is kept (or the victim was not alive then - a respawn is not a place).
+function Combat.hurtboxFor(self, f: any, v: any): any
+	local back = if self.rewindOf then math.min(LAG_COMP.maxFrames, self.rewindOf(f)) else 0
+	if not (back > 0) then return v.hurtbox end
+	-- The ring is written every frame, so the slot `back` frames ago is that frame's. Before the first
+	-- lap it is empty - a negative frame wraps to a slot not yet written - and the victim is judged
+	-- as now.
+	local ring = self.hurtHistory[v.index + 1]
+	local h = ring and ring[(self.match.frame - back) % (LAG_COMP.maxFrames + 1) + 1]
+	return if h and h.alive then h.box else v.hurtbox
+end
+-- Where everyone is at the end of this frame, for a later rewind to it.
+function Combat.recordHurtboxes(self)
+	if not self.rewindOf then return end
+	local at = self.match.frame % (LAG_COMP.maxFrames + 1) + 1
+	for _, f in self.match.fighters do
+		local ring = self.hurtHistory[f.index + 1]
+		if not ring then ring = {}; self.hurtHistory[f.index + 1] = ring end
+		ring[at] = { alive = f.alive, box = f.hurtbox }
+	end
+end
+
 function Combat.activeHitboxes(self, f: any): { any }
 	local out = {}
 	if f.state == "attack" and f.move then
@@ -173,7 +201,7 @@ function Combat.step(self)
 				local frameKey = if f.state == "attack" then f.mf else f.sf
 				for _, v in self.match.fighters do
 					if v ~= f and v.alive and not Combat.sameTeam(self, f, v)
-						and overlap(b.rect, v.hurtbox) then
+						and overlap(b.rect, Combat.hurtboxFor(self, f, v)) then
 						local last = f.hitVictims[v.index]
 						if last == nil or (b.hb.rehitEvery and frameKey - last >= b.hb.rehitEvery) then
 							f.hitVictims[v.index] = frameKey
@@ -207,6 +235,7 @@ function Combat.step(self)
 	Combat.stepItems(self)
 	Combat.stepDrops(self)
 	Combat.stepPlates(self)
+	Combat.recordHurtboxes(self)
 end
 
 -- ---------------------------------------------------------------- hit resolution ----
@@ -555,7 +584,7 @@ function Combat.checkGrab(self, f: any)
 	table.insert(self.debugBoxes, { rect = rect, kind = "grab" })
 	for _, v in self.match.fighters do
 		if v ~= f and v.alive and not Combat.sameTeam(self, f, v) and v.onGround and not v.untouchable
-			and not UNGRABBABLE[v.state] and overlap(rect, v.hurtbox) then
+			and not UNGRABBABLE[v.state] and overlap(rect, Combat.hurtboxFor(self, f, v)) then
 			if v.hold then
 				v:releaseHold()
 			end

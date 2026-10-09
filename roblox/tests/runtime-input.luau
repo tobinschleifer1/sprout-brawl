@@ -29,6 +29,30 @@ local ultimate = Input.emptyFrame(); ultimate.ult = true; ultimate.anyPress = tr
 burst[1] = Codec.packFrame(ultimate)
 remote:push("tap", burst)
 check(remote:get("tap").ult, "queue overflow must preserve an ultimate press from the oldest frame")
+-- Lag compensation: each frame carries the snapshot frame the client was drawing when it sampled
+-- it, and the server judges the fighter's swings at the one belonging to the frame it consumed.
+remote:register("view")
+local idle = Codec.packFrame(Input.emptyFrame())
+check(remote:viewOf("view") == nil, "nothing consumed, no view")
+remote:push("view", { idle }, 100)
+remote:get("view")
+check(remote:viewOf("view") == 100, "the consumed frame's view")
+remote:push("view", { idle }, 101); remote:push("view", { idle }, 102); remote:push("view", { idle }, 103); remote:push("view", { idle }, 104)
+remote:get("view")
+check(remote:viewOf("view") == 102, `a catch-up coalesces to the newest frame it consumes, and takes its view (got {tostring(remote:viewOf("view"))})`)
+remote:get("view"); remote:get("view")
+check(remote:viewOf("view") == 104, "frames consumed one by one, each with its own view")
+remote:get("view")
+check(remote:viewOf("view") == 104, "a starved tick keeps the last view")
+for _, bad in { "soon", 3.5, -1, 0 / 0 } do
+	remote:push("view", { idle }, bad)
+	remote:get("view")
+	check(remote:viewOf("view") == nil, `a view of {tostring(bad)} is no view`)
+end
+remote:push("view", { idle, idle, idle, idle, idle, idle, idle, idle }, 200)
+remote:push("view", { idle }, 300)
+while remote:get("view") and #remote.sources.view.queue > 0 do end
+check(remote:viewOf("view") == 300 and #remote.sources.view.views == 0, "an overflowing queue keeps its views beside its frames")
 
 local codes = setmetatable({}, { __index = function(_, k) return k end })
 local focusLost: any = nil

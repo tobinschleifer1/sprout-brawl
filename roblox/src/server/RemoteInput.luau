@@ -39,6 +39,11 @@ export type Source = {
 	-- of its inputs the server has already accounted for - which is the whole basis of rollback.
 	-- Counting sends rather than consumes would drift the moment the queue overflowed.
 	consumed: number,
+	-- Lag compensation (Config.LAG_COMP): beside each queued frame, the snapshot frame the client
+	-- was drawing everyone else at when it sampled it (-1: it was drawing nothing), and the one
+	-- belonging to the frame consumed last - what Combat.hurtboxFor rewinds this fighter's hits to.
+	views: { number },
+	view: number?,
 }
 
 function RemoteInput.new(): any
@@ -49,25 +54,30 @@ function RemoteInput.new(): any
 end
 
 function RemoteInput.register(self: any, source: string)
-	self.sources[source] = { queue = {}, last = Input.emptyFrame(), starved = 0, consumed = 0 }
+	self.sources[source] = { queue = {}, last = Input.emptyFrame(), starved = 0, consumed = 0, views = {}, view = nil }
 end
 
 -- Called from the remote handler. `packed` is a list of frames the client sampled since its last
--- send, oldest first.
-function RemoteInput.push(self: any, source: string, packed: { number })
+-- send, oldest first; `view`, the snapshot frame it was drawing while it sampled them. A client
+-- can claim any view it likes, and gains at most Config.LAG_COMP's 150ms by it: Combat caps the
+-- rewind, and a view from the future is judged as now.
+function RemoteInput.push(self: any, source: string, packed: { number }, view: any?)
 	local s: Source = self.sources[source]
 	if not s then
 		return
 	end
+	local seen = if type(view) == "number" and view % 1 == 0 and view >= 0 then view else -1
 	-- Numeric dense prefix only, and bounded here too: #packed does not count dictionary keys.
 	for i = 1, math.min(#packed, 16) do
 		local n = packed[i]
 		if type(n) == "number" and n % 1 == 0 and n >= 0 and n < Net.MAX_PACKED then
 			table.insert(s.queue, n)
+			table.insert(s.views, seen)
 		end
 	end
 	while #s.queue > MAX_QUEUED do
 		local oldest = table.remove(s.queue, 1) :: number
+		table.remove(s.views, 1)        -- the coalesced frame keeps the newer one's view
 		s.queue[1] = Net.packFrame(Net.coalesce(Net.unpackFrame(oldest), Net.unpackFrame(s.queue[1])))
 		-- Coalesced, but still accounted for by prediction's input sequence.
 		s.consumed += 1
@@ -86,6 +96,7 @@ function RemoteInput.get(self: any, source: string): Input.Frame
 		return Net.holdOnly(s.last)
 	end
 	s.consumed += 1
+	local seen = table.remove(s.views, 1)
 	local frame = Net.unpackFrame(n)
 	-- Drain anything above the target in this same tick rather than letting it sit. Coalescing
 	-- keeps every press and takes the newest axes, so catching up costs precision on one frame
@@ -93,12 +104,21 @@ function RemoteInput.get(self: any, source: string): Input.Frame
 	while #s.queue > TARGET_QUEUED do
 		-- The loop condition guarantees a value; the checker cannot see that through table.remove.
 		local nxt = table.remove(s.queue, 1) :: number
+		seen = table.remove(s.views, 1)
 		s.consumed += 1
 		frame = Net.coalesce(frame, Net.unpackFrame(nxt))
 	end
 	s.starved = 0
 	s.last = frame
+	s.view = if seen and seen >= 0 then seen else nil
 	return frame
+end
+
+-- The snapshot frame this source was looking at when it sampled the frame consumed last; nil for
+-- one drawing nothing yet. A starved tick keeps the last.
+function RemoteInput.viewOf(self: any, source: string): number?
+	local s: Source = self.sources[source]
+	return if s then s.view else nil
 end
 
 -- What the client needs to know to replay: how many of its frames are already in the past.

@@ -33,6 +33,7 @@ local EXPECTED = {
 	"moveLanded", "comboTarget", "perfectStreak",
 	"comboHits", "breakable", "breakCooldown",
 	"armed",
+	"staleMoves",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation
@@ -113,6 +114,7 @@ f.comboHits = 5
 f.breakLocked = true
 f.breakable = false
 f.breakCooldown = 222
+f.staleMoves = { "LightNeutral1", "SigSide", "LightNeutral1" }
 
 local EXPECT_VALUE: { [string]: any } = {
 	index = 3, x = 12.5, y = 7.25, vx = -4.5, vy = 9.75, facing = -1,
@@ -127,6 +129,8 @@ local EXPECT_VALUE: { [string]: any } = {
 	-- a reference to the fighter we last hit; only its index crosses
 	comboTarget = 1,
 	comboHits = 5, breakable = false, breakCooldown = 222,
+	-- a list of move ids, joined
+	staleMoves = "LightNeutral1,SigSide,LightNeutral1",
 }
 
 local decoded = Snapshot.decode(Snapshot.encode(f))

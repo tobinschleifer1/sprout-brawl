@@ -38,6 +38,7 @@ local Teams = require(Shared.Data.Teams)
 local World2D = require(script.World2D)
 local Fighter2D = require(script.Fighter2D)
 local Predictor = require(script.Predictor)
+local HitConfirm = require(script.HitConfirm)
 local Hud = require(script.Hud)
 local Select = require(script.RoomPanel)
 local SelectScreen = require(script.SelectScreen)
@@ -117,6 +118,15 @@ World2D.effects = fx
 -- few frames behind the newest snapshot, and a spark that lands before the hit it belongs to reads
 -- as the game guessing.
 local pendingFx: { any } = {}
+-- Our own hits spark from the prediction the moment they connect (Predictor, INSTANT HITS); the
+-- server's copy then confirms them rather than drawing them again (HitConfirm).
+local confirm = HitConfirm.new()
+-- The snapshot other fighters are being drawn at, nearest the drawn instant: what our swings are
+-- judged against here, and - its frame sent with our inputs - on the server (Config.LAG_COMP).
+local viewSnap: any = nil
+local viewSeen: any = nil
+-- The states drawn last frame, for the predicted hits' drawn moments (FightScene.spawn).
+local lastStates: { any } = {}
 -- Your own fighter's movement is predicted, so its dust comes from the prediction the moment you
 -- act; the server's copy of those events would arrive a round trip and an interpolation late.
 local LOCAL_FX: { [string]: boolean } = { jump = true, doublejump = true, dash = true, dodge = true, land = true, ledge = true, tech = true, movestart = true }
@@ -400,6 +410,8 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	fx.parts, fx.rings, fx.shake, fx.shields, fx.flash = {}, {}, 0, {}, 0
 	FxPlayer.clear(fxPlayer)
 	pendingFx = {}
+	confirm = HitConfirm.new()
+	viewSnap, viewSeen, lastStates = nil, nil, {}
 	roster = cfg.fighters
 	chars = {}
 	kits = {}
@@ -586,6 +598,7 @@ local function interpolate(at: number): { any }?
 	local t = if b then math.clamp((at - a.t) / span, 0, 1) else 0
 
 	interpBase = a
+	viewSnap = if b and t >= 0.5 then b else a
 	drawnFrame = a.frame + (if b then (b.frame - a.frame) * t else 0)
 	local out = {}
 	for i, wa in a.fighters do
@@ -644,12 +657,17 @@ RunService.Heartbeat:Connect(function(dt: number)
 		if predictor then
 			predictor:push(f)
 			for _, e in predictor:drain() do
-				if LOCAL_FX[e.type] then Effects.spawn(fx, e, glowOf, math.random, heightOf) end
+				if LOCAL_FX[e.type] then Effects.spawn(fx, e, glowOf, math.random, heightOf)
+				elseif e.predicted then
+					-- our swing met a foe as drawn: its sparks and drawn moment now (HitConfirm)
+					confirm:drawn(e, os.clock())
+					pcall(FightScene.spawn :: any, fx, fxPlayer, e, lastStates, chars, glowOf, math.random, heightOf, true)
+				end
 			end
 		end
 	end
 	if #pendingFrames > 0 then
-		Net.remote("Input"):FireServer(pendingFrames, matchCfg.id, matchCfg.inputEpoch or 0)
+		Net.remote("Input"):FireServer(pendingFrames, matchCfg.id, matchCfg.inputEpoch or 0, if viewSnap then viewSnap.frame else nil)
 		pendingFrames = {}
 	end
 end)
@@ -741,6 +759,21 @@ RunService.RenderStepped:Connect(function(dt: number)
 				chars[st.index + 1] = if armed >= 0 then k.kit[armed + 1] else k.fists
 			end
 		end
+		lastStates = states
+	end
+	-- What our swings are judged against: the foes in the snapshot nearest the drawn instant, each
+	-- with the character in hand then - once per snapshot (Predictor.look, INSTANT HITS).
+	if predictor and localIndex and viewSnap and viewSnap ~= viewSeen then
+		viewSeen = viewSnap
+		local seen = {}
+		for i, w in viewSnap.fighters do seen[i] = Snapshot.decode(w) end
+		predictor:look(viewSnap.frame, Predictor.foes(seen, localIndex,
+			function(i: number): any return (roster[i + 1] or {}).team end,
+			function(i: number): any
+				local k, st = kits[i + 1], seen[i + 1]
+				if k and st then return if (st.armed or -1) >= 0 then k.kit[st.armed + 1] else k.fists end
+				return chars[i + 1]
+			end))
 	end
 	if not states then
 		-- A black screen has several causes that look identical, so say which one this is. Without
@@ -806,7 +839,13 @@ RunService.RenderStepped:Connect(function(dt: number)
 		local item = table.remove(pendingFx, 1) :: any
 		local e = item.e
 		local sparks = not (predictor and LOCAL_FX[e.type] and e.fighter == localIndex)
-		local ok, err = pcall(FightScene.spawn :: any, fx, fxPlayer, e, states, chars, glowOf, math.random, heightOf, sparks)
+		-- our own hit, already drawn when it connected: only a kill hit is drawn again, for the
+		-- flash the prediction could not know to give it (HitConfirm)
+		local drawnAlready = confirm:confirms(e, localIndex, os.clock()) and e.kill ~= true
+		local ok, err = true, nil
+		if not drawnAlready then
+			ok, err = pcall(FightScene.spawn :: any, fx, fxPlayer, e, states, chars, glowOf, math.random, heightOf, sparks)
+		end
 		if not ok and not posedWarned[-4] then
 			posedWarned[-4] = true
 			warn(`[Blockfall] an ultimate effect failed to start, and will not be reported again: {err}`)

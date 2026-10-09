@@ -58,6 +58,13 @@ local FIELDS = {
 	-- Weapon drops: which of the fighter's two weapons is in hand (0 or 1), -1 for the fists. The
 	-- client has both weapons from the roster, so this one number is the whole loadout in hand.
 	{ "armed", "ar" },
+	-- Staling (Config.STALE): the moves this fighter landed lately, as one comma-joined string. Not
+	-- drawn - simulated. A predicting client lands its own hits at once (Predictor, INSTANT HITS)
+	-- and works out their freeze from this memory; one it predicted that the server took back
+	-- (the foe dodged first) stayed in the client's memory and nowhere else, and every freeze of
+	-- that move came out a frame short until it aged out. It changes only when a hit lands, so in a
+	-- delta (SnapshotCodec) it costs nothing the rest of the time.
+	{ "staleMoves", "sm" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -86,6 +93,8 @@ function Snapshot.encode(f: any): { [string]: any }
 		elseif name == "comboTarget" then
 			-- a fighter reference; only its index crosses
 			out[wire] = if f.comboTarget then f.comboTarget.index else nil
+		elseif name == "staleMoves" then
+			out[wire] = table.concat(f.staleMoves, ",")
 		elseif name == "ledgeAction" then
 			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
 			-- from the stage. Only the kind changes the pose.

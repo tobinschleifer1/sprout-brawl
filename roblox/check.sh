@@ -132,6 +132,8 @@ lune run tests/prediction
 lune run tests/prediction-platforms
 echo "== combos predicted on the server's frames: timed strings, chases, the victim's break =="
 lune run tests/prediction-combos
+echo "== instant hits and lag compensation: a predicted hit is the server's, end to end =="
+lune run tests/instant-hits
 echo "== the client's view-only stage, moved by the server =="
 lune run tests/stage-view
 echo "== parity: Stage vs web/src/engine/stage.js =="

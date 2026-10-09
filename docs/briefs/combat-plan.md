@@ -29,9 +29,17 @@ KO effects and emotes, progression), which waits until this is done.
    a kill hit. Found on the way: in a 6-fighter match nearly everyone fights on fists for the
    first 20 s (four drops for six people), and 136 of 184 KOs in bot matches are off the bottom
    - failed recoveries, which is where depth and team saves should look.
-2. **Depth.** Wall and ceiling bounces for a launched fighter (techable), armour that heavy moves
-   can push through light hits with, clashes (two attacks meeting cancel out), and stale moves
-   (a move repeated loses power) so mashing one button stops working.
+2. **Depth** (done). Agreed with the user: bounces off walls and ceilings, armour on every heavy
+   against lights, mild staling; no clashes and no edge/recovery work.
+   - Staling: the last 8 moves landed, 5% off per repeat among them, floor 60%; once per swing;
+     throws and the ultimate never stale, blocked hits are not landed. Small hits barely stale -
+     a 3-damage jab rounds back to 3 until four repeats - which is mild on purpose.
+   - Armour: a heavy's startup shrugs off the first light hit (damage taken and counted, swing goes
+     on, a metal clank); a heavy, a grab or the ultimate still go through.
+   - Bounces: launched (hitstun or tumbling) into a wall or ceiling above 30, rebound at 60%;
+     techable off both. 47 wall and 6 ceiling rebounds in 232 bot-minutes; KO sides unchanged.
+   Bot ladder held throughout. Studio (2v2, Saltflat): armour fired and clanked, no errors; no
+   rebound came up in the sample.
 3. **Team play.** Save a launched ally by touching them, team combos (a combo carried on by an ally
    counts for both, with an assist), team throws (grab an ally and throw them at a foe), and KO
    assist credit in every mode.

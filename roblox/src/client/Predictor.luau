@@ -41,6 +41,8 @@ local function stubCombat(fighters: { any }): any
 		-- weapon drops: no drop is ever in reach here, so a pickup is the server's to report. A
 		-- throw IS predicted - the move plays at once - and the weapon leaving arrives as `armed`.
 		dropNear = function() return nil end,
+		-- a catch is the server's to decide, like a pickup (Config.TEAM.catch)
+		allyToCatch = function() return nil end,
 		takeDrop = function() end,
 		hasFruit = function() return false end,
 		fruiting = function() end,

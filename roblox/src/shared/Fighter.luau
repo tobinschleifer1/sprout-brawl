@@ -155,6 +155,8 @@ function Fighter.new(opts: any): any
 	self.stats = { kos = 0, assists = 0, falls = 0, damageDealt = 0, damageTaken = 0, selfDestructs = 0 }
 	-- When each other fighter last hit this one ([index + 1] = this fighter's frameCount), for assists.
 	self.hitBy = {}
+	-- The launch a teammate last caught this fighter out of (its lastHitFrame): one save per launch.
+	self.savedFrom = -1
 	self.input = Input.emptyFrame()
 	self.buffer = { jump = 0, light = 0, heavy = 0, dodge = 0, guard = 0, grab = 0, taunt = 0, ult = 0, pickup = 0 }
 	self.frameCount = 0
@@ -554,6 +556,7 @@ function methods._stepGround(self, ctx)
 		if methods.consume(self, "light") then ctx.combat:useItem(self, "light"); return end
 		if methods.consume(self, "heavy") then ctx.combat:useItem(self, "heavy"); return end
 	end
+	if methods._tryCatch(self, ctx) then return end
 	if methods.consume(self, "grab") or (self.buffer.light > 0 and inp.guardHeld) then
 		self.buffer.light = 0
 		methods._startGrab(self); return
@@ -728,6 +731,7 @@ function methods._stepAir(self, ctx)
 	end
 	if methods._tryUltimate(self, ctx) then return end
 	if methods._weaponButton(self, ctx) then return end
+	if methods._tryCatch(self, ctx) then return end
 	if methods.consume(self, "light") then methods._startAerial(self, inp); return end
 	if methods.consume(self, "heavy") then
 		if inp.y < -0.5 then methods._startGroundPound(self) else methods._startRecovery(self, ctx) end
@@ -1621,6 +1625,21 @@ function methods._stepLedgeAction(self, ctx)
 end
 
 -- ---------------------------------------------------------------- grabs ----
+-- The save (Config.TEAM.catch): grab pressed with a tumbling teammate in reach catches them instead.
+function methods._tryCatch(self, ctx): boolean
+	if self.buffer.grab <= 0 then return false end
+	local ally = ctx.combat:allyToCatch(self)
+	if not ally then return false end
+	self.buffer.grab = 0
+	ctx.combat:catchAlly(self, ally)
+	if self.onGround then
+		self.vx = 0
+		self.lag = Config.TEAM.catch.lag
+		methods.setState(self, "landing")
+	end
+	return true
+end
+
 function methods._startGrab(self)
 	methods.setState(self, "grab")
 	methods.emit(self, { type = "grab" })
@@ -1881,7 +1900,7 @@ local SCALARS = {
 	-- Staling: this swing's multiplier and which swing it is for (staleMoves is copied below).
 	"staleSerial", "staleNow",
 	-- Team combos: who has hit in the combo this fighter is held in (hitBy is copied below).
-	"comboBy",
+	"comboBy", "savedFrom",
 	-- Identity rather than simulation state: these never change during a match, so restoring them
 	-- is a no-op. They are here because a snapshot that cannot rebuild the whole fighter is a
 	-- snapshot somebody will eventually use for something else and be wrong about.

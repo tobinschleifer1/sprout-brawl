@@ -486,6 +486,35 @@ function Combat.resolveThrow(self, attacker: any, victim: any, td: any, tangle: 
 		angle = td.angle, facing = facing, throw = true, kill = kill })
 end
 
+-- The save (Config.TEAM.catch): the first teammate of `f`, in fighter order, who is tumbling, not
+-- yet saved from this launch, and within reach.
+function Combat.allyToCatch(self, f: any): any
+	local C = Config.TEAM.catch
+	local w, h = C.reach[1], C.reach[2]
+	local cy = f.y + f.h / 2
+	for _, v in self.match.fighters do
+		if v ~= f and v.alive and Combat.sameTeam(self, f, v) and v.tumbling and v.savedFrom ~= v.lastHitFrame
+			and v.state ~= "grabbed" and v.state ~= "ko" and v.state ~= "respawn"
+			and math.abs(v.x - f.x) <= w / 2 and math.abs(v.y + v.h / 2 - cy) <= h / 2 then
+			return v
+		end
+	end
+	return nil
+end
+function Combat.catchAlly(self, f: any, v: any)
+	local C = Config.TEAM.catch
+	v.savedFrom = v.lastHitFrame
+	v.hitlag = 0; v.pendingLaunch = nil; v.hitstun = 0; v.tumbling = false; v.fastFalling = false
+	v.vx *= C.keep
+	v.vy = math.max(v.vy * C.keep, C.pop)
+	v.jumpsLeft = math.max(v.jumpsLeft, 1)
+	v.invincible = math.max(v.invincible, C.invincible)
+	v.onGround = false
+	v.platform = nil
+	v:setState("air")
+	Combat.emit(self, { type = "catch", x = v.x, y = v.cy, fighter = f.index, ally = v.index })
+end
+
 -- A team combo: the combo `victim` is held in has hits from two or more of `attacker`'s team.
 function Combat.teamCombo(self, victim: any, attacker: any): boolean
 	local n = 0

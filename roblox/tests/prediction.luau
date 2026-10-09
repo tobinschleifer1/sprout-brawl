@@ -33,7 +33,7 @@ local function stubCombat(fighters: any): any
 	return {
 		fighters = fighters,
 		useItem = function() end, dropItem = function() end,
-		itemNear = function() return nil end, pickupItem = function() end,
+		itemNear = function() return nil end, allyToCatch = function() return nil end, pickupItem = function() end,
 		hasFruit = function() return false end, fruiting = function() end,
 		nearestNode = function() return nil end, removeSummon = function() end,
 		onMoveActive = function() end, onMoveActiveFrame = function() end,

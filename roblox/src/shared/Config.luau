@@ -111,7 +111,9 @@ Config.BOUNCE = { speed = 30, restitution = 0.6 }
 
 -- Team play (phase 3): assists - anyone besides the KO'er who hit the victim within
 -- `assistWindow` frames - are credited and get `assistMeter` ultimate charge. config.js says more.
-Config.TEAM = { assistWindow = 480, assistMeter = 3 }
+Config.TEAM = { assistWindow = 480, assistMeter = 3,
+	-- The save: grab with a tumbling teammate within `reach` catches them (config.js says what it does).
+	catch = { reach = { 6, 6 }, keep = 0.2, pop = 8, invincible = 20, lag = 10 } }
 
 Config.STALE = { memory = 8, step = 0.05, floor = 0.6 }
 function Config.staleMul(landed: { string }, id: string): number

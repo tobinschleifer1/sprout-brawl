@@ -148,6 +148,12 @@ S.push({ name: 'bots on undertow', stage: 'Undertow', seed: 606, stocks: 3, fram
 S.push({ name: 'bots on smeltworks', stage: 'Smeltworks', seed: 707, stocks: 3, frames: 2000,
   who: [['Classic', 'Daggers', 'elite'], ['Noir', 'Gauntlets', 'elite']] });
 
+// Elite teams that catch a launched team-mate (TEAM.catch) inside the trace - a bot's catch is only
+// drawn for while one is possible, so a trace without one cannot hold the port to it.
+S.push({ name: 'bot teams catching', stage: 'FoundryFloor', mode: 'StockTeams', seed: 26, stocks: 2,
+  teamOf: [0, 0, 1, 1], frames: 900,
+  who: [['Classic', 'Sword', 'elite'], ['Noir', 'Pike', 'elite'], ['Ember', 'Axe', 'elite'], ['Moss', 'Flail', 'elite']] });
+
 // Teams, so the enemy filter has to exclude a team-mate.
 S.push({ name: 'bot teams', stage: 'FoundryFloor', mode: 'StockTeams', seed: 808, stocks: 2,
   teamOf: [0, 0, 1, 1], frames: 2400,

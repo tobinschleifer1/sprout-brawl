@@ -149,7 +149,12 @@ export const BOUNCE = { speed: 30, restitution: 0.6 };
 // Team play (combat phase 3). An assist: anyone besides the KO'er who hit the victim within
 // `assistWindow` frames of the KO - in every mode - is credited and gets `assistMeter` ultimate
 // charge (a landed hit is 1; the meter is ULTIMATE.hitsRequired).
-export const TEAM = { assistWindow: 480, assistMeter: 3 };
+export const TEAM = { assistWindow: 480, assistMeter: 3,
+  // The save: press grab with a tumbling teammate within `catch.reach` (a box that size around
+  // you, in studs) and you catch them - their launch ends, they keep `catch.keep` of their speed
+  // with at least `catch.pop` upward, get a jump back and `catch.invincible` frames, and can act.
+  // Once per launch. A catch on the ground costs the catcher `catch.lag` frames; in the air, none.
+  catch: { reach: [6, 6], keep: 0.2, pop: 8, invincible: 20, lag: 10 } };
 
 export const STALE = { memory: 8, step: 0.05, floor: 0.6 };
 export const staleMul = (landed, id) => {

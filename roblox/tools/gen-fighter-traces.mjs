@@ -33,6 +33,7 @@ function stubCombat(fighters) {
     useItem: (f, kind) => rec('useItem', kind),
     dropItem: (f, thrown) => rec('dropItem', String(thrown)),
     itemNear: () => { rec('itemNear'); return null; },
+    allyToCatch: () => { rec('allyToCatch'); return null; },
     pickupItem: () => rec('pickupItem'),
     hasFruit: () => { rec('hasFruit'); return false; },
     fruiting: () => rec('fruiting'),

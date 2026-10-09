@@ -111,6 +111,7 @@ local function stubCombat(fighters: any): any
 		useItem = function(_, f, kind) rec("useItem", kind) end,
 		dropItem = function(_, f, thrown) rec("dropItem", tostring(thrown)) end,
 		itemNear = function(_) rec("itemNear") return nil end,
+		allyToCatch = function(_) rec("allyToCatch") return nil end,
 		pickupItem = function(_) rec("pickupItem") end,
 		hasFruit = function(_) rec("hasFruit") return false end,
 		fruiting = function(_) rec("fruiting") end,

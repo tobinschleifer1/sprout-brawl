@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul } from '../config.js';
+import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul, TEAM } from '../config.js';
 import { launchSpeed, stunSpeed, hitlag as hitlagFor, velocity as launchVelocity, carriesOut } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
@@ -294,6 +294,30 @@ export class Combat {
     attacker.stats.damageDealt += damage;
     const kill = this.killHit(victim);
     this.emit({ type: 'hit', x: victim.x, y: victim.cy, damage, launch, heavy: true, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle: td.angle, facing, throw: true, kill });
+  }
+
+  // The save (TEAM.catch): the first teammate of `f`, in fighter order, who is tumbling, not yet
+  // saved from this launch, and within reach.
+  allyToCatch(f) {
+    const [w, h] = TEAM.catch.reach;
+    const cy = f.y + f.h / 2;
+    for (const v of this.fighters) {
+      if (v === f || !v.alive || !this.sameTeam(f, v) || !v.tumbling || v.savedFrom === v.lastHitFrame) continue;
+      if (v.state === 'grabbed' || v.state === 'ko' || v.state === 'respawn') continue;
+      if (Math.abs(v.x - f.x) <= w / 2 && Math.abs(v.y + v.h / 2 - cy) <= h / 2) return v;
+    }
+    return null;
+  }
+  catchAlly(f, v) {
+    const C = TEAM.catch;
+    v.savedFrom = v.lastHitFrame;
+    v.hitlag = 0; v.pendingLaunch = null; v.hitstun = 0; v.tumbling = false; v.fastFalling = false;
+    v.vx *= C.keep; v.vy = Math.max(v.vy * C.keep, C.pop);
+    v.jumpsLeft = Math.max(v.jumpsLeft, 1);
+    v.invincible = Math.max(v.invincible, C.invincible);
+    v.onGround = false; v.platform = null;
+    v.setState('air');
+    this.emit({ type: 'catch', x: v.x, y: v.cy, fighter: f.index, ally: v.index });
   }
 
   // A team combo: the combo `victim` is held in has hits from two or more of `attacker`'s team.

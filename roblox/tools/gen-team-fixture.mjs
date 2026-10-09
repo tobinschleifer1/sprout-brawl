@@ -9,10 +9,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const { makeMatch, skipCountdown } = await import('../../web/test/harness.mjs');
 const S = (v) => (typeof v === 'number' ? String(v) : v);
 // steps: ['hit', a, v] | ['wait', v, frames] | ['ko', v] | ['respawn', v] | ['free', v] (the combo ends)
+//      | ['launch', v, dx, dy] (v tumbling at dx, dy from fighter 0) | ['catch', c] (c presses grab)
 const SCRIPTS = [
   { teams: [0, 1, 0, 1], steps: [['hit', 0, 1], ['hit', 2, 1], ['hit', 0, 1], ['hit', 2, 1], ['ko', 1], ['hit', 2, 3], ['free', 3], ['hit', 0, 3]] },
   { teams: null, steps: [['hit', 1, 3], ['wait', 3, 100], ['hit', 2, 3], ['wait', 3, 379], ['hit', 0, 3], ['ko', 3], ['hit', 0, 2], ['wait', 2, 480], ['hit', 1, 2], ['ko', 2]] },
   { teams: null, steps: [['hit', 1, 2], ['hit', 0, 2], ['ko', 2], ['respawn', 2], ['hit', 3, 2], ['ko', 2]] },
+  { teams: [0, 1, 0, 1], steps: [['launch', 2, 1.5, 0], ['catch', 0], ['launch', 2, 1.5, 0], ['catch', 0], ['wait', 2, 5], ['hit', 1, 2], ['launch', 2, 2.9, 2.9], ['catch', 0],
+    ['launch', 3, 1, 0], ['catch', 0], ['wait', 2, 5], ['hit', 1, 2], ['launch', 2, 3.1, 0], ['catch', 0], ['air', 0], ['launch', 2, -2, 2], ['catch', 0]] },
   { teams: [0, 0, 1, 1], steps: [['hit', 2, 0], ['hit', 3, 0], ['hit', 2, 0], ['free', 0], ['hit', 3, 0], ['hit', 0, 2], ['hit', 1, 2], ['ko', 2], ['ko', 0]] },
 ];
 const out = [];
@@ -21,7 +24,7 @@ for (const sc of SCRIPTS) {
     loadouts: [0, 1, 2, 3].map((i) => [['Classic', 'Noir', 'Ember', 'Moss'][i], 'Sword']) }));
   m.fighters.forEach((f, i) => { if (sc.teams) f.team = sc.teams[i]; });
   const rows = [];
-  for (const [kind, x, y] of sc.steps) {
+  for (const [kind, x, y, z] of sc.steps) {
     const place = () => m.fighters.forEach((f, i) => { f.x = -6 + i * 3; f.y = 0; f.vx = 0; f.vy = 0; f.onGround = true; f.platform = m.stage.main; f.invincible = 0; });
     m.combat.events.length = 0; m.events.length = 0;
     let row;
@@ -34,6 +37,22 @@ for (const sc of SCRIPTS) {
       const e = m.combat.events.find((ev) => ev.type === 'hit');
       row = [kind, e ? e.team : null, e ? S(e.combo) : null];
     } else if (kind === 'wait') { for (let i = 0; i < y; i++) m.fighters[x].frameCount++; row = [kind]; }
+    else if (kind === 'launch') {
+      const c = m.fighters[0], v = m.fighters[x];
+      v.x = c.x + y; v.y = c.y + z; v.onGround = false; v.platform = null;
+      v.setState('hitstun'); v.hitstun = 30; v.tumbling = true; v.vx = 60; v.vy = 30; v.jumpsLeft = 0;
+      row = [kind];
+    } else if (kind === 'air') { const c = m.fighters[x]; c.y = 6; c.onGround = false; c.platform = null; c.setState('air'); c.vy = 0; row = [kind]; }
+    else if (kind === 'catch') {
+      const c = m.fighters[x];
+      // through the catcher's own step, so the ground and the air paths are the ones exercised
+      c.buffer.grab = 8;
+      c.step({ stage: m.stage, combat: m.combat, fighters: m.fighters });
+      const e = m.combat.events.find((ev) => ev.type === 'catch');
+      const caught = !!e;
+      row = [kind, caught ? 1 : 0, e ? S(e.ally) : null, m.fighters.map((f) => [f.state, f.vx.toFixed(6), f.vy.toFixed(6), S(f.invincible), S(f.jumpsLeft), f.tumbling, S(f.lag)].join(':')).join(' ')];
+      c.setState('idle'); c.lag = 0; c.y = 0; c.onGround = true; c.platform = m.stage.main;
+    }
     else if (kind === 'respawn') { m.respawn(m.fighters[x]); m.fighters[x].setState('idle'); m.fighters[x].invincible = 0; row = [kind, S(m.fighters[x].alive ? 1 : 0), null]; }
     else if (kind === 'free') { const v = m.fighters[x]; v.setState('idle'); v.step({ stage: m.stage, combat: m.combat, fighters: m.fighters }); row = [kind, S(v.comboHits), S(v.comboBy)]; }
     else { m.knockOut(m.fighters[x]); const e = m.events.find((ev) => ev.type === 'ko'); row = [kind, S(e.by), e.assists.join(',')]; }

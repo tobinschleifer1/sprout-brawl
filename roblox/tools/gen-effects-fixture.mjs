@@ -22,6 +22,7 @@ const cases = [
   ['light hit', [E('hit', { attacker: 0 })]], ['heavy hit', [E('hit', { attacker: 2, heavy: true })]],
   ['hits by strength', [E('hit', { attacker: 0, launch: 20 }), E('hit', { attacker: 2, launch: 75 }), E('hit', { attacker: 3, launch: 149.5 }), E('hit', { attacker: 0, launch: 400 }), E('hit', { attacker: 2, launch: 30, heavy: true })]],
   ['telegraph', [E('movestart', { fighter: 1, heavy: true }), E('movestart', { fighter: 0, heavy: false }), E('movestart', { fighter: 9, heavy: true })]],
+  ['catch', [E('catch', { fighter: 0, ally: 2 }), E('catch', { fighter: 1, ally: 3 })]],
   ['rebounds', [E('rebound', { surface: 'wall', speed: 45 }), E('rebound', { surface: 'ceiling', speed: 200 }), E('rebound', { surface: 'wall' })]],
   ['armour', [E('armor', { victim: 1, attacker: 0 })]],
   ['kill hit', [E('hit', { attacker: 2, launch: 180, kill: true }), E('hit', { attacker: 1, launch: 90, kill: false })]],

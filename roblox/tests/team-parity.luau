@@ -49,6 +49,33 @@ for n, sc in T.scripts do
 			local f = m.fighters[x + 1]
 			f.frameCount += y
 			got = { kind }
+		elseif kind == "launch" then
+			local c, v = m.fighters[1], m.fighters[x + 1]
+			v.x, v.y, v.onGround, v.platform = c.x + y, c.y + step[4], false, nil
+			v:setState("hitstun")
+			v.hitstun, v.tumbling, v.vx, v.vy, v.jumpsLeft = 30, true, 60, 30, 0
+			got = { kind }
+		elseif kind == "air" then
+			local c = m.fighters[x + 1]
+			c.y, c.onGround, c.platform = 6, false, nil
+			c:setState("air")
+			c.vy = 0
+			got = { kind }
+		elseif kind == "catch" then
+			local c = m.fighters[x + 1]
+			c.buffer.grab = 8
+			c:step({ stage = m.stage, combat = m.combat, fighters = m.fighters })
+			local e = nil
+			for _, ev in m.combat.events do if ev.type == "catch" then e = ev end end
+			local caught = e ~= nil
+			local states = {}
+			for _, f in m.fighters do
+				table.insert(states, table.concat({ f.state, string.format("%.6f", f.vx), string.format("%.6f", f.vy), tostring(f.invincible),
+					tostring(f.jumpsLeft), tostring(f.tumbling), tostring(f.lag) }, ":"))
+			end
+			got = { kind, tostring(if caught then 1 else 0), if e then tostring(e.ally) else nil, table.concat(states, " ") }
+			c:setState("idle")
+			c.lag, c.y, c.onGround, c.platform = 0, 0, true, m.stage.main
 		elseif kind == "respawn" then
 			local f = m.fighters[x + 1]
 			m:respawn(f)
@@ -69,7 +96,7 @@ for n, sc in T.scripts do
 		local tally = {}
 		for _, f in m.fighters do table.insert(tally, `{f.stats.kos}/{f.stats.assists}/{f.ultCharge}`) end
 		-- the tally is the last value: 2nd after a wait, 4th otherwise (a missed hit's nils hold 2-3)
-		local last = if kind == "wait" then 2 else 4
+		local last = if kind == "wait" or kind == "launch" or kind == "air" then 2 elseif kind == "catch" then 5 else 4
 		got[last] = table.concat(tally, " ")
 		local want = sc.rows[k]
 		for j = 1, last do

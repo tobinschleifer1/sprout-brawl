@@ -166,6 +166,9 @@ export function spawnEffect(fx, e, glow, rand, height = () => 5) {
     case 'dodge': ring(e.x, e.y, 2.0, 0.2, '#BFE6FF', false, 0); break;
     case 'ledge': dust(e.x, e.y, 4, 3, 1, 0.28, 0.3); break;
     case 'tech': push(e.x, e.y, 8, '#FFFFFF', 14, 0.26, 0.22); ring(e.x, e.y, 2.2, 0.26, '#FFFFFF', false, 0); break;
+    // A teammate caught out of a launch (TEAM.catch): a ring in the catcher's colour - their team's,
+    // in a team match - and a burst of white, so the save reads as a save and not as a hit.
+    case 'catch': push(e.x, e.y, 10, '#FFFFFF', 14, 0.3, 0.24); ring(e.x, e.y, 2.4, 0.32, glow(e.fighter) || '#9FE8A8', false, 0); break;
     // A launched fighter rebounding off a wall or a ceiling (BOUNCE): grit off the surface and a
     // jolt, harder the faster they hit it.
     case 'rebound': {

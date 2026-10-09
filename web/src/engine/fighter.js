@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO, DROPS, BOUNCE } from '../config.js';
+import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO, DROPS, BOUNCE, TEAM } from '../config.js';
 import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockstunFor } from './knockback.js';
 import { emptyFrame } from './input.js';
 
@@ -65,6 +65,8 @@ export class Fighter {
     this.stats = { kos: 0, assists: 0, falls: 0, damageDealt: 0, damageTaken: 0, selfDestructs: 0 };
     // When each other fighter last hit this one (by index; this fighter's frameCount), for assists.
     this.hitBy = [];
+    // The launch a teammate last caught this fighter out of (its lastHitFrame): one save per launch.
+    this.savedFrom = -1;
     this.input = emptyFrame();
     this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0, ult: 0, pickup: 0 };
     this.frameCount = 0;
@@ -371,6 +373,7 @@ export class Fighter {
       if (this.consume('light')) { ctx.combat.useItem(this, 'light'); return; }
       if (this.consume('heavy')) { ctx.combat.useItem(this, 'heavy'); return; }
     }
+    if (this._tryCatch(ctx)) return;
     if (this.consume('grab') || (this.buffer.light > 0 && inp.guardHeld)) { this.buffer.light = 0; this._startGrab(); return; }
     if (this.consume('light')) { this._startGroundLight(inp); return; }
     if (this.consume('heavy')) { this._startGroundHeavy(inp, ctx); return; }
@@ -502,6 +505,7 @@ export class Fighter {
     }
     if (this._tryUltimate(ctx)) return;
     if (this._weaponButton(ctx)) return;
+    if (this._tryCatch(ctx)) return;
     if (this.consume('light')) { this._startAerial(inp); return; }
     if (this.consume('heavy')) { if (inp.y < -0.5) this._startGroundPound(); else this._startRecovery(ctx); return; }
     if (this.consume('dodge') && !this.airDodgeUsed) { this._startAirDodge(inp); return; }
@@ -1170,6 +1174,16 @@ export class Fighter {
   }
 
   // ---------- grabs ----------
+  // The save (TEAM.catch): grab pressed with a tumbling teammate in reach catches them instead.
+  _tryCatch(ctx) {
+    if (this.buffer.grab <= 0) return false;
+    const ally = ctx.combat.allyToCatch(this);
+    if (!ally) return false;
+    this.buffer.grab = 0;
+    ctx.combat.catchAlly(this, ally);
+    if (this.onGround) { this.vx = 0; this.lag = TEAM.catch.lag; this.setState('landing'); }
+    return true;
+  }
   _startGrab() { this.setState('grab'); this.emit({ type: 'grab' }); }
   _stepGrab(ctx) {
     this._friction();

@@ -6,9 +6,15 @@
 //   * team combos: hits by two teammates on one held foe are a team combo on the hit event; one
 //     attacker alone is not, nor are two attackers on different sides.
 //
+//   * the save (TEAM.catch): grab pressed with a tumbling teammate in reach catches them - their
+//     launch ends, they can act, they are briefly invincible, and the catcher pays a little on the
+//     ground; from the air too; not an enemy, not out of reach (that is a grab), once per launch,
+//     and again after a new hit.
+//
 //     node test/team.test.mjs
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { TEAM } from '../src/config.js';
+import { emptyFrame } from '../src/engine/input.js';
 
 let pass = 0, fail = 0;
 const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
@@ -85,6 +91,67 @@ const hit = (m, a, v) => { a.moveSerial++; v.hitlag = 0; m.combat.events.length 
   v.setState('idle'); m.step(); m.events.length = 0;
   const fresh = hit(m, c, v);
   check('a new combo starts with nobody in it', fresh.team === false && fresh.combo === 1, `combo ${fresh.combo}, team=${fresh.team}`);
+}
+
+// ---- the save ----
+{
+  // a teammate (index 2) launched past the catcher (index 0), who presses grab
+  const save = ({ dx = 1.5, dy = 0, team = 0, air = false, again = false } = {}) => {
+    const m = arena([0, 1, team, 1]);
+    const [c, , ally] = m.fighters;
+    const launch = (f) => {
+      f.x = c.x + dx; f.y = c.y + dy; f.onGround = false; f.platform = null;
+      f.setState('hitstun'); f.hitstun = 30; f.tumbling = true; f.vx = 60; f.vy = 30; f.lastHitFrame = f.frameCount;
+    };
+    if (air) { c.y = 6; c.onGround = false; c.platform = null; c.setState('air'); c.vy = 0; }
+    launch(ally);
+    const before = { vx: ally.vx };
+    m._input.set('p0', { ...emptyFrame(), grab: true, anyPress: true });
+    m.step(); m._input.clear('p0');
+    const ev = m.events.find((e) => e.type === 'catch');
+    m.events.length = 0;
+    let second = null;
+    if (again) {
+      for (let i = 0; i < 20; i++) m.step();
+      m.events.length = 0;
+      ally.x = c.x + dx; ally.y = c.y; ally.onGround = false; ally.setState('hitstun'); ally.hitstun = 30; ally.tumbling = true;
+      c.setState('idle'); c.lag = 0;
+      m._input.set('p0', { ...emptyFrame(), grab: true, anyPress: true }); m.step(); m._input.clear('p0');
+      second = m.events.find((e) => e.type === 'catch') || null;
+      m.events.length = 0;
+      launch(ally); ally.lastHitFrame = ally.frameCount + 1;   // a new hit: a new launch
+      ally.x = c.x + dx; ally.y = c.y;
+      c.setState('idle'); c.lag = 0;
+      m._input.set('p0', { ...emptyFrame(), grab: true, anyPress: true }); m.step(); m._input.clear('p0');
+      second = { once: second, fresh: m.events.find((e) => e.type === 'catch') || null };
+    }
+    return { m, c, ally, ev, before, second };
+  };
+  const s = save();
+  check('grab on a tumbling teammate in reach catches them', s.ev && s.ev.ally === s.ally.index && !s.ally.tumbling && s.ally.state === 'air'
+      && s.ally.hitstun === 0 && s.ally.invincible > 0 && Math.abs(s.ally.vx) < s.before.vx * 0.3 && s.ally.jumpsLeft >= 1,
+    `ally ${s.ally.state}, tumbling ${s.ally.tumbling}, vx ${s.before.vx} -> ${s.ally.vx.toFixed(1)}, invincible ${s.ally.invincible}, jumps ${s.ally.jumpsLeft}`);
+  check('a catch on the ground costs the catcher a moment', s.c.state === 'landing' && s.c.lag > 0, `catcher ${s.c.state}, lag ${s.c.lag}`);
+  const a = save({ air: true, dy: 0 });
+  check('and it works from the air, for free', a.ev && a.c.state === 'air', `catch ${!!a.ev}, catcher ${a.c.state}`);
+  const enemy = save({ team: 1 });
+  check('an enemy is not caught', !enemy.ev && enemy.ally.tumbling, `catch ${!!enemy.ev}, their tumble ${enemy.ally.tumbling}`);
+  const far = save({ dx: 7 });
+  check('out of reach it is just a grab', !far.ev && far.c.state === 'grab' && far.ally.tumbling, `catch ${!!far.ev}, catcher ${far.c.state}`);
+  // bots save each other too: four elite bots, two a side, catch a launched team-mate
+  const bots = skipCountdown(makeMatch({ mode: 'StockTeams', stocks: 2, seed: 26,
+    loadouts: [['Classic', 'Sword'], ['Noir', 'Pike'], ['Ember', 'Axe'], ['Moss', 'Flail']] }));
+  bots.fighters.forEach((f, i) => { f.isBot = true; f.botLevel = 'elite'; f.team = [0, 0, 1, 1][i]; });
+  let botCatches = 0;
+  for (let i = 0; i < 60 * 60 && bots.state !== 'results'; i++) {
+    bots.step();
+    for (const e of bots.events) if (e.type === 'catch') { botCatches++; if (bots.fighters[e.fighter].team !== bots.fighters[e.ally].team) botCatches = -999; }
+    bots.events.length = 0;
+  }
+  check('bots catch their team-mates, and only them', botCatches > 0, `${botCatches} catches by elite bots in a minute`);
+  const twice = save({ again: true });
+  check('once per launch, and again after a new hit', twice.ev && !twice.second.once && twice.second.fresh,
+    `first ${!!twice.ev}, same launch again ${!!twice.second.once}, after a new hit ${!!twice.second.fresh}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

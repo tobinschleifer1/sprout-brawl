@@ -26,12 +26,12 @@ local Ai = {}
 -- how often it throws the one in hand (Config.DROPS).
 Ai.LEVELS = {
 	dummy = nil,
-	easy = { sight = 26, reaction = 22, commit = 20, aggression = 0.35, defence = 0.15, kill = 0.5, dodge = 0.1, ult = 0.2, edge = 0.0, slip = 0.30, chains = 0, combo = 0.2, timing = 0.1, cancel = 0, breakOut = 0, arm = 0.5, throws = 0.05 },
-	normal = { sight = 15, reaction = 12, commit = 16, aggression = 0.55, defence = 0.35, kill = 0.7, dodge = 0.25, ult = 0.5, edge = 0.15, slip = 0.15, chains = 1, combo = 0.5, timing = 0.35, cancel = 0.15, breakOut = 0.1, arm = 0.7, throws = 0.12 },
-	hard = { sight = 9, reaction = 6, commit = 13, aggression = 0.7, defence = 0.55, kill = 0.9, dodge = 0.4, ult = 0.75, edge = 0.4, slip = 0.07, chains = 2, combo = 0.75, timing = 0.7, cancel = 0.5, breakOut = 0.35, arm = 0.85, throws = 0.2 },
-	elite = { sight = 5, reaction = 3, commit = 11, aggression = 0.85, defence = 0.7, kill = 1.0, dodge = 0.6, ult = 0.9, edge = 0.65, slip = 0.03, chains = 3, combo = 0.9, timing = 0.85, cancel = 0.75, breakOut = 0.6, arm = 0.95, throws = 0.3 },
-	impossible = { sight = 2, reaction = 1, commit = 9, aggression = 0.95, defence = 0.85, kill = 1.0, dodge = 0.8, ult = 1.0, edge = 0.8, slip = 0.01, chains = 3, combo = 1.0, timing = 0.95, cancel = 0.9, breakOut = 0.85, arm = 1.0, throws = 0.35 },
-	just_dont = { sight = 0, reaction = 1, commit = 8, aggression = 1.0, defence = 1.0, kill = 1.0, dodge = 1.0, ult = 1.0, edge = 0.95, slip = 0.0, chains = 3, combo = 1.0, timing = 1.0, cancel = 1.0, breakOut = 1.0, arm = 1.0, throws = 0.4 },
+	easy = { sight = 26, reaction = 22, commit = 20, aggression = 0.35, defence = 0.15, kill = 0.5, dodge = 0.1, ult = 0.2, edge = 0.0, slip = 0.30, chains = 0, combo = 0.2, timing = 0.1, cancel = 0, breakOut = 0, arm = 0.5, throws = 0.05, catch = 0.04 },
+	normal = { sight = 15, reaction = 12, commit = 16, aggression = 0.55, defence = 0.35, kill = 0.7, dodge = 0.25, ult = 0.5, edge = 0.15, slip = 0.15, chains = 1, combo = 0.5, timing = 0.35, cancel = 0.15, breakOut = 0.1, arm = 0.7, throws = 0.12, catch = 0.12 },
+	hard = { sight = 9, reaction = 6, commit = 13, aggression = 0.7, defence = 0.55, kill = 0.9, dodge = 0.4, ult = 0.75, edge = 0.4, slip = 0.07, chains = 2, combo = 0.75, timing = 0.7, cancel = 0.5, breakOut = 0.35, arm = 0.85, throws = 0.2, catch = 0.25 },
+	elite = { sight = 5, reaction = 3, commit = 11, aggression = 0.85, defence = 0.7, kill = 1.0, dodge = 0.6, ult = 0.9, edge = 0.65, slip = 0.03, chains = 3, combo = 0.9, timing = 0.85, cancel = 0.75, breakOut = 0.6, arm = 0.95, throws = 0.3, catch = 0.4 },
+	impossible = { sight = 2, reaction = 1, commit = 9, aggression = 0.95, defence = 0.85, kill = 1.0, dodge = 0.8, ult = 1.0, edge = 0.8, slip = 0.01, chains = 3, combo = 1.0, timing = 0.95, cancel = 0.9, breakOut = 0.85, arm = 1.0, throws = 0.35, catch = 0.55 },
+	just_dont = { sight = 0, reaction = 1, commit = 8, aggression = 1.0, defence = 1.0, kill = 1.0, dodge = 1.0, ult = 1.0, edge = 0.95, slip = 0.0, chains = 3, combo = 1.0, timing = 1.0, cancel = 1.0, breakOut = 1.0, arm = 1.0, throws = 0.4, catch = 0.65 },
 }
 Ai.LEVELS.imposible = Ai.LEVELS.impossible     -- the misspelling is in the JavaScript too
 
@@ -637,6 +637,12 @@ function decide(f: any, match: any, L: any, st: any): any
 			and chance(0.45) then
 			startChain(st, "shieldGrab")
 		end
+	end
+
+	-- the save (Config.TEAM.catch): a tumbling teammate in reach, caught - drawn only when possible
+	if match.combat:allyToCatch(f) and chance(L.catch) then
+		frame.grab = true; frame.anyPress = true
+		return frame
 	end
 
 	if wantsUltimate(f, tv, L, adx, dy, enemies) then

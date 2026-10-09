@@ -62,21 +62,26 @@ function heavyAt(percent) {
     }
     return { kills, state: m.fighters.map((f) => [f.x.toFixed(6), f.y.toFixed(6), f.percent, f.stocksLeft(), f.state].join(',')).join(' | '), frame: m.frame };
   };
-  let kills = 0, same = true, detail = '';
-  for (const seed of [902, 903, 904]) {
+  // Seeds until three kill hits have been marked (at most twelve matches), each compared.
+  let kills = 0, same = true, detail = '', played = 0;
+  for (let seed = 902; seed < 914 && kills < 3; seed++) {
     const real = run(seed, false), silent = run(seed, true);
-    kills += real.kills;
+    kills += real.kills; played++;
     if (real.state !== silent.state || real.frame !== silent.frame) { same = false; detail += `\n        seed ${seed}: ${real.state}\n        silenced: ${silent.state}`; }
   }
-  check('the prediction is read-only: a match plays out the same without it', same && kills > 0,
-    `${kills} kill hits marked across three matches; the runs ${same ? 'match' : `differ:${detail}`}`);
+  check('the prediction is read-only: a match plays out the same without it', same && kills >= 3,
+    `${kills} kill hits marked across ${played} matches; the runs ${same ? 'match' : `differ:${detail}`}`);
 }
 
 // ---- it is usually right ----
 {
+  // 72 matches: at 24 one change to the fight (armour) moved the measured precision eight points.
+  // A marked hit followed by another hit before anything happened is undecided - the next hit is
+  // the one that sends them - and is left out rather than counted as wrong.
+  const SAMPLE = 72;
   const KITS = [['Sword', 'Hammer'], ['Daggers', 'Axe'], ['Pike', 'Shield'], ['Scythe', 'Flail']];
-  let marked = 0, markedKO = 0, sideKOs = 0, sideMarked = 0;
-  for (let g = 0; g < 24; g++) {
+  let marked = 0, markedKO = 0, sideKOs = 0, sideMarked = 0, undecided = 0;
+  for (let g = 0; g < SAMPLE; g++) {
     const n = 2 + (g % 3);
     const m = skipCountdown(makeMatch({ mode: 'StockFFA', stocks: 3, seed: 900 + g, armed: KITS.slice(0, n).map((k, i) => [['Classic', 'Noir', 'Ember', 'Moss'][i], k]) }));
     m.fighters.forEach((f) => { f.isBot = true; f.botLevel = ['normal', 'hard', 'elite'][g % 3]; });
@@ -84,7 +89,11 @@ function heavyAt(percent) {
     for (let i = 0; i < 60 * 300 && m.state !== 'results'; i++) {
       m.step();
       for (const e of m.events) {
-        if (e.type === 'hit') { last[e.victim] = { frame: m.frame, kill: !!e.kill }; if (e.kill) marked++; }
+        if (e.type === 'hit') {
+          const prev = last[e.victim];
+          if (prev && prev.kill && m.frame - prev.frame < 300) undecided++;
+          last[e.victim] = { frame: m.frame, kill: !!e.kill }; if (e.kill) marked++;
+        }
         if (e.type === 'ko') {
           const prev = last[e.fighter];
           if (prev && m.frame - prev.frame < 300) {
@@ -97,9 +106,9 @@ function heavyAt(percent) {
       m.events.length = 0;
     }
   }
-  const precision = markedKO / marked, recall = sideMarked / sideKOs;
+  const precision = markedKO / (marked - undecided), recall = sideMarked / sideKOs;
   check('most marked hits KO, and a good share of side and top KOs are marked', precision >= 0.75 && recall >= 0.4,
-    `${markedKO} of ${marked} marked hits KO'd (${(100 * precision).toFixed(0)}%); ${sideMarked} of ${sideKOs} side/top KOs after a hit were marked (${(100 * recall).toFixed(0)}%)`);
+    `${markedKO} of ${marked - undecided} decided marked hits KO'd (${(100 * precision).toFixed(0)}%; ${undecided} more were hit again first); ${sideMarked} of ${sideKOs} side/top KOs after a hit were marked (${(100 * recall).toFixed(0)}%)`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

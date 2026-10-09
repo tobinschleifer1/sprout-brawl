@@ -93,6 +93,9 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 		push(e.x, e.y, 30, glow(e.fighter) or "#FFFFFF", 30, 0.6, 0.4); shake(1.4)
 	elseif t == "ultready" then
 		shake(0.2)
+	elseif t == "armor" then
+		-- a hit shrugged off rings like metal (effects.js)
+		push(e.x, e.y, 9, "#D8E2F0", 14, 0.24, 0.2); ring(e.x, e.y, 1.5, 0.22, "#E8EEF6", true, PI / 8); shake(0.2)
 	elseif t == "movestart" then
 		-- the telegraph: a heavy or signature starting up glints on the upper body (effects.js)
 		if e.heavy == true then ring(e.x, e.y + (if height then height(e.fighter) else 5) * 0.2, Effects.GLINT.r, Effects.GLINT.life, "#FFF6C8", true, PI / 4) end

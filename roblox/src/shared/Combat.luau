@@ -288,16 +288,22 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		Combat.emit(self, { type = "counter", x = victim.x, y = victim.cy })
 		return true
 	end
-	-- Armour (Barrel Roll)
-	if victim.state == "attack" and victim.move and victim.move.armor and victim.moveActive
-		and not victim.armorUsed and damage < victim.move.armor then
+	-- Armour: a move's own (Barrel Roll), and every heavy's through its startup against a light
+	-- hit - once per swing, the damage taken and counted, the swing going on (combat.js).
+	local ownArmour = victim.state == "attack" and victim.move and victim.move.armor and victim.moveActive
+		and damage < victim.move.armor
+	local heavyArmour = victim.state == "attack" and victim.move and victim.move.heavy and victim.move.id ~= "Ultimate"
+		and victim.mf < victim.startupEff and not move.heavy and move.kind ~= "grab" and move.id ~= "Ultimate"
+	if (ownArmour or heavyArmour) and not victim.armorUsed then
 		victim.armorUsed = true
 		victim.percent = math.min(999, victim.percent + damage)
+		victim.stats.damageTaken += damage
+		attacker.stats.damageDealt += damage
 		if direct then
 			attacker.hitlag = Knockback.hitlag(damage)
 			attacker.moveLanded = true
 		end
-		Combat.emit(self, { type = "armor", x = cx, y = cy })
+		Combat.emit(self, { type = "armor", x = cx, y = cy, victim = victim.index, attacker = attacker.index })
 		return true
 	end
 	-- Shield

@@ -169,11 +169,19 @@ export class Combat {
       this.emit({ type: 'counter', x: victim.x, y: victim.cy });
       return true;
     }
-    // Armour (Barrel Roll)
-    if (victim.state === 'attack' && victim.move && victim.move.armor && victim.moveActive && !victim.armorUsed && damage < victim.move.armor) {
+    // Armour. A move's own (Barrel Roll: under `armor` damage while active), and every heavy's:
+    // through its startup, the first light hit is shrugged off - the damage is taken, the swing goes
+    // on. Mashing lights stops beating a heavy; a heavy, a grab or the ultimate still do. Once per
+    // swing (armorUsed). The damage counts in both fighters' stats - it never did, and with every
+    // heavy armoured the results would have undercounted every match.
+    const ownArmour = victim.state === 'attack' && victim.move && victim.move.armor && victim.moveActive && damage < victim.move.armor;
+    const heavyArmour = victim.state === 'attack' && victim.move && victim.move.heavy && victim.move.id !== 'Ultimate'
+      && victim.mf < victim.startupEff && !move.heavy && move.kind !== 'grab' && move.id !== 'Ultimate';
+    if ((ownArmour || heavyArmour) && !victim.armorUsed) {
       victim.armorUsed = true; victim.percent = Math.min(999, victim.percent + damage);
+      victim.stats.damageTaken += damage; attacker.stats.damageDealt += damage;
       if (direct) { attacker.hitlag = hitlagFor(damage); attacker.moveLanded = true; }
-      this.emit({ type: 'armor', x: cx, y: cy });
+      this.emit({ type: 'armor', x: cx, y: cy, victim: victim.index, attacker: attacker.index });
       return true;
     }
     // Shield

@@ -97,6 +97,9 @@ export function spawnEffect(fx, e, glow, rand, height = () => 5) {
     case 'ultimate':
       push(e.x, e.y, 30, glow(e.fighter) || '#FFFFFF', 30, 0.6, 0.4); shake(1.4); break;
     case 'ultready': shake(0.2); break;
+    // Armour: a hit shrugged off rings like metal - grey-white sparks and a small hard ring - so it
+    // is read as "that did not stop them", not as a hit that missed.
+    case 'armor': push(e.x, e.y, 9, '#D8E2F0', 14, 0.24, 0.2); ring(e.x, e.y, 1.5, 0.22, '#E8EEF6', true, PI / 8); shake(0.2); break;
     // The telegraph: a heavy or signature starting up glints on the fighter's upper body - a small
     // spiked star, the platform fighter's "a big one is coming" - so it can be seen and answered.
     case 'movestart':

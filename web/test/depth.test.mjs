@@ -4,6 +4,10 @@
 //     them fresh; the memory forgets; both hits of one swing land alike; a blocked hit and the
 //     ultimate never stale; the launch falls with the damage.
 //
+//   * armour: a heavy's startup shrugs off the first light hit - the damage is taken and counted,
+//     the swing goes on; once per swing; a heavy, a grab, or a light after the startup still land;
+//     the existing per-move armour still works.
+//
 //     node test/depth.test.mjs
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { STALE, staleMul } from '../src/config.js';
@@ -80,6 +84,41 @@ function land(d, move, opts = {}) {
   check('the ultimate never stales', land(u, U).dealt === 20 && u.a.staleMoves.length === 0, `seventh ultimate dealt ${land(u, U).dealt}`);
   check('staleMul counts the memory', staleMul(['A', 'B', 'A'], 'A') === 1 - 2 * STALE.step && staleMul(new Array(20).fill('A'), 'A') === STALE.floor,
     `two of A: ${staleMul(['A', 'B', 'A'], 'A')}, twenty: ${staleMul(new Array(20).fill('A'), 'A')}`);
+}
+
+// ---- armour: heavies shrug off a light through their startup ----
+{
+  const setup = () => {
+    const d = duel();
+    const { a, v } = d;
+    v.startMove(v.char.moves.SigSide);           // the victim winding up a heavy
+    return { ...d, heavy: v.move };
+  };
+  const light = (d) => { d.a.moveSerial++; d.m.combat.events.length = 0; return d.m.combat.resolveHit(d.a, d.v, d.a.char.moves.LightNeutral1, null, null, {}); };
+  const s1 = setup();
+  const before = s1.v.percent;
+  light(s1);
+  const ev = s1.m.combat.events;
+  check('a light into a heavy\'s startup is shrugged off', s1.v.state === 'attack' && s1.v.move === s1.heavy && s1.v.percent > before
+      && ev.some((e) => e.type === 'armor') && !ev.some((e) => e.type === 'hit') && s1.v.stats.damageTaken === s1.v.percent - before,
+    `victim ${s1.v.state} (${s1.v.move && s1.v.move.id}), took ${s1.v.percent - before}, events ${ev.map((e) => e.type).join(',')}`);
+  light(s1);
+  check('but only once per swing', s1.v.state === 'hitstun', `the second light: victim ${s1.v.state}`);
+  const s2 = setup();
+  s2.a.moveSerial++; s2.m.combat.resolveHit(s2.a, s2.v, s2.a.char.moves.SigSide, null, null, {});
+  check('a heavy goes through it', s2.v.state === 'hitstun', `victim ${s2.v.state}`);
+  const s3 = setup();
+  s3.v.mf = s3.v.startupEff + 1;
+  light(s3);
+  check('a light after the startup lands', s3.v.state === 'hitstun', `victim ${s3.v.state} at frame ${s3.v.startupEff + 1}`);
+  const s4 = setup();
+  s4.a.x = s4.v.x - 1.4;
+  s4.m.combat.checkGrab(s4.a);
+  check('a grab still takes them', s4.v.state === 'grabbed', `victim ${s4.v.state}`);
+  const s5 = duel();
+  s5.v.startMove(s5.v.char.moves.LightNeutral1);
+  light(s5);
+  check('a light does not armour a light', s5.v.state === 'hitstun', `victim ${s5.v.state}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

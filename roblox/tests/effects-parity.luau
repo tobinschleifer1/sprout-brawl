@@ -98,7 +98,7 @@ end
 local EVENTS = { "hit", "explosion", "block", "ko", "projectile", "beam", "ultimate", "soulescape", "crater", "rundown",
 	"upheaval", "heartseeker", "anchorset", "anchorsnap", "aegis", "aegisbreak", "bleedmark", "exsanguinate", "soulgrab",
 	"soulburst", "snipe", "starfall", "counter", "freeze", "summonbreak", "jump", "doublejump", "dash", "dodge", "ledge",
-	"tech", "armor", "rebound", "catch", "shieldbreak", "grabhit", "itembreak", "projectilebreak", "spring", "teleport", "pickup", "land" }
+	"tech", "armor", "rebound", "catch", "teamboost", "teamfling", "shieldbreak", "grabhit", "itembreak", "projectilebreak", "spring", "teleport", "pickup", "land" }
 for _, t in EVENTS do
 	local fx = Fx.new()
 	Fx.spawn(fx, { type = t, x = 0, y = 5, attacker = 0, fighter = 0, radius = 3, marks = 2 }, function() return "#123456" end, lcg)

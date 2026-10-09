@@ -154,7 +154,17 @@ export const TEAM = { assistWindow: 480, assistMeter: 3,
   // you, in studs) and you catch them - their launch ends, they keep `catch.keep` of their speed
   // with at least `catch.pop` upward, get a jump back and `catch.invincible` frames, and can act.
   // Once per launch. A catch on the ground costs the catcher `catch.lag` frames; in the air, none.
-  catch: { reach: [6, 6], keep: 0.2, pop: 8, invincible: 20, lag: 10 } };
+  catch: { reach: [6, 6], keep: 0.2, pop: 8, invincible: 20, lag: 10 },
+  // Team throws: a grab that finds no enemy takes a standing teammate (they can jump free). Thrown
+  // up, `boost` - high and fast, with every jump, the air dodge and the recovery back. Any other
+  // way, `fling` - they fly in a line that way (no gravity; down skims the floor) as an attack for
+  // up to `frames`, invincible, and the first
+  // foe they meet takes TeamFling; then they rebound and can act. Their hit, so it is their combo.
+  boost: { vx: 8, vy: 72 },
+  fling: { speed: 56, vy: 10, frames: 24, damage: 9, base: 28, growth: 3.2, angle: 40, rebound: 12, pop: 14, landLag: 6 } };
+// The move a flung teammate hits with (TEAM.fling).
+export const TEAM_FLING = { id: 'TeamFling', kind: 'melee', damage: TEAM.fling.damage, base: TEAM.fling.base, growth: TEAM.fling.growth,
+  angle: TEAM.fling.angle, startup: 0, active: TEAM.fling.frames, recovery: 0 };
 
 export const STALE = { memory: 8, step: 0.05, floor: 0.6 };
 export const staleMul = (landed, id) => {

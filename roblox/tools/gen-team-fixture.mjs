@@ -10,12 +10,21 @@ const { makeMatch, skipCountdown } = await import('../../web/test/harness.mjs');
 const S = (v) => (typeof v === 'number' ? String(v) : v);
 // steps: ['hit', a, v] | ['wait', v, frames] | ['ko', v] | ['respawn', v] | ['free', v] (the combo ends)
 //      | ['launch', v, dx, dy] (v tumbling at dx, dy from fighter 0) | ['catch', c] (c presses grab)
+//      | ['place', [x0, x1, x2, x3]] (everyone standing, idle) | ['hold', f, input] | ['release', f]
+//      | ['press', f, input] (one frame) | ['run', frames] - the real match loop, for team throws
 const SCRIPTS = [
   { teams: [0, 1, 0, 1], steps: [['hit', 0, 1], ['hit', 2, 1], ['hit', 0, 1], ['hit', 2, 1], ['ko', 1], ['hit', 2, 3], ['free', 3], ['hit', 0, 3]] },
   { teams: null, steps: [['hit', 1, 3], ['wait', 3, 100], ['hit', 2, 3], ['wait', 3, 379], ['hit', 0, 3], ['ko', 3], ['hit', 0, 2], ['wait', 2, 480], ['hit', 1, 2], ['ko', 2]] },
   { teams: null, steps: [['hit', 1, 2], ['hit', 0, 2], ['ko', 2], ['respawn', 2], ['hit', 3, 2], ['ko', 2]] },
   { teams: [0, 1, 0, 1], steps: [['launch', 2, 1.5, 0], ['catch', 0], ['launch', 2, 1.5, 0], ['catch', 0], ['wait', 2, 5], ['hit', 1, 2], ['launch', 2, 2.9, 2.9], ['catch', 0],
     ['launch', 3, 1, 0], ['catch', 0], ['wait', 2, 5], ['hit', 1, 2], ['launch', 2, 3.1, 0], ['catch', 0], ['air', 0], ['launch', 2, -2, 2], ['catch', 0]] },
+  // team throws through the match loop: a fling into a foe, a boost, a teammate jumping free, a
+  // back throw and a down throw
+  { teams: [0, 1, 0, 1], steps: [['place', [0, 14, 2.4, -30]], ['press', 0, { grab: true }], ['run', 10], ['hold', 0, { x: 1 }], ['run', 20], ['release', 0], ['run', 40]] },
+  { teams: [0, 1, 0, 1], steps: [['place', [0, 30, 2.4, -30]], ['spent', 2], ['press', 0, { grab: true }], ['run', 10], ['hold', 0, { y: 1 }], ['run', 20], ['release', 0], ['run', 30]] },
+  { teams: [0, 1, 0, 1], steps: [['place', [0, 30, 2.4, -30]], ['press', 0, { grab: true }], ['run', 10], ['press', 2, { jump: true }], ['run', 12]] },
+  { teams: [0, 1, 0, 1], steps: [['place', [0, -13, 2.4, 30]], ['press', 0, { grab: true }], ['run', 10], ['hold', 0, { x: -1 }], ['run', 20], ['release', 0], ['run', 40]] },
+  { teams: [0, 1, 0, 1], steps: [['place', [0, 15, 2.4, -30]], ['press', 0, { grab: true }], ['run', 10], ['hold', 0, { y: -1 }], ['run', 20], ['release', 0], ['run', 40]] },
   { teams: [0, 0, 1, 1], steps: [['hit', 2, 0], ['hit', 3, 0], ['hit', 2, 0], ['free', 0], ['hit', 3, 0], ['hit', 0, 2], ['hit', 1, 2], ['ko', 2], ['ko', 0]] },
 ];
 const out = [];
@@ -52,6 +61,20 @@ for (const sc of SCRIPTS) {
       const caught = !!e;
       row = [kind, caught ? 1 : 0, e ? S(e.ally) : null, m.fighters.map((f) => [f.state, f.vx.toFixed(6), f.vy.toFixed(6), S(f.invincible), S(f.jumpsLeft), f.tumbling, S(f.lag)].join(':')).join(' ')];
       c.setState('idle'); c.lag = 0; c.y = 0; c.onGround = true; c.platform = m.stage.main;
+    }
+    else if (kind === 'place') {
+      m.fighters.forEach((f, i) => { f.x = x[i]; f.y = 0; f.vx = 0; f.vy = 0; f.onGround = true; f.platform = m.stage.main; f.setState('idle'); f.invincible = 0; f.facing = i === 0 ? 1 : -1; });
+      row = [kind];
+    } else if (kind === 'spent') { const f = m.fighters[x]; f.jumpsLeft = 0; f.airDodgeUsed = true; f.recoveryUsed = true; row = [kind]; }
+    else if (kind === 'hold') { m._input.set(`p${x}`, { anyPress: false, ...y }); row = [kind]; }
+    else if (kind === 'release') { m._input.clear(`p${x}`); row = [kind]; }
+    else if (kind === 'press' || kind === 'run') {
+      if (kind === 'press') m._input.set(`p${x}`, { ...y, anyPress: true });
+      const n = kind === 'press' ? 1 : x;
+      const seen = [];
+      for (let i = 0; i < n; i++) { m.step(); for (const e of m.events) if (['hit', 'teamboost', 'teamfling', 'grabhit', 'block', 'armor'].includes(e.type)) seen.push(e.type); m.events.length = 0; }
+      if (kind === 'press') m._input.clear(`p${x}`);
+      row = [kind, seen.join(','), m.fighters.map((f) => [f.state, f.x.toFixed(6), f.y.toFixed(6), f.vx.toFixed(6), f.vy.toFixed(6), S(f.percent), S(f.jumpsLeft), String(f.recoveryUsed)].join(':')).join(' ')];
     }
     else if (kind === 'respawn') { m.respawn(m.fighters[x]); m.fighters[x].setState('idle'); m.fighters[x].invincible = 0; row = [kind, S(m.fighters[x].alive ? 1 : 0), null]; }
     else if (kind === 'free') { const v = m.fighters[x]; v.setState('idle'); v.step({ stage: m.stage, combat: m.combat, fighters: m.fighters }); row = [kind, S(v.comboHits), S(v.comboBy)]; }

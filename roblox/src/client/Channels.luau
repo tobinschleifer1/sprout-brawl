@@ -915,6 +915,9 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 	elseif s == "holding" then
 		ch.armL.z = PI / 2; ch.armR.z = PI / 2; ch.lean = 0.15; ch.sx = 1.05
 		ch.bob = math.sin(t * 6) * 0.16
+	elseif s == "flung" then
+		-- flung by a teammate: tucked into a cannonball, spinning, streaking (channels.js)
+		ch.spinZ = -sf * 0.5; ch.armL.z = 2.6; ch.armR.z = -2.6; ch.legL = 0.9; ch.legR = -0.9; ch.head = 0.3; ch.smear = 0.8
 	elseif s == "grabbed" then
 		ch.armL.z = 1.6; ch.armR.z = -1.6
 		ch.legL = math.sin(sf * 0.6) * 0.85; ch.legR = -math.sin(sf * 0.6 + 0.8) * 0.85

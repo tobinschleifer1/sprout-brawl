@@ -26,7 +26,8 @@ const clampEnv = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 // one combo (COMBO in config.js); the first frame they are in anything else, the combo is over.
 const COMBO_HELD = new Set(['hitstun', 'knockdown', 'grabbed', 'frozen']);
 
-const NO_GRAVITY_STATES = new Set(['ledge', 'grabbed', 'holding', 'frozen', 'tether', 'ko', 'respawn', 'ledgeaction']);
+// `flung` (a team throw) flies in a line: with gravity a throw from the ground landed in 8 frames.
+const NO_GRAVITY_STATES = new Set(['ledge', 'grabbed', 'holding', 'frozen', 'tether', 'ko', 'respawn', 'ledgeaction', 'flung']);
 // Throwing the weapon in hand (DROPS): a move with no hitbox of its own whose first active frame
 // lets the weapon go (Combat.throwWeapon), on the ground or in the air. Landing does not end an
 // air throw the way it ends an aerial - it carries on as the ground throw (see _land) - because a
@@ -352,7 +353,8 @@ export class Fighter {
       case 'ledgeaction': return this._stepLedgeAction(ctx);
       case 'grab': return this._stepGrab(ctx);
       case 'holding': return this._stepHolding(ctx);
-      case 'grabbed': return;
+      case 'grabbed': return this._stepGrabbed();
+      case 'flung': return this._stepFlung(ctx);
       case 'groundpound': return this._stepGroundPound();
       case 'recovery': if (this.sf > 18) this.setState('helpless'); return;
       case 'tether': return this._stepTether(ctx);
@@ -1100,6 +1102,7 @@ export class Fighter {
       this.setState('idle'); return;
     }
     if (s === 'helpless' || s === 'recovery') { this.lag = 8; this.setState('landing'); return; }
+    if (s === 'flung') { this.lag = TEAM.fling.landLag; this.setState('landing'); return; }
     if (s === 'airdodge') { this.lag = 8; this.setState('landing'); return; }
     if (s === 'frozen') return;
     this.setState('idle');
@@ -1192,8 +1195,17 @@ export class Fighter {
   }
   get grabActive() { return this.state === 'grab' && this.sf > GRAB.startup && this.sf <= GRAB.startup + GRAB.active; }
 
+  // Held by a teammate (a team throw), jump frees you: nobody can be carried off the stage.
+  _stepGrabbed() {
+    if (this.holder && this.holder.team === this.team && this.consume('jump')) this.holder.releaseHold();
+  }
+  // Flung by a teammate (TEAM.fling): flying as an attack until they meet a foe or the time is up.
+  _stepFlung(ctx) {
+    if (ctx.combat.flingHit(this)) return;
+    if (this.sf >= TEAM.fling.frames) this.setState('air');
+  }
   startHold(victim, data) {
-    this.hold = { victim, reel: data.reel || 0, frames: 0, throwData: data.throwData || null, tangle: !!data.tangle, dir: 'forward', startX: victim.x, startY: victim.y };
+    this.hold = { victim, reel: data.reel || 0, frames: 0, throwData: data.throwData || null, tangle: !!data.tangle, dir: 'forward', startX: victim.x, startY: victim.y, ally: !!data.ally };
     victim.holder = this; victim.move = null; victim.hold = null; victim.tumbling = false; victim.vx = 0; victim.vy = 0;
     victim.setState('grabbed');
     this.vx = 0;
@@ -1223,8 +1235,8 @@ export class Fighter {
     h.frames++;
     if (inp.y > 0.5) h.dir = 'up'; else if (inp.y < -0.5) h.dir = 'down'; else if (inp.x * this.facing < -0.5) h.dir = 'back'; else if (Math.abs(inp.x) > 0.5) h.dir = 'forward';
     if (h.frames >= GRAB.holdFrames) {
-      const td = h.throwData || GRAB.throws[h.dir];
-      ctx.combat.resolveThrow(this, h.victim, td, h.tangle);
+      if (h.ally) ctx.combat.teamThrow(this, h.victim, h.dir);
+      else ctx.combat.resolveThrow(this, h.victim, h.throwData || GRAB.throws[h.dir], h.tangle);
       h.victim.holder = null; this.hold = null;
       this.lag = 10; this.setState('landing');
     }

@@ -867,6 +867,8 @@ export function channelsFor(f, t) {
     case 'ledgeaction': { const k = f.la?.kind; if (k === 'attack') { ch.armR.z = sf > 8 ? PI / 2 : -0.8; ch.lean = 0.3; ch.smear = sf > 8 ? 0.6 : 0; } else if (k === 'roll') { ch.spinZ = -sf * 0.34; ch.opacity = 0.7; ch.smear = 0.5; } else { ch.lean = -0.2; ch.armL.z = 1.4; ch.armR.z = -1.4; ch.sy = 1.06; } break; }
     case 'grab': { const k = clamp(sf / 8, 0, 1); ch.armL.z = 1.4 + F * easeIn(k); ch.armR.z = -1.4 + (F + 1.4) * easeIn(k); ch.lean = 0.1 + 0.25 * easeIn(k); ch.smear = sf > 6 && sf < 11 ? 0.7 : 0; break; }
     case 'holding': ch.armL.z = PI / 2; ch.armR.z = PI / 2; ch.lean = 0.15; ch.sx = 1.05; ch.bob = Math.sin(t * 6) * 0.16; break;
+    // flung by a teammate (TEAM.fling): tucked into a cannonball, spinning, streaking
+    case 'flung': ch.spinZ = -sf * 0.5; ch.armL.z = 2.6; ch.armR.z = -2.6; ch.legL = 0.9; ch.legR = -0.9; ch.head = 0.3; ch.smear = 0.8; break;
     case 'grabbed': ch.armL.z = 1.6; ch.armR.z = -1.6; ch.legL = Math.sin(sf * 0.6) * 0.85; ch.legR = -Math.sin(sf * 0.6 + 0.8) * 0.85; ch.head = -0.2 + Math.sin(sf * 0.9) * 0.12; break;
     case 'groundpound': if (sf <= 8) { const k = clamp(sf / 8, 0, 1); ch.sy = 1 - 0.2 * back(k, 1.2); ch.sx = 1 + 0.15 * back(k, 1.2); ch.armL.z = 2.9 * k; ch.armR.z = -2.9 * k; ch.bob = 0.2 * k; } else { ch.sy = 1.28; ch.sx = 0.84; ch.armL.z = 3.1; ch.armR.z = -3.1; ch.legL = 0; ch.legR = 0; ch.smear = 0.8; } break;
     case 'tether': ch.armL.z = 2.9; ch.armR.z = -2.9; ch.sy = 1.15; ch.sx = 0.9; ch.lean = Math.sin(t * 7) * 0.08; break;

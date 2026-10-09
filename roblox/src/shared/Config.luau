@@ -113,7 +113,13 @@ Config.BOUNCE = { speed = 30, restitution = 0.6 }
 -- `assistWindow` frames - are credited and get `assistMeter` ultimate charge. config.js says more.
 Config.TEAM = { assistWindow = 480, assistMeter = 3,
 	-- The save: grab with a tumbling teammate within `reach` catches them (config.js says what it does).
-	catch = { reach = { 6, 6 }, keep = 0.2, pop = 8, invincible = 20, lag = 10 } }
+	catch = { reach = { 6, 6 }, keep = 0.2, pop = 8, invincible = 20, lag = 10 },
+	-- Team throws: up boosts, any other way flings them in a line as an attack (config.js says more).
+	boost = { vx = 8, vy = 72 },
+	fling = { speed = 56, vy = 10, frames = 24, damage = 9, base = 28, growth = 3.2, angle = 40, rebound = 12, pop = 14, landLag = 6 } }
+-- The move a flung teammate hits with.
+Config.TEAM_FLING = { id = "TeamFling", kind = "melee", damage = Config.TEAM.fling.damage, base = Config.TEAM.fling.base,
+	growth = Config.TEAM.fling.growth, angle = Config.TEAM.fling.angle, startup = 0, active = Config.TEAM.fling.frames, recovery = 0 }
 
 Config.STALE = { memory = 8, step = 0.05, floor = 0.6 }
 function Config.staleMul(landed: { string }, id: string): number

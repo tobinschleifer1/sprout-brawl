@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul, TEAM } from '../config.js';
+import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul, TEAM, TEAM_FLING } from '../config.js';
 import { launchSpeed, stunSpeed, hitlag as hitlagFor, velocity as launchVelocity, carriesOut } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
@@ -353,6 +353,46 @@ export class Combat {
       f.startHold(v, { tangle: f.mech.id === 'Tangle' });
       return;
     }
+    // No foe in reach: a standing teammate, for a team throw (TEAM.boost / TEAM.fling).
+    for (const v of this.fighters) {
+      if (v === f || !v.alive || !this.sameTeam(f, v) || !v.onGround || v.untouchable || v.holder || v.hold) continue;
+      if (!['idle', 'run', 'dash'].includes(v.state) || !overlap(rect, v.hurtbox)) continue;
+      f.startHold(v, { ally: true });
+      return;
+    }
+  }
+
+  // A team throw: up boosts them, any other way flings them as an attack.
+  teamThrow(f, v, dir) {
+    v.holder = null; v.onGround = false; v.platform = null;
+    v.x = f.x + f.facing * (f.r + v.r + 0.5); v.y = f.y + 0.3;
+    if (dir === 'up') {
+      const B = TEAM.boost;
+      v.vx = f.facing * B.vx; v.vy = B.vy;
+      v.jumpsLeft = v.char.jumps; v.airDodgeUsed = false; v.recoveryUsed = false; v.fastFalling = false;
+      v.setState('air');
+      this.emit({ type: 'teamboost', x: v.x, y: v.cy, fighter: f.index, ally: v.index });
+      return;
+    }
+    const L = TEAM.fling;
+    const facing = dir === 'back' ? -f.facing : f.facing;
+    // down skims the floor; forward and back rise a little
+    v.facing = facing; v.vx = facing * L.speed; v.vy = dir === 'down' ? 0 : L.vy;
+    v.invincible = Math.max(v.invincible, L.frames); v.moveSerial++;
+    v.setState('flung');
+    this.emit({ type: 'teamfling', x: v.x, y: v.cy, fighter: f.index, ally: v.index });
+  }
+  // A flung teammate meeting the first foe, in fighter order: TeamFling lands, and they rebound.
+  flingHit(v) {
+    for (const e of this.fighters) {
+      if (e === v || !e.alive || this.sameTeam(v, e) || e.untouchable || !overlap(v.hurtbox, e.hurtbox)) continue;
+      // landed, blocked or armoured, meeting them ends the fling
+      this.resolveHit(v, e, TEAM_FLING, null, null, { facing: v.facing });
+      const L = TEAM.fling;
+      v.setState('air'); v.vx = -v.facing * L.rebound; v.vy = L.pop; v.invincible = 0;
+      return true;
+    }
+    return false;
   }
 
   hazardHit(f, p) {

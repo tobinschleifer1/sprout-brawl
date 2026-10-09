@@ -61,6 +61,7 @@ end
 local NO_GRAVITY_STATES = {
 	ledge = true, grabbed = true, holding = true, frozen = true,
 	tether = true, ko = true, respawn = true, ledgeaction = true,
+	flung = true,   -- a team throw flies in a line (fighter.js)
 }
 local FREE_STATES = { idle = true, run = true, air = true }
 -- The states a fighter cannot act out of. While they are in one of these, the hits they take are
@@ -525,7 +526,8 @@ function methods._stepState(self, ctx)
 	elseif s == "ledgeaction" then return methods._stepLedgeAction(self, ctx)
 	elseif s == "grab" then return methods._stepGrab(self, ctx)
 	elseif s == "holding" then return methods._stepHolding(self, ctx)
-	elseif s == "grabbed" then return
+	elseif s == "grabbed" then return methods._stepGrabbed(self)
+	elseif s == "flung" then return methods._stepFlung(self, ctx)
 	elseif s == "groundpound" then return methods._stepGroundPound(self)
 	elseif s == "recovery" then
 		if self.sf > 18 then methods.setState(self, "helpless") end
@@ -1508,6 +1510,7 @@ function methods._land(self, p: any, ctx: any)
 		return
 	end
 	if s == "helpless" or s == "recovery" then self.lag = 8; methods.setState(self, "landing"); return end
+	if s == "flung" then self.lag = Config.TEAM.fling.landLag; methods.setState(self, "landing"); return end
 	if s == "airdodge" then self.lag = 8; methods.setState(self, "landing"); return end
 	if s == "frozen" then return end
 	methods.setState(self, "idle")
@@ -1655,10 +1658,22 @@ function methods._stepGrab(self, ctx)
 	end
 end
 
+-- Held by a teammate (a team throw), jump frees you: nobody can be carried off the stage.
+function methods._stepGrabbed(self)
+	if self.holder and self.holder.team == self.team and methods.consume(self, "jump") then
+		self.holder:releaseHold()
+	end
+end
+-- Flung by a teammate (Config.TEAM.fling): flying as an attack until a foe or the time is up.
+function methods._stepFlung(self, ctx)
+	if ctx.combat:flingHit(self) then return end
+	if self.sf >= Config.TEAM.fling.frames then methods.setState(self, "air") end
+end
+
 function methods.startHold(self, victim: any, data: any)
 	self.hold = { victim = victim, reel = data.reel or 0, frames = 0,
 		throwData = data.throwData or nil, tangle = not not data.tangle, dir = "forward",
-		startX = victim.x, startY = victim.y }
+		startX = victim.x, startY = victim.y, ally = not not data.ally }
 	victim.holder = self; victim.move = nil; victim.hold = nil; victim.tumbling = false
 	victim.vx = 0; victim.vy = 0
 	methods.setState(victim, "grabbed")
@@ -1712,8 +1727,11 @@ function methods._stepHolding(self, ctx)
 	elseif inp.x * self.facing < -0.5 then h.dir = "back"
 	elseif math.abs(inp.x) > 0.5 then h.dir = "forward" end
 	if h.frames >= GRAB.holdFrames then
-		local td = h.throwData or GRAB.throws[h.dir]
-		ctx.combat:resolveThrow(self, h.victim, td, h.tangle)
+		if h.ally then
+			ctx.combat:teamThrow(self, h.victim, h.dir)
+		else
+			ctx.combat:resolveThrow(self, h.victim, h.throwData or GRAB.throws[h.dir], h.tangle)
+		end
 		h.victim.holder = nil
 		self.hold = nil
 		self.lag = 10

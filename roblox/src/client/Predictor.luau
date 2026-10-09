@@ -43,6 +43,8 @@ local function stubCombat(fighters: { any }): any
 		dropNear = function() return nil end,
 		-- a catch is the server's to decide, like a pickup (Config.TEAM.catch)
 		allyToCatch = function() return nil end,
+		-- a flung fighter meeting a foe is the server's to decide too (Config.TEAM.fling)
+		flingHit = function() return false end,
 		takeDrop = function() end,
 		hasFruit = function() return false end,
 		fruiting = function() end,

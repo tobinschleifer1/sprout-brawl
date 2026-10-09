@@ -33,7 +33,7 @@ local function stubCombat(fighters: any): any
 	return {
 		fighters = fighters,
 		useItem = function() end, dropItem = function() end,
-		itemNear = function() return nil end, allyToCatch = function() return nil end, pickupItem = function() end,
+		itemNear = function() return nil end, allyToCatch = function() return nil end, flingHit = function() return false end, pickupItem = function() end,
 		hasFruit = function() return false end, fruiting = function() end,
 		nearestNode = function() return nil end, removeSummon = function() end,
 		onMoveActive = function() end, onMoveActiveFrame = function() end,
@@ -59,6 +59,24 @@ do
 	local count = 0
 	for _ in waiting.inputs do count += 1 end
 	if count > 121 then fail(`waiting for first snapshot retained {count} input frames`) end
+end
+
+-- Thrown by a teammate (Config.TEAM.fling), the predicted fighter is in `flung`, whose step asks
+-- combat whether they met a foe: the predictor's combat has to answer that (the server decides),
+-- or prediction errors the moment your teammate throws you.
+do
+	local stage = stageFor()
+	local truth = Fighter.new({ index = 0, char = Loadout.build("Classic", "Sword"), x = 0, y = 2, stocks = 3 })
+	truth.onGround, truth.vx, truth.vy = false, 56, 10
+	truth:setState("flung")
+	local pred = Predictor.new(Loadout.build("Classic", "Sword"), 0, stage)
+	pred:push(Input.emptyFrame())
+	local ok, err = pcall(function()
+		pred:reconcile(Snapshot.decode(Snapshot.encode(truth)), 1)
+		for _ = 1, 30 do pred:push(Input.emptyFrame()) end
+	end)
+	if not ok then fail(`predicting a flung fighter: {err}`) end
+	if pred:state().state == "flung" then fail("a predicted fling never ended") end
 end
 
 -- A scripted run: walk, run, jump, attack, fastfall, shield. Enough to cross most of the state

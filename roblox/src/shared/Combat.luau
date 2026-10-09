@@ -547,6 +547,8 @@ end
 local UNGRABBABLE = { grabbed = true, holding = true, ko = true, respawn = true, ledge = true }
 -- You can only catch a thrown explosive out of a state you could catch anything from.
 local CATCHABLE_STATES = { air = true, idle = true, run = true }
+-- A teammate you can pick up for a team throw: standing, not doing anything.
+local ALLY_GRABBABLE = { idle = true, run = true, dash = true }
 
 function Combat.checkGrab(self, f: any)
 	local rect = Combat.hitboxRect(self, f, GRAB.hitbox)
@@ -561,6 +563,59 @@ function Combat.checkGrab(self, f: any)
 			return
 		end
 	end
+	-- No foe in reach: a standing teammate, for a team throw (Config.TEAM.boost / fling).
+	for _, v in self.match.fighters do
+		if v ~= f and v.alive and Combat.sameTeam(self, f, v) and v.onGround and not v.untouchable
+			and not v.holder and not v.hold and ALLY_GRABBABLE[v.state] and overlap(rect, v.hurtbox) then
+			f:startHold(v, { ally = true })
+			return
+		end
+	end
+end
+
+-- A team throw: up boosts them, any other way flings them as an attack.
+function Combat.teamThrow(self, f: any, v: any, dir: string)
+	v.holder = nil
+	v.onGround = false
+	v.platform = nil
+	v.x = f.x + f.facing * (f.r + v.r + 0.5)
+	v.y = f.y + 0.3
+	if dir == "up" then
+		local B = Config.TEAM.boost
+		v.vx = f.facing * B.vx
+		v.vy = B.vy
+		v.jumpsLeft = v.char.jumps; v.airDodgeUsed = false; v.recoveryUsed = false; v.fastFalling = false
+		v:setState("air")
+		Combat.emit(self, { type = "teamboost", x = v.x, y = v.cy, fighter = f.index, ally = v.index })
+		return
+	end
+	local L = Config.TEAM.fling
+	local facing = if dir == "back" then -f.facing else f.facing
+	-- down skims the floor; forward and back rise a little
+	v.facing = facing
+	v.vx = facing * L.speed
+	v.vy = if dir == "down" then 0 else L.vy
+	v.invincible = math.max(v.invincible, L.frames)
+	v.moveSerial += 1
+	v:setState("flung")
+	Combat.emit(self, { type = "teamfling", x = v.x, y = v.cy, fighter = f.index, ally = v.index })
+end
+
+-- A flung teammate meeting the first foe, in fighter order: TeamFling lands, and they rebound.
+function Combat.flingHit(self, v: any): boolean
+	for _, e in self.match.fighters do
+		if e ~= v and e.alive and not Combat.sameTeam(self, v, e) and not e.untouchable and overlap(v.hurtbox, e.hurtbox) then
+			-- landed, blocked or armoured, meeting them ends the fling
+			Combat.resolveHit(self, v, e, Config.TEAM_FLING, nil, nil, { facing = v.facing })
+			local L = Config.TEAM.fling
+			v:setState("air")
+			v.vx = -v.facing * L.rebound
+			v.vy = L.pop
+			v.invincible = 0
+			return true
+		end
+	end
+	return false
 end
 
 function Combat.hazardHit(self, f: any, p: any)

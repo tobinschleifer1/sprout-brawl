@@ -31,7 +31,7 @@ const n = (v) => (typeof v === 'number' ? String(v) : v);
 const STATES = [
   'idle', 'run', 'dash', 'jumpsquat', 'air', 'helpless', 'recovery', 'landing',
   'hitstun', 'knockdown', 'tech', 'shield', 'shielddrop', 'stunned', 'spotdodge', 'airdodge',
-  'ledge', 'ledgeaction', 'grab', 'holding', 'grabbed', 'groundpound', 'tether', 'frozen',
+  'ledge', 'ledgeaction', 'grab', 'holding', 'grabbed', 'flung', 'groundpound', 'tether', 'frozen',
   'taunt', 'victory', 'defeat', 'respawn', 'ko', 'attack', 'breakout',
   // `roll` and `throw` have no case in channelsFor and fall through to the neutral bag. They are
   // here as controls: if either ever grows a pose, this notices instead of silently not testing it.

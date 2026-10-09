@@ -119,7 +119,7 @@ do
 	local char = Loadout.build("Classic", "Sword")
 	local truth = Fighter.new({ index = 0, char = char, x = 0, y = 0, stocks = 3 })
 	local ctx = { stage = stage, combat = { fighters = { truth }, useItem = function() end, dropItem = function() end,
-		itemNear = function() return nil end, allyToCatch = function() return nil end, pickupItem = function() end, hasFruit = function() return false end,
+		itemNear = function() return nil end, allyToCatch = function() return nil end, flingHit = function() return false end, pickupItem = function() end, hasFruit = function() return false end,
 		fruiting = function() end, nearestNode = function() return nil end, removeSummon = function() end,
 		onMoveActive = function() end, onMoveActiveFrame = function() end, spawnBurst = function() end,
 		checkGrab = function() end, resolveThrow = function() end }, fighters = { truth } }

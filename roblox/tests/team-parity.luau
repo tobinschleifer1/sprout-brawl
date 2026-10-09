@@ -16,7 +16,14 @@ local T = serde.decode("json", fs.readFile("tests/team-fixture.json"))
 
 local data
 for _, s in Stages.LIST do if s.id == "FoundryFloor" then data = s end end
-local idle = { kb2Active = false, poll = function() end, get = function() return Input.emptyFrame() end }
+-- scripted input, held per source until released (the web harness's FakeInput)
+local held: { [string]: any } = {}
+local idle = { kb2Active = false, poll = function() end, get = function(_, s: string) return held[s] or Input.emptyFrame() end }
+local function frameOf(over: any): any
+	local f = Input.emptyFrame()
+	for k, v in over do (f :: any)[k] = v end
+	return f
+end
 local checked = 0
 for n, sc in T.scripts do
 	local fighters = {}
@@ -76,6 +83,46 @@ for n, sc in T.scripts do
 			got = { kind, tostring(if caught then 1 else 0), if e then tostring(e.ally) else nil, table.concat(states, " ") }
 			c:setState("idle")
 			c.lag, c.y, c.onGround, c.platform = 0, 0, true, m.stage.main
+		elseif kind == "place" then
+			for i, f in m.fighters do
+				f.x, f.y, f.vx, f.vy, f.onGround, f.platform, f.invincible = x[i], 0, 0, 0, true, m.stage.main, 0
+				f:setState("idle")
+				f.facing = if i == 1 then 1 else -1
+			end
+			got = { kind }
+		elseif kind == "spent" then
+			local f = m.fighters[x + 1]
+			f.jumpsLeft, f.airDodgeUsed, f.recoveryUsed = 0, true, true
+			got = { kind }
+		elseif kind == "hold" then
+			local over = table.clone(y)
+			over.anyPress = false
+			held[`p{x}`] = frameOf(over)
+			got = { kind }
+		elseif kind == "release" then
+			held[`p{x}`] = nil
+			got = { kind }
+		elseif kind == "press" or kind == "run" then
+			if kind == "press" then
+				local over = table.clone(y)
+				over.anyPress = true
+				held[`p{x}`] = frameOf(over)
+			end
+			local n = if kind == "press" then 1 else x
+			local seen = {}
+			local WATCH = { hit = true, teamboost = true, teamfling = true, grabhit = true, block = true, armor = true }
+			for _ = 1, n do
+				m:step()
+				for _, e in m.events do if WATCH[e.type] then table.insert(seen, e.type) end end
+				table.clear(m.events)
+			end
+			if kind == "press" then held[`p{x}`] = nil end
+			local states = {}
+			for _, f in m.fighters do
+				table.insert(states, table.concat({ f.state, string.format("%.6f", f.x), string.format("%.6f", f.y), string.format("%.6f", f.vx),
+					string.format("%.6f", f.vy), tostring(f.percent), tostring(f.jumpsLeft), tostring(f.recoveryUsed) }, ":"))
+			end
+			got = { kind, table.concat(seen, ","), table.concat(states, " ") }
 		elseif kind == "respawn" then
 			local f = m.fighters[x + 1]
 			m:respawn(f)
@@ -96,7 +143,8 @@ for n, sc in T.scripts do
 		local tally = {}
 		for _, f in m.fighters do table.insert(tally, `{f.stats.kos}/{f.stats.assists}/{f.ultCharge}`) end
 		-- the tally is the last value: 2nd after a wait, 4th otherwise (a missed hit's nils hold 2-3)
-		local last = if kind == "wait" or kind == "launch" or kind == "air" then 2 elseif kind == "catch" then 5 else 4
+		local last = if kind == "wait" or kind == "launch" or kind == "air" or kind == "place" or kind == "hold" or kind == "release" or kind == "spent" then 2
+			elseif kind == "catch" then 5 else 4
 		got[last] = table.concat(tally, " ")
 		local want = sc.rows[k]
 		for j = 1, last do

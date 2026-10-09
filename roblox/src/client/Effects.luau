@@ -171,6 +171,17 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 		dust(e.x, e.y, 4, 3, 1, 0.28, 0.3)
 	elseif t == "tech" then
 		push(e.x, e.y, 8, "#FFFFFF", 14, 0.26, 0.22); ring(e.x, e.y, 2.2, 0.26, "#FFFFFF", false, 0)
+	elseif t == "teamboost" then
+		-- team throws (effects.js): a boost bursts upward under them, a fling cracks away behind them
+		for _ = 1, 10 do
+			local x = e.x + (rand() - 0.5) * 1.6
+			local vx = (rand() - 0.5) * 6
+			local vy = -(8 + rand() * 10)
+			part(fx, x, e.y - 1, vx, vy, 0.36, 0.36, "#FFFFFF", 0.24)
+		end
+		ring(e.x, e.y - 1.5, 2.0, 0.3, glow(e.fighter) or "#9FE8A8", false, 0)
+	elseif t == "teamfling" then
+		push(e.x, e.y, 12, glow(e.fighter) or "#9FE8A8", 18, 0.3, 0.26); ring(e.x, e.y, 2.2, 0.26, "#FFFFFF", true, 0); shake(0.3)
 	elseif t == "catch" then
 		-- a teammate caught out of a launch: a ring in the catcher's colour and white (effects.js)
 		push(e.x, e.y, 10, "#FFFFFF", 14, 0.3, 0.24); ring(e.x, e.y, 2.4, 0.32, glow(e.fighter) or "#9FE8A8", false, 0)

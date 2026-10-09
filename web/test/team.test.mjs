@@ -11,6 +11,11 @@
 //     ground; from the air too; not an enemy, not out of reach (that is a grab), once per launch,
 //     and again after a new hit.
 //
+//   * team throws: a grab with no foe in reach takes a standing teammate, who can jump free; up
+//     boosts them (high, every jump and the recovery back); forward flings them as an attack that
+//     hits the first foe as their own hit, then they rebound; a flight that meets nobody ends; a
+//     foe in reach is grabbed before any teammate.
+//
 //     node test/team.test.mjs
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { TEAM } from '../src/config.js';
@@ -152,6 +157,56 @@ const hit = (m, a, v) => { a.moveSerial++; v.hitlag = 0; m.combat.events.length 
   const twice = save({ again: true });
   check('once per launch, and again after a new hit', twice.ev && !twice.second.once && twice.second.fresh,
     `first ${!!twice.ev}, same launch again ${!!twice.second.once}, after a new hit ${!!twice.second.fresh}`);
+}
+
+// ---- team throws ----
+{
+  // fighter 0 grabs; 2 is their teammate standing in front; 1 and 3 are foes, out of the way
+  const setup = (foeAt = 30) => {
+    const m = arena([0, 1, 0, 1]);
+    const [g, foe, ally, other] = m.fighters;
+    g.x = 0; g.facing = 1; ally.x = 2.4; foe.x = foeAt; other.x = -30;
+    for (const f of m.fighters) { f.y = 0; f.onGround = true; f.platform = m.stage.main; f.setState('idle'); f.vx = 0; }
+    return { m, g, foe, ally };
+  };
+  const grabAndThrow = (s, dir) => {
+    const { m, g } = s;
+    m._input.set('p0', { ...emptyFrame(), grab: true, anyPress: true }); m.step(); m._input.clear('p0');
+    for (let i = 0; i < 12 && g.state !== 'holding'; i++) m.step();
+    const held = g.state === 'holding' && g.hold && g.hold.ally;
+    const x = dir === 'back' ? -1 : dir === 'forward' ? 1 : 0, y = dir === 'up' ? 1 : 0;
+    for (let i = 0; i < 20 && g.state === 'holding'; i++) { m._input.set('p0', { ...emptyFrame(), x, y }); m.step(); }
+    m._input.clear('p0');
+    return held;
+  };
+  const up = setup();
+  up.ally.jumpsLeft = 0; up.ally.recoveryUsed = true;     // spent, so the boost has to give them back
+  const heldUp = grabAndThrow(up, 'up');
+  check('a grab with no foe in reach takes a standing teammate', heldUp, `held a teammate: ${heldUp}`);
+  check('thrown up, they are boosted high with their jumps', up.ally.state === 'air' && up.ally.vy > 40 && up.ally.jumpsLeft === up.ally.char.jumps && !up.ally.recoveryUsed && !up.ally.tumbling,
+    `ally ${up.ally.state}, vy ${up.ally.vy.toFixed(1)}, jumps ${up.ally.jumpsLeft}/${up.ally.char.jumps}`);
+  const fl = setup(14);
+  const before = fl.foe.percent;
+  grabAndThrow(fl, 'forward');
+  const flew = fl.ally.state === 'flung';
+  let hitEv = null;
+  for (let i = 0; i < 40 && !hitEv; i++) { fl.m.step(); hitEv = fl.m.events.find((e) => e.type === 'hit' && e.victim === fl.foe.index) || null; fl.m.events.length = 0; }
+  check('thrown forward, they fly as an attack and hit the first foe - as their own hit', flew && hitEv && hitEv.attacker === fl.ally.index && fl.foe.percent > before && fl.ally.state !== 'flung',
+    `flung ${flew}, hit by ${hitEv && hitEv.attacker} (the ally is ${fl.ally.index}), foe ${before}% -> ${fl.foe.percent}%, ally now ${fl.ally.state}`);
+  const miss = setup(200);
+  grabAndThrow(miss, 'forward');
+  let frames = 0;
+  while (miss.ally.state === 'flung' && frames < 80) { miss.m.step(); frames++; }
+  check('a flight that meets nobody ends', miss.ally.state !== 'flung' && frames <= TEAM.fling.frames + 2, `after ${frames} frames: ${miss.ally.state}`);
+  const free = setup();
+  free.m._input.set('p0', { ...emptyFrame(), grab: true, anyPress: true }); free.m.step(); free.m._input.clear('p0');
+  for (let i = 0; i < 12 && free.g.state !== 'holding'; i++) free.m.step();
+  free.m._input.set('p2', { ...emptyFrame(), jump: true, anyPress: true }); free.m.step(); free.m._input.clear('p2');
+  check('a held teammate can jump free', free.ally.state !== 'grabbed' && !free.g.hold, `ally ${free.ally.state}, still held ${!!free.g.hold}`);
+  const both = setup(2.4);
+  both.ally.x = 2.6;
+  grabAndThrow(both, 'up');
+  check('a foe in reach is grabbed before any teammate', both.foe.state !== 'idle' && both.ally.state === 'idle', `foe ${both.foe.state}, ally ${both.ally.state}`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO, DROPS } from '../config.js';
+import { FRAME, GRAVITY, LAUNCH_DRAG, TUMBLE_THRESHOLD, MOVE, SHIELD, LEDGE, DASH, SPOT_DODGE, AIR_DODGE, GROUND_POUND, GRAB, TECH, KNOCKDOWN, TAUNT_FRAMES, RESPAWN, INPUT_BUFFER, ULTIMATE, COMBO, DROPS, BOUNCE } from '../config.js';
 import { hitstun as hitstunFor, velocity as launchVelocity, blockstun as blockstunFor } from './knockback.js';
 import { emptyFrame } from './input.js';
 
@@ -1019,16 +1019,32 @@ export class Fighter {
     if (this.onGround && this.platform) { nx += this.platform.dx; ny = this.platform.top; }
     const res = stage.collide(this, this.x, this.y, nx, ny);
     this.x = res.x; this.y = res.y;
+    // Bounces (BOUNCE): launched into a wall or a ceiling, a fighter rebounds, still launched -
+    // unless they tech it. A wall used to rebound only a fighter still in hitstun, at half, above
+    // 40; a tumble past its hitstun slid down the wall, and every ceiling stopped them dead.
+    const launched = this.state === 'hitstun' || this.tumbling;
     if (res.wall) {
       if (this.tumbling && this.techPress > 0 && Math.abs(this.vx) > 20) {
         // Wall tech: kill the tumble, bounce off with control instead of sliding down the wall.
         this.techPress = 0; this.buffer.guard = 0; this.tumbling = false; this.hitstun = 0; this.techRoll = 0;
         this.vx = -sign(this.vx) * 18; this.vy = Math.max(this.vy, 8);
         this.setState('tech'); this.emit({ type: 'tech', wall: true });
-      } else if (this.state === 'hitstun' && Math.abs(this.vx) > 40) { this.vx = -this.vx * 0.5; }
-      else this.vx = 0;
+      } else if (launched && Math.abs(this.vx) > BOUNCE.speed) {
+        this.emit({ type: 'rebound', surface: 'wall', speed: Math.abs(this.vx) });
+        this.vx = -this.vx * BOUNCE.restitution;
+      } else this.vx = 0;
     }
-    if (res.bumped) this.vy = 0;
+    if (res.bumped) {
+      if (this.tumbling && this.techPress > 0 && this.vy > 20) {
+        // Ceiling tech: as off a wall - the tumble ends, and they drop away under control.
+        this.techPress = 0; this.buffer.guard = 0; this.tumbling = false; this.hitstun = 0; this.techRoll = 0;
+        this.vy = -8; this.vx *= 0.5;
+        this.setState('tech'); this.emit({ type: 'tech', ceiling: true });
+      } else if (launched && this.vy > BOUNCE.speed) {
+        this.emit({ type: 'rebound', surface: 'ceiling', speed: this.vy });
+        this.vy = -this.vy * BOUNCE.restitution;
+      } else this.vy = 0;
+    }
     if (res.landed && !this.onGround) this._land(res.landed, ctx);
     else if (res.landed) this.platform = res.landed;
     if (this.onGround && !stage.supported(this)) {

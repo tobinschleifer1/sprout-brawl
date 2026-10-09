@@ -105,6 +105,10 @@ Config.KILL_HIT = { drift = 10 }
 
 -- Staling (depth): a move you keep landing does less - the last `memory` landed, `step` off per
 -- repeat among them, down to `floor`. Throws and the ultimate never stale. config.js says why.
+-- Bounces (depth): launched into a wall or ceiling faster than `speed`, rebound at `restitution`
+-- of it, still launched; a tech on contact saves them. config.js says more.
+Config.BOUNCE = { speed = 30, restitution = 0.6 }
+
 Config.STALE = { memory = 8, step = 0.05, floor = 0.6 }
 function Config.staleMul(landed: { string }, id: string): number
 	local n = 0

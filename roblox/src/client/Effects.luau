@@ -171,6 +171,12 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 		dust(e.x, e.y, 4, 3, 1, 0.28, 0.3)
 	elseif t == "tech" then
 		push(e.x, e.y, 8, "#FFFFFF", 14, 0.26, 0.22); ring(e.x, e.y, 2.2, 0.26, "#FFFFFF", false, 0)
+	elseif t == "rebound" then
+		-- a launched fighter rebounding off a wall or ceiling: grit and a jolt by speed (effects.js)
+		local k = math.clamp((e.speed or 0) / Effects.HIT_FULL, 0, 1)
+		push(e.x, e.y, math.floor(6 + 8 * k + 0.5), Effects.DUST, 10 + 12 * k, 0.32, 0.3)
+		ring(e.x, e.y, 1.6 + 1.2 * k, 0.24, "#E6DCC8", true, if e.surface == "ceiling" then 0 else PI / 2)
+		shake(0.2 + 0.4 * k)
 	elseif t == "shieldbreak" then
 		push(e.x, e.y, 24, "#9FD1E8", 28, 0.55, 0.3); ring(e.x, e.y, 4, 0.4, "#FFFFFF", true, 0); shake(0.8)
 	elseif t == "grabhit" then

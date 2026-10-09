@@ -7,10 +7,13 @@
 //   * armour: a heavy's startup shrugs off the first light hit - the damage is taken and counted,
 //     the swing goes on; once per swing; a heavy, a grab, or a light after the startup still land;
 //     the existing per-move armour still works.
+//   * bounces (BOUNCE): a launched fighter rebounds off a wall and off a ceiling, still launched, at
+//     the restitution; a tech saves them from either; a slow contact, or a fighter not launched,
+//     does not rebound.
 //
 //     node test/depth.test.mjs
 import { makeMatch, skipCountdown } from './harness.mjs';
-import { STALE, staleMul } from '../src/config.js';
+import { STALE, staleMul, BOUNCE } from '../src/config.js';
 
 let pass = 0, fail = 0;
 const check = (n, c, d) => { (c ? pass++ : fail++); console.log(`${c ? 'PASS' : 'FAIL'}  ${n}\n      ${d}`); };
@@ -119,6 +122,44 @@ function land(d, move, opts = {}) {
   s5.v.startMove(s5.v.char.moves.LightNeutral1);
   light(s5);
   check('a light does not armour a light', s5.v.state === 'hitstun', `victim ${s5.v.state}`);
+}
+
+// ---- bounces: off a wall, off a ceiling ----
+{
+  // Saltflat has a block on the floor (x -20..-12, 0..4) and one raised above it (29..48, 12..17).
+  const fling = ({ x, y, vx, vy, launched = true, tumbleOnly = false, tech = false }) => {
+    const m = skipCountdown(makeMatch({ stageId: 'Saltflat', loadouts: [['Classic', 'Sword'], ['Noir', 'Sword']] }));
+    const [f, other] = m.fighters;
+    other.x = 0; other.y = 30; other.isBot = false;
+    f.x = x; f.y = y; f.vx = vx; f.vy = vy; f.onGround = false; f.platform = null; f.invincible = 0;
+    if (tumbleOnly) { f.setState('air'); f.tumbling = true; }
+    else if (launched) { f.setState('hitstun'); f.hitstun = 40; f.tumbling = true; } else f.setState('air');
+    const seen = [];
+    for (let i = 0; i < 40 && !seen.length; i++) {
+      if (tech) f.techPress = 8;
+      m.step();
+      for (const e of m.events) if ((e.type === 'rebound' || e.type === 'tech') && e.fighter === f.index) seen.push({ ...e, vx: f.vx, vy: f.vy, state: f.state });
+      m.events.length = 0;
+    }
+    return { f, e: seen[0] };
+  };
+  const wall = fling({ x: -26, y: 1, vx: 70, vy: 0 });
+  check('a launched fighter rebounds off a wall, still launched', wall.e && wall.e.type === 'rebound' && wall.e.surface === 'wall'
+      && wall.e.vx < 0 && Math.abs(Math.abs(wall.e.vx) - wall.e.speed * BOUNCE.restitution) < 1e-9 && wall.e.state === 'hitstun',
+    `event ${wall.e && wall.e.type}/${wall.e && wall.e.surface}, hit at ${wall.e && wall.e.speed.toFixed(1)}, away at ${wall.e && wall.e.vx.toFixed(1)}, ${wall.e && wall.e.state}`);
+  const ceil = fling({ x: 38, y: 5, vx: 0, vy: 70 });
+  check('and off a ceiling, sent back down', ceil.e && ceil.e.type === 'rebound' && ceil.e.surface === 'ceiling' && ceil.e.vy < 0
+      && Math.abs(-ceil.e.vy - ceil.e.speed * BOUNCE.restitution) < 1e-9,
+    `event ${ceil.e && ceil.e.type}/${ceil.e && ceil.e.surface}, up at ${ceil.e && ceil.e.speed.toFixed(1)}, down at ${ceil.e && ceil.e.vy.toFixed(1)}`);
+  const tumble = fling({ x: -26, y: 1, vx: 70, vy: 0, tumbleOnly: true });
+  check('a tumble past its hitstun rebounds too', tumble.e && tumble.e.type === 'rebound' && tumble.e.vx < 0,
+    `out of hitstun, still tumbling: ${tumble.e ? tumble.e.type : 'slid down the wall'}`);
+  const wt = fling({ x: -26, y: 1, vx: 70, vy: 0, tech: true }), ct = fling({ x: 38, y: 5, vx: 0, vy: 70, tech: true });
+  check('a tech saves them from either', wt.e && wt.e.type === 'tech' && wt.e.wall && ct.e && ct.e.type === 'tech' && ct.e.ceiling && ct.f.state === 'tech' && !ct.f.tumbling,
+    `wall: ${wt.e && wt.e.type}, ceiling: ${ct.e && ct.e.type} (${ct.f.state})`);
+  const slow = fling({ x: -22, y: 1, vx: 20, vy: 0 }), calm = fling({ x: -26, y: 1, vx: 70, vy: 0, launched: false });
+  check('a slow contact, or a fighter not launched, does not rebound', !slow.e && !calm.e && calm.f.vx === 0,
+    `slow: ${slow.e ? slow.e.type : 'none'}, not launched: ${calm.e ? calm.e.type : 'none'} (vx ${calm.f.vx})`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

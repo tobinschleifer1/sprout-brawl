@@ -1387,6 +1387,9 @@ function methods._physics(self, ctx)
 	end
 	local res = stage:collide(self, self.x, self.y, nx, ny)
 	self.x = res.x; self.y = res.y
+	-- Bounces (Config.BOUNCE): launched into a wall or a ceiling, rebound, still launched - unless
+	-- they tech it (fighter.js).
+	local launched = self.state == "hitstun" or self.tumbling
 	if res.wall then
 		if self.tumbling and self.techPress > 0 and math.abs(self.vx) > 20 then
 			-- Wall tech: kill the tumble, bounce off with control instead of sliding down the wall.
@@ -1396,13 +1399,29 @@ function methods._physics(self, ctx)
 			self.vy = math.max(self.vy, 8)
 			methods.setState(self, "tech")
 			methods.emit(self, { type = "tech", wall = true })
-		elseif self.state == "hitstun" and math.abs(self.vx) > 40 then
-			self.vx = -self.vx * 0.5
+		elseif launched and math.abs(self.vx) > Config.BOUNCE.speed then
+			methods.emit(self, { type = "rebound", surface = "wall", speed = math.abs(self.vx) })
+			self.vx = -self.vx * Config.BOUNCE.restitution
 		else
 			self.vx = 0
 		end
 	end
-	if res.bumped then self.vy = 0 end
+	if res.bumped then
+		if self.tumbling and self.techPress > 0 and self.vy > 20 then
+			-- Ceiling tech: the tumble ends, and they drop away under control.
+			self.techPress = 0; self.buffer.guard = 0; self.tumbling = false
+			self.hitstun = 0; self.techRoll = 0
+			self.vy = -8
+			self.vx *= 0.5
+			methods.setState(self, "tech")
+			methods.emit(self, { type = "tech", ceiling = true })
+		elseif launched and self.vy > Config.BOUNCE.speed then
+			methods.emit(self, { type = "rebound", surface = "ceiling", speed = self.vy })
+			self.vy = -self.vy * Config.BOUNCE.restitution
+		else
+			self.vy = 0
+		end
+	end
 	if res.landed and not self.onGround then
 		methods._land(self, res.landed, ctx)
 	elseif res.landed then

@@ -140,6 +140,12 @@ export const KILL_HIT = { drift: 10 };
 // - so eight of the same in a row land at 60%. Knockback grows with damage, so the launch falls
 // with it. Mild on purpose: variety is rewarded and nothing becomes useless. Throws and the
 // ultimate never stale, and a blocked or armoured hit is not a landed one.
+// Bounces (depth): a launched fighter - in hitstun, or still tumbling - who meets a wall or a
+// ceiling faster than `speed` rebounds at `restitution` of it, still launched: a combo off the
+// wall, a ceiling that sends them back down. A tech on contact (shield, as for a floor) still
+// saves them: off a wall as before, and now off a ceiling too.
+export const BOUNCE = { speed: 30, restitution: 0.6 };
+
 export const STALE = { memory: 8, step: 0.05, floor: 0.6 };
 export const staleMul = (landed, id) => {
   let n = 0;

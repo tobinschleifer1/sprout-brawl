@@ -68,6 +68,8 @@ export class Fighter {
     this.frameCount = 0;
     // Counts every move started, so combat can tell two hits of one swing from two swings.
     this.moveSerial = 0;
+    // Staling (STALE in config.js): the last moves this fighter landed, and this swing's multiplier.
+    this.staleMoves = []; this.staleSerial = -1; this.staleNow = 1;
     this.item = null;
     this.effects = { chill: { stacks: 0, timer: 0 }, tangle: { stacks: 0, timer: 0 }, grit: { hide: 0, slow: 0 }, slow: 0, frozenBonus: false };
     this.mech = this._initMechanic();

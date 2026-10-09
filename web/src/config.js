@@ -135,6 +135,18 @@ export const INPUT_BUFFER = 6;
 // fights, not just showing them.
 export const KILL_HIT = { drift: 10 };
 
+// Staling (depth): a move you keep landing does less. Each fighter remembers the last `memory`
+// moves they landed; each time this move is among them costs `step` of its damage, down to `floor`
+// - so eight of the same in a row land at 60%. Knockback grows with damage, so the launch falls
+// with it. Mild on purpose: variety is rewarded and nothing becomes useless. Throws and the
+// ultimate never stale, and a blocked or armoured hit is not a landed one.
+export const STALE = { memory: 8, step: 0.05, floor: 0.6 };
+export const staleMul = (landed, id) => {
+  let n = 0;
+  for (const m of landed) if (m === id) n++;
+  return Math.max(STALE.floor, 1 - STALE.step * n);
+};
+
 export const COMBO = {
   perfectLate: 4, perfectStartupCut: 2, perfectMinStartup: 2, perfectDamage: 1, perfectCharge: 1.25,
   scaleFrom: 3, scaleStep: 0.08, scaleFloor: 0.5,

@@ -220,12 +220,20 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	local direct = not opts.projectile and not opts.summon
 	local damage = (if hb and hb.damage ~= nil then hb.damage else move.damage)
 		+ (if direct then (attacker.bonusDamage or 0) else 0)
+	-- Staling (Config.STALE): once per swing, from the moves landed before this one.
+	local stales = (direct or opts.projectile) and move.id ~= "Ultimate" and move.kind ~= "grab"
+	local stale = if not stales then 1
+		elseif attacker.staleSerial == attacker.moveSerial then attacker.staleNow
+		else Config.staleMul(attacker.staleMoves, move.id)
 	local base = if hb and hb.base ~= nil then hb.base else move.base
 	local growth = if hb and hb.growth ~= nil then hb.growth else move.growth
 	if direct and attacker.chargeMods and attacker.move == move then
 		damage += attacker.chargeMods.damage
 		base = attacker.chargeMods.base
 		growth = attacker.chargeMods.growth
+	end
+	if stale < 1 then
+		damage = math.max(1, math.floor(damage * stale + 0.5))
 	end
 	local cx = if rect then (rect.x1 + rect.x2) / 2 else victim.x
 	local cy = if rect then (rect.y1 + rect.y2) / 2 else victim.cy
@@ -337,6 +345,15 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		if victim.comboKey ~= key then
 			victim.comboKey = key
 			victim.comboHits += 1
+		end
+	end
+	-- It landed: remembered for staling, once per swing.
+	if stales and attacker.staleSerial ~= attacker.moveSerial then
+		attacker.staleSerial = attacker.moveSerial
+		attacker.staleNow = stale
+		table.insert(attacker.staleMoves, move.id)
+		if #attacker.staleMoves > Config.STALE.memory then
+			table.remove(attacker.staleMoves, 1)
 		end
 	end
 	local dealt = if victim.comboHits >= Config.COMBO.scaleFrom

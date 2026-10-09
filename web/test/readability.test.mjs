@@ -48,8 +48,9 @@ function heavyAt(percent) {
 
 // ---- it changes nothing ----
 {
-  const run = (silence) => {
-    const m = skipCountdown(makeMatch({ mode: 'StockFFA', stocks: 3, seed: 902,
+  // Several seeds, so the check never rests on one match happening to land a kill hit.
+  const run = (seed, silence) => {
+    const m = skipCountdown(makeMatch({ mode: 'StockFFA', stocks: 3, seed,
       armed: [['Classic', ['Sword', 'Hammer']], ['Noir', ['Daggers', 'Axe']], ['Ember', ['Pike', 'Shield']], ['Moss', ['Scythe', 'Flail']]] }));
     m.fighters.forEach((f) => { f.isBot = true; f.botLevel = 'elite'; });
     if (silence) m.combat.killHit = () => false;
@@ -61,9 +62,14 @@ function heavyAt(percent) {
     }
     return { kills, state: m.fighters.map((f) => [f.x.toFixed(6), f.y.toFixed(6), f.percent, f.stocksLeft(), f.state].join(',')).join(' | '), frame: m.frame };
   };
-  const real = run(false), silent = run(true);
-  check('the prediction is read-only: a match plays out the same without it', real.state === silent.state && real.frame === silent.frame && real.kills > 0,
-    `${real.kills} kill hits marked; after ${real.frame} frames the two runs ${real.state === silent.state ? 'match' : `differ:\n        ${real.state}\n        ${silent.state}`}`);
+  let kills = 0, same = true, detail = '';
+  for (const seed of [902, 903, 904]) {
+    const real = run(seed, false), silent = run(seed, true);
+    kills += real.kills;
+    if (real.state !== silent.state || real.frame !== silent.frame) { same = false; detail += `\n        seed ${seed}: ${real.state}\n        silenced: ${silent.state}`; }
+  }
+  check('the prediction is read-only: a match plays out the same without it', same && kills > 0,
+    `${kills} kill hits marked across three matches; the runs ${same ? 'match' : `differ:${detail}`}`);
 }
 
 // ---- it is usually right ----

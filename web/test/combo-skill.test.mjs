@@ -217,6 +217,9 @@ function cancelRun(edit, button, { gap = 2.4, air = false } = {}) {
   for (let n = 1; n <= 12; n++) {
     a.moveSerial++;
     v.percent = 50;
+    // the same probe twelve times would stale (STALE); this measures combo scaling alone, and
+    // depth.test.mjs measures staling
+    a.staleMoves.length = 0;
     m.combat.resolveHit(a, v, move, null, null, {});
     dealt.push(v.percent - 50);
     const hit = m.combat.events.filter((e) => e.type === 'hit').pop();

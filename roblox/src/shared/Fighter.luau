@@ -158,6 +158,10 @@ function Fighter.new(opts: any): any
 	self.frameCount = 0
 	-- Counts every move started, so combat can tell two hits of one swing from two swings.
 	self.moveSerial = 0
+	-- Staling (Config.STALE): the last moves this fighter landed, and this swing's multiplier.
+	self.staleMoves = {}
+	self.staleSerial = -1
+	self.staleNow = 1
 	self.item = nil
 	self.effects = {
 		chill = { stacks = 0, timer = 0 }, tangle = { stacks = 0, timer = 0 },
@@ -1850,6 +1854,8 @@ local SCALARS = {
 	-- dropped these would forget a timed streak, or a combo count, mid-string.
 	"moveSerial", "linkPerfect", "perfectStreak", "chainDepth", "comboHits", "comboKey",
 	"breakLocked", "breakPress", "breakCooldown", "chase", "breakable", "cancelUsed",
+	-- Staling: this swing's multiplier and which swing it is for (staleMoves is copied below).
+	"staleSerial", "staleNow",
 	-- Identity rather than simulation state: these never change during a match, so restoring them
 	-- is a no-op. They are here because a snapshot that cannot rebuild the whole fighter is a
 	-- snapshot somebody will eventually use for something else and be wrong about.
@@ -1888,6 +1894,7 @@ function methods.snapshot(self): any
 	s.stats = table.clone(self.stats)
 	s.hitVictims = table.clone(self.hitVictims)
 	s.ultHeld = table.clone(self.ultHeld)
+	s.staleMoves = table.clone(self.staleMoves)
 	s.pendingLaunch = shallow(self.pendingLaunch)
 	s.hold = shallow(self.hold)          -- carries a victim REFERENCE, which stays a reference
 	s.la = shallow(self.la)
@@ -1931,6 +1938,7 @@ function methods.restore(self, s: any)
 	self.stats = table.clone(s.stats)
 	self.hitVictims = table.clone(s.hitVictims)
 	self.ultHeld = table.clone(s.ultHeld)
+	self.staleMoves = table.clone(s.staleMoves)
 	self.pendingLaunch = shallow(s.pendingLaunch)
 	self.hold = shallow(s.hold)
 	self.la = shallow(s.la)

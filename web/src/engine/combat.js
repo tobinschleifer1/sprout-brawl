@@ -1,4 +1,4 @@
-import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage } from '../config.js';
+import { FRAME, GRAVITY, GRAB, GROUND_POUND, LEDGE, SHIELD, ITEMS as ITEM_CFG, comboScale, COMBO, DROPS, dropsOnStage, STALE, staleMul } from '../config.js';
 import { launchSpeed, stunSpeed, hitlag as hitlagFor, velocity as launchVelocity, carriesOut } from './knockback.js';
 import { ITEMS, ITEM_LIST } from '../data/items.js';
 
@@ -114,9 +114,14 @@ export class Combat {
     if (victim.state === 'grabbed' && move.kind === 'grab') return false;
     const direct = !opts.projectile && !opts.summon;
     let damage = (hb && hb.damage != null ? hb.damage : move.damage) + (direct ? (attacker.bonusDamage || 0) : 0);
+    // Staling (STALE): worked out once per swing - a multi-hit move's later hits are not staled by
+    // its own first hit - and from the moves landed before this one.
+    const stales = (direct || opts.projectile) && move.id !== 'Ultimate' && move.kind !== 'grab';
+    const stale = !stales ? 1 : attacker.staleSerial === attacker.moveSerial ? attacker.staleNow : staleMul(attacker.staleMoves, move.id);
     let base = hb && hb.base != null ? hb.base : move.base;
     let growth = hb && hb.growth != null ? hb.growth : move.growth;
     if (direct && attacker.chargeMods && attacker.move === move) { damage += attacker.chargeMods.damage; base = attacker.chargeMods.base; growth = attacker.chargeMods.growth; }
+    if (stale < 1) damage = Math.max(1, Math.floor(damage * stale + 0.5));
     const cx = rect ? (rect.x1 + rect.x2) / 2 : victim.x, cy = rect ? (rect.y1 + rect.y2) / 2 : victim.cy;
     const isMelee = direct && move.kind !== 'grab' && !opts.item;
 
@@ -203,6 +208,12 @@ export class Combat {
     if (direct || opts.projectile) {
       const key = attacker.index * 1000000 + attacker.moveSerial;
       if (victim.comboKey !== key) { victim.comboKey = key; victim.comboHits++; }
+    }
+    // It landed: remembered for staling, once per swing.
+    if (stales && attacker.staleSerial !== attacker.moveSerial) {
+      attacker.staleSerial = attacker.moveSerial; attacker.staleNow = stale;
+      attacker.staleMoves.push(move.id);
+      if (attacker.staleMoves.length > STALE.memory) attacker.staleMoves.shift();
     }
     const dealt = victim.comboHits >= COMBO.scaleFrom ? Math.max(1, Math.floor(damage * comboScale(victim.comboHits) + 0.5)) : damage;
     const angle = hb && hb.angle != null ? hb.angle : move.angle;

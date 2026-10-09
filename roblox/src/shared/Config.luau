@@ -103,6 +103,17 @@ Config.INPUT_BUFFER = 6
 -- KILL_HIT for the measurements behind `drift`, and why there is no extra freeze.
 Config.KILL_HIT = { drift = 10 }
 
+-- Staling (depth): a move you keep landing does less - the last `memory` landed, `step` off per
+-- repeat among them, down to `floor`. Throws and the ultimate never stale. config.js says why.
+Config.STALE = { memory = 8, step = 0.05, floor = 0.6 }
+function Config.staleMul(landed: { string }, id: string): number
+	local n = 0
+	for _, m in landed do
+		if m == id then n += 1 end
+	end
+	return math.max(Config.STALE.floor, 1 - Config.STALE.step * n)
+end
+
 Config.COMBO = {
 	perfectLate = 4, perfectStartupCut = 2, perfectMinStartup = 2, perfectDamage = 1, perfectCharge = 1.25,
 	scaleFrom = 3, scaleStep = 0.08, scaleFloor = 0.5,

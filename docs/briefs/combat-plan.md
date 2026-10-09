@@ -54,8 +54,24 @@ KO effects and emotes, progression), which waits until this is done.
    Studio (2v2, hard bots): TEAM combos on the tiles, "KO! ● etondes by ◆ CPU 4 + ■ CPU 2", the
    podium's Assists row (2, 1, 0, 0), no errors. No catch or throw came up in the sample; both are
    held by the team fixture's scripted runs of the real match loop.
-4. **Online feel.** Instant local feedback when your attack visibly connects (confirmed or taken
-   back by the server), then lag compensation on the server for your hits.
+4. **Online feel** (done). Agreed with the user: spark and freeze at once, the foe's reaction left
+   to the server; a 150 ms rewind cap; only the position is rewound (the defender's dodge, shield
+   or invincibility as it is now wins); swings and grabs, not projectiles.
+   - Lag compensation: Combat keeps 9 frames of hurtboxes and judges a player's swing or grab
+     against the victim's box from the frame the client was drawing, sent with each input. Bots
+     and the web build never rewind.
+   - Instant hits: the predictor runs the hitbox scan for your own fighter against the foes as
+     drawn, and lands the hit on you as the server will - freeze, chain, chase target, staling,
+     on-hit, meter; a block or armour as such. Sparks go up at once and the server's copy is not
+     drawn again unless it was the kill hit. The snapshot now carries the staling memory, which a
+     taken-back hit left wrong on the client.
+   End to end over a simulated connection, inside the cap every predicted hit is confirmed on the
+   same frame, and every server hit was predicted, except where the foe dodged or shielded on the
+   server first. Studio (1v1, easy bot): views arrived at 60 Hz, every one an increasing frame; my
+   two landed hits sparked 33 ms after the server's event and only once, while the bot's hits on
+   me sparked 117-184 ms after theirs (the interpolation delay) - the instant spark and the
+   swallowed duplicate, live. Studio has no real latency, so the rewind itself was not seen doing
+   work there; the end-to-end test is what holds it.
 
 Each phase lands in `web/` and `roblox/` together, held by `check.sh` replay, with every test
 mutation-checked, and a Studio playtest at the end.

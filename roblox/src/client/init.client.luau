@@ -661,7 +661,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 				elseif e.predicted then
 					-- our swing met a foe as drawn: its sparks and drawn moment now (HitConfirm)
 					confirm:drawn(e, os.clock())
-					pcall(FightScene.spawn :: any, fx, fxPlayer, e, lastStates, chars, glowOf, math.random, heightOf, true)
+					local ok, err = pcall(FightScene.spawn :: any, fx, fxPlayer, e, lastStates, chars, glowOf, math.random, heightOf, true)
+					if not ok and not posedWarned[-5] then
+						posedWarned[-5] = true
+						warn(`[Blockfall] an instant hit's sparks failed, and will not be reported again: {err}`)
+					end
 				end
 			end
 		end

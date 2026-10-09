@@ -422,7 +422,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	for _, tile in self.tiles do
 		local c = combos[tile.index]
 		if c then
-			tile.combo.Text = if c.broken then `{c.hits} HITS · BROKEN` else `{c.hits} HITS  {c.damage}%`
+			local team = if c.team then "TEAM " else ""
+			tile.combo.Text = if c.broken then `{team}{c.hits} HITS · BROKEN` else `{team}{c.hits} HITS  {c.damage}%`
 			tile.combo.TextColor3 = if c.broken then BROKE elseif c.finisher then GOLD else Color3.new(1, 1, 1)
 			tile.combo.TextTransparency = 1 - c.alpha
 			tile.perfect.Text = if c.finisher then "FINISHER!" elseif c.perfect > 0 then `PERFECT ×{c.perfect}` else ""

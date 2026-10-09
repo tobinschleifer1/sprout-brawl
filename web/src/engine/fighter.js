@@ -62,7 +62,9 @@ export class Fighter {
     this.stocks = opts.stocks == null ? 3 : opts.stocks;
     this.percent = 0;
     this.alive = true;
-    this.stats = { kos: 0, falls: 0, damageDealt: 0, damageTaken: 0, selfDestructs: 0 };
+    this.stats = { kos: 0, assists: 0, falls: 0, damageDealt: 0, damageTaken: 0, selfDestructs: 0 };
+    // When each other fighter last hit this one (by index; this fighter's frameCount), for assists.
+    this.hitBy = [];
     this.input = emptyFrame();
     this.buffer = { jump: 0, light: 0, heavy: 0, dodge: 0, guard: 0, grab: 0, taunt: 0, ult: 0, pickup: 0 };
     this.frameCount = 0;
@@ -170,6 +172,8 @@ export class Fighter {
     this.perfectPress = { light: false, heavy: false }; this.mashed = { light: false, heavy: false };
     this.linkPerfect = false; this.perfectStreak = 0; this.chainDepth = 0;
     this.comboHits = 0; this.comboKey = -1; this.breakLocked = false; this.breakPress = false; this.breakCooldown = 0;
+    // Who has hit in the combo this fighter is held in, as a bitmask of fighter indices: team combos.
+    this.comboBy = 0;
     this.comboTarget = null; this.chase = 0;   // who this fighter last hit, and the chase window a cancel opens
     this.breakable = true;                     // false while frozen by a finisher, which cannot be broken
     this.cancelUsed = false;                   // one cancel per combo: see _cancel
@@ -269,7 +273,7 @@ export class Fighter {
     // one that bends the launch angle. See _applyLaunch.
     this.di = { x: this.input.x, y: this.input.y };
     if (!this.alive) return;
-    if (this.comboHits > 0 && !COMBO_HELD.has(this.state)) { this.comboHits = 0; this.comboKey = -1; this.breakLocked = false; this.breakPress = false; }
+    if (this.comboHits > 0 && !COMBO_HELD.has(this.state)) { this.comboHits = 0; this.comboKey = -1; this.comboBy = 0; this.breakLocked = false; this.breakPress = false; }
     if (this.breakPress) { this._breakOut(); return; }
     if (this.cancelUsed && !(this.comboTarget && this.comboTarget.comboHits > 0)) this.cancelUsed = false;
     if (this.hitlag > 0) {
@@ -883,6 +887,7 @@ export class Fighter {
     this.percent = Math.min(999, this.percent + hit.damage);
     this.stats.damageTaken += hit.damage;
     this.lastHitBy = hit.attacker || null; this.lastHitFrame = this.frameCount;
+    if (hit.attacker && hit.attacker !== this) this.hitBy[hit.attacker.index] = this.frameCount;
     this.hitlag = hit.hitlag;
     // A finisher cannot be broken: an attacker who linked a whole string perfectly gets the end of
     // it. The break is for the long combos - launcher, cancel, air string - that reach the

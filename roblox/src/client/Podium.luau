@@ -7,7 +7,7 @@ local function pair(...: any): { any }
 	return { ... }
 end
 Podium.STATS = {
-	pair("Score", "score"), pair("KOs", "kos"), pair("Falls", "falls"), pair("Accidents", "sds"),
+	pair("Score", "score"), pair("KOs", "kos"), pair("Assists", "assists"), pair("Falls", "falls"), pair("Accidents", "sds"),
 	pair("Dmg Done", "damage"), pair("Dmg Taken", "taken"),
 }
 

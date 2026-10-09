@@ -169,7 +169,8 @@ for _, spec in T.scenarios do
 			else
 				for i, e in m.events do
 					local w = wantEvents[i]
-					local vals = { e.type, e.n, e.fighter, e.by, e.side, e.last, e.winner, e.x, e.y }
+					local vals = { e.type, e.n, e.fighter, e.by, e.side, e.last, e.winner, e.x, e.y,
+						if e.assists then table.concat(e.assists, ",") else nil }
 					for j, gv in vals do
 						checked += 1
 						local wv = w[j]
@@ -209,7 +210,7 @@ for _, spec in T.scenarios do
 				for i, wr in wantResults do
 					local r = m.results.rows[i]
 					local vals = { r.index, r.kos, r.falls, r.sds, r.damage, r.percent, r.stocks,
-						r.score, if r.eliminatedAt == math.huge then "inf" else r.eliminatedAt, r.taken }
+						r.score, if r.eliminatedAt == math.huge then "inf" else r.eliminatedAt, r.taken, r.assists }
 					for j, gv in vals do
 						checked += 1
 						local wv = wr[j]

@@ -352,6 +352,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 			victim.comboKey = key
 			victim.comboHits += 1
 		end
+		victim.comboBy = bit32.bor(victim.comboBy, bit32.lshift(1, attacker.index))
 	end
 	-- It landed: remembered for staling, once per swing.
 	if stales and attacker.staleSerial ~= attacker.moveSerial then
@@ -421,7 +422,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	Combat.emit(self, { type = "hit", x = cx, y = cy, damage = dealt, launch = launch,
 		heavy = not not move.heavy, weight = victim.weight, attacker = attacker.index,
 		victim = victim.index, angle = angle, facing = facing, combo = victim.comboHits,
-		finisher = not not move.finisher, kill = kill })
+		finisher = not not move.finisher, kill = kill, team = Combat.teamCombo(self, victim, attacker) })
 	return true
 end
 
@@ -483,6 +484,15 @@ function Combat.resolveThrow(self, attacker: any, victim: any, td: any, tangle: 
 	Combat.emit(self, { type = "hit", x = victim.x, y = victim.cy, damage = damage, launch = launch,
 		heavy = true, weight = victim.weight, attacker = attacker.index, victim = victim.index,
 		angle = td.angle, facing = facing, throw = true, kill = kill })
+end
+
+-- A team combo: the combo `victim` is held in has hits from two or more of `attacker`'s team.
+function Combat.teamCombo(self, victim: any, attacker: any): boolean
+	local n = 0
+	for _, f in self.match.fighters do
+		if f.team == attacker.team and bit32.btest(victim.comboBy, bit32.lshift(1, f.index)) then n += 1 end
+	end
+	return n >= 2
 end
 
 -- The kill hit (Config.KILL_HIT): whether the launch `victim` was just given carries them out, left

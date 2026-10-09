@@ -6,7 +6,7 @@
 
 // What each card lists, in order: label and the results-row field it reads.
 export const STATS = [
-  ['Score', 'score'], ['KOs', 'kos'], ['Falls', 'falls'], ['Accidents', 'sds'],
+  ['Score', 'score'], ['KOs', 'kos'], ['Assists', 'assists'], ['Falls', 'falls'], ['Accidents', 'sds'],
   ['Dmg Done', 'damage'], ['Dmg Taken', 'taken'],
 ];
 

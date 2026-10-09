@@ -146,6 +146,11 @@ export const KILL_HIT = { drift: 10 };
 // saves them: off a wall as before, and now off a ceiling too.
 export const BOUNCE = { speed: 30, restitution: 0.6 };
 
+// Team play (combat phase 3). An assist: anyone besides the KO'er who hit the victim within
+// `assistWindow` frames of the KO - in every mode - is credited and gets `assistMeter` ultimate
+// charge (a landed hit is 1; the meter is ULTIMATE.hitsRequired).
+export const TEAM = { assistWindow: 480, assistMeter: 3 };
+
 export const STALE = { memory: 8, step: 0.05, floor: 0.6 };
 export const staleMul = (landed, id) => {
   let n = 0;

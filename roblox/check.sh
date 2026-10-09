@@ -54,6 +54,7 @@ node tools/gen-drops-traces.mjs
 node tools/gen-drop-fixture.mjs
 node tools/gen-danger-fixture.mjs
 node tools/gen-depth-fixture.mjs
+node tools/gen-team-fixture.mjs
 node tools/gen-ai-traces.mjs
 node tools/gen-rng-fixture.mjs
 node tools/gen-channel-traces.mjs
@@ -163,6 +164,7 @@ lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="
 lune run tests/combat-parity
 lune run tests/depth-parity
+lune run tests/team-parity
 echo "== parity: Match vs web/src/engine/match.js =="
 lune run tests/match-parity
 lune run tests/drops-parity

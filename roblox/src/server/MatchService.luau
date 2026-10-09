@@ -252,7 +252,7 @@ function MatchService.results(self: any): any
 				local f = m.fighters[row.index + 1]
 				return if f and f.kit then f.kit[1].weapon.id else row.char.weapon.id
 			end)(),
-			kos = row.kos, falls = row.falls, sds = row.sds,
+			kos = row.kos, assists = row.assists, falls = row.falls, sds = row.sds,
 			damage = row.damage, taken = row.taken, percent = row.percent,
 			stocks = row.stocks, score = row.score,
 		})

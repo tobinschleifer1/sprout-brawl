@@ -304,12 +304,13 @@ for _, spec in T.scenarios do
 					end
 					if broke then break end
 					-- perfect / heavy / finisher / kill, the booleans the stream carries
-					local wp, wh, wf, wk = w[#T.eventNums + 2], w[#T.eventNums + 3], w[#T.eventNums + 4], w[#T.eventNums + 5]
-					checked += 4
+					local wp, wh, wf, wk, wt = w[#T.eventNums + 2], w[#T.eventNums + 3], w[#T.eventNums + 4], w[#T.eventNums + 5], w[#T.eventNums + 6]
+					checked += 5
 					if (e.perfect ~= wp and not (e.perfect == nil and wp == nil))
 						or (e.heavy ~= wh and not (e.heavy == nil and wh == nil))
 						or (e.finisher ~= wf and not (e.finisher == nil and wf == nil))
-						or (e.kill ~= wk and not (e.kill == nil and wk == nil)) then
+						or (e.kill ~= wk and not (e.kill == nil and wk == nil))
+						or (e.team ~= wt and not (e.team == nil and wt == nil)) then
 						fail(string.format("%s frame %d event %s flags: Luau %s/%s/%s, JS %s/%s/%s",
 							spec.name, frame, tostring(e.type), tostring(e.perfect), tostring(e.heavy), tostring(e.kill),
 							tostring(wp), tostring(wh), tostring(wk)))

@@ -92,6 +92,9 @@ do
 	for slot = 2, 4 do assert(model:edit(player, { id = room.id, revision = room.revision, action = "bot", value = "normal", slot = slot })) end
 	assert(model:edit(player, { id = room.id, revision = room.revision, action = "weapon2", value = "Pike" }))
 	local roster, opts = model:roster(room, function() return 1 end)
+	-- a fixed seed: left to math.random, the bots now and then took no drop in the window and the
+	-- check failed one run in a few with nothing wrong (what is checked is the wire, not the bots)
+	opts.seed = 7
 	messages = {}
 	service:start(roster, opts)
 	local m = messages.Match[1]

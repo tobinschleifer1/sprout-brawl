@@ -16,6 +16,7 @@ local Ai = require(script.Parent.Ai)
 local FRAME = Config.FRAME
 local RESPAWN = Config.RESPAWN
 local SUDDEN_DEATH = Config.SUDDEN_DEATH
+local TEAM = Config.TEAM
 
 -- JavaScript's Math.round: halves go toward +infinity.
 local function jsRound(v: number): number
@@ -228,6 +229,17 @@ function Match.knockOut(self, f: any)
 	else
 		f.stats.selfDestructs += 1
 	end
+	-- Assists (Config.TEAM): everyone else who hit them lately, in fighter order.
+	local assists = {}
+	for _, a in self.fighters do
+		local at = f.hitBy[a.index + 1]
+		if a ~= f and a ~= credit and at ~= nil and f.frameCount - at < TEAM.assistWindow then
+			a.stats.assists += 1
+			a:chargeUltimate(TEAM.assistMeter)
+			table.insert(assists, a.index)
+		end
+	end
+	f.hitBy = {}
 	-- Timed modes score on KOs, not stocks, so a KO there costs nothing but the respawn wait.
 	if self.timed then
 		-- unlimited lives
@@ -245,7 +257,7 @@ function Match.knockOut(self, f: any)
 		f.eliminatedAt = self.frame
 	end
 	table.insert(self.events, { type = "ko", fighter = f.index,
-		by = if credit then credit.index else -1,
+		by = if credit then credit.index else -1, assists = assists,
 		x = math.max(b.left, math.min(b.right, f.x)),
 		y = math.max(b.bottom, math.min(b.top, f.cy)),
 		side = side, last = not self.timed and f:stocksLeft() == 0 })
@@ -348,7 +360,7 @@ function Match.finish(self)
 	for _, f in self.fighters do
 		table.insert(rows, {
 			index = f.index, name = f.name, char = f.char, team = f.team,
-			kos = f.stats.kos, falls = f.stats.falls, sds = f.stats.selfDestructs,
+			kos = f.stats.kos, assists = f.stats.assists, falls = f.stats.falls, sds = f.stats.selfDestructs,
 			damage = jsRound(f.stats.damageDealt), taken = jsRound(f.stats.damageTaken), percent = f.percent,
 			stocks = f:stocksLeft(), score = Match.teamScore(self, f.team),
 			eliminatedAt = if f.eliminatedAt == nil then math.huge else f.eliminatedAt,

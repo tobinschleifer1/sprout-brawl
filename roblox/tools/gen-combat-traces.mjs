@@ -54,6 +54,7 @@ function snapEvents(evts) {
     row.push(e.heavy === undefined ? null : e.heavy);
     row.push(e.finisher === undefined ? null : e.finisher);
     row.push(e.kill === undefined ? null : e.kill);
+    row.push(e.team === undefined ? null : e.team);
     return row;
   });
 }

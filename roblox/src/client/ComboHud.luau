@@ -29,6 +29,8 @@ function ComboHud.event(self: any, e: any, now: number)
 		c.hits = math.max(c.hits, n)
 		c.damage += e.damage or 0
 		if e.finisher then c.finisher = true end
+		-- a team combo: an ally's hits are in it too (Combat.teamCombo)
+		if e.team then c.team = true end
 	elseif e.type == "combobreak" then
 		for _, c in self.combos do
 			if c.victim == e.fighter and not c.endAt then
@@ -58,7 +60,7 @@ function ComboHud.view(self: any, states: { any }, now: number): { [number]: any
 			out[attacker] = {
 				hits = c.hits, damage = math.floor(c.damage + 0.5), alpha = math.min(1, alpha),
 				perfect = if not c.endAt and a then (a.perfectStreak or 0) else 0,
-				finisher = not not c.finisher, broken = not not c.broken,
+				finisher = not not c.finisher, broken = not not c.broken, team = not not c.team,
 			}
 		end
 	end

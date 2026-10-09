@@ -216,6 +216,7 @@ export class Combat {
     if (direct || opts.projectile) {
       const key = attacker.index * 1000000 + attacker.moveSerial;
       if (victim.comboKey !== key) { victim.comboKey = key; victim.comboHits++; }
+      victim.comboBy |= 1 << attacker.index;
     }
     // It landed: remembered for staling, once per swing.
     if (stales && attacker.staleSerial !== attacker.moveSerial) {
@@ -255,7 +256,7 @@ export class Combat {
     this.onHitLanded(attacker, victim, move, isMelee);
     if (victim.item && damage >= ITEM_CFG.knockOutDamage) this.dropItem(victim, true);
     const kill = this.killHit(victim);
-    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits, finisher: !!move.finisher, kill });
+    this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits, finisher: !!move.finisher, kill, team: this.teamCombo(victim, attacker) });
     return true;
   }
 
@@ -293,6 +294,13 @@ export class Combat {
     attacker.stats.damageDealt += damage;
     const kill = this.killHit(victim);
     this.emit({ type: 'hit', x: victim.x, y: victim.cy, damage, launch, heavy: true, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle: td.angle, facing, throw: true, kill });
+  }
+
+  // A team combo: the combo `victim` is held in has hits from two or more of `attacker`'s team.
+  teamCombo(victim, attacker) {
+    let n = 0;
+    for (const f of this.fighters) if (f.team === attacker.team && (victim.comboBy & (1 << f.index))) n++;
+    return n >= 2;
   }
 
   // The kill hit (KILL_HIT): whether the launch `victim` was just given carries them out, left alone.

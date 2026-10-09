@@ -231,6 +231,19 @@ do
 	if checked ~= #Weapons.LIST then fail("not every weapon was checked") end
 end
 
-print("PASS combo hud: the counter counts swings, adds damage, restarts, shows the streak, marks finishers and breaks, holds and fades; the break prompt only in a breakable freeze")
+-- a team combo: an ally carries the combo on, and their counter says TEAM with the shared count
+do
+	local T = ComboHud.new()
+	ComboHud.event(T, hit(0, 1, 1, 3), 0)
+	ComboHud.event(T, hit(0, 1, 2, 3), 0.1)
+	local joined = hit(2, 1, 3, 4)
+	joined.team = true
+	ComboHud.event(T, joined, 0.2)
+	ComboHud.event(T, { type = "hit", attacker = 2, victim = 1, combo = 4, damage = 4, team = true }, 0.3)
+	local v = ComboHud.view(T, { inCombo(0, 0), inCombo(1, 4), inCombo(2, 0) }, 0.3)
+	if not v[2] or not v[2].team or v[2].hits ~= 4 then fail(`the ally's counter: {v[2] and v[2].hits} hits, team {v[2] and tostring(v[2].team)}`) end
+	if not v[0] or v[0].team then fail("the opener's own counter is not a team combo") end
+end
+print("PASS combo hud: team combos marked TEAM on the ally's counter; the counter counts swings, adds damage, restarts, shows the streak, marks finishers and breaks, holds and fades; the break prompt only in a breakable freeze")
 print("  the combo guide names the finisher and air strings each weapon's header measures")
 print("  effects: a gold star growing with the streak and a brief gold silhouette flash; a finisher bigger in gold with a screen flash and its shake; a break's shockwave; a chase's streak; a cancel's puff")

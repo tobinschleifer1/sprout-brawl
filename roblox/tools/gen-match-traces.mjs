@@ -69,10 +69,10 @@ function run(spec) {
       }
       row.push(Object.keys(m.teamPool).sort().map((t) => `${t}=${m.teamPool[t]}`).join(','));
       row.push(m.events.map((e) => [e.type, nn(e.n), nn(e.fighter), nn(e.by), nn(e.side),
-        e.last === undefined ? null : e.last, nn(e.winner), nn(e.x), nn(e.y)]));
+        e.last === undefined ? null : e.last, nn(e.winner), nn(e.x), nn(e.y), e.assists ? e.assists.join(',') : null]));
       row.push(m.results ? m.results.rows.map((r) => [String(r.index), n(r.kos), n(r.falls),
         n(r.sds), n(r.damage), n(r.percent), n(r.stocks), n(r.score),
-        r.eliminatedAt === Infinity ? 'inf' : n(r.eliminatedAt), n(r.taken)]) : null);
+        r.eliminatedAt === Infinity ? 'inf' : n(r.eliminatedAt), n(r.taken), n(r.assists)]) : null);
       row.push(m.results ? String(m.results.winnerTeam) : null);
       rows.push(row);
       if (m.state === 'results') break;

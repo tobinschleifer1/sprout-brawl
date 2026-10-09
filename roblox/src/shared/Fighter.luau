@@ -152,7 +152,9 @@ function Fighter.new(opts: any): any
 	self.stocks = if opts.stocks == nil then 3 else opts.stocks
 	self.percent = 0
 	self.alive = true
-	self.stats = { kos = 0, falls = 0, damageDealt = 0, damageTaken = 0, selfDestructs = 0 }
+	self.stats = { kos = 0, assists = 0, falls = 0, damageDealt = 0, damageTaken = 0, selfDestructs = 0 }
+	-- When each other fighter last hit this one ([index + 1] = this fighter's frameCount), for assists.
+	self.hitBy = {}
 	self.input = Input.emptyFrame()
 	self.buffer = { jump = 0, light = 0, heavy = 0, dodge = 0, guard = 0, grab = 0, taunt = 0, ult = 0, pickup = 0 }
 	self.frameCount = 0
@@ -270,6 +272,8 @@ function methods.reset(self, x: number, y: number, opts: any?)
 	self.perfectPress = { light = false, heavy = false }; self.mashed = { light = false, heavy = false }
 	self.linkPerfect = false; self.perfectStreak = 0; self.chainDepth = 0
 	self.comboHits = 0; self.comboKey = -1; self.breakLocked = false; self.breakPress = false; self.breakCooldown = 0
+	-- Who has hit in the combo this fighter is held in, a bitmask of fighter indices: team combos.
+	self.comboBy = 0
 	self.comboTarget = nil; self.chase = 0   -- who this fighter last hit, and the chase window a cancel opens
 	self.breakable = true                    -- false while frozen by a finisher, which cannot be broken
 	self.cancelUsed = false                  -- one cancel per combo: see _cancel
@@ -394,7 +398,7 @@ function methods.step(self, ctx: any)
 		return
 	end
 	if self.comboHits > 0 and not COMBO_HELD[self.state] then
-		self.comboHits = 0; self.comboKey = -1; self.breakLocked = false; self.breakPress = false
+		self.comboHits = 0; self.comboKey = -1; self.comboBy = 0; self.breakLocked = false; self.breakPress = false
 	end
 	if self.breakPress then
 		methods._breakOut(self)
@@ -1222,6 +1226,7 @@ function methods.applyHit(self, hit: any)
 	self.stats.damageTaken += hit.damage
 	self.lastHitBy = hit.attacker or nil
 	self.lastHitFrame = self.frameCount
+	if hit.attacker and hit.attacker ~= self then self.hitBy[hit.attacker.index + 1] = self.frameCount end
 	self.hitlag = hit.hitlag
 	-- A finisher cannot be broken: an attacker who linked a whole string perfectly gets its end.
 	self.breakable = not hit.finisher
@@ -1875,6 +1880,8 @@ local SCALARS = {
 	"breakLocked", "breakPress", "breakCooldown", "chase", "breakable", "cancelUsed",
 	-- Staling: this swing's multiplier and which swing it is for (staleMoves is copied below).
 	"staleSerial", "staleNow",
+	-- Team combos: who has hit in the combo this fighter is held in (hitBy is copied below).
+	"comboBy",
 	-- Identity rather than simulation state: these never change during a match, so restoring them
 	-- is a no-op. They are here because a snapshot that cannot rebuild the whole fighter is a
 	-- snapshot somebody will eventually use for something else and be wrong about.
@@ -1914,6 +1921,7 @@ function methods.snapshot(self): any
 	s.hitVictims = table.clone(self.hitVictims)
 	s.ultHeld = table.clone(self.ultHeld)
 	s.staleMoves = table.clone(self.staleMoves)
+	s.hitBy = table.clone(self.hitBy)
 	s.pendingLaunch = shallow(self.pendingLaunch)
 	s.hold = shallow(self.hold)          -- carries a victim REFERENCE, which stays a reference
 	s.la = shallow(self.la)
@@ -1958,6 +1966,7 @@ function methods.restore(self, s: any)
 	self.hitVictims = table.clone(s.hitVictims)
 	self.ultHeld = table.clone(s.ultHeld)
 	self.staleMoves = table.clone(s.staleMoves)
+	self.hitBy = table.clone(s.hitBy)
 	self.pendingLaunch = shallow(s.pendingLaunch)
 	self.hold = shallow(s.hold)
 	self.la = shallow(s.la)

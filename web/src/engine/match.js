@@ -1,4 +1,4 @@
-import { FRAME, RESPAWN, SUDDEN_DEATH } from '../config.js';
+import { FRAME, RESPAWN, SUDDEN_DEATH, TEAM } from '../config.js';
 import { Fighter } from './fighter.js';
 import { StageRuntime } from './stage.js';
 import { Combat } from './combat.js';
@@ -106,6 +106,14 @@ export class Match {
     const side = f.x < this.stage.blast.left ? 'left' : f.x > this.stage.blast.right ? 'right' : f.y > this.stage.blast.top ? 'top' : 'bottom';
     const credit = f.lastHitBy && f.frameCount - f.lastHitFrame < 480 ? f.lastHitBy : null;
     if (credit && credit !== f) credit.stats.kos++; else f.stats.selfDestructs++;
+    // Assists (TEAM): everyone else who hit them lately, in fighter order.
+    const assists = [];
+    for (const a of this.fighters) {
+      const at = f.hitBy[a.index];
+      if (a === f || a === credit || at === undefined || f.frameCount - at >= TEAM.assistWindow) continue;
+      a.stats.assists++; a.chargeUltimate(TEAM.assistMeter); assists.push(a.index);
+    }
+    f.hitBy = [];
     // Timed modes score on KOs, not stocks, so a KO there costs nothing but the respawn wait.
     if (this.timed) { /* unlimited lives */ }
     else if (this.teams) this.teamPool[f.team] = Math.max(0, this.teamPool[f.team] - 1);
@@ -114,7 +122,7 @@ export class Match {
     f.knockOut();
     f.koTimer = Math.round(RESPAWN.delay * 60);
     if (!this.training && f.stocksLeft() === 0 && !this.timed) f.eliminatedAt = this.frame;
-    this.events.push({ type: 'ko', fighter: f.index, by: credit ? credit.index : -1, x: Math.max(this.stage.blast.left, Math.min(this.stage.blast.right, f.x)), y: Math.max(this.stage.blast.bottom, Math.min(this.stage.blast.top, f.cy)), side, last: !this.timed && f.stocksLeft() === 0 });
+    this.events.push({ type: 'ko', fighter: f.index, by: credit ? credit.index : -1, assists, x: Math.max(this.stage.blast.left, Math.min(this.stage.blast.right, f.x)), y: Math.max(this.stage.blast.bottom, Math.min(this.stage.blast.top, f.cy)), side, last: !this.timed && f.stocksLeft() === 0 });
   }
 
   respawn(f) {
@@ -163,7 +171,7 @@ export class Match {
     this.state = 'results';
     const teams = [...new Set(this.fighters.map((f) => f.team))];
     const rows = this.fighters.map((f) => ({
-      index: f.index, name: f.name, char: f.char, team: f.team, kos: f.stats.kos, falls: f.stats.falls, sds: f.stats.selfDestructs, damage: Math.round(f.stats.damageDealt), taken: Math.round(f.stats.damageTaken), percent: f.percent,
+      index: f.index, name: f.name, char: f.char, team: f.team, kos: f.stats.kos, assists: f.stats.assists, falls: f.stats.falls, sds: f.stats.selfDestructs, damage: Math.round(f.stats.damageDealt), taken: Math.round(f.stats.damageTaken), percent: f.percent,
       stocks: f.stocksLeft(), score: this.teamScore(f.team), eliminatedAt: f.eliminatedAt == null ? Infinity : f.eliminatedAt,
     }));
     // The final `a.index - b.index` makes the order TOTAL. JavaScript's sort is stable, so two

@@ -174,7 +174,9 @@ class App {
       if (e.type === 'ko') {
         // who went, and who did it - unless nobody did (a self-destruct)
         const f = match.fighters[e.fighter], by = e.by >= 0 && e.by !== e.fighter ? match.fighters[e.by] : null;
-        const credit = by ? ` by ${PLAYER_MARKS[by.index]} ${by.name}` : '';
+        // and who helped (TEAM in config.js): "+ ▲ P3"
+        const helped = (e.assists || []).map((a) => ` + ${PLAYER_MARKS[a]} ${match.fighters[a].name}`).join('');
+        const credit = (by ? ` by ${PLAYER_MARKS[by.index]} ${by.name}` : '') + helped;
         this.hud.message(`${C.ko.text} <small>${PLAYER_MARKS[f.index]} ${f.name}${credit}</small>`, 'ko', C.ko.ms);
       }
       if (e.type === 'suddendeath') this.hud.message(C.suddendeath.text, 'sd', C.suddendeath.ms);

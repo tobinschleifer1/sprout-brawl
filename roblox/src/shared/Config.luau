@@ -109,6 +109,10 @@ Config.KILL_HIT = { drift = 10 }
 -- of it, still launched; a tech on contact saves them. config.js says more.
 Config.BOUNCE = { speed = 30, restitution = 0.6 }
 
+-- Team play (phase 3): assists - anyone besides the KO'er who hit the victim within
+-- `assistWindow` frames - are credited and get `assistMeter` ultimate charge. config.js says more.
+Config.TEAM = { assistWindow = 480, assistMeter = 3 }
+
 Config.STALE = { memory = 8, step = 0.05, floor = 0.6 }
 function Config.staleMul(landed: { string }, id: string): number
 	local n = 0

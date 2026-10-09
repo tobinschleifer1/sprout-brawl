@@ -40,9 +40,20 @@ KO effects and emotes, progression), which waits until this is done.
      techable off both. 47 wall and 6 ceiling rebounds in 232 bot-minutes; KO sides unchanged.
    Bot ladder held throughout. Studio (2v2, Saltflat): armour fired and clanked, no errors; no
    rebound came up in the sample.
-3. **Team play.** Save a launched ally by touching them, team combos (a combo carried on by an ally
-   counts for both, with an assist), team throws (grab an ally and throw them at a foe), and KO
-   assist credit in every mode.
+3. **Team play** (done). Agreed with the user: the save is a grab press, team throws go by
+   direction, assists give credit and meter, team combos are one shared combo.
+   - Assists: anyone else who hit the victim in the 8 s before a KO - every mode - gets an assist
+     and 3 meter; the callout names them, the podium has an Assists row.
+   - Team combos: hits by two or more of a team in one combo; the Roblox counter says TEAM.
+   - The save: grab with a tumbling teammate in a 6-stud box (ground or air) catches them -
+     launch over, a jump back, 20 frames invincible; once per launch; bots catch too (rarely: they
+     do not move to make saves).
+   - Team throws: a grab with no foe in reach takes a standing teammate (who can jump free); up
+     boosts (jumps and recovery back), any other way flings them in a straight line as an attack.
+     Bots do not team-throw on purpose.
+   Studio (2v2, hard bots): TEAM combos on the tiles, "KO! ● etondes by ◆ CPU 4 + ■ CPU 2", the
+   podium's Assists row (2, 1, 0, 0), no errors. No catch or throw came up in the sample; both are
+   held by the team fixture's scripted runs of the real match loop.
 4. **Online feel.** Instant local feedback when your attack visibly connects (confirmed or taken
    back by the server), then lag compensation on the server for your hits.
 

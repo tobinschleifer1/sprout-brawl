@@ -161,10 +161,15 @@ test is mutation-checked; each ends with a Studio playtest.
    mockup's fighter is drawn anime-pixel, not blocky: its layout is the reference, not its art.
 8. **Attitude.** Selectable attitudes, stored in `k2`.
 
-## Open questions
+## Answered (2026-10-11)
 
-1. Attitude names: measured / restless / showy, or named Blockfall characters?
-2. Earned cosmetics shared across web and Roblox, or Roblox-only until a shared account exists?
-3. Old hand-drawn web characters: preserve and offer a kit conversion, or keep hand-drawing as a
-   supported creator mode?
-4. Which device sets the six-fighter performance gate: a low-end phone, a Roblox device tier, or this Mac?
+1. **Attitudes** are measured, restless and showy.
+2. **Earned cosmetics are Roblox-only.** The web build has no account to earn into; it keeps stripping
+   earned parts from imported codes, as it does today.
+3. **Hand-drawing stays a creator mode** on the web. Hand-drawn characters keep their pixel art and
+   the legacy rig that draws it; nothing converts them.
+4. **The performance target is the lowest devices**, so everyone can play without lag. Every phase's
+   draw budget is set for a low-end phone on Roblox's Frame fallback (no EditableImage), not for a
+   desktop: the six-fighter Studio measurement runs with the image path forced off, and a phase whose
+   characters cost more than the fighters they replace has to buy that cost back (detail levels,
+   fewer pieces at small sizes) before it merges.

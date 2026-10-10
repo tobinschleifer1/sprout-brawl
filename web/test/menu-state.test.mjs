@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Menus, mapSet, MAP_SETS, applyPreset, presetOf } from '../src/ui/menus.js';
+import { Menus, mapSet, MAP_SETS, applyPreset, presetOf, portraitPpu } from '../src/ui/menus.js';
 import { RULES } from '../src/data/rules.js';
 import { STAGES } from '../src/data/stages/index.js';
 globalThis.document = { createElement: () => ({ addEventListener() {} }) };
@@ -9,7 +9,7 @@ const build = () => new Menus({ appendChild() {} }, {});
 for (const bad of [null, [], { slots: [] }, { slots: [null] }, { mode: {}, slots: [{ weaponId: 'Sword', type: null }] }]) {
   saved = bad;
   const menu = build();
-  assert.equal(menu.config.slots.length, 4, 'saved state always has four usable slots');
+  assert.equal(menu.config.slots.length, 8, 'saved state always has eight usable slots');
   assert.equal(menu.config.mode, 'StockFFA');
   assert.equal(menu.config.slots[0].type, 'kb1');
   assert.equal(menu.config.slots[1].type, 'off', 'bots must be explicitly enabled');
@@ -32,8 +32,11 @@ saved = { stageId: 'Atlantis', mapSet: 'secret', slots: [] };
 const junk = build();
 assert.equal(junk.config.stageId, 'FoundryFloor', 'an unknown map falls back');
 assert.equal(junk.config.mapSet, 'all', 'an unknown map set falls back');
+saved = { stageId: 'Undertow', mapSet: 'all', slots: [] };
+assert.equal(build().config.stageId, 'FoundryFloor', 'a previously saved unfinished map falls back');
 assert.deepEqual(MAP_SETS.map(([id]) => id), ['all', 'ranked']);
-assert.equal(mapSet('all').length, STAGES.length, 'All maps is every map');
+assert.equal(mapSet('all').length, STAGES.length - 1, 'all web maps omit the unfinished stage');
+assert.ok(mapSet('all').every((s) => s.id !== 'Undertow'), 'Random can never draw Undertow');
 const ranked = mapSet('ranked');
 assert.ok(ranked.length > 0 && ranked.length < STAGES.length, 'Ranked is a real subset');
 assert.ok(ranked.every((s) => s.ranked), 'Ranked holds only ranked maps');
@@ -52,6 +55,13 @@ for (const p of RULES.presets) {
   }
 }
 assert.equal(presetOf({ ...applyPreset(base, 'tournament'), stocks: 5 }), null, 'one changed rule and no preset applies');
+for (const height of [56, 88, 98]) {
+  const scale = portraitPpu(17, 180, height, 5.2);
+  assert.ok(scale < 17, 'short slot portraits reduce the requested scale');
+  assert.ok(height * 0.88 - scale * (5.2 + 1.8) > 0,
+    'the whole fighter and raised-weapon allowance fit above the slot border');
+}
+assert.equal(portraitPpu(15, 300, 142, 5.2), 15, 'a tall portrait keeps its chosen scale');
 for (const [k, v] of [['items', true], ['disasters', 'chaos'], ['time', 300], ['mapSet', 'all']]) {
   assert.equal(presetOf({ ...applyPreset(base, 'tournament'), [k]: v }), null, `changing ${k} leaves the preset`);
 }

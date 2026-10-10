@@ -28,14 +28,19 @@ export class HUD {
   constructor(root) {
     this.root = el('div', 'hud hidden');
     this.timer = el('div', 'timer'); this.tiles = el('div', 'tiles'); this.center = el('div', 'center'); this.labels = el('div', 'labels'); this.training = el('div', 'training hidden');
+    this.home = el('button', 'hud-home', '⌂ Home');
+    this.home.type = 'button';
+    this.home.setAttribute('aria-label', 'Return to main menu');
     this.pause = el('div', 'overlay hidden', '<div class="panel"><h2>Paused</h2><p class="hint">Esc to resume</p><div class="row"><button data-act="resume">Resume</button><button data-act="quit">Quit to menu</button></div></div>');
     this.results = el('div', 'overlay hidden');
-    this.root.append(this.timer, this.labels, this.center, this.tiles, this.training, this.pause, this.results);
+    this.root.append(this.timer, this.labels, this.center, this.tiles, this.training, this.home, this.pause, this.results);
     root.appendChild(this.root);
     this.tileEls = [];
     this.msgTimer = 0;
     this.onPause = null;
+    this.onHome = null;
     this.pause.addEventListener('click', (e) => { const a = e.target.dataset.act; if (a && this.onPause) this.onPause(a); });
+    this.home.addEventListener('click', () => this.onHome?.());
     this.lastPercents = [];
     // The camera has to know how much of the bottom edge the tiles are covering, so it can frame
     // the fight above them instead of behind them. Measured rather than hard-coded: the band's
@@ -101,6 +106,11 @@ export class HUD {
   update(match, view) {
     const M = match;
     this._measureSafeBottom(view);
+    const locals = M.fighters.filter((f) => !f.isBot);
+    const out = !M.training && !M.timed && M.state !== 'results' && locals.length > 0
+      && locals.every((f) => f.stocksLeft() === 0);
+    this.home.textContent = out ? 'You’re out · Home' : '⌂ Home';
+    this.home.classList.toggle('out', out);
     if (M.timed && M.state !== 'suddendeath') { const left = Math.max(0, M.timeLimit - M.time); this.timer.textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`; this.timer.classList.toggle('low', left < 30); }
     else if (M.state === 'suddendeath') { this.timer.textContent = 'SUDDEN DEATH'; this.timer.classList.add('low'); }
     else if (M.training) { this.timer.textContent = 'TRAINING'; this.timer.classList.remove('low'); }

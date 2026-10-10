@@ -34,6 +34,7 @@ class App {
     this.applySettings(this.menus.settings);
     this.menus.show('title');
     this.hud.onPause = (a) => { if (a === 'resume') this.togglePause(false); else this.quitToMenu(); };
+    this.hud.onHome = () => this.quitToMenu();
     window.addEventListener('keydown', (e) => this.onKey(e));
     window.addEventListener('pointerdown', () => this.sfx.ensure(), { once: false });
     window.addEventListener('keydown', () => this.sfx.ensure(), { once: false });
@@ -89,7 +90,7 @@ class App {
     this.lastConfig = c;
     // Random is resolved here, once per match: a rematch replays the map that was drawn.
     const pool = mapSet(c.mapSet);
-    const stage = c.stageId === 'Random' ? pool[Math.floor(Math.random() * pool.length)] : STAGE_BY_ID[c.stageId];
+    const stage = c.stageId === 'Random' ? pool[Math.floor(Math.random() * pool.length)] : pool.find((s) => s.id === c.stageId);
     this.startMatch({ mode: c.mode === 'Training' ? 'Training' : c.mode, stage: stage || STAGE_BY_ID.FoundryFloor, stocks: c.stocks, timeLimit: c.time, items: c.items && c.mode !== 'Training', disasters: c.mode === 'Training' ? 'off' : c.disasters, fighters });
   }
 
@@ -107,7 +108,7 @@ class App {
 
   startTraining(c) {
     this.lastConfig = null;
-    this.startMatch({ mode: 'Training', stage: STAGE_BY_ID[c.stageId] || STAGE_BY_ID.FoundryFloor, stocks: 3, timeLimit: 0, items: false, fighters: [
+    this.startMatch({ mode: 'Training', stage: mapSet('all').find((s) => s.id === c.stageId) || STAGE_BY_ID.FoundryFloor, stocks: 3, timeLimit: 0, items: false, fighters: [
       { char: buildLoadout(c.slots[0].avatarId, c.slots[0].weaponId), skin: 0, source: 'kb1', isBot: false, name: 'P1', team: 0 },
       { char: buildLoadout(c.slots[1].avatarId, c.slots[1].weaponId), skin: 0, source: 'bot', isBot: true, botLevel: 'dummy', name: 'Dummy', team: 1 },
     ] });

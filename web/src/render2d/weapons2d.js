@@ -12,7 +12,8 @@
 // startup / active / recovery, so a swing always lines up with the frames that actually hit.
 
 import { swing as swingPhase, easeOut, easeIn } from './channels.js';
-import { WEAPON_SPRITES } from '../data/weaponArt.js';
+import { WEAPON_SPRITES, OUTLINE } from '../data/weaponArt.js';
+import { lashPoint } from '../engine/combat.js';
 
 const PI = Math.PI;
 const TAU = PI * 2;
@@ -219,14 +220,32 @@ const AIMED = { Blasters: true, Grimoire: 'cast', Longbow: true };
 const REST = { Sword: D(-78), Scythe: D(-72), Blasters: D(-60), Grimoire: D(-70), Axe: D(-104), Pike: D(-58),
   // The gauntlets and the shield rest near horizontal because they are worn, not carried; the
   // hammer rests lowest of anything but the axe; the flail's head hangs.
-  Gauntlets: D(-28), Hammer: D(-98), Longbow: D(-84), Flail: D(-96), Shield: D(-20), Daggers: D(-66) };
+  Gauntlets: D(-28), Hammer: D(-98), Longbow: D(-84), Flail: D(-96), Shield: D(-20), Daggers: D(-66),
+  // the whip hangs coiled at the side
+  Whip: D(-84) };
 
 // The guard: how a weapon is held while standing and moving, when it differs from REST. A blade
 // hanging at the fighter's side read as someone waiting for a bus; Brawlhalla's fighters stand
 // with the weapon out in front, pointed at the fight. Only weapons that are wielded get a guard -
 // the axe and hammer are hauled, the flail's head hangs, gauntlets and shield are worn, the bow
 // is carried upright and the book stays a book.
-const GUARD = { Sword: D(-28), Scythe: D(-38), Blasters: D(-34), Pike: D(-10), Daggers: D(-40) };
+const GUARD = { Sword: D(-28), Scythe: D(-38), Blasters: D(-34), Pike: D(-10), Daggers: D(-40), Whip: D(-44) };
+
+// THE BULLWHIP's lash. A whip is not a rigid prop, so its sprite is only the handle, and the lash is
+// drawn on from the handle's end: `pose.lash` = { len, curl }, len the studs of lash beyond the
+// handle and curl how far it bends (0 is straight). Coiled at rest; on a crack it is aimed at the
+// move's own tip box, from the shoulder the arm swings from, and long enough to reach it - so the
+// drawn tip is on the box the engine is about to use, on every live frame (test/animation.test.mjs).
+export const LASH = { coil: 1.2, amp: 0.55 };
+// How far back from the aim each kind of crack cocks, in degrees: positive overhand (up and back),
+// negative the backhand from below.
+const WHIP_WIND = { jab: 130, jab2: -110, jab3: 165, side: 115, side2: -135, finisher: 225, airslam: 150, airlaunch: -120 };
+function whipReach(f, ox, oy) {
+  const h = f.char.height, r = f.char.radius;
+  const dx = ox - r * 0.55, dy = oy - h * 0.70;
+  // (a box close overhead - the Sky Crack's - needs less lash than the coil: down to a quarter stud)
+  return { aim: Math.atan2(dy, dx), len: Math.max(0.25, Math.sqrt(dx * dx + dy * dy) - h * 0.30 - REACH.Whip) };
+}
 
 // The air pose's weapon angle: trailing on the way up, ready on the way down.
 function airAngle(f) {
@@ -260,6 +279,7 @@ export function weaponPose(f, t) {
   const wid = f.char.weapon ? f.char.weapon.id : null;
   const out = { angle: REST[wid] ?? D(-70), ox: 0, oy: 0, scale: 1, trail: null, flash: 0, charge: 0, hide: false, ult: null };
   if (!wid) return out;
+  if (wid === 'Whip') out.lash = { len: LASH.coil, curl: 1 };
 
   const s = f.state;
   const aimed = AIMED[wid];
@@ -303,7 +323,16 @@ export function weaponPose(f, t) {
   let cat = categoryOf(m.id);
   if (cat === 'airfinisher') cat = m.angle > 180 ? 'airslam' : 'airlaunch';
   if (cat === 'ult') return ultimatePose(f, m, wid, out, t);
-  const swing = (SWING_BY_MOVE[wid] && SWING_BY_MOVE[wid][m.id]) || (SWING_BY_WEAPON[wid] && SWING_BY_WEAPON[wid][cat]) || SWINGS[cat] || SWINGS.jab;
+  let swing = (SWING_BY_MOVE[wid] && SWING_BY_MOVE[wid][m.id]) || (SWING_BY_WEAPON[wid] && SWING_BY_WEAPON[wid][cat]) || SWINGS[cat] || SWINGS.jab;
+  // The whip cocks back overhead and snaps out at its tip box (whipReach); the Lariat whirls.
+  const tipBox = wid === 'Whip' && m.hitboxes && m.hitboxes[0];
+  const W = tipBox && cat !== 'nair' ? whipReach(f, tipBox.offset[0], tipBox.offset[1]) : null;
+  if (W) {
+    // each link cocks from its own side - overhand, the backhand return, a full wind - so a string
+    // reads as a string; the strike is always on the box
+    const wind = D(WHIP_WIND[cat] ?? 130);
+    swing = { arc: [W.aim + wind, W.aim, W.aim - Math.sign(wind) * D(8)], trail: D(70), heavy: !!m.heavy };
+  }
 
   // charge hold: the weapon sits at the top of the windup and vibrates
   if (m.charge && mf === st && f.charge > 0) {
@@ -360,6 +389,15 @@ export function weaponPose(f, t) {
   // end pose and comes back exactly as the body does
   else { from = swing.arc[1]; to = swing.arc[2]; k = 1 - ph.e; }
   out.angle = from + (to - from) * k;
+  if (wid === 'Whip') {
+    // A crack is not eased into: the lash is straight and on the box for every live frame, and the
+    // motion is all in the wind-up's last frames and the recoil after.
+    if (W && ph.phase === 'strike') out.angle = W.aim;
+    const full = W ? W.len : Math.max(LASH.coil, tipBox ? tipBox.size[0] / 2 - f.char.height * 0.30 - REACH.Whip : LASH.coil);
+    if (ph.phase === 'wind') out.lash = { len: LASH.coil + (full - LASH.coil) * 0.2 * ph.e, curl: 1 };
+    else if (ph.phase === 'strike') out.lash = { len: full, curl: W ? 0 : 0.2 };
+    else { const back = (1 - ph.k) * (1 - ph.k); out.lash = { len: LASH.coil + (full - LASH.coil) * back, curl: 1 - back }; }
+  }
 
   if (swing.thrust) out.ox = swing.thrust * (mf > st && mf <= st + act ? 1 : 0);
 
@@ -653,6 +691,32 @@ function ultimatePose(f, m, wid, out, t) {
     return out;
   }
 
+  if (wid === 'Whip') {
+    // STORM LASH. Hoisted overhead through the wind-up, then the lash follows the crack: aimed at
+    // the point on the dome the next crack lands on (lashPoint, the engine's own), at full length.
+    const S = m.stormlash;
+    if (inWindup) {
+      out.angle = (REST[wid] ?? 0) + (D(100) - (REST[wid] ?? 0)) * (k * k);
+      out.charge = k; out.ult.hoist = k;
+      out.lash = { len: LASH.coil + 2 * k, curl: 1 - 0.5 * k };
+      return out;
+    }
+    if (inActive) {
+      const n = S.sweeps * S.perSweep;
+      const i = Math.min(n, (ak - 1) / S.every);
+      const p = lashPoint(S, i);
+      const R = whipReach(f, p.dx, p.dy);
+      out.angle = R.aim;
+      out.lash = { len: R.len, curl: 0 };
+      out.ult.crack = (ak - 1) % S.every === 0 ? 1 : 0;
+      out.ult.last = i >= n ? 1 : 0;
+      return out;
+    }
+    out.angle = D(-8) + ((REST[wid] ?? 0) - D(-8)) * recK;
+    out.lash = { len: LASH.coil + 4 * (1 - recK), curl: recK };
+    return out;
+  }
+
   if (wid === 'Shield') {
     // LAST STAND. The shield plants and does not move: the whole performance is the fighter
     // behind it, so the prop's job here is to sit absolutely still and grow.
@@ -734,7 +798,35 @@ export function drawSprite(ctx, weaponId, alpha = 1) {
 
 // Blade length per weapon, used to size the swing trail.
 export const REACH = { Sword: 2.6, Scythe: 3.4, Blasters: 1.1, Grimoire: 0.9, Axe: 3.2, Pike: 5.9,
-  Gauntlets: 1.0, Hammer: 3.7, Longbow: 1.2, Flail: 4.2, Shield: 1.3, Daggers: 1.7 };
+  Gauntlets: 1.0, Hammer: 3.7, Longbow: 1.2, Flail: 4.2, Shield: 1.3, Daggers: 1.7,
+  // the handle: the lash is drawn on beyond it (pose.lash)
+  Whip: 1.1 };
+
+// The lash in the weapon's own frame, as segments [x, y, length, thickness, angle, colour]: eight
+// along it from the handle's end, tapering, bent by `curl` into a hanging S, an outline pass under
+// the leather and a pale cracker on the tip. Each is a rectangle from (x, y) along `angle`, so a
+// straight crack is one line and a coil eight short ones - in Roblox every rectangle is a Frame,
+// and a pixel-per-column lash cost 120 of them a frame. Both builds draw exactly these
+// (roblox/src/client/Weapons2D.luau, held by the weapon pose trace).
+export const LASH_SEGMENTS = 8;
+export function lashSegments(lash, palette) {
+  const out = [];
+  if (!lash || !(lash.len > 0)) return out;
+  const N = LASH_SEGMENTS, x0 = REACH.Whip;
+  const col = palette.primary || '#8A5A36', tip = palette.accent || '#E8C58A';
+  const at = (t) => [x0 + lash.len * t, -lash.curl * LASH.amp * Math.sin(PI * t) * (1 + 0.8 * t)];
+  for (const pass of [0, 1]) {
+    for (let i = 0; i < N; i++) {
+      const [ax, ay] = at(i / N), [bx, by] = at((i + 1) / N);
+      const dx = bx - ax, dy = by - ay;
+      const th = 0.22 - 0.12 * (i + 0.5) / N + (pass === 0 ? 0.125 : 0);
+      out.push([ax, ay, Math.sqrt(dx * dx + dy * dy) + (pass === 0 ? 0.0625 : 0.03), th, Math.atan2(dy, dx), pass === 0 ? OUTLINE : col]);
+    }
+  }
+  const [ex, ey] = at(1);
+  out.push([ex - 0.125, ey, 0.25, 0.16, 0, tip]);
+  return out;
+}
 
 
 export function drawWeapon(ctx, weaponId, palette, pose) {
@@ -749,6 +841,13 @@ export function drawWeapon(ctx, weaponId, palette, pose) {
   ctx.translate(pose.ox, pose.oy);
   if (pose.scale && pose.scale !== 1) ctx.scale(pose.scale, pose.scale);   // Colossus doubles the blade
   drawSprite(ctx, weaponId);
+  if (pose.lash) {
+    for (const [x, y, len, th, ang, colour] of lashSegments(pose.lash, palette || {})) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+      ctx.fillStyle = colour; ctx.fillRect(0, -th / 2, len, th);
+      ctx.restore();
+    }
+  }
   if (pose.charge > 0) {              // charging glows along the weapon
     ctx.globalAlpha = 0.25 + pose.charge * 0.5;
     ctx.fillStyle = palette.glow || '#FFFFFF';

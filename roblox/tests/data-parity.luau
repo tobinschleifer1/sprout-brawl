@@ -96,7 +96,7 @@ checkLookup("Items", Items)
 
 -- Counts, so a generator that silently emitted an empty list cannot pass by comparing nothing.
 local counts: { { any } } = {
-	{ "weapons", #Weapons.LIST, 12 },
+	{ "weapons", #Weapons.LIST, 13 },  -- twelve, plus the Bullwhip
 	{ "avatars", #Avatars.LIST, 6 },
 	{ "stages", #Stages.LIST, 9 },   -- six, plus Freight Lift, Faultline and Ashfall Summit (R6)
 	{ "items", #Items.LIST, 5 },

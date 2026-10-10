@@ -99,6 +99,16 @@ function Effects.spawn(fx: any, e: any, glow: (number?) -> string?, rand: () -> 
 	elseif t == "movestart" then
 		-- the telegraph: a heavy or signature starting up glints on the upper body (effects.js)
 		if e.heavy == true then ring(e.x, e.y + (if height then height(e.fighter) else 5) * 0.2, Effects.GLINT.r, Effects.GLINT.life, "#FFF6C8", true, PI / 4) end
+	elseif t == "crackmark" then
+		-- the bullwhip's tip marking, and cracking a marked foe (effects.js)
+		push(e.x, e.y, 5, "#FFD25A", 12, 0.24, 0.18); ring(e.x, e.y, 1.3, 0.28, "#FFD25A", false, 0)
+	elseif t == "crack" then
+		push(e.x, e.y, 12, "#FFFFFF", 26, 0.3, 0.24); push(e.x, e.y, 10, "#FFD25A", 20, 0.36, 0.22)
+		ring(e.x, e.y, 2.4, 0.3, "#FFE6A8", true, PI / 6); shake(0.45)
+	elseif t == "lash" then
+		-- Storm Lash's cracks on the dome; the last snaps (effects.js)
+		push(e.x, e.y, if e.last then 16 else 4, if e.last then "#FFFFFF" else "#FFD25A", if e.last then 28 else 12, 0.22, if e.last then 0.3 else 0.16)
+		if e.last then ring(e.x, e.y, 3.4, 0.34, "#FFE6A8", true, PI / 6); shake(0.9) end
 	elseif t == "soulescape" then
 		push(e.x, e.y, 12, "#FFFFFF", 24, 0.35, 0.26)
 	elseif t == "crater" then

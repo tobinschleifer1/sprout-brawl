@@ -58,7 +58,7 @@ end
 
 local WEAPONS = {
 	"Sword", "Scythe", "Blasters", "Grimoire", "Axe", "Pike",
-	"Gauntlets", "Hammer", "Longbow", "Flail", "Shield", "Daggers",
+	"Gauntlets", "Hammer", "Longbow", "Flail", "Shield", "Daggers", "Whip",
 }
 -- The most Frames the weapon-side effects may claim on one fighter in one frame. Measured peak is
 -- printed below; this is the ceiling, not the target.
@@ -180,5 +180,5 @@ UltimateVfx.drawUltimate(full, "Sword", char.weaponPalette, pose, 1)
 Weapons2D.draw(full, "Sword", char.weaponPalette, pose)
 if #full.stack ~= 0 then fail("the full sword draw left the stack unbalanced") end
 
-print(`checked {checked} ultimate draws across all twelve weapons, facing both ways and squashed`)
+print(`checked {checked} ultimate draws across every weapon, facing both ways and squashed`)
 print(`{similar} spinning effects drawn without skew; peak weapon-side effects: {peakVfx} Frames at {peakWhere} (budget {VFX_BUDGET})`)

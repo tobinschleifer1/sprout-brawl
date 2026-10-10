@@ -26,6 +26,7 @@ const cases = [
   ['catch', [E('catch', { fighter: 0, ally: 2 }), E('catch', { fighter: 1, ally: 3 })]],
   ['rebounds', [E('rebound', { surface: 'wall', speed: 45 }), E('rebound', { surface: 'ceiling', speed: 200 }), E('rebound', { surface: 'wall' })]],
   ['armour', [E('armor', { victim: 1, attacker: 0 })]],
+  ['whip', [E('crackmark', { victim: 1, attacker: 0 }), E('crack', { victim: 1, attacker: 0 }), E('lash'), E('lash', { last: true })]],
   ['kill hit', [E('hit', { attacker: 2, launch: 180, kill: true }), E('hit', { attacker: 1, launch: 90, kill: false })]],
   ['hit by glowless', [E('hit', { attacker: 1, heavy: true })]], ['explosion', [E('explosion', { radius: 4.5 }), E('explosion')]],
   ['block', [E('block'), E('block', { perfect: true, victim: 2 }), E('block', { victim: 0 })]], ['ko', [E('ko', { fighter: 5 })]],

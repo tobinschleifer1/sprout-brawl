@@ -249,6 +249,12 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	local direct = not opts.projectile and not opts.summon
 	local damage = (if hb and hb.damage ~= nil then hb.damage else move.damage)
 		+ (if direct then (attacker.bonusDamage or 0) else 0)
+	-- CRACK (the whip): the tip landing again on the fighter it marked cracks - more damage, a
+	-- harder launch - and spends the mark (set below, once the hit has landed). The mark's expiry is
+	-- the fighter's own (_mechanicsFrame clears it, before combat runs that frame).
+	local crackM = if direct and hb and hb.tip and attacker.mech.id == "Crack" then attacker.char.mechanic else nil
+	local cracks = crackM ~= nil and attacker.mech.mark == victim.index
+	if cracks then damage += crackM.bonusDamage end
 	-- Staling (Config.STALE): once per swing, from the moves landed before this one.
 	local stales = (direct or opts.projectile) and move.id ~= "Ultimate" and move.kind ~= "grab"
 	local stale = if not stales then 1
@@ -396,7 +402,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		then math.max(1, math.floor(damage * Config.comboScale(victim.comboHits) + 0.5)) else damage
 	local angle = if hb and hb.angle ~= nil then hb.angle else move.angle
 	local after = victim.percent + damage
-	local own = if direct then (attacker.launchMul or 1) else 1
+	local own = if direct then (attacker.launchMul or 1) * (if cracks then crackM.launchMul else 1) else 1
 	local launch = Knockback.launchSpeed(base, growth, damage, after, victim.weight) * own
 	-- `stun` is the same hit on the hitstun curve; it travels with the launch into applyHit so that
 	-- every multiplier below applies to both.
@@ -452,6 +458,15 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		heavy = not not move.heavy, weight = victim.weight, attacker = attacker.index,
 		victim = victim.index, angle = angle, facing = facing, combo = victim.comboHits,
 		finisher = not not move.finisher, kill = kill, team = Combat.teamCombo(self, victim, attacker) })
+	-- A tip that landed marks its victim, or - on the one already marked - cracks and spends it.
+	if crackM then
+		if cracks then
+			attacker.mech.mark = -1; attacker.mech.expires = 0
+		else
+			attacker.mech.mark = victim.index; attacker.mech.expires = attacker.frameCount + crackM.markFrames
+		end
+		Combat.emit(self, { type = if cracks then "crack" else "crackmark", x = cx, y = cy, attacker = attacker.index, victim = victim.index })
+	end
 	return true
 end
 
@@ -793,6 +808,25 @@ function Combat.onMoveActive(self, f: any, m: any)
 	end
 end
 
+-- Where Storm Lash's tip is on its `i`th crack, from the fighter's feet and facing forward: an arc
+-- of `radius` over the point `height` above the feet, from straight behind through overhead to
+-- straight in front and back, `perSweep` cracks a sweep; the last crack is straight in front.
+-- WeaponPose aims the drawn whip at it, with a fractional `i` (combat.js lashPoint).
+function Combat.lashPoint(S: any, i: number): any
+	local n = S.sweeps * S.perSweep
+	local phi = math.pi / 2
+	if i < n then
+		local sweep = math.floor(i / S.perSweep)
+		local t = (i % S.perSweep) / (S.perSweep - 1)
+		phi = if sweep % 2 == 0 then -math.pi / 2 + math.pi * t else math.pi / 2 - math.pi * t
+	end
+	return { dx = S.radius * math.sin(phi), dy = S.height + S.radius * math.cos(phi) }
+end
+function Combat.lashAt(_self, f: any, S: any, i: number): any
+	local p = Combat.lashPoint(S, i)
+	return { x = f.x + f.facing * p.dx, y = f.y + p.dy }
+end
+
 function Combat.onMoveActiveFrame(self, f: any, m: any)
 	if m.kind == "volley" then
 		local p = m.projectile
@@ -1033,6 +1067,26 @@ function Combat.onMoveActiveFrame(self, f: any, m: any)
 		Combat.emit(self, { type = "rundown", x = target.x, y = target.cy, step = step,
 			last = step == R.count - 1, victim = target.index })
 
+	elseif m.kind == "stormlash" then
+		-- STORM LASH (the bullwhip). The tip sweeps an arc over the fighter, cracking every `every`
+		-- frames where it is - a dome whose edge is the danger - then one last crack in front.
+		local S = m.stormlash
+		if k % S.every ~= 0 then
+			return
+		end
+		local i, n = k // S.every, S.sweeps * S.perSweep
+		if i > n then
+			return
+		end
+		local final = i == n
+		local at = Combat.lashAt(self, f, S, i)
+		local F = S.final
+		Combat.spawnBurst(self, f, { id = "Ultimate", x = at.x, y = at.y,
+			damage = if final then F.damage else S.damage, base = if final then F.base else S.base,
+			growth = if final then F.growth else S.growth, angle = if final then F.angle else S.angle, frames = 2,
+			size = if final then { F.size, F.size } else { S.size, S.size }, heavy = true, hitsOwner = false,
+			knockbackMul = if final then F.knockbackMul else 1, shieldDamageMul = S.shieldDamageMul })
+		Combat.emit(self, { type = "lash", x = at.x, y = at.y, step = i, last = final, fighter = f.index })
 	elseif m.kind == "upheaval" then
 		-- UPHEAVAL. The floor attacks, and it attacks where THEY are standing. NOT filtered to
 		-- grounded fighters: the first version was, and the move countered itself.

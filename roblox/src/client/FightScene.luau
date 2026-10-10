@@ -131,6 +131,19 @@ function FightScene.draw(c: any, S: any): any
 					end
 				end
 			end
+			-- the bullwhip's mark (CRACK) over whoever its tip marked (renderer2d.js)
+			for _, a in S.states do
+				if (a.crackMark or -1) >= 0 then
+					for _, v in S.states do
+						local char = S.chars[v.index + 1]
+						if v.index == a.crackMark and v.alive and char then
+							for _, sh in Danger.markShapes(v.x, v.y, char.height, (a.crackExpires or 0) - (a.frameCount or 0), math.floor(S.t * 60)) do
+								Canvas2D.rect(c, sh[2], sh[3], sh[4], sh[5], Canvas2D.hex(sh[6], WHITE), sh[7])
+							end
+						end
+					end
+				end
+			end
 		end)
 	end
 	if scene and S.stage then

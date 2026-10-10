@@ -39,7 +39,7 @@ local data = Stages.LIST[1]
 for _, s in Stages.LIST do if s.id == "FoundryFloor" then data = s end end
 local SEED = 7
 local INTERP = 2
-local KINDS = { hit = true, block = true, armor = true }
+local KINDS = { hit = true, block = true, armor = true, crack = true, crackmark = true }
 
 -- `policy`: "mixed" (walk in, jab and heavy on a clock, jump now and then - aerials), "timed" (every
 -- link pressed the frame the last move lands, the way the combo system rewards: off the client's
@@ -418,6 +418,13 @@ local cases = {
 	{ "an up-aerial with no jumps left (it gives one back)", "Sword", function(_, a, v) airborne(a, v, 0.4, 3.4) end, tap({ light = true, y = 1 }), nil, "hit" },
 	{ "a forward-aerial (it bounces its attacker)", "Sword", function(_, a, v) airborne(a, v, 3.4, 0.6) end, tap({ light = true, x = 1 }), nil, "hit" },
 	{ "a multi-hit heavy, frozen between its hits", "Daggers", function(_, _, v) v.x = 1.8 end, tap({ heavy = true }), nil, "hit,hit,hit" },
+	-- the bullwhip's tip twice: the first marks, the second cracks - its freeze from the cracked damage
+	{ "a whip tip that marks, then one that cracks", "Whip", function(_, _, v) v.x = 6.2 end,
+		function(frame: number): any
+			if frame ~= 1 and frame ~= 34 then return nil end
+			local f = Input.emptyFrame(); f.light = true; f.anyPress = true
+			return f
+		end, nil, "hit,crackmark,hit,crack" },
 }
 local shown = {}
 for _, c in cases do
@@ -427,6 +434,24 @@ for _, c in cases do
 	table.insert(shown, `{c[1]}: {got}`)
 end
 print(`PASS every kind of instant hit is the server's on every frame - {table.concat(shown, "; ")}`)
+
+-- ---- the whip's mark from the wire ----
+-- A mark the server took away (the whip user was hit, it faded, a crack spent it) is the server's
+-- to say: the predictor takes the snapshot's mark over its own, or it would predict a crack the
+-- server will not give.
+do
+	local char = Loadout.build("Classic", "Whip")
+	local pred = Predictor.new(char, 0, Stage.new(data, SEED))
+	local truth = Loader.load("Fighter").new({ index = 0, char = char, x = 0, y = 0, stocks = 3 })
+	truth.mech.mark, truth.mech.expires = -1, 0
+	pred.fighter.mech.mark, pred.fighter.mech.expires = 1, 400
+	pred:reconcile(Snapshot.decode(Snapshot.encode(truth)), 0, nil, nil)
+	if pred.fighter.mech.mark ~= -1 then fail(`the predictor kept its own mark ({pred.fighter.mech.mark}) over the server's none`) end
+	truth.mech.mark, truth.mech.expires = 1, 333
+	pred:reconcile(Snapshot.decode(Snapshot.encode(truth)), 0, nil, nil)
+	if pred.fighter.mech.mark ~= 1 or pred.fighter.mech.expires ~= 333 then fail("the predictor did not take the server's mark") end
+end
+print("PASS the whip's mark is the server's: the predictor takes the snapshot's over its own")
 
 -- ---- HitConfirm ----
 do
@@ -441,5 +466,8 @@ do
 	c:drawn({ type = "hit", victim = 1, predicted = true }, 2)
 	if c:confirms({ type = "hit", attacker = 0, victim = 1 }, 0, 2 + HitConfirm.WINDOW + 0.01) then fail("a prediction long past its window confirmed a hit") end
 	if c:confirms({ type = "hit", attacker = 0, victim = 1 }, nil, 3) then fail("a spectator's client confirmed a hit") end
+	c:drawn({ type = "crack", victim = 1, predicted = true }, 4)
+	if c:confirms({ type = "crack", attacker = 2, victim = 1 }, 0, 4.1) then fail("someone else's crack taken for ours") end
+	if not c:confirms({ type = "crack", attacker = 0, victim = 1 }, 0, 4.2) then fail("the server's copy of a predicted crack is drawn again") end
 end
 print("PASS HitConfirm: the server's copy of our predicted hit is not drawn twice; other hits, other kinds and stale predictions are")

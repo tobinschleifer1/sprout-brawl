@@ -2,8 +2,8 @@
 -- The parts of an ultimate that ride on the weapon: the greatsword wreathed in its own fire, the
 -- crescent it cuts on the way down, the scythe's vortex, the rifle and its glint, the axe's
 -- crescent blur, the pike's lances of light, the flurry's impact stars, the hammer's charged head,
--- the bow's gathering arrow and its sight line, the shield's glare, the daggers' cross-cuts and the
--- grimoire's rune circles - and the muzzle/cast flash every projectile weapon fires through.
+-- the bow's gathering arrow and its sight line, the shield's glare, the daggers' cross-cuts, the
+-- whip's crack at the end of its lash and the grimoire's rune circles - and the muzzle/cast flash every projectile weapon fires through.
 --
 -- Drawn in the hand's frame, inside Fighter2D, so everything here moves, mirrors and scales with
 -- the fighter - whatever avatar they are and whichever way they face. WeaponPose.luau supplies the
@@ -370,6 +370,24 @@ function UltimateVfx.drawUltimate(c: any, weaponId: string?, palette: any, pose:
 				local big = FxArt.get("xslash", math.floor(U.finish * 3.99), glow, nil, 7)
 				FxArt.draw(c, big, 0.6, 0, sized(big, 4.6), 0, 1)
 			end
+			Canvas2D.restore(c)
+		end
+	end
+
+	-- BULLWHIP - STORM LASH. Light gathers round the handle as it is hoisted; then, out at the end
+	-- of the lash, a star snaps on every crack - and a bigger one on the last.
+	if weaponId == "Whip" and (U.hoist ~= nil or U.crack ~= nil) then
+		if U.hoist ~= nil then
+			gathering(c, 0.6, 0, U.hoist, glow, now, 2)
+		end
+		if nonzero(U.crack) and pose.lash then
+			Canvas2D.save(c)
+			Canvas2D.rotate(c, pose.angle)
+			Canvas2D.translate(c, REACH.Whip + pose.lash.len, 0)
+			upright(c)
+			local beat = math.floor(now * 16)
+			local star = FxArt.get("pop", beat % 3, glow, nil, beat % 5 + 1)
+			FxArt.draw(c, star, 0, 0, sized(star, if nonzero(U.last) then 4.2 else 2.2), beat * 0.7, 1)
 			Canvas2D.restore(c)
 		end
 	end

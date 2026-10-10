@@ -15,6 +15,7 @@ local Loader = require("./loader")
 local Loadout = Loader.load("Loadout")
 local Fighter = Loader.load("Fighter")
 local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
+local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
 
 local function fail(msg: string): never
 	error(msg, 0)
@@ -77,6 +78,8 @@ for i, p in trace.probes do
 	}
 	local move = Fighter.moveOf(char, p.moveId)
 	local pose = WeaponPose.For(f, char, move, tonumber(p.t))
+	-- the whip's lash as drawn (Weapons2D.lashSegments; see gen-weapon-traces.mjs)
+	if pose.lash then pose.lashSegments = Weapons2D.lashSegments(pose.lash, char.weaponPalette or char.palette) end
 
 	local got: { [string]: any } = {}
 	flatten(pose, "", got)

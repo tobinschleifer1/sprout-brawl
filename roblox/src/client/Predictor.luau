@@ -136,7 +136,7 @@ function Predictor.applyWire(self: any, w: any)
 	for _, pair in Snapshot.FIELDS do
 		local name = pair[1]
 		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" and name ~= "comboTarget"
-			and name ~= "armed" and name ~= "staleMoves" then
+			and name ~= "armed" and name ~= "staleMoves" and name ~= "crackMark" and name ~= "crackExpires" then
 			-- Back through the name map: the snapshot calls them stateFrame and moveFrame, the
 			-- Fighter calls them sf and mf, and writing the snapshot's names onto a Fighter sets
 			-- two fields nothing reads while leaving the two that matter untouched.
@@ -155,6 +155,8 @@ function Predictor.applyWire(self: any, w: any)
 	end
 	f.move = Fighter.moveOf(f.char, w.moveId)
 	f.effects.chill.stacks = w.chillStacks or 0
+	-- the bullwhip's mark (CRACK), whose crack a predicted hit's freeze depends on
+	if f.mech.id == "Crack" and w.crackMark ~= nil then f.mech.mark = w.crackMark; f.mech.expires = w.crackExpires or 0 end
 	-- the server's staling memory, which a hit predicted and then taken back left wrong here
 	if w.staleMoves ~= nil then
 		f.staleMoves = if w.staleMoves == "" then {} else string.split(w.staleMoves, ",")
@@ -200,14 +202,17 @@ end
 -- A direct swing's damage before combo scaling, worked out as Combat.resolveHit does - it is what
 -- sets the attacker's hit freeze. With the staling multiplier it used. (resolveHit's charge
 -- bonus is left out: only a charged beam has one, and a beam is not a swing.)
-local function swingDamage(f: any, move: any, hb: any): (number, number)
+local function swingDamage(f: any, move: any, hb: any, victim: number): (number, number, boolean)
 	local damage = (if hb and hb.damage ~= nil then hb.damage else move.damage) + (f.bonusDamage or 0)
+	-- the bullwhip's tip on the fighter it marked cracks (Combat.resolveHit, CRACK)
+	local cracks = hb and hb.tip and f.mech.id == "Crack" and f.mech.mark == victim
+	if cracks then damage += f.char.mechanic.bonusDamage end
 	local stale = 1
 	if move.id ~= "Ultimate" and move.kind ~= "grab" then
 		stale = if f.staleSerial == f.moveSerial then f.staleNow else Config.staleMul(f.staleMoves, move.id)
 	end
 	if stale < 1 then damage = math.max(1, math.floor(damage * stale + 0.5)) end
-	return damage, stale
+	return damage, stale, cracks == true
 end
 
 -- What the hit will be on the server, from what the view says of the foe: blocked by a shield,
@@ -248,6 +253,11 @@ local function land(self: any, c: any)
 	if move.id ~= "Ultimate" then
 		f:chargeUltimate(if f.linkPerfect and f.move == move then Config.COMBO.perfectCharge else 1)
 	end
+	-- a tip that landed marks its victim, or cracks and spends the mark (CRACK)
+	if c.tip and f.mech.id == "Crack" then
+		if c.cracks then f.mech.mark = -1; f.mech.expires = 0
+		else f.mech.mark = c.victim; f.mech.expires = f.frameCount + f.char.mechanic.markFrames end
+	end
 end
 
 -- Combat.step's hitbox scan for the local fighter, against the view: the same once-per-victim
@@ -271,8 +281,9 @@ local function predictHits(self: any): { any }?
 					table.insert(out, c)
 					if not v.untouchable then
 						local move, hb = b.move, b.hb
-						local damage, stale = swingDamage(f, move, hb)
+						local damage, stale, cracks = swingDamage(f, move, hb, v.index)
 						c.kind, c.move, c.hitlag, c.stale = outcome(v, move), move, Knockback.hitlag(damage, move.heavy), stale
+						c.tip, c.cracks = hb.tip == true, cracks
 						land(self, c)
 						-- the sparks: where the server puts them, as hard as the launch is likely to be
 						local base = if hb.base ~= nil then hb.base else move.base
@@ -282,8 +293,15 @@ local function predictHits(self: any): { any }?
 							type = c.kind, predicted = true, attacker = self.index, victim = v.index, fighter = self.index,
 							x = (b.rect.x1 + b.rect.x2) / 2, y = (b.rect.y1 + b.rect.y2) / 2,
 							damage = damage, heavy = not not move.heavy, finisher = not not move.finisher, weight = v.weight,
-							launch = Knockback.launchSpeed(base, growth, damage, v.percent + damage, v.weight) * (f.launchMul or 1) * kb,
+							launch = Knockback.launchSpeed(base, growth, damage, v.percent + damage, v.weight) * (f.launchMul or 1) * kb
+								* (if cracks then f.char.mechanic.launchMul else 1),
 						})
+						-- and the whip's mark or crack, which the server sends after its hit event
+						if c.kind == "hit" and c.tip and f.mech.id == "Crack" then
+							table.insert(self.fresh, { type = if cracks then "crack" else "crackmark", predicted = true,
+								attacker = self.index, victim = v.index, fighter = self.index,
+								x = (b.rect.x1 + b.rect.x2) / 2, y = (b.rect.y1 + b.rect.y2) / 2 })
+						end
 					end
 				end
 			end
@@ -447,6 +465,8 @@ function Predictor.state(self: any): any
 	out.ledgeAction = if f.la then f.la.kind else nil
 	out.comboTarget = if f.comboTarget then f.comboTarget.index else nil
 	out.staleMoves = table.concat(f.staleMoves, ",")
+	out.crackMark = if f.mech.id == "Crack" then f.mech.mark else -1
+	out.crackExpires = if f.mech.id == "Crack" then f.mech.expires else 0
 	return out
 end
 

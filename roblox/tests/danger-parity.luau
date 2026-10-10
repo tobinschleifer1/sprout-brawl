@@ -34,7 +34,29 @@ for n, c in T.shapes do
 		end
 	end
 end
-print(`danger: {checked} values match web/src/render2d/danger.js`)
+local marked = 0
+for n, c in T.marks do
+	local got = Danger.markShapes(2.5, 0, 5.2, c.left, c.frame)
+	assert(#got == #c.shapes, `mark {n} (left {c.left}, frame {c.frame}): {#got} shapes, JS {#c.shapes}`)
+	for i, sh in got do
+		for j, v in sh do
+			local want = c.shapes[i][j]
+			local ok = if type(v) == "number" then math.abs(v - (tonumber(want) :: number)) < 1e-9 else v == want
+			assert(ok, `mark {n} shape {i}.{j}: JS {want}, Luau {tostring(v)}`)
+			checked += 1
+		end
+	end
+	if #got > 0 then marked += 1 end
+end
+print(`danger: {checked} values match web/src/render2d/danger.js (and {marked} whip marks)`)
+-- the mark's behaviour, not only its agreement: over the head, gone when it fades, blinking at the end
+local fresh = Danger.markShapes(0, 0, 5, 200, 9)
+local lowest = math.huge
+for _, sh in fresh do lowest = math.min(lowest, sh[3]) end
+assert(#fresh > 0 and lowest > 5, "the whip's mark sits over the head")
+assert(#Danger.markShapes(0, 0, 5, 0, 9) == 0, "a faded mark draws nothing")
+assert(Danger.markShapes(0, 0, 5, 30, 4)[1][7] < 1 and Danger.markShapes(0, 0, 5, 30, 0)[1][7] == 1
+	and Danger.markShapes(0, 0, 5, 200, 4)[1][7] == 1, "the mark blinks only in its last second")
 
 local blast = T.percents[1].blast
 assert(Danger.percent(72, blast) < Danger.percent(100, blast) and Danger.percent(100, blast) < Danger.percent(125, blast),

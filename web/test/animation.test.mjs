@@ -399,7 +399,9 @@ function angleAt(f, id, at) {
         if (wp.hide) continue;
         const AL = h * 0.30 * (ch.armR.ext || 1);
         const hx = r * 0.55 + Math.cos(wp.angle) * AL, hy = h * 0.70 + Math.sin(wp.angle) * AL;
-        const L = (REACH[w.id] || 2) * (wp.scale || 1);
+        // The whip's reach is its handle plus the lash drawn on from its end (pose.lash), which is
+        // straight (curl 0) on a crack's live frames.
+        const L = ((REACH[w.id] || 2) + (wp.lash && !wp.lash.curl ? wp.lash.len : 0)) * (wp.scale || 1);
         const tx = hx + Math.cos(wp.angle) * L + (wp.ox || 0), ty = hy + Math.sin(wp.angle) * L + (wp.oy || 0);
         for (const hb of live) {
           frames++;

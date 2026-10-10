@@ -260,6 +260,17 @@ export const GRIDS = {
     '......................',
   ], { c: '#FF4A6A', C: '#FFB0BE', q: '#8A1A30', e: '#A0ACBE', j: '#4A3A5A' }),
 
+  // DROVER'S CRACK. A braided leather handle with a brass ferrule, a glowing knot at the pommel and
+  // a pale fall knotted on where the lash begins. Only the handle is a sprite: the lash is drawn on
+  // from its end at whatever length the move needs (render2d/weapons2d.js, lashSegments).
+  Whip: G(2, 2, [
+    '.ay........',
+    'aTTHPHPHPHA',
+    'aTGPHPHPHPA',
+    'aTTHPHPHPHA',
+    '.ay........',
+  ], { a: '#C9A24A', y: '#7A5A24' }),
+
   // DUELIST (new, not yet in the engine). A slim silver blade, a gold basket hilt and a blue plume.
   Rapier: G(5, 4, [
     '..pp........................',

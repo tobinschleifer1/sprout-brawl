@@ -50,9 +50,11 @@ local DIFFICULTIES = { "easy", "normal", "hard" }
 function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local s = math.clamp(math.min(W / 1280, H / 720), 0.55, 1.4)
 	-- a wide, short screen (a phone on its side) takes the roster in one row, leaving the height for
-	-- the fighters; anything squarer takes two rows of six
-	local perRow = if W / H > 1.9 or H < 520 then 12 else 6
-	local cell = math.floor(math.clamp(math.min(W * (if perRow == 12 then 0.052 else 0.058), H * 0.1), 34, 84))
+	-- the fighters; anything squarer takes two rows. By the weapon count, not a fixed six: the
+	-- thirteenth weapon spilled onto a third row and the fighters shrank under it.
+	local count = #Weapons.LIST
+	local perRow = if W / H > 1.9 or H < 520 then count else math.ceil(count / 2)
+	local cell = math.floor(math.clamp(math.min(W * (0.064 - 0.001 * perRow), H * 0.1), 34, 84))
 	local gap = math.floor(cell * 0.22)
 	local rosterW = perRow * cell + (perRow - 1) * gap
 	local rosterTop = math.floor(84 * s)

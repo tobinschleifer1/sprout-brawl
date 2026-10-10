@@ -156,6 +156,10 @@ S.push({ name: 'bots on smeltworks', stage: 'Smeltworks', seed: 707, stocks: 3, 
 S.push({ name: 'bot teams catching', stage: 'FoundryFloor', mode: 'StockTeams', seed: 26, stocks: 2,
   teamOf: [0, 0, 1, 1], frames: 900,
   who: [['Classic', 'Sword', 'elite'], ['Noir', 'Pike', 'elite'], ['Ember', 'Axe', 'elite'], ['Moss', 'Flail', 'elite']] });
+// The bullwhip fought by bots: tips that mark and crack, the lash up close, Storm Lash.
+S.push({ name: 'bots with the bullwhip', stage: 'FoundryFloor', seed: 47, stocks: 3, frames: 2400,
+  who: [['Classic', 'Whip', 'elite'], ['Noir', 'Sword', 'elite']], percent: [0, 60] });
+
 // Lag compensation: four elite bots, every swing and grab judged against where its attacker
 // "saw" the victim some frames back (LAG_COMP).
 S.push({ name: 'bots looking back (lag compensation)', stage: 'FoundryFloor', seed: 31, stocks: 3, frames: 2400, rewind: true,

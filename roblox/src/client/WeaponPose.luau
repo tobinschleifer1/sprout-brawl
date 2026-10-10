@@ -15,6 +15,7 @@
 -- animations playing over each other. Keep them one function.
 
 local Channels = require(script.Parent.Channels)
+local Combat = require(game:GetService("ReplicatedStorage").Shared.Combat)
 
 local WeaponPose = {}
 
@@ -198,6 +199,7 @@ local REST: { [string]: number } = {
 	Sword = D(-78), Scythe = D(-72), Blasters = D(-60), Grimoire = D(-70), Axe = D(-104),
 	Pike = D(-58), Gauntlets = D(-28), Hammer = D(-98), Longbow = D(-84), Flail = D(-96),
 	Shield = D(-20), Daggers = D(-66),
+	Whip = D(-84),                                        -- the whip hangs coiled at the side
 }
 local function restOf(wid: string?): number
 	return if wid and REST[wid] then REST[wid] else D(-70)
@@ -208,16 +210,34 @@ local function restOr0(wid: string?): number
 end
 -- The guard while standing and moving; see GUARD in web/src/render2d/weapons2d.js.
 local GUARD: { [string]: number } = {
-	Sword = D(-28), Scythe = D(-38), Blasters = D(-34), Pike = D(-10), Daggers = D(-40),
+	Sword = D(-28), Scythe = D(-38), Blasters = D(-34), Pike = D(-10), Daggers = D(-40), Whip = D(-44),
 }
 local function guardOf(wid: string?): number
 	return if wid and GUARD[wid] then GUARD[wid] else restOf(wid)
 end
 
+-- THE BULLWHIP's lash (weapons2d.js LASH): the sprite is only the handle, WHIP_HANDLE studs, and
+-- `pose.lash` = { len, curl } is drawn on beyond it (Weapons2D.lashRects). On a crack it is aimed
+-- at the move's own tip box from the shoulder and long enough to reach it.
+local LASH = { coil = 1.2, amp = 0.55 }
+-- How far back from the aim each kind of crack cocks, in degrees: positive overhand, negative the
+-- backhand from below.
+local WHIP_WIND: { [string]: number } = { jab = 130, jab2 = -110, jab3 = 165, side = 115, side2 = -135, finisher = 225, airslam = 150, airlaunch = -120 }
+-- Math.sign: 0 for 0, unlike a `< 0 and -1 or 1`
+local function jsSign(v: number): number return if v > 0 then 1 elseif v < 0 then -1 else 0 end
+local WHIP_HANDLE = 1.1
+WeaponPose.LASH = LASH
+WeaponPose.WHIP_HANDLE = WHIP_HANDLE
+local function whipReach(char: any, ox: number, oy: number): (number, number)
+	local dx, dy = ox - char.radius * 0.55, oy - char.height * 0.70
+	-- (a box close overhead - the Sky Crack's - needs less lash than the coil: down to a quarter stud)
+	return math.atan2(dy, dx), math.max(0.25, math.sqrt(dx * dx + dy * dy) - char.height * 0.30 - WHIP_HANDLE)
+end
+
 -- ------------------------------------------------------------- the ultimates -----
 -- One per weapon, each the shape of its own move rather than a louder signature. These share the
 -- phase boundaries ultChannels uses, so the fighter and the prop perform one move rather than two.
-local function ultimatePose(f: any, m: any, wid: string?, out: any, t: number): any
+local function ultimatePose(f: any, m: any, wid: string?, out: any, t: number, char: any): any
 	local st, act, rec, mf = f.startupEff, m.active, m.recovery, f.moveFrame
 	local k = if mf <= st then mf / math.max(1, st)
 		elseif mf <= st + act then (mf - st) / math.max(1, act)
@@ -483,6 +503,30 @@ local function ultimatePose(f: any, m: any, wid: string?, out: any, t: number): 
 		out.hide = false
 		out.angle = D(-14) + (restOr0(wid) - D(-14)) * recK
 		return out
+	elseif wid == "Whip" then
+		-- STORM LASH. Hoisted overhead, then the lash follows the crack: aimed at the point on the
+		-- dome the next crack lands on (Combat.lashPoint), at full length.
+		local S = m.stormlash
+		if inWindup then
+			out.angle = restOr0(wid) + (D(100) - restOr0(wid)) * (k * k)
+			out.charge = k; out.ult.hoist = k
+			out.lash = { len = LASH.coil + 2 * k, curl = 1 - 0.5 * k }
+			return out
+		end
+		if inActive then
+			local n = S.sweeps * S.perSweep
+			local i = math.min(n, (ak - 1) / S.every)
+			local p = Combat.lashPoint(S, i)
+			local aim, len = whipReach(char, p.dx, p.dy)
+			out.angle = aim
+			out.lash = { len = len, curl = 0 }
+			out.ult.crack = if (ak - 1) % S.every == 0 then 1 else 0
+			out.ult.last = if i >= n then 1 else 0
+			return out
+		end
+		out.angle = D(-8) + (restOr0(wid) - D(-8)) * recK
+		out.lash = { len = LASH.coil + 4 * (1 - recK), curl = recK }
+		return out
 	elseif wid == "Shield" then
 		-- LAST STAND. The prop's job is to sit absolutely still and grow.
 		if inWindup then
@@ -589,6 +633,7 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	if not wid then
 		return out
 	end
+	if wid == "Whip" then out.lash = { len = LASH.coil, curl = 1 } end
 
 	local s = f.state
 	local aimed = AIMED[wid]
@@ -642,7 +687,7 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 	local cat = categoryOf(m.id)
 	if cat == "airfinisher" then cat = if m.angle > 180 then "airslam" else "airlaunch" end
 	if cat == "ult" then
-		return ultimatePose(f, m, wid, out, t)
+		return ultimatePose(f, m, wid, out, t, char)
 	end
 	local byWeapon = SWING_BY_WEAPON[wid]
 	local byMove = SWING_BY_MOVE[wid]
@@ -650,6 +695,15 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 		or (if byWeapon and cat then byWeapon[cat] else nil)
 		or (if cat then SWINGS[cat] else nil)
 		or SWINGS.jab
+	-- The whip cocks back overhead and snaps out at its tip box (whipReach); the Lariat whirls.
+	local tipBox = if wid == "Whip" and m.hitboxes then m.hitboxes[1] else nil
+	local wAim, wLen = nil, nil
+	if tipBox and cat ~= "nair" then
+		wAim, wLen = whipReach(char, tipBox.offset[1], tipBox.offset[2])
+		-- each link cocks from its own side (weapons2d.js WHIP_WIND); the strike is always on the box
+		local wind = D(if cat and WHIP_WIND[cat] then WHIP_WIND[cat] else 130)
+		swing = { arc = { wAim + wind, wAim, wAim - jsSign(wind) * D(8) }, trail = D(70), heavy = m.heavy == true }
+	end
 
 	-- charge hold: the weapon sits at the top of the windup and vibrates
 	if m.charge and mf == st and f.charge > 0 then
@@ -703,6 +757,19 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 		from = swing.arc[2]; to = swing.arc[3]; k = 1 - ph.e
 	end
 	out.angle = from + (to - from) * k
+	if wid == "Whip" then
+		-- a crack is not eased into: straight and on the box for every live frame (weapons2d.js)
+		if wAim and ph.phase == "strike" then out.angle = wAim end
+		local full = wLen or math.max(LASH.coil, if tipBox then tipBox.size[1] / 2 - char.height * 0.30 - WHIP_HANDLE else LASH.coil)
+		if ph.phase == "wind" then
+			out.lash = { len = LASH.coil + (full - LASH.coil) * 0.2 * ph.e, curl = 1 }
+		elseif ph.phase == "strike" then
+			out.lash = { len = full, curl = if wAim then 0 else 0.2 }
+		else
+			local back = (1 - ph.k) * (1 - ph.k)
+			out.lash = { len = LASH.coil + (full - LASH.coil) * back, curl = 1 - back }
+		end
+	end
 
 	if swing.thrust then
 		out.ox = swing.thrust * (if mf > st and mf <= st + act then 1 else 0)

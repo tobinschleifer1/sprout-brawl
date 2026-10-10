@@ -14,6 +14,7 @@
 -- merging; see weaponArt.js `merge` and the Frame budget checked in tests/weapon-art.luau.
 
 local Canvas2D = require(script.Parent.Canvas2D)
+local WeaponPose = require(script.Parent.WeaponPose)
 local Art = require(game:GetService("ReplicatedStorage").Shared.Data.Art)
 
 local Weapons2D = {}
@@ -22,8 +23,38 @@ local Weapons2D = {}
 local REACH: { [string]: number } = {
 	Sword = 2.6, Scythe = 3.4, Blasters = 1.1, Grimoire = 0.9, Axe = 3.2, Pike = 5.9,
 	Gauntlets = 1.0, Hammer = 3.7, Longbow = 1.2, Flail = 4.2, Shield = 1.3, Daggers = 1.7,
+	Whip = WeaponPose.WHIP_HANDLE,                 -- the handle: the lash is drawn on beyond it
 }
 Weapons2D.REACH = REACH
+
+-- The bullwhip's lash, in the weapon's own frame, as segments { x, y, length, thickness, angle,
+-- colour } - weapons2d.js lashSegments exactly: eight along it, tapering, bent by `curl`, an
+-- outline pass under the leather and a pale cracker on the tip.
+local OUTLINE = "#120E16"
+Weapons2D.LASH_SEGMENTS = 8
+function Weapons2D.lashSegments(lash: any, palette: any): { any }
+	local out = {}
+	if not lash or not (lash.len > 0) then return out end
+	local N, x0 = Weapons2D.LASH_SEGMENTS, WeaponPose.WHIP_HANDLE
+	local col, tip = palette.primary or "#8A5A36", palette.accent or "#E8C58A"
+	local amp = WeaponPose.LASH.amp
+	local function at(t: number): (number, number)
+		return x0 + lash.len * t, -lash.curl * amp * math.sin(math.pi * t) * (1 + 0.8 * t)
+	end
+	for pass = 0, 1 do
+		for i = 0, N - 1 do
+			local ax, ay = at(i / N)
+			local bx, by = at((i + 1) / N)
+			local dx, dy = bx - ax, by - ay
+			local th = 0.22 - 0.12 * (i + 0.5) / N + (if pass == 0 then 0.125 else 0)
+			table.insert(out, { ax, ay, math.sqrt(dx * dx + dy * dy) + (if pass == 0 then 0.0625 else 0.03), th,
+				math.atan2(dy, dx), if pass == 0 then OUTLINE else col })
+		end
+	end
+	local ex, ey = at(1)
+	table.insert(out, { ex - 0.125, ey, 0.25, 0.16, 0, tip })
+	return out
+end
 
 local WHITE = Color3.new(1, 1, 1)
 
@@ -142,6 +173,13 @@ function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	local sp = Weapons2D.sprite(weaponId, awake)
 	Canvas2D.sprite(c, (if awake then "weapon+|" else "weapon|") .. weaponId, sp.rects, sp.x0, sp.y1, CELL, CELL, sp.cols, sp.rows)
 
+	if pose.lash then
+		for _, sg in Weapons2D.lashSegments(pose.lash, palette or {}) do
+			Canvas2D.save(c); Canvas2D.translate(c, sg[1], sg[2]); Canvas2D.rotate(c, sg[5])
+			Canvas2D.rect(c, 0, -sg[4] / 2, sg[3], sg[4], Canvas2D.hex(sg[6], WHITE), 1)
+			Canvas2D.restore(c)
+		end
+	end
 	if pose.charge > 0 then                          -- charging glows along the weapon
 		local glow = Canvas2D.hex(palette.glow, WHITE)
 		Canvas2D.rect(c, 0, -0.1, REACH[weaponId] or 2, 0.2, glow, 0.25 + pose.charge * 0.5)

@@ -24,15 +24,16 @@ function HitConfirm.drawn(self: any, e: any, now: number)
 	table.insert(self.shown, { victim = e.victim, kind = e.type, t = now })
 end
 
--- The server's event `e`, released at `now`: true if a prediction already drew it. A hit or an
--- armour clank names its attacker; a block does not, so any predicted block on that victim is it.
+-- The server's event `e`, released at `now`: true if a prediction already drew it. A hit, an
+-- armour clank or the bullwhip's mark and crack name their attacker; a block does not, so any
+-- predicted block on that victim is it.
 function HitConfirm.confirms(self: any, e: any, localIndex: number?, now: number): boolean
 	local shown = self.shown
 	for i = #shown, 1, -1 do
 		if now - shown[i].t > HitConfirm.WINDOW then table.remove(shown, i) end
 	end
 	if localIndex == nil then return false end
-	if e.type == "hit" or e.type == "armor" then
+	if e.type == "hit" or e.type == "armor" or e.type == "crack" or e.type == "crackmark" then
 		if e.attacker ~= localIndex then return false end
 	elseif e.type ~= "block" then
 		return false

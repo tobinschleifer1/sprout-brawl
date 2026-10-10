@@ -191,6 +191,8 @@ function methods._initMechanic(self)
 	elseif m.id == "Brace" then return { id = "Brace", guardFrames = 0, ready = false }
 	elseif m.id == "Network" then return { id = "Network" }
 	elseif m.id == "Chill" then return { id = "Chill" }
+	-- CRACK (the whip): whom its tip last marked, and the frameCount the mark lasts until
+	elseif m.id == "Crack" then return { id = "Crack", mark = -1, expires = 0 }
 	end
 	return { id = m.id }
 end
@@ -303,6 +305,7 @@ function methods.reset(self, x: number, y: number, opts: any?)
 	if id == "Surge" then self.mech.hits = {}; self.mech.surged = false; self.mech.timer = 0 end
 	if id == "Draw" then self.mech.draw = 0; self.mech.ready = false end
 	if id == "Snare" then self.mech.snared = nil; self.mech.timer = 0; self.mech.ready = false end
+	if id == "Crack" then self.mech.mark = -1; self.mech.expires = 0 end
 	self.item = nil
 	self.events = {}
 end
@@ -1245,6 +1248,7 @@ function methods.applyHit(self, hit: any)
 	-- these mechanics is a reward for pressure, and taking a hit is the opposite of pressure.
 	if id == "Surge" then self.mech.hits = {}; self.mech.surged = false end
 	if id == "Draw" then self.mech.draw = 0; self.mech.ready = false end
+	if id == "Crack" then self.mech.mark = -1; self.mech.expires = 0 end
 	self.move = nil; self.hold = nil; self.tether = nil; self.la = nil
 	if hit.trip and self.percent < hit.trip and self.onGround then
 		methods.setState(self, "knockdown")
@@ -1872,6 +1876,9 @@ function methods._mechanicsFrame(self, ctx)
 			end
 		end
 		m.ready = m.snared ~= nil
+	elseif m.id == "Crack" then
+		-- the mark fades on its own
+		if m.mark >= 0 and self.frameCount >= m.expires then m.mark = -1; m.expires = 0 end
 	elseif m.id == "Brace" then
 		-- Banked only while actually holding shield, and dropped the moment the shield does.
 		if self.state == "shield" then

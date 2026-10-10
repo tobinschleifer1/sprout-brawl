@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const { weaponPose } = await import('../../web/src/render2d/weapons2d.js');
+const { weaponPose, lashSegments } = await import('../../web/src/render2d/weapons2d.js');
 const { buildLoadout } = await import('../../web/src/data/loadout.js');
 const { THROW_GROUND } = await import('../../web/src/engine/fighter.js');
 // Weapon drops: the throw is no weapon's move - the same one for all - so every kit's attack sweep
@@ -35,7 +35,7 @@ const STATES = [
 const KITS = [
   ['Classic', 'Sword'], ['Noir', 'Scythe'], ['Ember', 'Blasters'], ['Moss', 'Grimoire'],
   ['Vapor', 'Axe'], ['Steel', 'Pike'], ['Classic', 'Gauntlets'], ['Noir', 'Hammer'],
-  ['Ember', 'Longbow'], ['Moss', 'Flail'], ['Vapor', 'Shield'], ['Steel', 'Daggers'],
+  ['Ember', 'Longbow'], ['Moss', 'Flail'], ['Vapor', 'Shield'], ['Steel', 'Daggers'], ['Classic', 'Whip'],
 ];
 const TIMES = ['0', '0.37', '1.84', '7.25'];
 
@@ -108,7 +108,10 @@ function flatten(out) {
 const outputs = [];
 const seenKeys = new Set();
 for (const p of probes) {
-  const pose = weaponPose(fighterFor(p), Number(p.t));
+  const f = fighterFor(p);
+  const pose = weaponPose(f, Number(p.t));
+  // the whip's lash as drawn (lashSegments), so the drawing is held as well as the pose
+  if (pose.lash) pose.lashSegments = lashSegments(pose.lash, f.char.weaponPalette || f.char.palette);
   const flat = flatten(pose);
   for (const key of Object.keys(flat)) seenKeys.add(key);
   outputs.push(flat);

@@ -34,6 +34,7 @@ local EXPECTED = {
 	"comboHits", "breakable", "breakCooldown",
 	"armed",
 	"staleMoves",
+	"crackMark", "crackExpires",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation
@@ -161,6 +162,17 @@ if Snapshot.decode(Snapshot.encode(f)).item ~= "BlastKeg" then
 	fail("a held item did not send its id")
 end
 checked += 2
+
+-- 6. The bullwhip's mark rides its own mechanic's state; every other weapon sends "nobody".
+do
+	local plain = Snapshot.decode(Snapshot.encode(f))
+	if plain.crackMark ~= -1 or plain.crackExpires ~= 0 then fail("a sword sent a whip's mark") end
+	local w = Fighter.new({ index = 0, char = Loadout.build("Classic", "Whip"), x = 0, y = 0, stocks = 3 })
+	w.mech.mark, w.mech.expires = 2, 517
+	local got = Snapshot.decode(Snapshot.encode(w))
+	if got.crackMark ~= 2 or got.crackExpires ~= 517 then fail(`a whip's mark sent as {tostring(got.crackMark)} until {tostring(got.crackExpires)}`) end
+	checked += 4
+end
 
 -- 6. Not on a ledge sends no ledge action. `la` is nil for all but a few frames of a match, so the
 -- nil case is the common one and the flattening has to survive it rather than indexing nil.

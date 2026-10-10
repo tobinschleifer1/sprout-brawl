@@ -229,6 +229,7 @@ local SIGNATURE: { [string]: { string } } = {
 	Flail = { "rune", "burst", "bolt" },
 	Shield = { "dome", "burst", "bolt" },
 	Daggers = { "xslash", "sigil", "burst" },
+	Whip = { "bolt", "pop", "burst" },
 }
 local mostBuilt, mostBuiltWhere = 0, ""
 local mostRects, mostRectsWhere = 0, ""
@@ -311,7 +312,7 @@ do
 end
 
 print(`PASS ult fx: {arts} effect drawings repaint their grids exactly (largest {widest} rectangles), ramps dark to light, fades in sixths`)
-print(`PASS ult fx: all twelve ultimates played in real matches draw their signature effects; anchor, soak, target and bleed reach the client`)
+print(`PASS ult fx: every ultimate played in real matches draw their signature effects; anchor, soak, target and bleed reach the client`)
 print(`  worst frame {peak} Frames ({peakWhere}); most effect sprites built by one ultimate: {mostBuilt} ({mostBuiltWhere})`)
 print(`  most rectangles built by one ultimate: {mostRects} ({mostRectsWhere})`)
 print(`  sprites/rectangles built: {table.concat(report, ", ")}`)

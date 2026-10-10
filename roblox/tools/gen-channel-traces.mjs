@@ -44,7 +44,7 @@ const STATES = [
 const KITS = [
   ['Classic', 'Sword'], ['Noir', 'Scythe'], ['Ember', 'Blasters'], ['Moss', 'Grimoire'],
   ['Vapor', 'Axe'], ['Steel', 'Pike'], ['Classic', 'Gauntlets'], ['Noir', 'Hammer'],
-  ['Ember', 'Longbow'], ['Moss', 'Flail'], ['Vapor', 'Shield'], ['Steel', 'Daggers'],
+  ['Ember', 'Longbow'], ['Moss', 'Flail'], ['Vapor', 'Shield'], ['Steel', 'Daggers'], ['Classic', 'Whip'],
   // and the fists, what a fighter holds between weapons (weapon drops)
   ['Classic', 'Fists'],
 ];

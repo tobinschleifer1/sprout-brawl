@@ -9,7 +9,9 @@ import { drawSprite, drawWeapon } from '../src/render2d/weapons2d.js';
 // from the shapes this art replaced (render2d/weapons2d.js before the pixel-art revision). Players
 // judge reach by eye, so the new art has to land within one pixel of the old.
 const OLD_REACH = { Sword: 2.35, Scythe: 3.84, Blasters: 0.92, Grimoire: 0.78, Axe: 3.4, Pike: 5.95,
-  Gauntlets: 0.94, Hammer: 3.72, Longbow: 1.02, Flail: 4.56, Shield: 0.72, Daggers: 1.5 };
+  Gauntlets: 0.94, Hammer: 3.72, Longbow: 1.02, Flail: 4.56, Shield: 0.72, Daggers: 1.5,
+  // Newer than the polygons: the whip's sprite is its handle, REACH.Whip, and the lash is drawn on
+  Whip: 1.1 };
 // Rectangles are Frames in Roblox. The ceiling was 80 while Roblox re-placed every rectangle of
 // every weapon every frame. Since the lobby lag work, a weapon is ONE sprite there - a container
 // Frame moved per frame, its rectangles built once - so detail now costs memory and a one-off build,
@@ -125,4 +127,4 @@ assert.equal(ctx.stack, 0);
 // Deterministic: compiling twice gives identical rectangles, so the generated Luau is stable.
 assert.deepEqual(compile(GRIDS.Flail, WEAPONS.find((w) => w.id === 'Flail').palette), WEAPON_SPRITES.Flail);
 
-console.log(`PASS weapon art: 12 weapons within one pixel of their reach, pixel-exact merges, ${total} rectangles (${(total / 12).toFixed(1)} a weapon, budget ${FRAME_BUDGET}); awakened forms add light only, pixel-exact`);
+console.log(`PASS weapon art: ${WEAPONS.length} weapons within one pixel of their reach, pixel-exact merges, ${total} rectangles (${(total / WEAPONS.length).toFixed(1)} a weapon, budget ${FRAME_BUDGET}); awakened forms add light only, pixel-exact`);

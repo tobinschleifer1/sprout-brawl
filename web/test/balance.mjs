@@ -128,6 +128,10 @@ if (import.meta.url === new URL(`file://${process.argv[1]}`).href) {
 // ---------------------------------------------------------------------------------------------
 import { makeMatch, skipCountdown } from './harness.mjs';
 import { Combat } from '../src/engine/combat.js';
+// The distance a combo is measured from: 2.4 studs, unless the weapon says it fights from further
+// out. The bullwhip only does anything at the tip, so measured point-blank every one of its routes
+// opened on the lash's sting and read as dead - a measurement of the wrong distance, not the weapon.
+const spacingOf = (weaponId) => (WEAPONS.find((w) => w.id === weaponId) || {}).spacing ?? 2.4;
 
 const EMPTY_IN = { x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false,
   grab: false, taunt: false, pickup: false, jumpHeld: false, guardHeld: false, heavyHeld: false,
@@ -158,7 +162,7 @@ function confirmsAtInner(weaponId, fromId, dir, toId, percent, opts, impacts) {
   skipCountdown(m);
   for (let i = 0; i < 200; i++) m.step();
   const [a, v] = m.fighters;
-  const gap = opts.gap ?? 2.4;
+  const gap = opts.gap ?? spacingOf(weaponId);
   a.x = -gap / 2; v.x = gap / 2; a.facing = 1; v.facing = -1;
   for (const f of [a, v]) { f.onGround = true; f.platform = m.stage.main; f.y = 0; f.vx = 0; f.vy = 0; f.invincible = 0; }
   v.setState('idle'); v.percent = percent;
@@ -243,7 +247,7 @@ function routeAtInner(weaponId, route, percent, opts, impacts) {
   skipCountdown(m);
   for (let i = 0; i < 200; i++) m.step();
   const [a, v] = m.fighters;
-  const gap = opts.gap ?? 2.4;
+  const gap = opts.gap ?? spacingOf(weaponId);
   a.x = -gap / 2; v.x = gap / 2; a.facing = 1; v.facing = -1;
   for (const f of [a, v]) {
     f.vx = 0; f.vy = 0; f.invincible = 0;

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const { dangerPercent, dangerLevel, dangerShapes } = await import('../../web/src/render2d/danger.js');
+const { dangerPercent, dangerLevel, dangerShapes, markShapes } = await import('../../web/src/render2d/danger.js');
 const { STAGES } = await import('../../web/src/data/stages/index.js');
 const S = (v) => (typeof v === 'number' ? String(v) : v);
 const percents = [];
@@ -15,5 +15,10 @@ for (const k of [0, 0.01, 0.2, 0.5, 0.66, 0.67, 0.9, 1]) for (const frame of [0,
 }
 const levels = [];
 for (const at of [60, 140]) for (const p of [0, 39, 40, 41, 70, 100, 119, 120, 121, 200, 999]) levels.push([p, at, S(dangerLevel(p, at))]);
-fs.writeFileSync(path.join(HERE, '../tests/danger-fixture.json'), JSON.stringify({ percents, shapes, levels }));
+// the whip's mark: fresh, mid-way, blinking (both phases), fading on its last frame, gone
+const marks = [];
+for (const left of [240, 120, 61, 60, 59, 1, 0, -3]) for (const frame of [0, 3, 4, 7, 8, 1001]) {
+  marks.push({ left, frame, shapes: markShapes(2.5, 0, 5.2, left, frame).map((sh) => sh.map(S)) });
+}
+fs.writeFileSync(path.join(HERE, '../tests/danger-fixture.json'), JSON.stringify({ percents, shapes, levels, marks }));
 console.log(`danger fixture: ${percents.length} danger percents, ${shapes.length} drawings, ${levels.length} levels`);

@@ -65,6 +65,11 @@ local FIELDS = {
 	-- that move came out a frame short until it aged out. It changes only when a hit lands, so in a
 	-- delta (SnapshotCodec) it costs nothing the rest of the time.
 	{ "staleMoves", "sm" },
+	-- The bullwhip's mark (CRACK): whom this fighter's tip marked (-1 for nobody, and for any other
+	-- weapon) and the frameCount it fades at. Drawn over the marked fighter's head (Danger.markShapes),
+	-- and predicted from: a crack's extra damage sets its hit freeze. An end frame, not a countdown,
+	-- so neither changes on the wire while the mark lasts.
+	{ "crackMark", "cm" }, { "crackExpires", "ce" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -95,6 +100,10 @@ function Snapshot.encode(f: any): { [string]: any }
 			out[wire] = if f.comboTarget then f.comboTarget.index else nil
 		elseif name == "staleMoves" then
 			out[wire] = table.concat(f.staleMoves, ",")
+		elseif name == "crackMark" then
+			out[wire] = if f.mech and f.mech.id == "Crack" then f.mech.mark else -1
+		elseif name == "crackExpires" then
+			out[wire] = if f.mech and f.mech.id == "Crack" then f.mech.expires else 0
 		elseif name == "ledgeAction" then
 			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
 			-- from the stage. Only the kind changes the pose.

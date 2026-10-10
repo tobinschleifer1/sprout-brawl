@@ -3,7 +3,8 @@
 <!-- A bot match drawn by the match's own renderer, frames laid out for reading a fight
      (docs/briefs/combat-plan.md). Query: n fighters (default 6), seed, stage, ffa=1 for free-for-all,
      big=1 for full-size frames, at=frame list; `kN` in the list means N frames after the first kill
-     hit. Each frame lists every fighter, the live effects and the events of that second.
+     hit; kits=Whip,Whip;Sword,Hammer to choose each fighter's pair, armed=1 to start with the first
+     in hand. Each frame lists every fighter, the live effects and the events of that second.
      Open with --allow-file-access-from-files, or serve web/. -->
 <style>body{margin:0;background:#111;display:flex;flex-wrap:wrap;gap:4px} img{width:var(--w,640px)} p{color:#ccc;font:12px monospace;width:640px;margin:0}</style>
 <div id="out"></div>
@@ -23,11 +24,12 @@ const afterKill = atList.filter((a) => a[0] === 'k').map((a) => +a.slice(1));
 let killAt = null;
 const EMPTY = () => ({ x:0,y:0,jump:false,light:false,heavy:false,dodge:false,guard:false,grab:false,taunt:false,pickup:false,ult:false,jumpHeld:false,guardHeld:false,heavyHeld:false,lightHeld:false,downTap:false,anyPress:false });
 const input = { kb2Active:false, poll(){}, get(){ return EMPTY(); } };
-const KITS = [['Sword','Hammer'],['Daggers','Axe'],['Pike','Shield'],['Scythe','Flail'],['Gauntlets','Longbow'],['Blasters','Grimoire']];
+const KITS = q.get('kits') ? q.get('kits').split(';').map((k) => k.split(','))
+  : [['Sword','Hammer'],['Daggers','Axe'],['Pike','Shield'],['Scythe','Flail'],['Gauntlets','Longbow'],['Blasters','Grimoire']];
 const LOOKS = ['Classic','Noir','Ember','Moss','Classic','Noir'];
 const fighters = KITS.slice(0, n).map((ws, i) => ({ ...buildArmed(LOOKS[i], ws), skin: Math.floor(i/4), team: q.get('ffa') ? i : i % 2, source: 'p'+i, isBot: true, botLevel: 'hard', name: 'P'+(i+1) }));
 const m = new Match({ mode: q.get('ffa') ? 'StockFFA' : 'StockTeams', stocks: 3, timeLimit: 0, items: true, weaponDrops: true, seed, input, stage: STAGES.find(s => s.id === stage), fighters });
-m.fighters.forEach(f => { f.isBot = true; f.botLevel = 'hard'; });
+m.fighters.forEach(f => { f.isBot = true; f.botLevel = 'hard'; if (q.get('armed')) { f.armed = -1; f.nextArm = 0; f.arm(); } });
 const c = document.createElement('canvas');
 c.style.cssText = 'position:fixed;left:0;top:0;width:1280px;height:720px;visibility:hidden';
 document.body.appendChild(c);

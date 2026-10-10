@@ -12,6 +12,22 @@ const overlap = (a, b) => a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.
 const rectFrom = (cx, cy, w, h) => ({ x1: cx - w / 2, x2: cx + w / 2, y1: cy - h / 2, y2: cy + h / 2, cx, cy, w, h });
 const sign = (v) => (v < 0 ? -1 : 1);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+const PI_2 = Math.PI / 2;
+
+// Where Storm Lash's tip is on its `i`th crack, from the fighter's feet and facing forward: an arc
+// of `radius` over the point `height` above the feet, from straight behind (-90 degrees) through
+// overhead to straight in front, and back, `perSweep` cracks a sweep. The last crack
+// (i = sweeps * perSweep) is straight in front. Exported for the renderer, which aims the whip at
+// it (render2d/weapons2d.js), so the lash is drawn where the crack lands; `i` may be fractional there.
+export function lashPoint(S, i) {
+  const n = S.sweeps * S.perSweep;
+  let phi = PI_2;
+  if (i < n) {
+    const s = Math.floor(i / S.perSweep), t = (i % S.perSweep) / (S.perSweep - 1);
+    phi = s % 2 === 0 ? -PI_2 + Math.PI * t : PI_2 - Math.PI * t;
+  }
+  return { dx: S.radius * Math.sin(phi), dy: S.height + S.radius * Math.cos(phi) };
+}
 
 const DIVE_MOVE = { id: 'GroundPound', label: 'Ground Pound', ...GROUND_POUND.dive, heavy: true, kind: 'melee', hitboxes: [{ frames: [1, 999], ...GROUND_POUND.dive.hitbox }] };
 const LEDGE_ATTACK = { id: 'LedgeAttack', label: 'Ledge Attack', damage: LEDGE.options.attack.damage, base: LEDGE.options.attack.base, growth: LEDGE.options.attack.growth, angle: LEDGE.options.attack.angle, kind: 'melee', hitboxes: [LEDGE.options.attack.hitbox] };
@@ -141,6 +157,12 @@ export class Combat {
     if (victim.state === 'grabbed' && move.kind === 'grab') return false;
     const direct = !opts.projectile && !opts.summon;
     let damage = (hb && hb.damage != null ? hb.damage : move.damage) + (direct ? (attacker.bonusDamage || 0) : 0);
+    // CRACK (the whip): the tip landing again on the fighter it marked cracks - more damage, a
+    // harder launch - and spends the mark (set below, once the hit has landed).
+    const crackM = direct && hb && hb.tip && attacker.mech.id === 'Crack' ? attacker.char.mechanic : null;
+    // (the mark's expiry is the fighter's: _mechanicsFrame clears it, before combat runs that frame)
+    const cracks = !!crackM && attacker.mech.mark === victim.index;
+    if (cracks) damage += crackM.bonusDamage;
     // Staling (STALE): worked out once per swing - a multi-hit move's later hits are not staled by
     // its own first hit - and from the moves landed before this one.
     const stales = (direct || opts.projectile) && move.id !== 'Ultimate' && move.kind !== 'grab';
@@ -254,7 +276,7 @@ export class Combat {
     const dealt = victim.comboHits >= COMBO.scaleFrom ? Math.max(1, Math.floor(damage * comboScale(victim.comboHits) + 0.5)) : damage;
     const angle = hb && hb.angle != null ? hb.angle : move.angle;
     const after = victim.percent + damage;
-    const own = direct ? (attacker.launchMul || 1) : 1;
+    const own = direct ? (attacker.launchMul || 1) * (cracks ? crackM.launchMul : 1) : 1;
     let launch = launchSpeed(base, growth, damage, after, victim.weight) * own;
     // `stun` is the same hit on the hitstun curve. It travels with the launch all the way into
     // applyHit so that every multiplier below applies to both.
@@ -284,6 +306,12 @@ export class Combat {
     if (victim.item && damage >= ITEM_CFG.knockOutDamage) this.dropItem(victim, true);
     const kill = this.killHit(victim);
     this.emit({ type: 'hit', x: cx, y: cy, damage: dealt, launch, heavy: !!move.heavy, weight: victim.weight, attacker: attacker.index, victim: victim.index, angle, facing, combo: victim.comboHits, finisher: !!move.finisher, kill, team: this.teamCombo(victim, attacker) });
+    // A tip that landed marks its victim, or - on the one already marked - cracks and spends it.
+    if (crackM) {
+      if (cracks) { attacker.mech.mark = -1; attacker.mech.expires = 0; }
+      else { attacker.mech.mark = victim.index; attacker.mech.expires = attacker.frameCount + crackM.markFrames; }
+      this.emit({ type: cracks ? 'crack' : 'crackmark', x: cx, y: cy, attacker: attacker.index, victim: victim.index });
+    }
     return true;
   }
 
@@ -478,6 +506,12 @@ export class Combat {
     }
   }
 
+  // Where Storm Lash's tip is on its `i`th crack, in the world (lashPoint).
+  lashAt(f, S, i) {
+    const p = lashPoint(S, i);
+    return { x: f.x + f.facing * p.dx, y: f.y + p.dy };
+  }
+
   onMoveActiveFrame(f, m) {
     if (m.kind === 'volley') {
       const p = m.projectile;
@@ -670,6 +704,24 @@ export class Combat {
         angle: R.angle, frames: 3, size: [R.radius * 2, R.radius * 2], heavy: true, hitsOwner: false,
         knockbackMul: step === R.count - 1 ? R.finalMul : 1, shieldDamageMul: R.shieldDamageMul });
       this.emit({ type: 'rundown', x: target.x, y: target.cy, step, last: step === R.count - 1, victim: target.index });
+
+    } else if (m.kind === 'stormlash') {
+      // BULLWHIP - STORM LASH. The tip sweeps an arc over the fighter, behind to front and back
+      // again, cracking every `every` frames where it is: a dome whose edge is the danger and whose
+      // inside is safe. After the sweeps, one last crack out in front - the one that kills.
+      const S = m.stormlash;
+      const k = f.mf - f.startupEff - 1;
+      if (k % S.every !== 0) return;
+      const i = k / S.every, n = S.sweeps * S.perSweep;
+      if (i > n) return;
+      const final = i === n;
+      const at = this.lashAt(f, S, i);
+      const F = S.final;
+      this.spawnBurst(f, { id: 'Ultimate', x: at.x, y: at.y, damage: final ? F.damage : S.damage, base: final ? F.base : S.base,
+        growth: final ? F.growth : S.growth, angle: final ? F.angle : S.angle, frames: 2,
+        size: final ? [F.size, F.size] : [S.size, S.size], heavy: true, hitsOwner: false,
+        knockbackMul: final ? F.knockbackMul : 1, shieldDamageMul: S.shieldDamageMul });
+      this.emit({ type: 'lash', x: at.x, y: at.y, step: i, last: final, fighter: f.index });
 
     } else if (m.kind === 'upheaval') {
       // WAR HAMMER - UPHEAVAL. The floor attacks, and it attacks where THEY are standing.

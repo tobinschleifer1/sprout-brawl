@@ -51,3 +51,21 @@ export function dangerShapes(x, y, h, k, frame) {
   }
   return out;
 }
+
+// The bullwhip's mark (CRACK, whip.js): a gold crack-sigil over the head of the fighter its tip
+// marked, so everyone can see the next tip on them will crack - blinking through its last second.
+// `left` is frames until it fades. ['r', x, y, w, h, colour, alpha], world units, y up.
+export const MARK = { lift: 1.0, blinkFrom: 60 };
+export function markShapes(x, y, h, left, frame) {
+  const out = [];
+  if (!(left > 0)) return out;
+  const a = left < MARK.blinkFrom && Math.floor(frame / 4) % 2 === 1 ? 0.35 : 1;
+  const cx = x, cy = y + h + MARK.lift;
+  const s = 0.45 + 0.06 * Math.sin(frame * 0.3);
+  for (const [colour, pad] of [['#120E16', 0.1], ['#FFD25A', 0]]) {
+    out.push(['r', cx - 0.11 - pad, cy - s - pad, 0.22 + 2 * pad, 2 * s + 2 * pad, colour, a]);
+    out.push(['r', cx - s - pad, cy - 0.11 - pad, 2 * s + 2 * pad, 0.22 + 2 * pad, colour, a]);
+  }
+  out.push(['r', cx - 0.08, cy - 0.08, 0.16, 0.16, '#FFFFFF', a]);
+  return out;
+}

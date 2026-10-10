@@ -105,6 +105,17 @@ export function spawnEffect(fx, e, glow, rand, height = () => 5) {
     case 'movestart':
       if (e.heavy) ring(e.x, e.y + height(e.fighter) * 0.2, GLINT.r, GLINT.life, '#FFF6C8', true, PI / 4);
       break;
+    // The bullwhip (CRACK): a tip that marks rings gold where it landed; a crack on a marked foe
+    // is the loudest light hit in the game - a white snap, gold sparks, a spiked ring, a jolt.
+    case 'crackmark': push(e.x, e.y, 5, '#FFD25A', 12, 0.24, 0.18); ring(e.x, e.y, 1.3, 0.28, '#FFD25A', false, 0); break;
+    case 'crack':
+      push(e.x, e.y, 12, '#FFFFFF', 26, 0.3, 0.24); push(e.x, e.y, 10, '#FFD25A', 20, 0.36, 0.22);
+      ring(e.x, e.y, 2.4, 0.3, '#FFE6A8', true, PI / 6); shake(0.45); break;
+    // Storm Lash: every crack on the dome sparks; the last, out in front, snaps like a crack.
+    case 'lash':
+      push(e.x, e.y, e.last ? 16 : 4, e.last ? '#FFFFFF' : '#FFD25A', e.last ? 28 : 12, 0.22, e.last ? 0.3 : 0.16);
+      if (e.last) { ring(e.x, e.y, 3.4, 0.34, '#FFE6A8', true, PI / 6); shake(0.9); }
+      break;
     case 'soulescape': push(e.x, e.y, 12, '#FFFFFF', 24, 0.35, 0.26); break;
     case 'crater':
       // rock and light thrown out of the floor where the greatsword landed

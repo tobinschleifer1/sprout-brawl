@@ -174,6 +174,7 @@ lune run tests/match-parity
 lune run tests/drops-parity
 lune run tests/drop-parity
 lune run tests/danger-parity
+lune run tests/whip-view
 lune run tests/drops-client
 echo "== parity: Ai vs web/src/engine/ai.js =="
 lune run tests/ai-parity

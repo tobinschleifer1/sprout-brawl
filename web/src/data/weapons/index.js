@@ -10,10 +10,11 @@ import longbow from './longbow.js';
 import flail from './flail.js';
 import shield from './shield.js';
 import daggers from './daggers.js';
+import whip from './whip.js';
 import fists from './fists.js';
 
 export const WEAPONS = [sword, scythe, blasters, grimoire, axe, pike,
-  gauntlets, hammer, longbow, flail, shield, daggers];
+  gauntlets, hammer, longbow, flail, shield, daggers, whip];
 export const WEAPON_BY_ID = Object.fromEntries(WEAPONS.map((w) => [w.id, w]));
 export const DEFAULT_WEAPON = sword;
 // What a fighter fights with holding neither of their two weapons (DROPS in config.js). Kept out

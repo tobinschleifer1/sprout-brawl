@@ -257,6 +257,24 @@ S.push({ name: 'light victim', stage: 'FoundryFloor', who: [['Classic', 'Sword']
 S.push({ name: 'multi-hit', stage: 'FoundryFloor', who: [['Classic', 'Daggers'], ['Noir', 'Sword']], at: [-1.2, 1.2],
   segments: [hold(4, {}), hold(1, { heavy: true, anyPress: true }), hold(90, {})] });
 
+// The bullwhip at its tip's distance (CRACK): jabs that mark, then crack, then mark again; the lash
+// point-blank, which does neither; a crack from a held-out tip on a foe walking in.
+S.push({ name: 'whip crack', stage: 'FoundryFloor', who: [['Classic', 'Whip'], ['Noir', 'Sword']], at: [-3.1, 3.1],
+  segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(40, {}), hold(1, { light: true, anyPress: true }), hold(40, {}),
+    hold(1, { light: true, anyPress: true }), hold(40, {}), hold(1, { x: 1, light: true, anyPress: true }), hold(60, {})] });
+// The mark fading on its own (four seconds), and wiped by a hit on the whip user: the tip after
+// either marks again rather than cracking.
+S.push({ name: 'whip mark fades', stage: 'FoundryFloor', who: [['Classic', 'Whip'], ['Noir', 'Sword']], at: [-3.1, 3.1],
+  segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(260, {}), hold(1, { light: true, anyPress: true }), hold(40, {})] });
+S.push({ name: 'whip mark wiped by a hit', stage: 'FoundryFloor', who: [['Classic', 'Whip'], ['Noir', 'Sword']], at: [-3.1, 3.1],
+  segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(30, {}),
+    { frames: 1, a: {}, b: { light: true, anyPress: true }, set: { 1: { x: -1.2, facing: -1 } } },
+    { frames: 30, a: {}, b: {}, set: { 1: { x: -1.2 } } },
+    { frames: 60, a: {}, b: {}, set: { 0: { x: -3.1, vx: 0 }, 1: { x: 3.1, vx: 0 } } },
+    hold(1, { light: true, anyPress: true }), hold(40, {})] });
+S.push({ name: 'whip lash point-blank', stage: 'FoundryFloor', who: [['Classic', 'Whip'], ['Noir', 'Sword']], at: [-1.1, 1.1],
+  segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(30, {}), hold(1, { light: true, anyPress: true }), hold(30, {})] });
+
 // a long free-for-all: both of them swinging at each other with no script beyond alternating
 S.push({ name: 'brawl', stage: 'FoundryFloor', who: [['Classic', 'Pike'], ['Noir', 'Gauntlets']], at: [-3, 3],
   segments: Array.from({ length: 14 }, (_, i) => hold(24,
@@ -437,7 +455,7 @@ S.push({ name: 'mine off a platform edge', stage: 'FoundryFloor',
 // per scenario - and `ult` is re-pressed periodically because Deadeye reads the buffer for each of
 // its three rounds.
 const ULT_RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
-  Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0 };
+  Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0, Whip: 7.2 };
 for (const [w, gap] of Object.entries(ULT_RANGE)) {
   // Aegis does nothing at all unless the opponent swings at it, and Exsanguinate needs the victim
   // to still be standing there to collect the marks it puts on.

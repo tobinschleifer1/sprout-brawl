@@ -10,7 +10,7 @@
 // scratch out of the simulation state.
 
 import { ultCinematic, ultOver, punch, glowShapes, bannerLayout } from './ultCinematic.js';
-import { dangerPercent, dangerLevel, dangerShapes } from './danger.js';
+import { dangerPercent, dangerLevel, dangerShapes, markShapes } from './danger.js';
 import { newEffects, spawnEffect, stepEffect, effectShapes, dragDirt, orbSparks, shieldHit, KILL_FLASH, KILL_FLASH_ALPHA } from './effects.js';
 import { shieldShapes } from './shield.js';
 import { TEAM_COLORS, TEAM_GLOW, TEAM_MARKER } from '../data/teams.js';
@@ -159,6 +159,12 @@ export class Renderer2D {
     for (const f of fighters) {
       if (!f.alive || f.state === 'ko' || f.state === 'respawn') continue;
       this._paintShapes(dangerShapes(f.x, f.y, f.h, dangerLevel(f.percent, dangerPercent(f.weight, match.stage.blast)), match.frame));
+    }
+    // The bullwhip's mark (CRACK) over whoever its tip marked: the next tip on them cracks.
+    for (const a of fighters) {
+      if (!a.mech || a.mech.id !== 'Crack' || a.mech.mark < 0) continue;
+      const v = fighters.find((f) => f.index === a.mech.mark);
+      if (v && v.alive) this._paintShapes(markShapes(v.x, v.y, v.h, a.mech.expires - a.frameCount, match.frame));
     }
     // Hazards a fighter is INSIDE — steam, dust, water jets — draw over them, so the fighter is
     // swallowed by the column rather than pasted on top of it.

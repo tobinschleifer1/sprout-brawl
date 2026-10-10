@@ -70,7 +70,7 @@ local KIND: { [string]: string } = {
 	crater = "slam", soulburst = "vortex", soulgrab = "vortex", snipe = "sniper", starfall = "starfall",
 	rundown = "rundown", upheaval = "upheaval", heartseeker = "pierce", anchorset = "anchor",
 	anchorsnap = "anchor", aegis = "reflect", aegisbreak = "reflect", bleedmark = "bleed",
-	exsanguinate = "bleed",
+	exsanguinate = "bleed", lash = "stormlash",
 }
 FxPlayer.KIND = KIND
 
@@ -106,7 +106,7 @@ end
 -- ------------------------------------------------------------------ hits ----
 -- How each weapon's hits look: blades cut, heavy things crunch, points pierce, magic bursts.
 FxPlayer.CLASS = {
-	Sword = "slash", Axe = "slash", Scythe = "slash", Daggers = "slash",
+	Sword = "slash", Axe = "slash", Scythe = "slash", Daggers = "slash", Whip = "slash",
 	Hammer = "blunt", Gauntlets = "blunt", Flail = "blunt", Shield = "blunt",
 	Pike = "pierce", Longbow = "pierce", Blasters = "pierce",
 	Grimoire = "magic",
@@ -309,6 +309,19 @@ function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolea
 		else
 			add(P, "pop", x, y, 3.6, 0.2, ramp, { rot = (e.step or 0) * 0.7 })
 			add(P, "ring", x, y, 4, 0.2, ramp)
+		end
+	elseif t == "lash" then
+		-- STORM LASH: every crack on the dome snaps - a bolt where the tip breaks the air - and the
+		-- last, out in front, bursts like a thunderclap.
+		local ramp = glow or "gold"
+		if e.last then
+			add(P, "burst", x, y, 6.5, 0.42, ramp)
+			add(P, "ring", x, y, 9, 0.34, ramp)
+			add(P, "bolt", x, y, 4.6, 0.26, ramp, { seed = P.seed })
+			flash(P, 0.22, glow)
+		else
+			add(P, "bolt", x, y, 2.4, 0.16, ramp, { seed = P.seed + (e.step or 0) })
+			add(P, "pop", x, y, 2.2, 0.14, ramp, { rot = (e.step or 0) * 0.5 })
 		end
 	elseif t == "upheaval" then
 		local ramp = glow or "fire"

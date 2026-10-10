@@ -94,6 +94,9 @@ export class Fighter {
       case 'Brace': return { id: 'Brace', guardFrames: 0, ready: false };
       case 'Network': return { id: 'Network' };
       case 'Chill': return { id: 'Chill' };
+      // CRACK (the whip): the fighter its tip last marked, and the frameCount the mark lasts until.
+      // An end frame rather than a countdown, so it does not change every frame on the wire.
+      case 'Crack': return { id: 'Crack', mark: -1, expires: 0 };
       default: return { id: m.id };
     }
   }
@@ -206,6 +209,7 @@ export class Fighter {
     if (this.mech.id === 'Surge') { this.mech.hits = []; this.mech.surged = false; this.mech.timer = 0; }
     if (this.mech.id === 'Draw') { this.mech.draw = 0; this.mech.ready = false; }
     if (this.mech.id === 'Snare') { this.mech.snared = null; this.mech.timer = 0; this.mech.ready = false; }
+    if (this.mech.id === 'Crack') { this.mech.mark = -1; this.mech.expires = 0; }
     this.item = null;
     this.events = [];
   }
@@ -907,6 +911,7 @@ export class Fighter {
     // these mechanics is a reward for pressure, and taking a hit is the opposite of pressure.
     if (this.mech.id === 'Surge') { this.mech.hits = []; this.mech.surged = false; }
     if (this.mech.id === 'Draw') { this.mech.draw = 0; this.mech.ready = false; }
+    if (this.mech.id === 'Crack') { this.mech.mark = -1; this.mech.expires = 0; }
     this.move = null; this.hold = null; this.tether = null; this.la = null;
     if (hit.trip && this.percent < hit.trip && this.onGround) { this.setState('knockdown'); this.sf = 6; this.vx = 0; return; }
     let launch = hit.launch;
@@ -1331,6 +1336,9 @@ export class Fighter {
         }
       }
       m.ready = !!m.snared;
+    } else if (m.id === 'Crack') {
+      // the mark fades on its own
+      if (m.mark >= 0 && this.frameCount >= m.expires) { m.mark = -1; m.expires = 0; }
     } else if (m.id === 'Brace') {
       // Banked only while actually holding shield, and dropped the moment the shield does. A pike
       // user who wants the bonus has to stand still and take the pressure to get it.
@@ -1354,6 +1362,7 @@ export class Fighter {
       case 'Surge': return { label: m.surged ? (M.label || 'Surge') : (M.label || 'Surge'), value: m.surged ? 1 : (m.hits || []).length / M.hitsRequired, segments: M.hitsRequired, filled: m.surged ? M.hitsRequired : (m.hits || []).length, active: !!m.surged };
       case 'Draw': return { label: m.ready ? 'Drawn' : 'Draw', value: Math.min(1, (m.draw || 0) / M.drawFrames), active: !!m.ready };
       case 'Snare': return { label: m.snared ? 'Snared' : 'Chain', value: m.snared ? Math.min(1, m.timer / M.holdFrames) : 0, active: !!m.snared };
+      case 'Crack': return { label: m.mark >= 0 ? 'Marked' : 'Crack', value: m.mark >= 0 ? Math.min(1, (m.expires - this.frameCount) / M.markFrames) : 0, active: m.mark >= 0 };
       case 'Network': return { label: 'Nodes', value: 0, segments: M.maxNodes, filled: 0, needsNodes: true };
       case 'Tangle': return { label: 'Tangle', value: 0, passive: true };
       case 'Chill': return { label: 'Chill', value: 0, passive: true };

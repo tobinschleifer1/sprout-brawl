@@ -119,7 +119,9 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   // Distance matters: a gun's muzzle sits 2.7 studs out, so point-blank is exactly where its
   // bullets spawn PAST you. Each ultimate is tested at the range it is meant to be used at.
   const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
-    Gauntlets: 4.0, Hammer: 4.0, Longbow: 10, Flail: 5.0, Shield: 3.0, Daggers: 3.5 };
+    Gauntlets: 4.0, Hammer: 4.0, Longbow: 10, Flail: 5.0, Shield: 3.0, Daggers: 3.5,
+    // Storm Lash: on the dome's edge, its tip's radius
+    Whip: 7.2 };
   for (const w of WEAPONS) {
     if (!w.moves.Ultimate) continue;
     const ctx = duel(w.id);
@@ -209,7 +211,7 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   // Each ultimate is measured at the range it is meant to be used at; a weapon missing from
   // this map positioned its victim at NaN and silently measured a launch of zero.
   const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
-    Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0 };
+    Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0, Whip: 7.2 };
   // And the warning above is not decoration: six weapons were added at once and every one of them
   // reported a launch of zero until it appeared here. The check below now fails loudly on a weapon
   // this map does not know about, rather than quietly measuring NaN.
@@ -338,7 +340,7 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
 // edge, which every horizontal launch does eventually.
 {
   const RANGE_FOR = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
-    Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0 };
+    Gauntlets: 3.0, Hammer: 4.0, Longbow: 9, Flail: 5.0, Shield: 3.0, Daggers: 3.0, Whip: 7.2 };
 
   function ultKills(weaponId, percent) {
     const m = makeMatch({ loadouts: [['Classic', weaponId], ['Noir', 'Sword']], stocks: 3 });
@@ -379,7 +381,7 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
   // resolve through positioning (whether the third round still reaches, which column catches them)
   // and land a few points either side of a rerun.
   const EXPECT = { Sword: 134, Scythe: 161, Blasters: 131, Grimoire: 191, Axe: 155, Pike: 136,
-    Gauntlets: 213, Hammer: 146, Longbow: 133, Flail: 148, Shield: 193, Daggers: 142 };
+    Gauntlets: 213, Hammer: 146, Longbow: 133, Flail: 148, Shield: 193, Daggers: 142, Whip: 148 };
   // An ultimate is the biggest commitment in the game and it is allowed to be the thing that
   // closes a stock. It is not allowed to be a contact kill: before this floor existed, Deadeye
   // killed from 4%, Heartseeker from 21% and Exsanguinate from 24%, which meant twenty landed
@@ -393,7 +395,7 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     if (k === null) bad.push(`${w.id} cannot KO at all`);
     else if (k < FLOOR || k > CEILING) bad.push(`${w.id} kills at ${k}%, outside ${FLOOR}-${CEILING}`);
     else if (want != null && Math.abs(k - want) > 18) bad.push(`${w.id} kills at ${k}%, pinned at ${want}%`);
-    else if (want == null) bad.push(`${w.id} has no pinned kill percent`);
+    else if (want == null) bad.push(`${w.id} has no pinned kill percent (measured ${k}%)`);
   }
   check('every ultimate kills late, and every one of them kills', bad.length === 0,
     bad.length ? bad.join('; ') : rows.join(', '));
@@ -444,7 +446,9 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
     Gauntlets: [2.5, 4, 6], Hammer: [3, 5, 8], Longbow: [6, 12, 20],
     // Exsanguinate marks at close range only - its window hitbox reaches 4.8 studs, so probing at
     // 6 measured a miss and called it a clean block.
-    Flail: [3, 6, 10], Shield: [2.5, 4, 7], Daggers: [2.5, 3.5, 4.5] };
+    Flail: [3, 6, 10], Shield: [2.5, 4, 7], Daggers: [2.5, 3.5, 4.5],
+    // Storm Lash's dome: just inside its edge, on it, just outside it
+    Whip: [5.6, 7.2, 8.8] };
   // Second per-weapon map in this file that a new weapon has to be added to. Missing from the one
   // above, a weapon measured a launch of NaN; missing from this one it threw outright. Both now
   // say so by name instead.
@@ -519,7 +523,9 @@ if (WEAPONS.some((w) => w.moves.Ultimate)) {
 // at stops mattering, and the scaling ratio collapses.
 {
   const RANGE = { Sword: 3.0, Scythe: 4.0, Blasters: 12, Grimoire: 9, Axe: 4.0, Pike: 10,
-    Gauntlets: 4.0, Hammer: 4.0, Longbow: 10, Flail: 5.0, Shield: 3.0, Daggers: 3.5 };
+    Gauntlets: 4.0, Hammer: 4.0, Longbow: 10, Flail: 5.0, Shield: 3.0, Daggers: 3.5,
+    // Storm Lash: on the dome's edge, its tip's radius
+    Whip: 7.2 };
   const rows = [], bad = [];
   for (const w of WEAPONS) {
     if (!w.moves.Ultimate) continue;

@@ -56,4 +56,23 @@ function Danger.shapes(x: number, y: number, h: number, k: number, frame: number
 	return out
 end
 
+-- The bullwhip's mark (danger.js markShapes): a gold crack-sigil over the head of the fighter its
+-- tip marked, blinking through its last second. `left` is frames until it fades.
+Danger.MARK = { lift = 1.0, blinkFrom = 60 }
+function Danger.markShapes(x: number, y: number, h: number, left: number, frame: number): { any }
+	local out: { any } = {}
+	if not (left > 0) then return out end
+	local M = Danger.MARK
+	local a = if left < M.blinkFrom and math.floor(frame / 4) % 2 == 1 then 0.35 else 1
+	local cx, cy = x, y + h + M.lift
+	local s = 0.45 + 0.06 * math.sin(frame * 0.3)
+	for _, layer in { { colour = "#120E16", pad = 0.1 }, { colour = "#FFD25A", pad = 0 } } do
+		local colour, pad = layer.colour, layer.pad
+		table.insert(out, shape("r", cx - 0.11 - pad, cy - s - pad, 0.22 + 2 * pad, 2 * s + 2 * pad, colour, a))
+		table.insert(out, shape("r", cx - s - pad, cy - 0.11 - pad, 2 * s + 2 * pad, 0.22 + 2 * pad, colour, a))
+	end
+	table.insert(out, shape("r", cx - 0.08, cy - 0.08, 0.16, 0.16, "#FFFFFF", a))
+	return out
+end
+
 return Danger

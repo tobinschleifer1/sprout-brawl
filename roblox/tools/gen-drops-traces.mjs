@@ -136,7 +136,7 @@ S.push({ name: 'drops fall, cap and fade', stage: 'FoundryFloor', seed: 11, who:
 
 // 5. Every weapon's own throw (phase 2): armed, thrown at a fighter 5 studs away with another
 //    behind them - the pike goes through both, the shield skips off the floor, the rest land.
-for (const w of ['Sword', 'Scythe', 'Blasters', 'Grimoire', 'Axe', 'Pike', 'Gauntlets', 'Hammer', 'Longbow', 'Flail', 'Shield', 'Daggers']) {
+for (const w of ['Sword', 'Scythe', 'Blasters', 'Grimoire', 'Axe', 'Pike', 'Gauntlets', 'Hammer', 'Longbow', 'Flail', 'Shield', 'Daggers', 'Whip']) {
   const script = [], ops = {};
   const at = (f, k, inp) => { (script[f] ||= [])[k] = inp; };
   for (let f = 0; f < 6; f++) for (let k = 0; k < 3; k++) at(f + 212, k, { anyPress: true });

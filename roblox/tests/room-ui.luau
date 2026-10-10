@@ -72,7 +72,7 @@ assert(#panel.room.slots==6 and not panel.room.canStart)
 assert(not panel.gui.Enabled, "entering a room must leave the world walkable")
 panel:openStation("Weapons")
 assert(panel.gui.Enabled and not panel.ready.Visible and not panel.start.Visible, "weapon station is focused, not a universal setup HUD")
-assert(#panel.previews==12,"all twelve weapons have actual artwork")
+assert(#panel.previews==#Loader.load("Data/Weapons").LIST,"every weapon has actual artwork")
 local shapes={}
 local function primitive(c, ...)
  for _, v in {...} do if type(v)=="number" then assert(v==v and math.abs(v)<math.huge,"finite weapon image") end end
@@ -180,7 +180,7 @@ panel:update(model:view(room),2)
 assert(not panel.gui.Enabled, "background room update must not reopen a closed station")
 local n=0
 for _ in shapes do n+=1 end
-assert(n==12)
+assert(n==#Loader.load("Data/Weapons").LIST, "every weapon's preview drew")
 -- The notice: a card of its own (not the room panel) - waiting has no button, a problem has OK,
 -- which closes it; opening a station afterwards shows the panel, not the notice.
 do

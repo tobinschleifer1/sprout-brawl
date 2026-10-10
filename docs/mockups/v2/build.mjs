@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+const native=require('@napi-rs/canvas');
+import {fileURLToPath} from 'node:url';
+const dir=path.dirname(fileURLToPath(import.meta.url));
+native.GlobalFonts.registerFromPath(path.join(dir,'fonts/LuckiestGuy-Regular.ttf'),'Luckiest Guy');
+const convert=svg=>svg.replace(/<text[^>]*font-family="Luckiest Guy[^>]*>[\s\S]*?<\/text>/g, t=>{const wrapped='<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900">'+t+'</svg>';const result=native.convertSVGTextToPath(wrapped).toString();return result.match(/<svg[^>]*>([\s\S]*)<\/svg>/)[1]});
+const art=JSON.parse(fs.readFileSync(path.join(dir,'../live-art-2026-10-06.json'),'utf8'));
+art.avatar=JSON.parse(fs.readFileSync(path.join(dir,'avatar-options.json'),'utf8'));
+art.social=JSON.parse(fs.readFileSync(path.join(dir,'social-data.json'),'utf8'));
+const source=fs.readFileSync(path.join(dir,'design.js'),'utf8');
+const font=fs.readFileSync(path.join(dir,'fonts/LuckiestGuy-Regular.ttf')).toString('base64');
+const fontCSS=`@font-face{font-family:'Luckiest Guy';src:url(data:font/ttf;base64,${font}) format('truetype');font-weight:400 900;}`;
+const context=vm.createContext({ART:art,FONT_CSS:fontCSS});vm.runInContext(source,context);const D=context.BlockfallDesign;
+const svgdir=path.join(dir,'screens');fs.mkdirSync(svgdir,{recursive:true});
+for(const [view] of D.VIEWS){const svg=D.render({...D.initial,view});if(/undefined|NaN/.test(svg))throw Error(view);fs.writeFileSync(path.join(svgdir,view+'.svg'),convert(svg))}
+for(const view of ['pick','map-vote','rules-vote','studio','fight-live','results'])fs.writeFileSync(path.join(svgdir,view+'-phone.svg'),convert(D.render({...D.initial,view,mobile:true})));
+for(const view of ['pick','fight-live','results'])fs.writeFileSync(path.join(svgdir,view+'-3v3.svg'),convert(D.render({...D.initial,view,format:'3v3'})));
+for(const view of ['pick','fight-live','results'])fs.writeFileSync(path.join(svgdir,view+'-3v3-phone.svg'),convert(D.render({...D.initial,view,format:'3v3',mobile:true})));
+const shell=fs.readFileSync(path.join(dir,'shell.html'),'utf8');
+fs.writeFileSync(path.join(dir,'../blockfall-live-ui.html'),shell.replace('/* DESIGN_SOURCE */',`const ART=${JSON.stringify(art)};const FONT_CSS=${JSON.stringify(fontCSS)};\n${source}`));
+console.log(`Built ${D.VIEWS.length} screen states, 9 phone boards, 3 team boards and standalone prototype`);

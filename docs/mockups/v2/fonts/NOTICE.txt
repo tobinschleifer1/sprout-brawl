@@ -1,0 +1,5 @@
+Luckiest Guy Regular
+Copyright (c) 2010 by Brian J. Bonislawsky DBA Astigmatic (AOETI).
+Licensed under the Apache License, Version 2.0. See APACHE-2.0.txt.
+Unmodified font copied from the installed Roblox Studio resources for this design study.
+Roblox implementation should use the existing Enum.Font.LuckiestGuy token.

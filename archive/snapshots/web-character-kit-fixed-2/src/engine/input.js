@@ -1,0 +1,122 @@
+// Turns keyboard and gamepad state into one input frame per player source, once per sim frame.
+// Frame shape: { x, y, jump, light, heavy, dodge, guard, grab, taunt, pickup, ult, jumpHeld, guardHeld, heavyHeld, lightHeld, downTap, anyPress }
+// "jump/light/..." are press edges for this frame; "*Held" are levels.
+
+const KB1 = {
+  left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS'],
+  jump: ['Space', 'KeyW'], light: ['KeyJ'], heavy: ['KeyK'], dodge: ['KeyL', 'ShiftLeft'],
+  guard: ['KeyI', 'ControlLeft'], grab: ['KeyU'], taunt: ['KeyT'], ult: ['KeyO'], pickup: ['KeyP'],
+};
+const KB1_ARROWS = { left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'], jump: ['ArrowUp'] };
+const KB2 = {
+  left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
+  jump: ['ArrowUp', 'Enter'], light: ['Comma', 'Numpad4'], heavy: ['Period', 'Numpad5'], dodge: ['Slash', 'Numpad6'],
+  guard: ['ShiftRight', 'Numpad8'], grab: ['KeyM', 'Numpad7'], taunt: ['KeyN', 'Numpad3'], ult: ['ControlRight', 'Numpad9'], pickup: ['BracketRight', 'NumpadDecimal'],
+};
+
+export const BINDINGS_TEXT = {
+  kb1: 'Move WASD · Jump Space/W · Light J · Heavy K · Dodge L · Guard I · Grab U · Pick up P · Taunt T · Ultimate O',
+  kb2: 'Move Arrows · Jump Up/Enter · Light , · Heavy . · Dodge / · Guard RShift · Grab M · Pick up ] · Taunt N · Ultimate RCtrl (numpad also supported)',
+  pad: 'Move Stick · Jump A · Light X · Heavy Y · Dodge B · Guard RB · Grab LB · Pick up back · Ultimate stick-click',
+};
+
+const EMPTY = () => ({ x: 0, y: 0, jump: false, light: false, heavy: false, dodge: false, guard: false, grab: false, taunt: false, pickup: false, ult: false,
+  jumpHeld: false, guardHeld: false, heavyHeld: false, lightHeld: false, downTap: false, anyPress: false });
+
+export const isTextEntry = (target) => !!target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+
+// Global shortcuts must not consume either player's combat buttons.
+export function matchShortcut(event, kb2Active = false) {
+  if (event.repeat || isTextEntry(event.target)) return null;
+  if (event.code === 'Escape') return 'pause';
+  if (event.code === 'KeyM' && !kb2Active) return 'mute';
+  return null;
+}
+
+export class InputManager {
+  constructor() {
+    this.keys = new Set();
+    this.presses = new Set(); // retain complete taps between simulation samples
+    this.kb2Active = false;
+    this.prevLevels = new Map(); // source -> level snapshot
+    this.frames = new Map();
+    this.padPrev = new Map();
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat || isTextEntry(e.target)) return;
+      this.keys.add(e.code);
+      this.presses.add(e.code);
+      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'Tab', 'ControlRight'].includes(e.code)) e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('blur', () => { this.keys.clear(); this.presses.clear(); });
+  }
+
+  _levelsFromKeys(map, extra) {
+    const down = (list) => list.some((k) => this.keys.has(k));
+    const l = {
+      left: down(map.left) || (extra && down(extra.left)),
+      right: down(map.right) || (extra && down(extra.right)),
+      up: down(map.up) || (extra && down(extra.up)),
+      down: down(map.down) || (extra && down(extra.down)),
+      jump: down(map.jump) || (extra && down(extra.jump)),
+      light: down(map.light), heavy: down(map.heavy), dodge: down(map.dodge),
+      guard: down(map.guard), grab: down(map.grab), taunt: down(map.taunt), pickup: down(map.pickup),
+      ult: map.ult ? down(map.ult) : false,
+    };
+    l.pressed = {};
+    for (const [action, keys] of Object.entries(map)) {
+      l.pressed[action] = [...keys, ...(extra?.[action] || [])].some(k => this.presses.has(k));
+    }
+    return l;
+  }
+
+  _levelsFromPad(index) {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const p = pads[index];
+    if (!p) return null;
+    const b = (i) => !!(p.buttons[i] && p.buttons[i].pressed);
+    const ax = p.axes[0] || 0, ay = -(p.axes[1] || 0);
+    const dead = 0.25;
+    return {
+      left: ax < -dead || b(14), right: ax > dead || b(15), up: ay > dead || b(12), down: ay < -dead || b(13),
+      ax: Math.abs(ax) > dead ? ax : 0, ay: Math.abs(ay) > dead ? ay : 0,
+      jump: b(0), light: b(2), heavy: b(3), dodge: b(1), guard: b(5) || b(7), grab: b(4) || b(6), taunt: b(9), pickup: b(8),
+      ult: b(10) || b(11),
+    };
+  }
+
+  _build(source, levels) {
+    const prev = this.prevLevels.get(source) || {};
+    const pressed = levels.pressed || {};
+    const edge = (k) => !!pressed[k] || (!!levels[k] && !prev[k]);
+    const f = EMPTY();
+    f.x = levels.ax !== undefined && levels.ax !== 0 ? levels.ax : (levels.right ? 1 : 0) - (levels.left ? 1 : 0);
+    f.y = levels.ay !== undefined && levels.ay !== 0 ? levels.ay : (levels.up ? 1 : 0) - (levels.down ? 1 : 0);
+    f.jump = edge('jump'); f.light = edge('light'); f.heavy = edge('heavy'); f.dodge = edge('dodge');
+    f.guard = edge('guard'); f.grab = edge('grab'); f.taunt = edge('taunt'); f.ult = edge('ult'); f.pickup = edge('pickup');
+    f.downTap = edge('down');
+    f.jumpHeld = !!levels.jump || !!pressed.jump; f.guardHeld = !!levels.guard || !!pressed.guard;
+    f.heavyHeld = !!levels.heavy || !!pressed.heavy; f.lightHeld = !!levels.light || !!pressed.light;
+    f.anyPress = f.jump || f.light || f.heavy || f.dodge || f.guard || f.grab || f.ult || f.pickup;
+    this.prevLevels.set(source, { ...levels });
+    return f;
+  }
+
+  poll() {
+    this.frames.set('kb1', this._build('kb1', this._levelsFromKeys(KB1, this.kb2Active ? null : KB1_ARROWS)));
+    this.frames.set('kb2', this._build('kb2', this._levelsFromKeys(KB2)));
+    this.presses.clear();
+    for (let i = 0; i < 4; i++) {
+      const lv = this._levelsFromPad(i);
+      this.frames.set('pad' + i, this._build('pad' + i, lv || {}));
+    }
+  }
+
+  get(source) {
+    return this.frames.get(source) || EMPTY();
+  }
+
+  isDown(code) { return this.keys.has(code); }
+}
+
+export const emptyFrame = EMPTY;

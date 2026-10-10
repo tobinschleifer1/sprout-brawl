@@ -1,0 +1,38 @@
+ROBLOX SOLID CLOTHING — RECOMMENDED UPLOAD ORDER
+
+Budget assumption
+- 80 Robux upload fee + 10 Robux publishing advance = 90 Robux per item.
+- 38 items cost approximately 3,420 Robux.
+- A 3,500 Robux balance leaves approximately 80 Robux.
+- Membership cost is not included.
+
+Recommended order (one shirt and one pants file per color)
+ 1. Black
+ 2. White
+ 3. Charcoal
+ 4. Gray
+ 5. Navy
+ 6. Dark Gray
+ 7. Light Gray
+ 8. Cream
+ 9. Beige
+10. Denim Blue
+11. Brown
+12. Tan
+13. Forest Green
+14. Olive
+15. Burgundy
+16. Royal Blue
+17. Red
+18. Dusty Pink
+19. Purple
+
+Why this order
+- Neutrals combine with the widest range of avatars, accessories, and layered outfits.
+- Navy, denim, brown, beige, and green cover common casual and uniform palettes.
+- Red, pink, and purple add variety after the most reusable basics are covered.
+
+Important
+- This palette is selected for versatility; sales are not guaranteed.
+- Test each file in Roblox Studio before paying an upload fee.
+- Check Roblox's current fees immediately before uploading because they can change.

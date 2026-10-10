@@ -1,0 +1,5 @@
+const fs=require('node:fs'),path=require('node:path');
+const sharp=require('sharp');
+const dir=__dirname;
+async function main(){const selected=['pick','map-vote','studio','fight-live','bazaar','results','pick-phone','fight-live-3v3','results-3v3','studio-phone','rules-vote-phone','pick-3v3-phone','fight-live-3v3-phone','results-3v3-phone'];fs.mkdirSync(path.join(dir,'previews'),{recursive:true});for(const name of selected)await sharp(path.join(dir,'screens',name+'.svg')).png().toFile(path.join(dir,'previews',name+'.png'));const tiles=[];const names=['pick','map-vote','studio','fight-live','bazaar','results'];for(let i=0;i<names.length;i++){const input=await sharp(path.join(dir,'previews',names[i]+'.png')).resize(720,405).toBuffer();tiles.push({input,left:(i%2)*740+20,top:Math.floor(i/2)*435+20})}await sharp({create:{width:1500,height:1325,channels:4,background:'#080f1f'}}).composite(tiles).png().toFile(path.join(dir,'previews','design-board.png'));console.log('Rendered 14 native SVG previews and a six-screen design board')}
+main().catch(e=>{console.error(e);process.exit(1)});

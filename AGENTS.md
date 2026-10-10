@@ -114,3 +114,23 @@ port has already hit — Luau's 1-indexed arrays, `math.round` vs `Math.round`, 
 Explain **why**, not what — the diff already says what. When a change fixes something found by
 playing, say what the symptom was and what the cause turned out to be; when an investigation ruled
 things out, say what was ruled out, because that is what stops the next person re-checking it.
+
+## Branches
+
+`main` is the latest working game: every commit on it passes `check.sh` and `npm test`. Nothing is
+committed to `main` directly.
+
+- **New work gets its own branch** off `main`, named for what it is: `feature/<name>` for game
+  work (`feature/weapon-chakram`), `fix/<name>` for a bug, `chore/<name>` for repo upkeep. Push it
+  to GitHub as you go.
+- **It merges into `main` when its checks pass** - both suites, on the branch, with `main` merged
+  into it first if `main` has moved. A fast-forward when it can be one. The branch is then deleted;
+  its commits are in `main`.
+- **Old work is archived, never deleted.** A branch that is abandoned or superseded rather than
+  merged is kept: as an `archive/<name>` branch if it has commits nothing else holds, or as an
+  annotated `archive/<name>` tag on its last commit. `archive/main-wip-2026-10` is the lobby work
+  that sat uncommitted in the main folder before the revamp.
+- **Agents work in worktrees** (`.claude/worktrees/`, ignored), one per branch, so the main folder
+  stays on `main`. Remove a worktree once its branch is merged.
+- **Loose files** do not live in the project root: source art in `assets/`, reference snapshots in
+  `archive/`, docs in `docs/`. Zips are ignored.

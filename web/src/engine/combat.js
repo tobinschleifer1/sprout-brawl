@@ -158,11 +158,12 @@ export class Combat {
     const direct = !opts.projectile && !opts.summon;
     let damage = (hb && hb.damage != null ? hb.damage : move.damage) + (direct ? (attacker.bonusDamage || 0) : 0);
     // CRACK (the whip): the tip landing again on the fighter it marked cracks - more damage, a
-    // harder launch - and spends the mark (set below, once the hit has landed).
+    // harder launch - and spends the mark. Only a hit that LANDS cracks: the bonus is added below,
+    // past the shield and armour branches. Added here, a blocked tip took the bonus and kept the
+    // mark, so a marked foe's shield could be cracked again and again (found by Codex's review).
     const crackM = direct && hb && hb.tip && attacker.mech.id === 'Crack' ? attacker.char.mechanic : null;
     // (the mark's expiry is the fighter's: _mechanicsFrame clears it, before combat runs that frame)
     const cracks = !!crackM && attacker.mech.mark === victim.index;
-    if (cracks) damage += crackM.bonusDamage;
     // Staling (STALE): worked out once per swing - a multi-hit move's later hits are not staled by
     // its own first hit - and from the moves landed before this one.
     const stales = (direct || opts.projectile) && move.id !== 'Ultimate' && move.kind !== 'grab';
@@ -258,6 +259,7 @@ export class Combat {
       this.emit({ type: 'chip', x: cx, y: cy, damage });
       return true;
     }
+    if (cracks) damage += crackM.bonusDamage;
     // One more hit in this combo - once per swing, so a multi-hit move counts as the one attack it
     // is - and the damage it lands scaled by how deep into the combo it is. The launch below is
     // worked out from the UNSCALED damage: scaling stops a long string from piling on percent, it

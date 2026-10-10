@@ -112,6 +112,32 @@ function flick(m, v, gap, opts = {}) {
   check('being hit wipes it', a.mech.mark === -1, `after a hit on the whip user: mark ${a.mech.mark}`);
 }
 
+// ---- only a landed tip cracks ----
+{
+  // A marked foe shielding a tip: the block is the same as on an unmarked foe - no bonus shield
+  // damage - and the mark is still there for a tip that lands. (Codex's review found a blocked tip
+  // taking the bonus and keeping the mark, so a shield could be cracked over and over.)
+  const shieldAfter = (marked) => {
+    const m = duel(); const a = m.fighters[0], v = m.fighters[1];
+    if (marked) { a.mech.mark = v.index; a.mech.expires = a.frameCount + 200; }
+    const r = flick(m, v, 6.2, { shield: true });
+    return { shield: v.shield, types: r.types, mark: a.mech.mark, v };
+  };
+  const plain = shieldAfter(false), marked = shieldAfter(true);
+  check('a blocked tip on a marked foe neither cracks nor spends the mark', plain.types.includes('block') && marked.types.includes('block')
+      && Math.abs(plain.shield - marked.shield) < 1e-9 && marked.mark === marked.v.index && !marked.types.includes('crack'),
+    `shield left: ${plain.shield.toFixed(2)} unmarked, ${marked.shield.toFixed(2)} marked; mark ${marked.mark === marked.v.index ? 'kept' : 'lost'}`);
+  // A light the whip user armours through (a heavy's startup) is not a hit on them: the mark stays,
+  // as every other mechanic's state does (Momentum, Surge, Draw are wiped by applyHit alone).
+  const m = duel(); const a = m.fighters[0], v = m.fighters[1];
+  v.x = a.x + 2; a.mech.mark = v.index; a.mech.expires = a.frameCount + 200;
+  a.startMove('SigSide');
+  m.combat.events.length = 0;
+  v.moveSerial++; m.combat.resolveHit(v, a, v.char.moves.LightNeutral1, null, null, {});
+  check('a hit the whip user armours through keeps their mark', m.combat.events.some((e) => e.type === 'armor') && a.mech.mark === v.index,
+    `events ${m.combat.events.map((e) => e.type).join(',')}, mark ${a.mech.mark}`);
+}
+
 // ---- Storm Lash: a dome ----
 {
   const S = W.moves.Ultimate.stormlash;

@@ -8,7 +8,8 @@
 //
 // CRACK (the mechanic): a tip hit marks its victim for four seconds; the next tip hit on them
 // cracks for more damage and a harder launch, and spends the mark. Mixing ranges cannot cash it -
-// only the tip both marks and cracks.
+// only the tip both marks and cracks - and only a tip that LANDS: a shielded one does neither. Being
+// hit wipes the whip user's mark; a hit they armour through does not, like every other mechanic.
 //
 // Signature cash-outs. Both columns are MEASURED in the engine against a victim who spot-dodges on
 // their first actionable frame (web/test/combo.test.mjs); neither is derived from frame data.

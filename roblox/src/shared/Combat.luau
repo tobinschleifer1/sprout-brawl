@@ -254,7 +254,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 	-- the fighter's own (_mechanicsFrame clears it, before combat runs that frame).
 	local crackM = if direct and hb and hb.tip and attacker.mech.id == "Crack" then attacker.char.mechanic else nil
 	local cracks = crackM ~= nil and attacker.mech.mark == victim.index
-	if cracks then damage += crackM.bonusDamage end
+	-- (only a hit that lands cracks: the bonus is added past the shield and armour branches)
 	-- Staling (Config.STALE): once per swing, from the moves landed before this one.
 	local stales = (direct or opts.projectile) and move.id ~= "Ultimate" and move.kind ~= "grab"
 	local stale = if not stales then 1
@@ -377,6 +377,7 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		Combat.emit(self, { type = "chip", x = cx, y = cy, damage = damage })
 		return true
 	end
+	if cracks then damage += crackM.bonusDamage end
 
 	-- One more hit in this combo - once per swing, so a multi-hit move counts as the one attack it
 	-- is - and the damage it lands scaled by how deep into the combo it is. The launch below uses

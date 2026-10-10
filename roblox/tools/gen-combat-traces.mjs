@@ -272,6 +272,11 @@ S.push({ name: 'whip mark wiped by a hit', stage: 'FoundryFloor', who: [['Classi
     { frames: 30, a: {}, b: {}, set: { 1: { x: -1.2 } } },
     { frames: 60, a: {}, b: {}, set: { 0: { x: -3.1, vx: 0 }, 1: { x: 3.1, vx: 0 } } },
     hold(1, { light: true, anyPress: true }), hold(40, {})] });
+// A marked foe shielding the next tip: a block, no crack, the mark kept for a tip that lands.
+S.push({ name: 'whip tip into a marked shield', stage: 'FoundryFloor', who: [['Classic', 'Whip'], ['Noir', 'Sword']], at: [-3.1, 3.1],
+  segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(40, {}),
+    hold(40, {}, { guard: true, guardHeld: true, anyPress: true }), hold(1, { light: true, anyPress: true }, { guardHeld: true }),
+    hold(30, {}, { guardHeld: true }), hold(50, {}), hold(1, { light: true, anyPress: true }), hold(40, {})] });
 S.push({ name: 'whip lash point-blank', stage: 'FoundryFloor', who: [['Classic', 'Whip'], ['Noir', 'Sword']], at: [-1.1, 1.1],
   segments: [hold(4, {}), hold(1, { light: true, anyPress: true }), hold(30, {}), hold(1, { light: true, anyPress: true }), hold(30, {})] });
 

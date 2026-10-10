@@ -204,9 +204,9 @@ end
 -- bonus is left out: only a charged beam has one, and a beam is not a swing.)
 local function swingDamage(f: any, move: any, hb: any, victim: number): (number, number, boolean)
 	local damage = (if hb and hb.damage ~= nil then hb.damage else move.damage) + (f.bonusDamage or 0)
-	-- the bullwhip's tip on the fighter it marked cracks (Combat.resolveHit, CRACK)
+	-- the bullwhip's tip on the fighter it marked cracks (Combat.resolveHit, CRACK) - added after
+	-- staling, and only to a hit that lands (the caller adds it for a clean hit)
 	local cracks = hb and hb.tip and f.mech.id == "Crack" and f.mech.mark == victim
-	if cracks then damage += f.char.mechanic.bonusDamage end
 	local stale = 1
 	if move.id ~= "Ultimate" and move.kind ~= "grab" then
 		stale = if f.staleSerial == f.moveSerial then f.staleNow else Config.staleMul(f.staleMoves, move.id)
@@ -281,8 +281,12 @@ local function predictHits(self: any): { any }?
 					table.insert(out, c)
 					if not v.untouchable then
 						local move, hb = b.move, b.hb
-						local damage, stale, cracks = swingDamage(f, move, hb, v.index)
-						c.kind, c.move, c.hitlag, c.stale = outcome(v, move), move, Knockback.hitlag(damage, move.heavy), stale
+						local damage, stale, crackable = swingDamage(f, move, hb, v.index)
+						local kind = outcome(v, move)
+						-- a crack only on a clean hit: a blocked or armoured tip neither cracks nor spends the mark
+						local cracks = crackable and kind == "hit"
+						if cracks then damage += f.char.mechanic.bonusDamage end
+						c.kind, c.move, c.hitlag, c.stale = kind, move, Knockback.hitlag(damage, move.heavy), stale
 						c.tip, c.cracks = hb.tip == true, cracks
 						land(self, c)
 						-- the sparks: where the server puts them, as hard as the launch is likely to be

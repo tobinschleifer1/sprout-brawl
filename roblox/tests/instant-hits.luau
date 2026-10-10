@@ -425,6 +425,9 @@ local cases = {
 			local f = Input.emptyFrame(); f.light = true; f.anyPress = true
 			return f
 		end, nil, "hit,crackmark,hit,crack" },
+	-- a marked foe's shield: the tip is blocked - no crack, no crack's freeze, and the mark kept
+	{ "a whip tip into a marked foe's shield", "Whip", function(_, a, v) v.x = 6.2; v:setState("shield"); a.mech.mark = v.index; a.mech.expires = a.frameCount + 200 end,
+		tap({ light = true }), function(): any local f = Input.emptyFrame(); f.guardHeld = true; return f end, "block" },
 }
 local shown = {}
 for _, c in cases do

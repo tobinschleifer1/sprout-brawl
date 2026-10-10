@@ -69,7 +69,36 @@ export const PALETTE_LABELS = {
   glow: 'Highlight',
 };
 
-import { isKitCode, kitAvatar } from './avatarKit.js';
+import { isKitCode, kitAvatar, encodeKit, presetKit, kitPalette } from './avatarKit.js';
+
+// The six presets are KIT characters under their old ids (docs/briefs/character-rework-plan.md,
+// phase 1): every save, room, roster and test that says 'Classic' still resolves, and draws the kit's
+// richer parts in the preset's own colours and signature. Their legacy `features` stay as the
+// starting point the original creator (customAvatars.js, still the hand-drawing mode) copies from;
+// nothing draws them. Designed by GPT from the kit catalogue, checked against it part by part; then
+// compared with the old drawings side by side, and four colours moved closer to the old identity
+// (Ember's coral and Vapor's lavender heads - the kit has no orange or pink skin - Moss's hood
+// lifted off its face, Steel's cap grey).
+const LOOKS = {
+  Classic: { parts: {'head': 'block', 'ears': 'none', 'eyes': 'dot', 'brows': 'none', 'nose': 'none', 'hair': 'bald', 'top': 'jersey', 'bottom': 'jeans', 'shoes': 'sneakers'},
+    colours: {'skin': 12, 'hair': 0, 'eyes': 1, 'top': 14, 'trim': 0, 'bottom': 23, 'shoes': 23, 'accessory': 14} },
+  Noir: { parts: {'head': 'block', 'ears': 'none', 'brows': 'none', 'nose': 'none', 'mouth': 'neutral', 'hair': 'bald', 'eyewear': 'shades', 'top': 'suit', 'bottom': 'slacks', 'shoes': 'dress'},
+    colours: {'skin': 16, 'hair': 0, 'eyes': 1, 'top': 4, 'trim': 0, 'bottom': 3, 'shoes': 4, 'accessory': 18} },
+  Ember: { parts: {'head': 'round', 'eyes': 'round', 'brows': 'angry', 'nose': 'none', 'mouth': 'smirk', 'hair': 'bald', 'top': 'leather', 'bottom': 'ripped', 'shoes': 'combat', 'headwear': 'horns'},
+    colours: {'skin': 17, 'hair': 4, 'eyes': 1, 'top': 6, 'trim': 0, 'bottom': 20, 'shoes': 20, 'accessory': 7} },
+  Moss: { parts: {'build': 'stocky', 'head': 'wide', 'eyes': 'round', 'brows': 'none', 'nose': 'none', 'mouth': 'smile', 'hair': 'bald', 'top': 'hoodie', 'bottom': 'cargo', 'shoes': 'boots', 'headwear': 'hood'},
+    colours: {'skin': 13, 'hair': 13, 'eyes': 1, 'top': 12, 'trim': 0, 'bottom': 12, 'shoes': 12, 'accessory': 11} },
+  Vapor: { parts: {'build': 'slim', 'head': 'long', 'brows': 'none', 'nose': 'none', 'hair': 'bald', 'eyewear': 'visor', 'headwear': 'antenna', 'top': 'bomber', 'bottom': 'leggings', 'shoes': 'hightops'},
+    colours: {'skin': 15, 'hair': 14, 'eyes': 9, 'top': 17, 'trim': 0, 'bottom': 16, 'shoes': 16, 'accessory': 19} },
+  Steel: { parts: {'build': 'broad', 'head': 'block', 'brows': 'none', 'nose': 'none', 'hair': 'bald', 'eyewear': 'goggles', 'headwear': 'cap', 'top': 'bomber', 'bottom': 'cargo', 'shoes': 'combat', 'gloves': 'gauntlets'},
+    colours: {'skin': 16, 'hair': 9, 'eyes': 9, 'top': 2, 'trim': 0, 'bottom': 3, 'shoes': 3, 'accessory': 3} },
+};
+// A preset: its legacy entry, plus the kit it is drawn as. `code` is what the renderers draw; the id
+// stays the preset's name, so it is still a preset everywhere ids travel.
+const kitPreset = (legacy) => {
+  const kit = presetKit(LOOKS[legacy.id]);
+  return { ...legacy, kit, code: encodeKit(kit), palette: kitPalette(kit) };
+};
 
 // Presets shown in the avatar row of the select screen.
 export const AVATARS = [
@@ -85,7 +114,7 @@ export const AVATARS = [
     palette: { primary: '#F49AC2', secondary: '#6C63C7', tertiary: '#3E3A78', accent: '#FFE4F1', glow: '#FF6BD6' } },
   { id: 'Steel', name: 'Steel', rig: 'avatar', features: { head: 'block', face: 'goggles', hat: 'cap', torso: 'emblem' },
     palette: { primary: '#B8C0CC', secondary: '#5A6472', tertiary: '#333A45', accent: '#EDF1F6', glow: '#7FD4FF' } },
-];
+].map(kitPreset);
 
 export const DEFAULT_AVATAR = AVATARS[0];
 export const PRESET_IDS = new Set(AVATARS.map((a) => a.id));
@@ -113,5 +142,8 @@ export function avatarById(id) {
   return DEFAULT_AVATAR;
 }
 export function allAvatars() { return [...REGISTRY.values()]; }
+// The kit code an avatar id is drawn as - a preset's, or a kit code itself - or null for a legacy
+// custom character, which the original creator's rig draws.
+export function kitCodeOf(id) { const a = avatarById(id); return a && a.kit ? a.code : null; }
 export function customAvatars() { return [...REGISTRY.values()].filter((a) => !PRESET_IDS.has(a.id)); }
 export function featuresOf(avatar) { return { ...DEFAULT_FEATURES, ...((avatar && avatar.features) || {}) }; }

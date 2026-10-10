@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { buildLoadout } from '../src/data/loadout.js';
 import { KIT_PARTS, KIT_PRESETS, encodeKit, presetKit } from '../src/data/avatarKit.js';
 import { posedFighter } from '../src/render2d/preview.js';
+import { AVATARS, kitCodeOf, registerAvatar } from '../src/data/avatars.js';
 
 const mul = (a, b) => ({ a: a.a*b.a+a.c*b.b, b: a.b*b.a+a.d*b.b,
   c: a.a*b.c+a.c*b.d, d: a.b*b.c+a.d*b.d, e: a.a*b.e+a.c*b.f+a.e, f: a.b*b.e+a.d*b.f+a.f });
@@ -73,8 +74,18 @@ assert.ok(half.images.some((d)=>d.src.width===Math.ceil(KIT_PARTS.head.w/2)),'lo
 assert.ok(full.images.some((d)=>d.src.width===KIT_PARTS.head.w),'near zoom uses full detail');
 assert.equal(paint(20).images[0].src,full.images[0].src,'raster is reused between frames');
 
-const classic = posedFighter(buildLoadout('Classic','Sword'),null,0,{state:'idle'});
-const target=canvas(); view.drawFighterInto(target.ctx,classic,0,{ppu:20,x:200,y:200});
-assert.equal(target.ctx.images.length,0,'preset keeps the original block body');
-assert.ok(target.ctx.fills.some((d)=>Math.abs(d.w-fighter.r*1.6)<0.0001),'preset still draws its block torso');
-console.log('PASS kit renderer: seven jointed cached sprites, shaded far limbs, LOD and legacy block body');
+// The presets are kit characters under their old ids (character-rework-plan.md, phase 1): 'Classic'
+// draws the seven kit sprites, exactly the rasters its own kit code draws - not the block body.
+const drawn = (id) => { const t = canvas(); view.drawFighterInto(t.ctx, posedFighter(buildLoadout(id,'Sword'),null,0,{state:'idle'}),0,{ppu:20,x:200,y:200}); return t.ctx; };
+const classic = drawn('Classic'), byCode = drawn(kitCodeOf('Classic'));
+assert.equal(classic.images.length,7,'a preset draws as a kit character');
+assert.ok(classic.images.every((d,i)=>d.src===byCode.images[i].src),'a preset draws exactly what its kit code draws');
+for (const a of AVATARS) assert.equal(drawn(a.id).images.length,7,`${a.id} draws as a kit character`);
+// A character from the original creator (the hand-drawing mode, kept whole) has no kit and keeps
+// the block body.
+registerAvatar({ id: 'legacy-test', name: 'Legacy', rig: 'avatar', features: { head: 'block', face: 'dot', hat: 'none', torso: 'belt' },
+  palette: { primary: '#F2C94C', secondary: '#4A90D9', tertiary: '#2E5F8A', accent: '#FFF3D0', glow: '#8ED8FF' } });
+const legacy = drawn('legacy-test');
+assert.equal(legacy.images.length,0,'an original-creator character keeps the block body');
+assert.ok(legacy.fills.some((d)=>Math.abs(d.w-fighter.r*1.6)<0.0001),'and its block torso');
+console.log('PASS kit renderer: seven jointed cached sprites, shaded far limbs, LOD; the presets draw as kits, original-creator characters keep the block body');

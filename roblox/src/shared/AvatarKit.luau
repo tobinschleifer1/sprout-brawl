@@ -71,8 +71,9 @@ function AvatarKit.encode(raw: any): string
 	return table.concat(out)
 end
 
--- Anything that is not a kit code is nil. A missing or bad digit falls back to that slot's default,
--- so a code from an older version with fewer categories keeps every choice it has.
+-- Anything that is not a kit code is nil. A missing or bad digit falls back to that slot's default.
+-- (That does not make a code from a version with fewer categories readable: its colour digits would
+-- be read as the new categories. A new category needs a new version - see avatarKit.js, THE CODE.)
 function AvatarKit.decode(code: any): Spec?
 	if not AvatarKit.isCode(code) then
 		return nil
@@ -130,7 +131,7 @@ function AvatarKit.avatar(code: any): any
 		return hit
 	end
 	local spec = AvatarKit.decode(canon) :: Spec
-	local a = { id = canon, name = "Custom", rig = "avatar", custom = true, kit = spec, palette = AvatarKit.palette(spec) }
+	local a = { id = canon, code = canon, name = "Custom", rig = "avatar", custom = true, kit = spec, palette = AvatarKit.palette(spec) }
 	CACHE[canon] = a
 	return a
 end

@@ -13,8 +13,11 @@
 // colour slot, in KIT_COLOURS order. The code IS the avatar id: it travels through the room, the
 // roster, the hub presence and the saved profile exactly where a preset id like 'Classic' does, so
 // none of those paths had to learn that player-made characters exist. The order of both lists is
-// therefore PERMANENT - add new categories and options at the end, never reorder or remove, or every
-// saved character changes.
+// therefore PERMANENT - never reorder or remove, or every saved character changes. New OPTIONS may go
+// at the end of a category (a digit's meaning is the option's index). A new CATEGORY may not, in
+// 'k1': the colour digits come straight after the category digits, so one more category moves where
+// every saved code's colours are read. That needs a new version ('k2') that decodes 'k1' by k1's own
+// layout (docs/briefs/character-rework-plan.md).
 //
 // Every option in the catalogue is drawn by the composer; test/avatar-kit.test.mjs fails if an
 // option paints nothing different from its neighbours, the same dead-data rule as the old features.
@@ -66,9 +69,9 @@ export function encodeKit(raw) {
   return out;
 }
 
-// Anything that is not a kit code is null; a kit code with bad digits decodes with those choices
-// defaulted. A short code (from an older version with fewer categories) keeps its choices and
-// defaults the rest - which is what makes adding a category at the end safe.
+// Anything that is not a kit code is null; a kit code with bad digits, or too few, decodes with
+// those choices defaulted. (Too few is NOT how a code from a version with fewer categories reads: its
+// colour digits would be read as the new categories. See THE CODE above.)
 export function decodeKit(code) {
   if (!isKitCode(code)) return null;
   const body = code.slice(KIT_VERSION.length).toLowerCase();
@@ -100,7 +103,7 @@ export function kitAvatar(code) {
   const canon = canonicalKit(code);
   if (!canon) return null;
   const kit = decodeKit(canon);
-  return { id: canon, name: 'Custom', rig: 'avatar', custom: true, kit, palette: kitPalette(kit) };
+  return { id: canon, code: canon, name: 'Custom', rig: 'avatar', custom: true, kit, palette: kitPalette(kit) };
 }
 
 // Parts nobody can wear until they have earned them (data/parkour.js REWARDS): the reward each of a

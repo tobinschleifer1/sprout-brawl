@@ -143,6 +143,7 @@ local Snapshot = Loader.load("Snapshot")
 local Loadout = Loader.load("Loadout")
 local AvatarKit = Loader.load("AvatarKit")
 local KIT = Loader.load("Data/AvatarKit")
+local Avatars = Loader.load("Data/Avatars")
 
 -- The block body's head and chest mark come from Avatar2D; a kit fighter must not call either.
 local Avatar2D = Loader.loadFrom("src/client/", "Avatar2D")
@@ -236,14 +237,33 @@ assert(halfCount == 7, `{halfCount} of 7 pieces switched to half resolution`)
 local pwCell = char.radius * 1.15 / 12
 assert(pwCell * 8 < Fighter2D.KIT_LOD_PX and pwCell * 24 >= Fighter2D.KIT_LOD_PX, "the test's two zooms do not straddle the threshold")
 
--- A preset character with the same weapon draws the block body and no sprites; the kit character
--- drew none of that body.
+-- The presets are kit characters under their old ids (docs/briefs/character-rework-plan.md, phase
+-- 1): every one draws seven sprites and no block body, and "Classic" draws exactly the pictures its
+-- own kit code draws.
+local function keysOf(avatarId: string): { string }
+	table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
+	Fighter2D.draw(canvas(24), s, Loadout.build(avatarId, "Sword"), 0, 2)
+	local keys = {}
+	for _, sp in sprites do table.insert(keys, sp.key) end
+	return keys
+end
+for _, preset in Avatars.LIST do
+	local keys = keysOf(preset.id)
+	assert(#keys == 7 and blockHeads == 0, `preset {preset.id} drew {#keys} sprites and {blockHeads} block head pieces, want a kit body`)
+end
+local classic, byCode = keysOf("Classic"), keysOf(Loadout.kitCodeOf("Classic") :: string)
+assert(table.concat(classic, ",") == table.concat(byCode, ","), "Classic does not draw what its kit code draws")
+-- A body with no kit still takes the block rig: the web keeps it for characters from the original
+-- creator, and the two renderers stay one rig. No Roblox avatar resolves to it any more.
+local bare = Loadout.build("Classic", "Sword")
+bare.avatar = table.clone(bare.avatar)
+bare.avatar.kit = nil
 table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
-Fighter2D.draw(canvas(24), s, Loadout.build("Classic", "Sword"), 0, 2)
-assert(#sprites == 0, "a preset character drew body sprites")
-assert(weapons == 1, "a preset character's sword is one sprite as well")
-assert(blockHeads == 2, "a preset character stopped drawing its head and chest mark")
-assert(blocks - kitBlocks >= 7, `the kit fighter drew the block body as well ({kitBlocks} rectangles against the preset's {blocks})`)
+Fighter2D.draw(canvas(24), s, bare, 0, 2)
+assert(#sprites == 0, "a body with no kit drew body sprites")
+assert(weapons == 1, "a body with no kit's sword is one sprite as well")
+assert(blockHeads == 2, "a body with no kit stopped drawing its head and chest mark")
+assert(blocks - kitBlocks >= 7, `the kit fighter drew the block body as well ({kitBlocks} rectangles against the block body's {blocks})`)
 -- The hit flash on a kit fighter is the fighter: every piece drawn again over itself in the flash
 -- colour, the same shape (a silhouette, not a box), and the same silhouette table every frame -
 -- a sprite's identity is its rects table, so a fresh one each frame would rebuild the image.
@@ -283,4 +303,4 @@ for i, sp in again do assert(sp.list == tinted[i].list, "the flash silhouette wa
 chilled.chillStacks = 0
 assert(#flashDraw() == 0, "a fighter with no flash drew flash pieces")
 
-print(`PASS kit fighter: seven sprites on the rig's joints (neck at the head, feet where the block legs end), far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; presets unchanged; hit flash a silhouette of each piece`)
+print(`PASS kit fighter: seven sprites on the rig's joints (neck at the head, feet where the block legs end), far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece`)

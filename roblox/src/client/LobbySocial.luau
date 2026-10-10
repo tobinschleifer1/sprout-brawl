@@ -14,6 +14,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local PLAZA: any = require(Shared.Data.Plaza)
 local Canvas2D = require(script.Parent.Canvas2D)
 local KitPortrait = require(script.Parent.KitPortrait)
+local Loadout = require(Shared.Loadout)
 local PlazaArt = require(script.Parent.PlazaArt)
 local Realms = require(Shared.Realms)
 local Ui = require(script.Parent.Ui)
@@ -297,8 +298,10 @@ function LobbySocial.setMembers(self: any, list: any)
 		Ui.stroke(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
-		if type(m.avatar) == "string" and string.sub(m.avatar, 1, 2) == "k1" then
-			KitPortrait.draw(Canvas2D.inFrame(face), m.avatar, "head", 44, 44)
+		-- a kit code, or a preset (drawn as its kit): the head in the member list
+		local code = if type(m.avatar) == "string" then Loadout.kitCodeOf(m.avatar) else nil
+		if code then
+			KitPortrait.draw(Canvas2D.inFrame(face), code, "head", 44, 44)
 		end
 		local name = label(row, "Name", (if m.userId == self.localId then m.name .. "  (you)" else tostring(m.name)), 15)
 		name.Font = Ui.DISPLAY

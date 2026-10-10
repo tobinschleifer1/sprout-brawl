@@ -304,7 +304,9 @@ export class Renderer2D {
     // Hand-drawn parts, if this character has any. Each one is optional: a player who drew only a
     // head keeps the built-in body, and every part they DID draw is animated by the same rig.
     const art = (f.char.avatar && f.char.avatar.art) || null;
-    const kitCode = f.char.avatar && f.char.avatar.kit ? f.char.avatar.id : null;
+    // a kit body (every preset and every kit code) draws from its code; a legacy custom character
+    // (the original creator) has no kit and takes the block rig below
+    const kitCode = f.char.avatar && f.char.avatar.kit ? f.char.avatar.code : null;
 
     // Smear: two ghosts of the body trailing the direction of travel, drawn before the fighter.
     // Hand-drawn fighting games solve fast motion with smear frames — a limb drawn as a streak

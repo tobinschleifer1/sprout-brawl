@@ -100,7 +100,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local feat = Avatar2D.features(char.avatar)
 	-- A kit character (AvatarKit) draws each puppet piece as its composed pixel art, one sprite per
 	-- piece, in exactly the transforms the block rig uses.
-	local kitCode = if char.avatar and char.avatar.kit then char.avatar.id else nil
+	-- a kit body (every preset and every kit code) draws from its code (renderer2d.js)
+	local kitCode = if char.avatar and char.avatar.kit then char.avatar.code else nil
 	local kitArt = if kitCode then AvatarCompose.sprites(kitCode) else nil
 
 	-- Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole drawing

@@ -47,6 +47,13 @@ function Loadout.avatarById(id: string?): any
 	return AvatarKit.avatar(id) or Avatars.BY_ID[Avatars.DEFAULT_ID]
 end
 
+-- The kit code an avatar id is drawn as - a preset's (the presets are kit characters under their old
+-- ids) or a kit code itself - or nil. avatars.js kitCodeOf.
+function Loadout.kitCodeOf(id: string?): string?
+	local a = Loadout.avatarById(id)
+	return if a and a.kit then a.code else nil
+end
+
 -- The avatar id a server will accept from a client: a preset id as it is, a kit code in its
 -- canonical form, anything else nil.
 function Loadout.validAvatar(id: any): string?

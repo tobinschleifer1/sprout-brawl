@@ -190,6 +190,7 @@ load-bearing today:
 | `weaponPose`'s `REST[wid] ?? 0` fallback | all twelve weapons have a REST entry |
 | `weaponScale`/`holdFrames`/`reload` falling back through `||` | no weapon datum is 0, so the JavaScript's falsy-zero path never fires |
 | the earthquake's outermost-solid tie-break | only matters when two solids share an `x1` or an `x2`, and no stage has that — the Luau keeps JavaScript `reduce`'s first-wins order anyway |
+| `Fighter2D`'s block body (and `Avatar2D`) | every Roblox avatar is a kit since the presets became kit bodies; the web keeps the block rig for characters from its original creator, so the Luau keeps it as the same rig, held by `tests/kit-draw.luau` with a kit-less body |
 
 `field` is now deleted from the web build. The rest are left in place: the five above are guards
 that would start working the moment the data changes, and the unused summon types and mechanics are

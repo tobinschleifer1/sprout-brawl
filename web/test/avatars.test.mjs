@@ -12,6 +12,7 @@
 // So these run the real sanitiser against deliberately hostile input, and measure the stats that
 // come out of the real loadout builder.
 import { buildLoadout } from '../src/data/loadout.js';
+import { WEAPON_BY_ID, FISTS } from '../src/data/weapons/index.js';
 import { AVATARS, FEATURES, FEATURE_KEYS, PALETTE_KEYS, avatarById, allAvatars, registerAvatar } from '../src/data/avatars.js';
 import { sanitize, blankAvatar, readCustom, writeCustom, saveAvatar, deleteAvatar, importAvatars,
   exportAvatars, initCustomAvatars, readabilityWarning, MAX_CUSTOM, MAX_NAME, STORE_KEY } from '../src/data/customAvatars.js';
@@ -318,6 +319,29 @@ const fakeStore = () => { const m = new Map(); return { get: (k) => (m.has(k) ? 
   deleteAvatar(drawn.id, store);
   check('drawing your own character changes no stat either', diff.length === 0,
     diff.length ? `differs on ${diff.join(', ')}` : `a fully hand-drawn character on the Battle Axe: weight ${b.weight}, height ${b.height}, radius ${b.radius} - identical to the preset`);
+}
+
+// ---- 16. the presets became kit bodies and play exactly as before ----
+// Phase 1 of the character rework (docs/briefs/character-rework-plan.md) puts a kit under every
+// preset id, and three of those kits pick a stocky, slim or broad build. A build is a drawing
+// choice: every preset, on every weapon and on bare fists, must build exactly the loadout a body
+// with no kit at all does - every stat, the moveset, the mechanic, the recovery, the rig.
+{
+  registerAvatar({ id: 'nokit', name: 'No kit', rig: 'avatar', features: AVATARS[0].features, palette: AVATARS[0].palette });
+  const COSMETIC = new Set(['id', 'avatar', 'palette']);
+  const same = (a, b) => Object.keys({ ...a, ...b }).filter((k) => !COSMETIC.has(k) && a[k] !== b[k] && JSON.stringify(a[k]) !== JSON.stringify(b[k]));
+  const bad = [];
+  let built = 0;
+  for (const p of AVATARS) {
+    if (!p.kit) bad.push(`${p.id} has no kit body`);
+    for (const w of [...Object.keys(WEAPON_BY_ID), FISTS.id]) {
+      const diff = same(buildLoadout(p.id, w), buildLoadout('nokit', w)); built++;
+      if (diff.length) bad.push(`${p.id}/${w}: ${diff.join(', ')}`);
+    }
+  }
+  check('every preset is a kit body that plays exactly like no body at all', bad.length === 0,
+    bad.length ? bad.slice(0, 6).join('; ')
+      : `${AVATARS.length} presets x ${built / AVATARS.length} loadouts: all kit bodies (builds ${AVATARS.map((p) => p.kit.parts.build).join('/')}), every loadout field but id, avatar and palette identical`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

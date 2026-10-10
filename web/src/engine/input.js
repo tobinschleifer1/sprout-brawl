@@ -36,6 +36,7 @@ export function matchShortcut(event, kb2Active = false) {
 export class InputManager {
   constructor() {
     this.keys = new Set();
+    this.presses = new Set(); // retain complete taps between simulation samples
     this.kb2Active = false;
     this.prevLevels = new Map(); // source -> level snapshot
     this.frames = new Map();
@@ -43,10 +44,11 @@ export class InputManager {
     window.addEventListener('keydown', (e) => {
       if (e.repeat || isTextEntry(e.target)) return;
       this.keys.add(e.code);
+      this.presses.add(e.code);
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Slash', 'Tab', 'ControlRight'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => { this.keys.clear(); this.presses.clear(); });
   }
 
   _levelsFromKeys(map, extra) {
@@ -61,6 +63,10 @@ export class InputManager {
       guard: down(map.guard), grab: down(map.grab), taunt: down(map.taunt), pickup: down(map.pickup),
       ult: map.ult ? down(map.ult) : false,
     };
+    l.pressed = {};
+    for (const [action, keys] of Object.entries(map)) {
+      l.pressed[action] = [...keys, ...(extra?.[action] || [])].some(k => this.presses.has(k));
+    }
     return l;
   }
 
@@ -81,14 +87,16 @@ export class InputManager {
 
   _build(source, levels) {
     const prev = this.prevLevels.get(source) || {};
-    const edge = (k) => !!levels[k] && !prev[k];
+    const pressed = levels.pressed || {};
+    const edge = (k) => !!pressed[k] || (!!levels[k] && !prev[k]);
     const f = EMPTY();
     f.x = levels.ax !== undefined && levels.ax !== 0 ? levels.ax : (levels.right ? 1 : 0) - (levels.left ? 1 : 0);
     f.y = levels.ay !== undefined && levels.ay !== 0 ? levels.ay : (levels.up ? 1 : 0) - (levels.down ? 1 : 0);
     f.jump = edge('jump'); f.light = edge('light'); f.heavy = edge('heavy'); f.dodge = edge('dodge');
     f.guard = edge('guard'); f.grab = edge('grab'); f.taunt = edge('taunt'); f.ult = edge('ult'); f.pickup = edge('pickup');
     f.downTap = edge('down');
-    f.jumpHeld = !!levels.jump; f.guardHeld = !!levels.guard; f.heavyHeld = !!levels.heavy; f.lightHeld = !!levels.light;
+    f.jumpHeld = !!levels.jump || !!pressed.jump; f.guardHeld = !!levels.guard || !!pressed.guard;
+    f.heavyHeld = !!levels.heavy || !!pressed.heavy; f.lightHeld = !!levels.light || !!pressed.light;
     f.anyPress = f.jump || f.light || f.heavy || f.dodge || f.guard || f.grab || f.ult || f.pickup;
     this.prevLevels.set(source, { ...levels });
     return f;
@@ -97,6 +105,7 @@ export class InputManager {
   poll() {
     this.frames.set('kb1', this._build('kb1', this._levelsFromKeys(KB1, this.kb2Active ? null : KB1_ARROWS)));
     this.frames.set('kb2', this._build('kb2', this._levelsFromKeys(KB2)));
+    this.presses.clear();
     for (let i = 0; i < 4; i++) {
       const lv = this._levelsFromPad(i);
       this.frames.set('pad' + i, this._build('pad' + i, lv || {}));

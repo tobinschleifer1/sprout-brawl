@@ -70,6 +70,12 @@ function Canvas2D.new(parent: Instance): any
 end
 
 -- Palette entries arrive from the shared data layer as the CSS hex strings the web build uses.
+-- Embedded canvases reuse the exact same weapon art inside loadout cards.
+function Canvas2D.inFrame(frame: Frame): any
+	return setmetatable({ gui = frame, layer = frame, pool = {}, used = 0, z = 0,
+		m = identity(), stack = {}, alpha = 1, alphaStack = {} }, Canvas2D)
+end
+
 -- Parsed rather than converted at generation time, so the two builds read the same data file.
 local HEX_CACHE: { [string]: Color3 } = {}
 function Canvas2D.hex(s: string?, fallback: Color3): Color3

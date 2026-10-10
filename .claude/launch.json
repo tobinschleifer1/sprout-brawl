@@ -1,6 +1,25 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "blockfall", "runtimeExecutable": "node", "runtimeArgs": ["serve.cjs", "8123"], "cwd": "web", "port": 8123 }
+    {
+      "name": "blockfall",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.cjs",
+        "8123"
+      ],
+      "cwd": "web",
+      "port": 8123
+    },
+    {
+      "name": "blockfall-revamp",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "serve.cjs",
+        "8124"
+      ],
+      "cwd": "/Users/tobyschleif/roblox 2d fighting game/.claude/worktrees/revamp/web",
+      "port": 8124
+    }
   ]
 }

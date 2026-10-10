@@ -27,7 +27,9 @@ Net.coalesce = InputCodec.coalesce
 Net.MAX_PACKED = InputCodec.MAX_PACKED
 
 -- ---------------------------------------------------------------- remotes ----
--- Snapshots may be dropped; inputs may not. Prediction's acknowledgement is a COUNT of consumed
+-- Complete snapshots use reliable transport at 30Hz: four fighters exceed the unreliable
+-- payload ceiling and were dropped wholesale, leaving the arena blank. Inputs may not be lost
+-- either. Prediction's acknowledgement is a COUNT of consumed
 -- input frames, so losing or reordering one shifts the replay history permanently. Reliable input
 -- preserves that count; RemoteInput still coalesces catch-up bursts to keep the queue shallow.
 local folder: Folder
@@ -46,7 +48,7 @@ if RunService:IsServer() then
 			r.Parent = folder
 		end
 		make("RemoteEvent", "Input")                -- ordered client input, one packed frame per sim tick
-		make("UnreliableRemoteEvent", "Snapshot")   -- server -> client, authoritative state
+		make("RemoteEvent", "Snapshot")             -- server -> client, complete authoritative state
 		make("RemoteEvent", "Events")               -- server -> client, hits/KOs/countdown
 		make("RemoteEvent", "Hello")                -- client -> server, "I have loaded, put me in"
 		make("RemoteEvent", "Match")                -- server -> client, the config to build a view from
@@ -54,6 +56,10 @@ if RunService:IsServer() then
 		make("RemoteEvent", "Scene")                -- server -> client, live world threats (separate from fighter snapshots)
 		make("RemoteEvent", "Setup")                -- client -> server, "run this match please"
 		make("RemoteEvent", "Select")               -- server -> client, "pick a match" / why one was refused
+		make("RemoteEvent", "RoomAction")
+		make("RemoteEvent", "RoomView")
+		make("RemoteEvent", "HubPose")
+		make("RemoteEvent", "HubPresence")
 		folder.Parent = ReplicatedStorage
 	end
 else

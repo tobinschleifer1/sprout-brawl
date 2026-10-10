@@ -1,84 +1,142 @@
 --!strict
--- Server entry point.
---
--- The stage has no geometry on the server: collision is resolved by Stage.collide against the
--- numbers, and the picture is drawn on the client's canvas. Nothing physical exists in Workspace.
---
--- A player who loads gets the select screen; what they pick comes back over `Setup` and becomes
--- the match. The hard-coded Foundry-Floor-versus-one-bot slice that proved the simulation runs at
--- a fixed 60Hz is gone, and with it the assumption that there is only ever one shape of match.
---
--- Nothing the client sends is trusted. `Setup` is the first remote in this game that decides
--- anything, and MatchConfig is the boundary: it turns whatever arrives into a match the server is
--- willing to run, or refuses it with a reason. Matchmaking, lobbies and the rest of section 5 of
--- the design document still replace this.
-
+-- Server-owned rooms; match traffic never reaches unrelated lobby players.
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local RunService = game:GetService("RunService")
+local Shared = game:GetService("ReplicatedStorage").Shared
+local Net = require(Shared.Net)
+local Hub = require(Shared.Data.Hub)
+local Rooms = require(script.Rooms)
 local MatchService = require(script.MatchService)
-local MatchConfig = require(ReplicatedStorage.Shared.MatchConfig)
-local Net = require(ReplicatedStorage.Shared.Net)
-
--- The fighters are ours, posed from the simulation. A Roblox-spawned character would be a second
--- body walking around under Roblox physics with opinions about where the player is.
 Players.CharacterAutoLoads = false
-
-local service = MatchService.new()
-service:bindRemotes()
-
--- How long the scoreboard stays up before the players are returned to the select screen.
-local RESULTS_HOLD = 6
-
--- The last config each player asked for, so a rematch after the scoreboard does not need them to
--- pick everything again. Cleared when they leave.
-local lastConfig: { [number]: any } = {}
-
-local function beginMatch(player: Player, cfg: any)
-	if service.match then
-		return
-	end
-	-- NOTHING here trusts `cfg`. It came off a remote; MatchConfig turns whatever it is into a
-	-- match this server is willing to run, or says why it cannot.
-	local roster, opts, why = MatchConfig.sanitise(cfg, player)
-	if not roster then
-		warn(`[Blockfall] refused a match from {player.Name}: {tostring(why)}`)
-		Net.remote("Select"):FireClient(player, { error = why })
-		return
-	end
-	lastConfig[player.UserId] = MatchConfig.forClient(roster, opts)
-	local match = service:start(roster :: { any }, opts)
-	print(`[Blockfall] match started: stage={match.stage.data.id} mode={match.mode} `
-		.. `fighters={#(roster :: { any })} seed={match.seed}`)
+local rooms = Rooms.new()
+local services: any = {}
+local poses: any = {}
+local limits: any = {}
+local loaded: any = {}
+local generation = 0
+local function admitted(player: Player, lane: string, interval: number): boolean
+	local id, now = player.UserId, os.clock()
+	limits[id] = limits[id] or {}
+	if now < (limits[id][lane] or 0) then return false end
+	limits[id][lane] = now + interval
+	return true
 end
-
--- The match is over, the loop is down, and the scoreboard has gone out. Hold it, then go again with
--- whoever is still here.
-service.onFinished = function(self: any, m: any)
-	print(`[Blockfall] match over after {m.frame} frames ({string.format("%.1f", m.time)}s)`)
-	task.wait(RESULTS_HOLD)
-	if service.match ~= m then return end
-	-- stop() clears service.match, which is what beginMatch guards on; without it the select
-	-- screen below would be answered by a server that thinks a match is still running.
-	service:stop()
-	-- Back to select rather than straight into a rematch: the point of a select screen is that the
-	-- next match does not have to be the last one. Their previous picks come back with it.
-	for _, player in Players:GetPlayers() do
-		Net.remote("Select"):FireClient(player, { ready = true, last = lastConfig[player.UserId] })
-	end
+local function members(room: any): { Player }
+	local list = {}
+	for _, slot in room.slots do if slot.player then table.insert(list, slot.player) end end
+	return list
 end
-
--- `Hello` now means "I have loaded", not "start a match". The client answers it by showing the
--- select screen, and asks for a match with `Setup` when the player is ready.
+local function publish(room: any)
+	for _, player in members(room) do Net.remote("RoomView"):FireClient(player, rooms:view(room)) end
+end
+local function hub(player: Player, why: string?)
+	poses[player.UserId] = nil
+	local profile = rooms:profile(player.UserId)
+	Net.remote("Select"):FireClient(player, { ready = true, error = why,
+		last = { slots = { { avatarId = profile.avatar, weaponId = profile.weapon } } } })
+end
+local function resetRoom(room: any, why: string?)
+	local service = services[room.id]
+	if service then service:stop(); services[room.id] = nil end
+	room.state, room.revision = "setup", room.revision + 1
+	for _, slot in room.slots do slot.bot, slot.ready = nil, false end
+	for _, player in members(room) do hub(player, why) end
+	publish(room)
+end
+local function leave(player: Player)
+	local room = rooms:leave(player)
+	if not room then return end
+	if room.state == "playing" then resetRoom(room, "A player left. Fight cancelled; ready up again.")
+	else publish(room) end
+end
 Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
-	Net.remote("Select"):FireClient(player, { ready = true, last = lastConfig[player.UserId] })
+	if not admitted(player, "hello", 1) then return end
+	loaded[player.UserId] = player
+	local room = rooms:get(player.UserId)
+	if room and services[room.id] and services[room.id]:rejoin(player) then return end
+	hub(player)
+	if room then publish(room) end
 end)
-
-Net.remote("Setup").OnServerEvent:Connect(beginMatch)
-
-Players.PlayerRemoving:Connect(function(player: Player)
-	lastConfig[player.UserId] = nil
-	if #Players:GetPlayers() <= 1 then
-		service:stop()
+Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or type(msg) ~= "table" or not admitted(player, "room", 0.08) then return end
+	if msg.action == "leave" then leave(player); hub(player); Net.remote("RoomView"):FireClient(player, { left = true }); return end
+	local room, why
+	if msg.action == "join" then room, why = rooms:join(player, msg.format)
+	else
+		room = rooms:get(player.UserId)
+		local ok
+		ok, why = rooms:edit(player, msg)
+		if not ok then
+			local view = if room then rooms:view(room) else { left = true }
+			view.error = why
+			Net.remote("RoomView"):FireClient(player, view)
+			return
+		end
 	end
+	if not room then Net.remote("RoomView"):FireClient(player, { left = true, error = why }); return end
+	publish(room)
+	if msg.action == "start" then
+		generation += 1
+		local service = MatchService.new(members(room), generation * 1000)
+		services[room.id] = service
+		service.onFinished = function(_: any, match: any)
+			task.wait(6)
+			if services[room.id] == service and service.match == match then resetRoom(room) end
+		end
+		local roster, opts = rooms:roster(room)
+		local ok, err = pcall(function() service:start(roster, opts) end)
+		if not ok then warn(`[Blockfall] room launch failed: {err}`); resetRoom(room, "Arena failed to load. Please try again.") end
+	end
+end)
+Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, matchId: any, epoch: any)
+	local room = rooms:get(player.UserId)
+	local service = room and services[room.id]
+	if service then service:receiveInput(player, packed, matchId, epoch) end
+end)
+Net.remote("Setup").OnServerEvent:Connect(function(player: Player)
+	if admitted(player, "hello", 1) then hub(player, "Use a 1v1, 2v2 or 3v3 entrance.") end
+end)
+local function finite(value: any): boolean
+	return type(value) == "number" and value == value and math.abs(value) < math.huge
+end
+Net.remote("HubPose").OnServerEvent:Connect(function(player: Player, pose: any)
+	local room = rooms:get(player.UserId)
+	local area = if room then room.id else 0
+	if not loaded[player.UserId] or (room and room.state == "playing") or type(pose) ~= "table"
+		or pose.area ~= area or not admitted(player, "pose", 0.08) or not finite(pose.x) or not finite(pose.y) then return end
+	local scene = if room then Hub.rooms[room.format] else Hub
+	poses[player.UserId] = { area = area, x = math.clamp(pose.x, scene.main.x1 + 3, scene.main.x2 - 3),
+		y = math.clamp(pose.y, 0, 60), facing = if pose.facing == -1 then -1 else 1,
+		moving = pose.moving == true, at = os.clock() }
+end)
+local elapsed = 0
+RunService.Heartbeat:Connect(function(dt: number)
+	elapsed += dt
+	if elapsed < 0.1 then return end
+	elapsed = 0
+	local groups: any = {}
+	for id, player in loaded do
+		local room, pose = rooms:get(id), poses[id]
+		if not room or room.state ~= "playing" then
+			local area = if room then room.id else 0
+			local scene = if room then Hub.rooms[room.format] else Hub
+			if pose and pose.area ~= area then pose = nil end
+			groups[area] = groups[area] or {}
+			local p = rooms:profile(id)
+			table.insert(groups[area], { area = area, userId = id, name = player.DisplayName, avatar = p.avatar, weapon = p.weapon,
+				x = if pose then pose.x else scene.spawn.x, y = if pose then pose.y else scene.spawn.y,
+				facing = if pose then pose.facing else 1, moving = pose ~= nil and pose.moving and os.clock() - pose.at < 0.3 })
+		end
+	end
+	for id, player in loaded do
+		local room = rooms:get(id)
+		if not room or room.state ~= "playing" then
+			Net.remote("HubPresence"):FireClient(player, groups[if room then room.id else 0] or {})
+		end
+	end
+end)
+Players.PlayerRemoving:Connect(function(player: Player)
+	leave(player)
+	local id = player.UserId
+	loaded[id], poses[id], limits[id], rooms.profiles[id] = nil, nil, nil, nil
 end)

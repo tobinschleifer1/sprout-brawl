@@ -169,11 +169,13 @@ do
 	checked += 2
 end
 
--- 8. The default the select screen starts from must itself be a match the server will run. The
--- screen and the validator live on opposite sides of a remote, and a default that fails validation
--- would mean a player who touched nothing and pressed FIGHT got an error.
+-- 8. Defaults must leave room for humans, not quietly spawn an opponent.
 do
-	local roster, opts = ok(MatchConfig.default())
+	local cfg = MatchConfig.default()
+	for i = 2, #cfg.slots do assert(cfg.slots[i].type == "off", "bots off by default") end
+	refused(cfg, "empty opponent slots")
+	cfg.slots[2].type = "bot-normal"
+	local roster, opts = ok(cfg)
 	if #roster ~= 2 then
 		fail(`the default config makes {#roster} fighters, expected 2`)
 	end
@@ -194,6 +196,7 @@ end
 
 do
 	local requested = MatchConfig.default()
+	requested.slots[2].type = "bot-normal"
 	requested.slots[1].weaponId = "not-a-weapon"
 	requested.stocks = 999
 	local roster, opts = ok(requested)

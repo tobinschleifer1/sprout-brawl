@@ -1,0 +1,143 @@
+--!strict
+-- Execute the real lobby's button callbacks. This stub only supplies Instances/signals/value
+-- types; no selection or launch logic is copied into the test.
+local fs = require("@lune/fs")
+local luau = require("@lune/luau")
+local Rbx = require("@lune/roblox")
+local Loader = require("./loader")
+local function signal(): any
+	local callbacks = {}
+	return { Connect = function(_, fn) table.insert(callbacks, fn) end,
+		Fire = function() for _, fn in callbacks do fn() end end }
+end
+local function instance(class: string): any
+	local props: any = { ClassName = class, Visible = true, AbsoluteSize = Rbx.Vector2.new(1024,768), Activated = signal() }
+	local children, changed = {}, {}
+	local self: any
+	props.GetChildren = function() return table.clone(children) end
+	props.FindFirstChild = function(_, name)
+		for _, child in children do if child.Name == name then return child end end
+		return nil
+	end
+	props.GetPropertyChangedSignal = function(_, name)
+		changed[name] = changed[name] or signal()
+		return changed[name]
+	end
+	props.Destroy = function()
+		self:ClearAllChildren()
+		if props.Parent then
+			local siblings = props.Parent._children
+			local at = table.find(siblings, self)
+			if at then table.remove(siblings, at) end
+		end
+	end
+	props.ClearAllChildren = function() for _, child in table.clone(children) do child:Destroy() end end
+	props._children = children
+	self = setmetatable({}, { __index = props, __newindex = function(_, key, value)
+		props[key] = value
+		if key == "Parent" then table.insert(value._children, self) end
+		if changed[key] then changed[key]:Fire() end
+	end })
+	return self
+end
+local codes = setmetatable({}, { __index = function(_, name) return name end })
+local shared = setmetatable({ Data = codes }, { __index = function(_, name) return name end })
+
+local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
+local Panel = luau.load(fs.readFile("src/client/RoomPanel.luau"), {environment={
+ game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
+ require=function(name)
+  if name=="Canvas2D" then return Canvas end
+  if name=="Weapons2D" then return Loader.loadFrom("src/client/",name) end
+  return Loader.load("Data/"..name)
+ end,
+ Enum={Font=codes,AutomaticSize=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
+},injectGlobals=true})()
+local Rooms=Loader.loadFrom("src/server/","Rooms")
+local model=Rooms.new()
+local p={UserId=1,DisplayName="Host"}
+local room=model:join(p,"Triples")
+local panel=Panel.new(instance("PlayerGui"))
+panel.onAction=function(msg)
+ local ok,why=model:edit(p,msg)
+ assert(ok,why)
+ panel:update(model:view(room),1)
+end
+panel:update(model:view(room),1)
+assert(#panel.room.slots==6 and not panel.room.canStart)
+assert(not panel.gui.Enabled, "entering a room must leave the world walkable")
+panel:openStation("Weapons")
+assert(panel.gui.Enabled and not panel.ready.Visible and not panel.start.Visible, "weapon station is focused, not a universal setup HUD")
+assert(#panel.previews==12,"all twelve weapons have actual artwork")
+local shapes={}
+local function primitive(c, ...)
+ for _, v in {...} do if type(v)=="number" then assert(v==v and math.abs(v)<math.huge,"finite weapon image") end end
+ c.used+=1
+end
+Canvas.rect,Canvas.circle,Canvas.ellipse=primitive,primitive,primitive
+local finish = Canvas.finish
+Canvas.finish = function(c) c.drawn = c.used; finish(c) end
+for _, size in {{100,80},{200,80},{300,100}} do
+ for _, preview in panel.previews do preview.frame.AbsoluteSize=Rbx.Vector2.new(size[1],size[2]) end
+ panel:drawPreviews()
+ for _, preview in panel.previews do
+  assert(preview.canvas.drawn>5,"each weapon must draw geometry")
+  assert(#preview.canvas.stack==0,"preview leaves no transforms")
+  shapes[preview.weapon.id]=preview.canvas.drawn
+ end
+end
+panel.body:FindFirstChild("Weapon_Hammer").Activated:Fire()
+assert(panel.cfg.slots[1].weaponId=="Hammer" and room.slots[1].weapon=="Hammer","image click changes server-owned loadout")
+panel.page="Maps";panel:render()
+panel.body:FindFirstChild("Undertow").Activated:Fire()
+assert(room.stage=="Undertow")
+panel:openStation("Rules")
+panel.body:FindFirstChild("Bots OFF — add optional CPU").Activated:Fire()
+assert(room.slots[2].bot=="easy","explicit optional CPU control")
+panel:openStation("Players")
+assert(panel.ready.Visible and panel.start.Visible, "ready controls belong to ready rail")
+panel.ready.Activated:Fire()
+assert(room.slots[1].ready)
+panel.start.Activated:Fire()
+assert(room.state=="setup","incomplete teams cannot launch")
+panel:update(model:view(room),2)
+panel.page="Maps";panel:render()
+panel.body:FindFirstChild("Foundry Floor").Activated:Fire()
+assert(room.stage=="Undertow","guest controls cannot edit host settings")
+panel:hide()
+panel:update(model:view(room),2)
+assert(not panel.gui.Enabled, "background room update must not reopen a closed station")
+local n=0
+for _ in shapes do n+=1 end
+assert(n==12)
+print("PASS room UI: 12 real weapon images at 3 sizes, click-to-equip, maps, explicit bots, ready and host guards")
+
+local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
+	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
+	require=function(name) return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
+	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
+},injectGlobals=true})()
+local hud=Hud.new(instance("PlayerGui"))
+local roster,chars={},{}
+for i=1,6 do
+	roster[i]={index=i-1,team=(i-1)%2,name=`Player{i}`,weapon="Sword"}
+	chars[i]=Loader.load("Loadout").build("Classic","Sword")
+end
+for _, size in {{360,640},{800,600},{1280,720}} do
+	hud.gui.AbsoluteSize=Rbx.Vector2.new(size[1],size[2])
+	hud:bind(roster,chars)
+	local boxes={}
+	for _, tile in hud.tiles do
+		local p,s=tile.root.Position,tile.root.Size
+		local x,y=p.X.Scale*size[1]+p.X.Offset,p.Y.Scale*size[2]+p.Y.Offset
+		assert(x>=0 and x+s.X.Offset<=size[1] and y>=0 and y+s.Y.Offset<=size[2], "six-player HUD stays on screen")
+		for _, b in boxes do assert(x>=b.x+b.w or x+s.X.Offset<=b.x or y>=b.y+b.h or y+s.Y.Offset<=b.y, "HUD tiles never overlap") end
+		table.insert(boxes,{x=x,y=y,w=s.X.Offset,h=s.Y.Offset})
+	end
+end
+print("PASS six-player HUD: all tiles on screen without overlap at phone, tablet and desktop sizes")
+hud:bind(roster,chars,0)
+hud:abilityEvent({type="ultready",fighter=1})
+assert(not hud.abilityMessage,"another player's full meter must not be announced as yours")
+hud:abilityEvent({type="ultdenied",fighter=0,reason="charge"})
+assert(hud.abilityMessage:find("not charged",1,true),"index-zero local fighter receives rejection feedback")

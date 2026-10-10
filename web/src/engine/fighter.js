@@ -407,10 +407,10 @@ export class Fighter {
   // invincibility on startup so an ultimate cannot simply be poked out of the air the frame it starts.
   _tryUltimate(ctx) {
     if (this.buffer.ult <= 0) return false;
-    if (!this.ultReady) { this.buffer.ult = 0; this.emit({ type: 'ultdenied' }); return false; }
+    if (!this.ultReady) { this.buffer.ult = 0; this.emit({ type: 'ultdenied', reason: 'charge' }); return false; }
     // A slam that opens the floor has to be standing on one. Without this the crater fired all
     // its bursts mid-air while the "planted in the floor" pose played in open sky.
-    if (this.char.moves.Ultimate.grounded && !this.onGround) { this.emit({ type: 'ultdenied' }); return false; }
+    if (this.char.moves.Ultimate.grounded && !this.onGround) { this.emit({ type: 'ultdenied', reason: 'grounded' }); return false; }
     this.buffer.ult = 0;
     this.ultCharge = 0;
     this.ultActive = 1;

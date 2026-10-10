@@ -11,8 +11,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Net = require(ReplicatedStorage.Shared.InputCodec)
 local Input = require(ReplicatedStorage.Shared.Input)
 
--- Past this, a client is running ahead of the server or spamming, and the extra frames are
--- dropped oldest-first. Six frames is 100ms of slack: enough to ride out ordinary jitter, short
+-- Past this, coalesce the oldest frames without losing their press edges. Six frames is
+-- 100ms of slack: enough to ride out ordinary jitter, short
 -- enough that a client cannot bank a second of inputs and replay them in a burst.
 local MAX_QUEUED = 6
 
@@ -67,9 +67,9 @@ function RemoteInput.push(self: any, source: string, packed: { number })
 		end
 	end
 	while #s.queue > MAX_QUEUED do
-		table.remove(s.queue, 1)
-		-- Dropped, but the client must still count it as accounted for or its replay would be one
-		-- frame long forever after the first overflow.
+		local oldest = table.remove(s.queue, 1) :: number
+		s.queue[1] = Net.packFrame(Net.coalesce(Net.unpackFrame(oldest), Net.unpackFrame(s.queue[1])))
+		-- Coalesced, but still accounted for by prediction's input sequence.
 		s.consumed += 1
 	end
 end

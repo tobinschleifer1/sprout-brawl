@@ -32,6 +32,13 @@ assert.equal(input.get('kb2').x, 1);
 assert.equal(input.get('kb1').x, 0, 'arrow keys belong only to player two in two-keyboard matches');
 release('ArrowRight');
 
+for (const [code, action] of [['KeyO','ult'],['KeyI','guard']]) {
+  input.poll(); key(code); release(code); input.poll();
+  assert.equal(input.get('kb1')[action], true, `${code} press/release between frames must survive`);
+  if (action === 'guard') assert.equal(input.get('kb1').guardHeld, true, 'shield taps hold for their activation frame');
+  input.poll(); assert.equal(input.get('kb1')[action], false, 'latched press fires once');
+}
+
 let prevented = false;
 key('Space', { target: { tagName: 'INPUT' }, preventDefault() { prevented = true; } });
 input.poll();

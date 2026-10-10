@@ -625,12 +625,12 @@ function methods._tryUltimate(self, ctx): boolean
 	end
 	if not computed.ultReady(self) then
 		self.buffer.ult = 0
-		methods.emit(self, { type = "ultdenied" })
+		methods.emit(self, { type = "ultdenied", reason = "charge" })
 		return false
 	end
 	-- A slam that opens the floor has to be standing on one.
 	if self.char.moves.Ultimate.grounded and not self.onGround then
-		methods.emit(self, { type = "ultdenied" })
+		methods.emit(self, { type = "ultdenied", reason = "grounded" })
 		return false
 	end
 	self.buffer.ult = 0

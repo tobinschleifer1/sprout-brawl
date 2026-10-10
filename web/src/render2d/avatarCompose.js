@@ -18,6 +18,9 @@
 import { KIT_PARTS, KIT_ROLES, KIT_FIXED, KIT_CATEGORIES, KIT_COLOURS, OUTLINE, sanitizeKit } from '../data/avatarKit.js';
 
 export const PIECES = ['head', 'torso', 'arm', 'leg', 'pelvis'];
+// The jointed limbs, cut from the composed arm and leg (avatarParts.js PARTS, `of` and `r0`). Drawn
+// at full detail only: at half detail the rig draws the one-piece limbs above.
+export const SEGMENTS = ['upperarm', 'forearm', 'thigh', 'shin'];
 export const OUTLINE_ALPHA = 0.85;
 export const SHADE_DARK = 0.72;
 export const FAR_SHADE = 0.74;      // the far arm and leg, darkened rather than made see-through
@@ -145,14 +148,19 @@ function greedy(get, w, h, alpha) {
 // A piece as rectangles: the outline (the silhouette grown by one cell, drawn first) and then the
 // cheaper of two cuts of the colours - in place, or painter's (the commonest colour over the whole
 // silhouette, everything else on top of it).
-export function piece(g) {
-  const { w, h, cells } = g;
-  const hexAt = (c, r) => (c >= 0 && r >= 0 && c < w && r < h && cells[r * w + c] ? cells[r * w + c].hex : null);
-  const halo = (c, r) => (hexAt(c, r) || hexAt(c - 1, r) || hexAt(c + 1, r) || hexAt(c, r - 1) || hexAt(c, r + 1) ? OUTLINE : null);
+//
+// `r0`/`r1` cut out a band of rows (a limb segment), rows re-numbered from 0. The outline is still
+// the WHOLE grid's: a cell at the cut is outlined only if the uncut silhouette is, so no dark line
+// crosses an elbow or a knee - the segment's edge there is open, and the overlap covers it.
+export function piece(g, r0 = 0, r1 = g.h) {
+  const { w, h: H, cells } = g, h = r1 - r0;
+  const full = (c, r) => (c >= 0 && r >= 0 && c < w && r < H && cells[r * w + c] ? cells[r * w + c].hex : null);
+  const hexAt = (c, r) => (r >= 0 && r < h ? full(c, r + r0) : null);
+  const halo = (c, r) => { const R = r + r0; return full(c, R) || full(c - 1, R) || full(c + 1, R) || full(c, R - 1) || full(c, R + 1) ? OUTLINE : null; };
   const outline = greedy(halo, w, h, OUTLINE_ALPHA);
   const inPlace = greedy(hexAt, w, h, 1);
   const count = new Map();
-  for (const c of cells) if (c) count.set(c.hex, (count.get(c.hex) || 0) + 1);
+  for (let i = r0 * w; i < r1 * w; i++) { const c = cells[i]; if (c) count.set(c.hex, (count.get(c.hex) || 0) + 1); }
   let base = null, n = -1;
   for (const [hex, k] of count) if (k > n || (k === n && hex < base)) { base = hex; n = k; }
   const painter = [
@@ -162,11 +170,19 @@ export function piece(g) {
   return [...outline, ...(painter.length < inPlace.length ? painter : inPlace)];
 }
 
+// A 3x7 grid whose silhouette narrows right at a cut between rows 2 and 3, leaving cell (0, 3) with
+// its only painted neighbour above the cut: the limb outlines it, a band outlined on its own would
+// not. The probe the tests cut a band from (avatar-kit.test.mjs 7b, and in the Luau through the kit
+// fixture), because no real limb art happens to narrow exactly where the rig cuts it.
+const X = { hex: '#C86A3A', weight: 1 };
+export const SEGMENT_PROBE = { w: 3, h: 7, cells: [X, X, X, X, X, X, X, X, X, null, null, X, null, null, X, null, null, X, null, null, X] };
+
 // Everything a renderer needs for one character: rectangles per piece at full and half resolution.
 export function kitSprites(raw) {
   const g = compose(raw);
   const out = {};
   for (const id of PIECES) out[id] = { full: piece(g[id]), half: piece(halve(g[id])) };
+  for (const id of SEGMENTS) { const P = KIT_PARTS[id]; out[id] = { full: piece(g[P.of], P.r0, P.r0 + P.h) }; }
   return out;
 }
 

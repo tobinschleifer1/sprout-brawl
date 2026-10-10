@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { buildLoadout } from '../src/data/loadout.js';
 import { KIT_PARTS, KIT_PRESETS, encodeKit, presetKit } from '../src/data/avatarKit.js';
 import { posedFighter } from '../src/render2d/preview.js';
+import { channelsFor } from '../src/render2d/channels.js';
+import { weaponPose } from '../src/render2d/weapons2d.js';
 import { AVATARS, kitCodeOf, registerAvatar } from '../src/data/avatars.js';
 
 const mul = (a, b) => ({ a: a.a*b.a+a.c*b.b, b: a.b*b.a+a.d*b.b,
@@ -44,43 +46,83 @@ const fighter = posedFighter(buildLoadout(code,'Sword'),null,0,{state:'idle'});
 const view = new Renderer2D(canvas());
 const paint = (ppu) => { const target=canvas(); view.drawFighterInto(target.ctx,fighter,0,{ppu,x:200,y:200}); return target.ctx; };
 
-const full = paint(20);
-assert.equal(full.images.length,7,'kit rig draws two legs, pelvis, two arms, torso, head');
+// Full detail is the jointed rig (rig.js), drawn far leg (thigh, shin), near leg, pelvis, far arm
+// (upper, forearm), torso, head, near arm. `T` is a moment of the idle where the breathing has the
+// body well off its rest height, so a foot that rode the bob would be caught.
+const T = 0.7;
+const ch = channelsFor(fighter, T), wp = weaponPose(fighter, T);
+assert.ok(Math.abs(ch.bob) > 0.05, `the test's moment has too little bob (${ch.bob}) to tell a planted foot from one riding it`);
+const paintAt = (ppu, t) => { const target=canvas(); view.drawFighterInto(target.ctx,fighter,t,{ppu,x:200,y:200}); return target.ctx; };
+const full = paintAt(20, T);
+assert.equal(full.images.length,11,'the jointed rig draws two thighs, two shins, pelvis, two upper arms, two forearms, torso, head');
 assert.ok(full.images.every((d)=>d.smooth===false),'pixel art always uses nearest-neighbour sampling');
 assert.ok(!full.fills.some((d)=>Math.abs(d.w-fighter.r*1.6)<0.0001 && Math.abs(d.h-fighter.h*.36)<0.0001),
   'kit torso replaces the block torso and its mark');
 assert.ok(!full.fills.some((d)=>Math.abs(d.w-fighter.r*.42)<0.0001 && Math.abs(d.h-fighter.h*.34)<0.0001),
   'kit legs replace block limbs');
+const [farThigh, farShin, nearThigh, nearShin, , farUpper, farFore, torso, head, nearUpper, nearFore] = full.images;
+const dims = (d, id) => d.src.width === KIT_PARTS[id].w && d.src.height === KIT_PARTS[id].h;
+for (const [d, id] of [[farThigh,'thigh'],[nearThigh,'thigh'],[farShin,'shin'],[nearShin,'shin'],[farUpper,'upperarm'],[nearUpper,'upperarm'],[farFore,'forearm'],[nearFore,'forearm'],[head,'head'],[torso,'torso']])
+  assert.ok(dims(d, id), `${id} is drawn in its place in the order, from its own cut of the art`);
+for (const [a, b, id] of [[farThigh,nearThigh,'thigh'],[farShin,nearShin,'shin'],[farUpper,nearUpper,'upper arm'],[farFore,nearFore,'forearm']]) {
+  assert.notEqual(a.src,b.src,`the far ${id} uses a separate raster`);
+  assert.notDeepEqual(a.src.ctx.fills.map((d)=>d.fill),b.src.ctx.fills.map((d)=>d.fill),`the far ${id} is colour darkened, not made transparent`);
+}
 
-// The head's point at (ox,oy) is the HEAD joint; the leg's foot reaches the floor.
-const head = full.images.find((d)=>d.src.width===KIT_PARTS.head.w);
-assert.ok(head,'head image exists');
+// The head's point at (ox,oy) is the HEAD joint.
 const hs = fighter.r*1.15/12;
 const neck = point(head.m,head.x+KIT_PARTS.head.ox*hs,head.y+KIT_PARTS.head.oy*hs);
-assert.ok(Math.abs(neck.y-(200-20*fighter.h*.78))<2,'head joint lands at the rig neck');
-const legs = full.images.filter((d)=>d.src.width===KIT_PARTS.leg.w);
-assert.equal(legs.length,2);
-const feet = legs.map((d)=>point(d.m,d.x,d.y+d.h).y);
-assert.ok(feet.every((y)=>Math.abs(y-200)<8),'kit feet sit near the standing block rig floor');
-assert.notEqual(legs[0].src,legs[1].src,'far leg uses a separate raster');
-const arms = full.images.filter((d)=>d.src.width===KIT_PARTS.arm.w);
-assert.notEqual(arms[0].src,arms[1].src,'far arm uses a separate raster');
-assert.notDeepEqual(legs[0].src.ctx.fills.map((d)=>d.fill),legs[1].src.ctx.fills.map((d)=>d.fill),
-  'far leg is colour darkened, not made transparent');
+assert.ok(Math.abs(neck.y-(200-20*(fighter.h*.34+ch.bob+fighter.h*.44*ch.sy*Math.cos(ch.lean))))<2,'head joint lands at the rig neck');
+// A segment's joint is its frame's origin; its far end is `span` cells down the limb (the image is
+// drawn flipped, so down the limb is +y in the image's frame).
+const rootOf = (d) => point(d.m, 0, 0);
+const tipOf = (d, id) => point(d.m, 0, KIT_PARTS[id].span * d.h / d.src.height);
+const near = (p, q, tol, what) => assert.ok(Math.hypot(p.x - q.x, p.y - q.y) < tol, `${what}: (${p.x}, ${p.y}) against (${q.x}, ${q.y})`);
+// The joints hold: each upper segment ends exactly where its lower one hangs from.
+for (const [u, l, what] of [[farThigh,farShin,'far knee'],[nearThigh,nearShin,'near knee'],[farUpper,farFore,'far elbow'],[nearUpper,nearFore,'near elbow']])
+  near(tipOf(u, u === farThigh || u === nearThigh ? 'thigh' : 'upperarm'), rootOf(l), 1e-9, what);
+// The hand is the grip: the near forearm ends exactly where renderer2d hangs the weapon - the
+// shoulder plus 0.30h x ext along the weapon's angle, in the torso's frame (whose transform the
+// torso image carries, under its own flip).
+const tm = mul(torso.m, { a:1,b:0,c:0,d:-1,e:0,f:0 });
+const HIP = fighter.h*0.34, SHO = fighter.h*0.70, AL = fighter.h*0.30*(ch.armR.ext||1);
+const gripAt = point(tm, fighter.r*0.55 + Math.cos(wp.angle)*AL, (SHO-HIP) + Math.sin(wp.angle)*AL);
+near(tipOf(nearFore,'forearm'), gripAt, 1e-9, 'the hand is on the grip');
+// Running too: the run writes its arm swing into armR.x, which the weapon never had - an armed arm
+// that kept it swung a hand-width off its own grip.
+{
+  const runner = posedFighter(buildLoadout(code,'Sword'),null,0,{state:'run',vx:22,onGround:true});
+  for (const t of [0.1, 0.45, 0.8]) {
+    runner.frameCount = Math.round(t * 60);
+    const rc = channelsFor(runner, t), rw = weaponPose(runner, t);
+    assert.ok(t !== 0.45 || Math.abs(rc.armR.x) > 0.1, `the run's arm swing is too small at this moment (${rc.armR.x}) to test`);
+    const target = canvas(); view.drawFighterInto(target.ctx, runner, t, { ppu: 20, x: 200, y: 200 });
+    const im = target.ctx.images, rtm = mul(im[7].m, { a:1,b:0,c:0,d:-1,e:0,f:0 });
+    const RAL = runner.h*0.30*(rc.armR.ext||1);
+    near(tipOf(im[10],'forearm'), point(rtm, runner.r*0.55 + Math.cos(rw.angle)*RAL, (SHO-HIP) + Math.sin(rw.angle)*RAL), 1e-9, `a running hand is on the grip (t ${t})`);
+  }
+}
+// And the elbow bends at rest: the elbow is off the straight line from shoulder to hand.
+const sh = rootOf(nearUpper), el = tipOf(nearUpper,'upperarm'), hd = tipOf(nearFore,'forearm');
+assert.ok(Math.abs((hd.x-sh.x)*(el.y-sh.y)-(hd.y-sh.y)*(el.x-sh.x))/Math.hypot(hd.x-sh.x,hd.y-sh.y) > 2,'the front arm has an elbow at rest');
+// The feet are planted: each shin ends where the one-piece leg's foot would without the bob - on
+// the floor, lifted only by the stance's leg angle - not riding the breathing.
+for (const [d, rot, what] of [[farShin, ch.legL, 'far'], [nearShin, ch.legR, 'near']])
+  assert.ok(Math.abs(tipOf(d,'shin').y - (200 - 20*HIP*(1-Math.cos(rot)))) < 1e-9, `the ${what} foot is planted (bob ${ch.bob})`);
 
 const half = paint(5);
-assert.equal(half.images.length,7);
+assert.equal(half.images.length,7,'a fighter too small for an elbow to read keeps the seven one-piece pieces');
 assert.ok(half.images.some((d)=>d.src.width===Math.ceil(KIT_PARTS.head.w/2)),'low zoom uses half detail');
 assert.ok(full.images.some((d)=>d.src.width===KIT_PARTS.head.w),'near zoom uses full detail');
-assert.equal(paint(20).images[0].src,full.images[0].src,'raster is reused between frames');
+assert.equal(paintAt(20, T).images[0].src,full.images[0].src,'raster is reused between frames');
 
 // The presets are kit characters under their old ids (character-rework-plan.md, phase 1): 'Classic'
-// draws the seven kit sprites, exactly the rasters its own kit code draws - not the block body.
+// draws the eleven-piece kit body, exactly the rasters its own kit code draws - not the block body.
 const drawn = (id) => { const t = canvas(); view.drawFighterInto(t.ctx, posedFighter(buildLoadout(id,'Sword'),null,0,{state:'idle'}),0,{ppu:20,x:200,y:200}); return t.ctx; };
 const classic = drawn('Classic'), byCode = drawn(kitCodeOf('Classic'));
-assert.equal(classic.images.length,7,'a preset draws as a kit character');
+assert.equal(classic.images.length,11,'a preset draws as a kit character');
 assert.ok(classic.images.every((d,i)=>d.src===byCode.images[i].src),'a preset draws exactly what its kit code draws');
-for (const a of AVATARS) assert.equal(drawn(a.id).images.length,7,`${a.id} draws as a kit character`);
+for (const a of AVATARS) assert.equal(drawn(a.id).images.length,11,`${a.id} draws as a kit character`);
 // A character from the original creator (the hand-drawing mode, kept whole) has no kit and keeps
 // the block body.
 registerAvatar({ id: 'legacy-test', name: 'Legacy', rig: 'avatar', features: { head: 'block', face: 'dot', hat: 'none', torso: 'belt' },
@@ -88,4 +130,4 @@ registerAvatar({ id: 'legacy-test', name: 'Legacy', rig: 'avatar', features: { h
 const legacy = drawn('legacy-test');
 assert.equal(legacy.images.length,0,'an original-creator character keeps the block body');
 assert.ok(legacy.fills.some((d)=>Math.abs(d.w-fighter.r*1.6)<0.0001),'and its block torso');
-console.log('PASS kit renderer: seven jointed cached sprites, shaded far limbs, LOD; the presets draw as kits, original-creator characters keep the block body');
+console.log('PASS kit renderer: eleven jointed sprites at full detail - joints held, the hand on the grip, feet planted through the bob - seven at half detail, shaded far limbs, cached rasters; the presets draw as kits, original-creator characters keep the block body');

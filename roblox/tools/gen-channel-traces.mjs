@@ -138,7 +138,7 @@ function fighterFor(p) {
 const CHANNELS = [
   'lean', 'bob', 'sx', 'sy', 'spinY', 'spinZ', 'legL', 'legR', 'head',
   'opacity', 'rigRotZ', 'yOff', 'bubble', 'shakeX', 'smear',
-  'armL.z', 'armL.x', 'armL.ext', 'armR.z', 'armR.x', 'armR.ext',
+  'armL.z', 'armL.x', 'armL.ext', 'armL.bend', 'armR.z', 'armR.x', 'armR.ext', 'armR.bend', 'kneeL', 'kneeR',
 ];
 const outputs = [];
 for (const p of probes) {

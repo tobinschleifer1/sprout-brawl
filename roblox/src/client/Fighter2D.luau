@@ -18,6 +18,7 @@ local Weapons2D = require(script.Parent.Weapons2D)
 local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
 local AvatarCompose = require(script.Parent.AvatarCompose)
+local Rig = require(script.Parent.Rig)
 local KIT_PARTS = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit).parts
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
@@ -49,7 +50,15 @@ end
 -- `kit`, when the fighter is a kit character, draws the limb's pixel art instead of the block; it
 -- is handed the limb's drawn length so a thrust stretches the art with the arm.
 local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number,
-	kit: ((number) -> ())?)
+	kit: ((number) -> ())?, limb: ((number, number, Rig.Limb, string, string, boolean) -> ())?)
+	-- Jointed (a kit body at full detail): upper arm and forearm, the elbow solved so the hand lands
+	-- exactly where the one-piece arm's did - the weapon's grip (Rig.luau).
+	if limb then
+		local sx = if front then r * 0.55 else -r * 0.35
+		limb(sx, len, Rig.armPose(sx, len, a.z - math.pi / 2 + a.x, if a.ext ~= 0 then a.ext else 1, a.bend or 0, h),
+			"upperarm", "forearm", not front)
+		return
+	end
 	local w = r * 0.34
 	local L = h * 0.30 * (if a.ext ~= 0 then a.ext else 1)
 	Canvas2D.save(c)
@@ -186,14 +195,38 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local HIP, SHO = h * 0.34, h * 0.70
 	local lw, ll = r * 0.42, HIP
 
+	-- Full detail: elbows and knees (Rig.luau). Each limb is two segments cut from the kit's limb
+	-- art, the upper drawn first and the lower over the joint. Half detail - a fighter too small on
+	-- screen for an elbow to read - keeps the one-piece limbs and their cheaper art.
+	local jointed = kitArt ~= nil and not half
+	local function limb(rx: number, ry: number, L: Rig.Limb, upper: string, lower: string, far: boolean)
+		Canvas2D.save(c)
+		Canvas2D.translate(c, rx, ry)
+		Canvas2D.rotate(c, math.atan2(L.jy - ry, L.jx - rx) + math.pi / 2)
+		kitPiece(upper, L.len / KIT_PARTS[upper].span, far)
+		Canvas2D.restore(c)
+		Canvas2D.save(c)
+		Canvas2D.translate(c, L.jx, L.jy)
+		Canvas2D.rotate(c, math.atan2(L.ey - L.jy, L.ex - L.jx) + math.pi / 2)
+		kitPiece(lower, L.len / KIT_PARTS[lower].span, far)
+		Canvas2D.restore(c)
+	end
+	-- A foot on the ground stays on it through the body's bob - unless the whole rig is rotated (a
+	-- knockdown), when "down" is no longer the floor.
+	local planted = s.onGround == true and ch.rigRotZ == 0
+
 	Canvas2D.save(c)
 	Canvas2D.translate(c, 0, ch.bob)
 
 	-- Legs, far one first and in the darker palette entry, which is where the depth in this art
 	-- style comes from - there is no lighting to do it. The channels rotate them about the hip.
-	local legs = { { ch.legL, -r * 0.30, 0.74 }, { ch.legR, r * 0.30, 1 } }
+	local legs = { { ch.legL, -r * 0.30, 0.74, ch.kneeL }, { ch.legR, r * 0.30, 1, ch.kneeR } }
 	for _, leg in legs do
 		local rot, dx, shade = leg[1], leg[2], leg[3]
+		if jointed then
+			limb(dx, HIP, Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0), "thigh", "shin", shade < 1)
+			continue
+		end
 		Canvas2D.save(c)
 		Canvas2D.translate(c, dx, HIP)
 		Canvas2D.rotate(c, -rot)
@@ -229,7 +262,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local kitArm = if kitArt then function(far: boolean): (number) -> ()
 		return function(L: number) kitPiece("arm", L / KIT_PARTS.arm.span, far) end
 	end else nil
-	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74, if kitArm then kitArm(true) else nil)
+	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74, if kitArm then kitArm(true) else nil, if jointed then limb else nil)
 	if kitArt then
 		kitPiece("torso", (SHO - HIP) / KIT_PARTS.torso.span)
 	else
@@ -259,8 +292,10 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local wpal = char.weaponPalette or pal
 	local armAng = if wid then wpose.angle else ch.armR.z - math.pi / 2
 	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
-	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = ch.armR.x, ext = ext }, h, true, 1,
-		if kitArm then kitArm(false) else nil)
+	-- An armed arm takes no `x` (the run's arm swing): the hand is where the weapon is, and the weapon
+	-- never had it - the arm used to swing while the sword hung still, a hand-width off its grip.
+	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = if wid then 0 else ch.armR.x, ext = ext, bend = ch.armR.bend }, h, true, 1,
+		if kitArm then kitArm(false) else nil, if jointed then limb else nil)
 
 	local scuff: any = nil
 	if wid and not wpose.hide then

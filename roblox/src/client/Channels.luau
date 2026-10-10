@@ -750,8 +750,8 @@ local CHILL_TINT = { "#C9E6F5", "#A9D8F0", "#7FC0E6" }
 function Channels.For(f: any, char: any, move: any, t: number): any
 	local ch = {
 		lean = 0, bob = 0, sx = 1, sy = 1, spinY = 0, spinZ = 0,
-		armL = { z = 0.25, x = 0, ext = 1 }, armR = { z = -0.25, x = 0, ext = 1 },
-		legL = 0, legR = 0, head = 0, opacity = 1, tint = nil :: string?,
+		armL = { z = 0.25, x = 0, ext = 1, bend = 0 }, armR = { z = -0.25, x = 0, ext = 1, bend = 0 },
+		legL = 0, legR = 0, kneeL = 0, kneeR = 0, head = 0, opacity = 1, tint = nil :: string?,
 		rigRotZ = 0, yOff = 0, bubble = 0, visible = true, shakeX = 0, smear = 0,
 	}
 	local s, sf = f.state, f.stateFrame

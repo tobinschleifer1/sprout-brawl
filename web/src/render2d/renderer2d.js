@@ -29,6 +29,7 @@ import { featuresOf } from '../data/avatars.js';
 import { drawAmbient } from './ambient2d.js';
 import { KIT_PARTS } from '../data/avatarKit.js';
 import { drawKitPiece, kitHalfDetail } from './kitCanvas.js';
+import { armPose, legPose } from './rig.js';
 
 const PI = Math.PI;
 const BH = 270;                       // backbuffer HEIGHT is fixed, so one world pixel is always
@@ -375,6 +376,19 @@ export class Renderer2D {
     const PW = r * 1.15 / 12;
     const half = kitCode ? kitHalfDetail(b, PW) : false;
     const kit = (id, ph, far = false) => drawKitPiece(b, kitCode, id, PW, ph, { far, half });
+    // Full detail: elbows and knees (rig.js). Each limb is two segments cut from the kit's limb art,
+    // the upper drawn first and the lower over the joint. Half detail - a fighter too small on screen
+    // for an elbow to read - keeps the one-piece limbs, and their cheaper art.
+    const jointed = !!kitCode && !half;
+    const limb = (rx, ry, L, upper, lower, far) => {
+      b.save(); b.translate(rx, ry); b.rotate(Math.atan2(L.jy - ry, L.jx - rx) + PI / 2);
+      kit(upper, L.len / KIT_PARTS[upper].span, far); b.restore();
+      b.save(); b.translate(L.jx, L.jy); b.rotate(Math.atan2(L.ey - L.jy, L.ex - L.jx) + PI / 2);
+      kit(lower, L.len / KIT_PARTS[lower].span, far); b.restore();
+    };
+    // A foot on the ground stays on it through the body's bob - unless the whole rig is rotated
+    // (a knockdown), when "down" is no longer the floor.
+    const planted = !!f.onGround && !ch.rigRotZ;
     b.save();
     b.translate(0, ch.bob);
 
@@ -382,7 +396,8 @@ export class Renderer2D {
     // entries used to give for free.
     b.fillStyle = pal.tertiary;
     let farLeg = true;
-    for (const [rot, dx] of [[ch.legL, -r * 0.30], [ch.legR, r * 0.30]]) {
+    for (const [rot, dx, knee] of [[ch.legL, -r * 0.30, ch.kneeL], [ch.legR, r * 0.30, ch.kneeR]]) {
+      if (jointed) { limb(dx, HIP, legPose(dx, HIP, rot, ll, ch.bob, planted, knee), 'thigh', 'shin', farLeg); farLeg = false; continue; }
       b.save(); b.translate(dx, HIP); b.rotate(-rot);
       if (kitCode) kit('leg', ll / KIT_PARTS.leg.span, farLeg);
       else if (art && art.leg) drawPixelPart(b, 'leg', art.leg, pal, -lw / 2, -ll, lw, ll, farLeg ? 0.74 : 1);
@@ -407,7 +422,7 @@ export class Renderer2D {
 
     // back arm
     this._arm(b, pal.secondary, r, SHO - HIP, ch.armL, h, false, art, pal, 0.74,
-      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span, true) : null);
+      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span, true) : null, jointed ? limb : null);
 
     // torso, and whatever the character wears on it
     if (kitCode) kit('torso', (SHO - HIP) / KIT_PARTS.torso.span);
@@ -432,10 +447,12 @@ export class Renderer2D {
     else drawHead(b, pal, hs, feat);
     b.restore();
 
-    // front arm: driven by the weapon, so the swing and the limb always agree
+    // front arm: driven by the weapon, so the swing and the limb always agree. An armed arm takes
+    // no `x` (the run's arm swing): the hand is where the weapon is, and the weapon never had it -
+    // the arm used to swing while the sword hung still, a hand-width off its grip.
     const armAng = wid ? wp.angle : ch.armR.z - PI / 2;
-    this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: ch.armR.x, ext: ch.armR.ext }, h, true, art, pal, 1,
-      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span) : null);
+    this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: wid ? 0 : ch.armR.x, ext: ch.armR.ext, bend: ch.armR.bend }, h, true, art, pal, 1,
+      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span) : null, jointed ? limb : null);
 
     // weapon, at the hand
     let scuff = null;
@@ -506,7 +523,14 @@ export class Renderer2D {
     b.globalAlpha = 1;
   }
 
-  _arm(b, colour, r, len, a, h, front = false, art = null, pal = null, shade = 1, kit = null) {
+  _arm(b, colour, r, len, a, h, front = false, art = null, pal = null, shade = 1, kit = null, limb = null) {
+    // Jointed (a kit body at full detail): upper arm and forearm, the elbow solved so the hand lands
+    // exactly where the one-piece arm's did - the weapon's grip (rig.js).
+    if (limb) {
+      const sx = front ? r * 0.55 : -r * 0.35;
+      limb(sx, len, armPose(sx, len, a.z - PI / 2 + (a.x || 0), a.ext || 1, a.bend || 0, h), 'upperarm', 'forearm', !front);
+      return;
+    }
     // `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere,
     // and sliding the PROP forward off a fixed-length arm is what put the pike's grip further from
     // the hand than the fighter is tall. Extending the arm moves the hand, so the weapon travels

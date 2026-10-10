@@ -36,8 +36,11 @@ const sprites = specs.map((s) => {
   const sp = C.kitSprites(s);
   const { layers, trim } = C.layersOf(K.sanitizeKit(s));
   return { code, palette: K.kitPalette(K.sanitizeKit(s)), roles: Object.fromEntries(Object.entries(C.resolveRoles(K.sanitizeKit(s))).map(([k, v]) => [k, v.hex])),
-    order: layers.map((L) => `${L.part}:${L.z}:${L.x}:${L.y}`), trim, pieces: sp, farArm: C.shadeRects(sp.arm.full), farLegHalf: C.shadeRects(sp.leg.half) };
+    order: layers.map((L) => `${L.part}:${L.z}:${L.x}:${L.y}`), trim, pieces: sp, farArm: C.shadeRects(sp.arm.full), farLegHalf: C.shadeRects(sp.leg.half),
+    farSegments: Object.fromEntries(C.SEGMENTS.map((id) => [id, C.shadeRects(sp[id].full)])) };
 });
 
-fs.writeFileSync(path.join(HERE, '../tests/kit-fixture.json'), JSON.stringify({ codes, sanitized, sprites, combos: String(K.partCombinations()) }));
+// A grid that narrows right at a cut: the outline of a band is the whole silhouette's (avatarCompose.js).
+const probe = { grid: C.SEGMENT_PROBE, band: C.piece(C.SEGMENT_PROBE, 3, 6) };
+fs.writeFileSync(path.join(HERE, '../tests/kit-fixture.json'), JSON.stringify({ codes, sanitized, sprites, probe, combos: String(K.partCombinations()) }));
 console.log(`kit fixture: ${codes.length} codes, ${sprites.length} characters`);

@@ -17,6 +17,8 @@ local KIT: any = AvatarKit.KIT
 local AvatarCompose = {}
 
 AvatarCompose.PIECES = { "head", "torso", "arm", "leg", "pelvis" }
+-- The jointed limbs, cut from the composed arm and leg (KIT.parts `of` and `r0`); full detail only.
+AvatarCompose.SEGMENTS = { "upperarm", "forearm", "thigh", "shin" }
 AvatarCompose.OUTLINE = KIT.outline :: string
 AvatarCompose.OUTLINE_ALPHA = 0.85
 AvatarCompose.SHADE_DARK = 0.72
@@ -235,17 +237,25 @@ local function greedy(get: (number, number) -> string?, w: number, h: number, al
 	end
 end
 
-function AvatarCompose.piece(g: Grid): { Rect }
-	local w, h, cells = g.w, g.h, g.cells
-	local function hexAt(c: number, r: number): string?
-		if c < 0 or r < 0 or c >= w or r >= h then
+-- `r0`/`r1` cut out a band of rows (a limb segment), re-numbered from 0, outlined as the WHOLE grid
+-- is - so no dark line crosses an elbow or a knee (avatarCompose.js piece).
+function AvatarCompose.piece(g: Grid, r0: number?, r1: number?): { Rect }
+	local w, H, cells = g.w, g.h, g.cells
+	local top = r0 or 0
+	local h = (r1 or H) - top
+	local function full(c: number, r: number): string?
+		if c < 0 or r < 0 or c >= w or r >= H then
 			return nil
 		end
 		local cell = cells[r * w + c + 1]
 		return if cell then cell.hex else nil
 	end
+	local function hexAt(c: number, r: number): string?
+		return if r >= 0 and r < h then full(c, r + top) else nil
+	end
 	local function halo(c: number, r: number): string?
-		if hexAt(c, r) or hexAt(c - 1, r) or hexAt(c + 1, r) or hexAt(c, r - 1) or hexAt(c, r + 1) then
+		local R = r + top
+		if full(c, R) or full(c - 1, R) or full(c + 1, R) or full(c, R - 1) or full(c, R + 1) then
 			return AvatarCompose.OUTLINE
 		end
 		return nil
@@ -255,8 +265,11 @@ function AvatarCompose.piece(g: Grid): { Rect }
 	local inPlace = {}
 	greedy(hexAt, w, h, 1, inPlace)
 	local count: { [string]: number } = {}
-	for _, c in cells do
-		count[c.hex] = (count[c.hex] or 0) + 1
+	for i = top * w + 1, (top + h) * w do
+		local c = cells[i]
+		if c then
+			count[c.hex] = (count[c.hex] or 0) + 1
+		end
 	end
 	local base: string? = nil
 	local n = -1
@@ -290,7 +303,7 @@ function AvatarCompose.sprites(code: string): any
 	end
 	local spec = AvatarKit.decode(code) or AvatarKit.sanitize(nil)
 	local g = AvatarCompose.compose(spec)
-	local out = {}
+	local out: { [string]: any } = {}
 	for _, id in AvatarCompose.PIECES do
 		out[id] = { full = AvatarCompose.piece(g[id]), half = AvatarCompose.piece(AvatarCompose.halve(g[id])) }
 	end
@@ -299,6 +312,11 @@ function AvatarCompose.sprites(code: string): any
 	for _, id in { "arm", "leg" } do
 		out[id].farFull = AvatarCompose.shadeRects(out[id].full)
 		out[id].farHalf = AvatarCompose.shadeRects(out[id].half)
+	end
+	for _, id in AvatarCompose.SEGMENTS do
+		local P = KIT.parts[id]
+		local full = AvatarCompose.piece(g[P.of], P.r0, P.r0 + P.h)
+		out[id] = { full = full, farFull = AvatarCompose.shadeRects(full) }
 	end
 	CACHE[code] = out
 	return out

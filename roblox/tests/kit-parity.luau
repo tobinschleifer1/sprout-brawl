@@ -65,10 +65,22 @@ for _, s in T.sprites do
 	local sp = Compose.sprites(s.code)
 	for id, p in s.pieces do
 		rects(sp[id].full, p.full, `{s.code} {id}`)
-		rects(sp[id].half, p.half, `{s.code} {id} (half)`)
+		-- the jointed rig's segments are cut at full detail only; a half copy would be dead weight
+		assert((p.half == nil) == (sp[id].half == nil), `{s.code} {id}: half resolution on one side only`)
+		if p.half then rects(sp[id].half, p.half, `{s.code} {id} (half)`) end
+	end
+	for id, want in s.farSegments do
+		rects(sp[id].farFull, want, `{s.code} far {id}`)
 	end
 	rects(Compose.shadeRects(sp.arm.full), s.farArm, `{s.code} far arm`)
 	rects(Compose.shadeRects(sp.leg.half), s.farLegHalf, `{s.code} far leg (half)`)
+end
+-- A band cut where the silhouette narrows: outlined as the whole grid is, not as the band alone.
+do
+	local g = T.probe.grid
+	local cells = {}
+	for i = 1, g.w * g.h do cells[i] = g.cells[i] end
+	rects(Compose.piece({ w = g.w, h = g.h, cells = cells } :: any, 3, 6), T.probe.band, "the narrowing probe's band")
 end
 print(`kit: {codes} code values and {checked - codes} composed values across {#T.sprites} characters match the web`)
 
@@ -97,7 +109,7 @@ for _, s in T.sprites do
 		local P = AvatarKit.KIT.parts[id]
 		for _, half in { false, true } do
 			local w, h = if half then math.ceil(P.w / 2) else P.w, if half then math.ceil(P.h / 2) else P.h
-			for _, r in (if half then p.half else p.full) do
+			for _, r in (if half then p.half or {} else p.full) do
 				assert(r[1] >= 0 and r[2] >= 0 and r[1] + r[3] <= w and r[2] + r[4] <= h, `{s.code} {id}: rectangle leaves the canvas`)
 				inside += 1
 			end

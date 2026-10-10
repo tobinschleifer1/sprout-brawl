@@ -48,6 +48,7 @@ node tools/gen-stage-thumb-fixture.mjs
 node tools/gen-effects-fixture.mjs
 node tools/gen-shield-fixture.mjs
 node tools/gen-kit-fixture.mjs
+node tools/gen-rig-fixture.mjs
 node tools/gen-combat-traces.mjs
 node tools/gen-match-traces.mjs
 node tools/gen-drops-traces.mjs
@@ -160,6 +161,8 @@ lune run tests/predictor-events
 lune run tests/team-marks
 echo "== character kit: codes and composed parts as the web builds them =="
 lune run tests/kit-parity
+echo "== jointed rig: elbows and knees where the web puts them =="
+lune run tests/rig-parity
 lune run tests/kit-draw
 lune run tests/canvas-writes
 lune run tests/creator-ui

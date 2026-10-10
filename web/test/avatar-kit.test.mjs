@@ -12,7 +12,7 @@
 import { KIT_PARTS, KIT_ROLES, KIT_CATEGORIES, KIT_COLOURS, KIT_PRESETS, KIT_GROUPS, DEFAULT_KIT, CODE_LENGTH, OUTLINE,
   encodeKit, decodeKit, canonicalKit, sanitizeKit, isKitCode, kitAvatar, presetKit, partCombinations, colourCombinations, kitUnlocks } from '../src/data/avatarKit.js';
 import { REWARDS } from '../src/data/parkour.js';
-import { compose, halve, piece, kitSprites, layersOf, resolveRoles, PIECES } from '../src/render2d/avatarCompose.js';
+import { compose, halve, piece, kitSprites, layersOf, resolveRoles, PIECES, SEGMENTS, SEGMENT_PROBE } from '../src/render2d/avatarCompose.js';
 import { buildLoadout } from '../src/data/loadout.js';
 
 let pass = 0, fail = 0;
@@ -193,6 +193,27 @@ const fingerprint = (g) => PIECES.map((id) => g[id].cells.map((c) => (c ? c.hex 
   }
   check('the rectangles repaint the composed picture cell for cell, outline included', bad.length === 0,
     bad.length ? bad.slice(0, 5).join('; ') : `${pieces} pieces at full and half resolution repainted from their rectangles match the composed cells exactly`);
+
+  // ---- 7b. a limb segment is its rows of the limb, outline included ----
+  // The jointed rig cuts the arm and leg into bands of rows. Painted, a band must be exactly those
+  // rows of the uncut limb as the rig used to draw it: its outline comes from the whole silhouette, so
+  // a cell just past the cut that the limb outlines is outlined in the segment too. Real art rarely
+  // narrows right at a cut, so a grid that does is checked as well (SEGMENT_PROBE).
+  const segBad = [];
+  const segPaint = (rects, w, h) => { const keep = bad.length; const out = paint(rects, w, h); segBad.push(...bad.splice(keep)); return out; };
+  const band = (g, r0, h, what) => {
+    const whole = segPaint(piece(g), g.w, g.h), cut = segPaint(piece(g, r0, r0 + h), g.w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < g.w; x++)
+      if (cut[y * g.w + x] !== whole[(y + r0) * g.w + x]) { segBad.push(`${what} cell ${x},${y + r0}: the segment drew ${cut[y * g.w + x]}, the limb ${whole[(y + r0) * g.w + x]}`); return; }
+  };
+  let segs = 0;
+  for (let n = 0; n < 60; n++) {
+    const g = compose(n < KIT_PRESETS.length ? presetKit(KIT_PRESETS[n]) : randomSpec());
+    for (const id of SEGMENTS) { const P = KIT_PARTS[id]; band(g[P.of], P.r0, P.h, id); segs++; }
+  }
+  band(SEGMENT_PROBE, 3, 3, 'the narrowing probe');
+  check('a limb segment repaints exactly its rows of the limb, outline included', segBad.length === 0,
+    segBad.length ? segBad.slice(0, 5).join('; ') : `${segs} segments, and a grid that narrows across the cut, match the uncut limb row for row`);
 }
 
 // ---- 8. a face survives half resolution ----
@@ -216,14 +237,16 @@ const fingerprint = (g) => PIECES.map((id) => g[id].cells.map((c) => (c ? c.hex 
   for (let n = 0; n < N; n++) {
     const spec = n < KIT_PRESETS.length ? presetKit(KIT_PRESETS[n]) : randomSpec();
     const s = kitSprites(spec);
-    // The rig draws the arm and the leg twice.
-    const count = (k) => PIECES.reduce((t, id) => t + s[id][k].length * (id === 'arm' || id === 'leg' ? 2 : 1), 0);
-    const f = count('full'), h = count('half');
+    // What the rig draws: at full detail the jointed body (head, torso, pelvis and two of each limb
+    // segment), at half detail the seven one-piece pieces (each limb twice).
+    const f = ['head', 'torso', 'pelvis'].reduce((t, id) => t + s[id].full.length, 0)
+      + 2 * SEGMENTS.reduce((t, id) => t + s[id].full.length, 0);
+    const h = PIECES.reduce((t, id) => t + s[id].half.length * (id === 'arm' || id === 'leg' ? 2 : 1), 0);
     total += f; totalHalf += h;
     if (f > worst) { worst = f; who = encodeKit(spec); }
     worstHalf = Math.max(worstHalf, h);
   }
-  check('a character costs at most 260 rectangles, and at most 140 at half resolution', worst <= 260 && worstHalf <= 140,
+  check('a character costs at most 260 rectangles jointed, and at most 140 at half resolution', worst <= 260 && worstHalf <= 140,
     `mean ${(total / N).toFixed(0)} (half ${(totalHalf / N).toFixed(0)}), worst ${worst} (${who}) and ${worstHalf} at half, over ${N} characters`);
 }
 

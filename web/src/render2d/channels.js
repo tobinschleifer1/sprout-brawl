@@ -28,6 +28,8 @@
 //   sx/sy     squash and stretch
 //   armL/armR shoulder rotation, z = swing in the side-on plane, x = swing across it
 //   legL/legR hip rotation
+//   arm.bend  0-1, extra elbow: longer bones between the same shoulder and hand (rig.js)
+//   kneeL/R   0-1, knees drawn up: the foot pulled toward the hip, in the air (rig.js)
 //   spinZ     rotation in the screen plane; folded into rigRotZ below
 //   spinY     rotation about the fighter's own vertical axis, rendered as an sx squeeze
 //   smear     0-1; how much motion streak the painter should add this frame
@@ -738,7 +740,7 @@ function attackChannels(ch, f, t) {
 }
 
 export function channelsFor(f, t) {
-  const ch = { lean: 0, bob: 0, sx: 1, sy: 1, spinY: 0, spinZ: 0, armL: { z: 0.25, x: 0, ext: 1 }, armR: { z: -0.25, x: 0, ext: 1 }, legL: 0, legR: 0, head: 0, opacity: 1, tint: null, rigRotZ: 0, yOff: 0, bubble: 0, visible: true, shakeX: 0, smear: 0 };
+  const ch = { lean: 0, bob: 0, sx: 1, sy: 1, spinY: 0, spinZ: 0, armL: { z: 0.25, x: 0, ext: 1, bend: 0 }, armR: { z: -0.25, x: 0, ext: 1, bend: 0 }, legL: 0, legR: 0, kneeL: 0, kneeR: 0, head: 0, opacity: 1, tint: null, rigRotZ: 0, yOff: 0, bubble: 0, visible: true, shakeX: 0, smear: 0 };
   const s = f.state, sf = f.sf;
   const runPhase = f.frameCount * 0.38;
   switch (s) {

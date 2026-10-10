@@ -6,10 +6,11 @@
 --    the mirror a facing of -1 puts in the transform, which a Frame cannot do and the sprite fakes
 --    with a flipped layout. Then the reason it exists: drawing it again creates nothing, and only a
 --    change of picture, mirror or alpha touches the children.
--- 2. Fighter2D with a kit character: seven sprites (head, torso, pelvis, two arms, two legs) in
---    place of the block body, the far limbs in their darkened copies, hanging from the rig's joints
---    - the neck at the head's height, the feet on the floor - and the half-resolution cut once a
---    cell is under a screen pixel and a third.
+-- 2. Fighter2D with a kit character: at full detail eleven sprites (head, torso, pelvis, and an
+--    upper and lower segment of each arm and leg) in place of the block body, the far limbs in their
+--    darkened copies - the neck at the head's height, every elbow and knee joined, the hand exactly on
+--    the weapon's grip, the feet planted on the floor through the breathing. Below a screen pixel and
+--    a third a cell, the seven one-piece pieces at half resolution.
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local Rbx = require("@lune/roblox")
@@ -143,6 +144,7 @@ local Snapshot = Loader.load("Snapshot")
 local Loadout = Loader.load("Loadout")
 local AvatarKit = Loader.load("AvatarKit")
 local KIT = Loader.load("Data/AvatarKit")
+local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
 local Avatars = Loader.load("Data/Avatars")
 
 -- The block body's head and chest mark come from Avatar2D; a kit fighter must not call either.
@@ -177,9 +179,21 @@ f.state, f.onGround = "idle", true
 local s = Snapshot.decode(Snapshot.encode(f))
 local art = Compose.sprites(code)
 
--- Big on screen: full resolution.
+-- Big on screen: full resolution - the jointed rig. `T` is a moment of the idle where the breathing
+-- has the body well off its rest height, so a foot that rode the bob would be caught.
+local T = 0.7
+local ch = Channels.For(s, char, nil, T)
+assert(math.abs(ch.bob) > 0.05, `the test's moment has too little bob ({ch.bob}) to tell a planted foot from one riding it`)
+-- The weapon's frame as Weapons2D.draw is entered: Fighter2D has just translated to the grip.
+local grip: any = nil
+local weaponDraw = Weapons2D.draw
+Weapons2D.draw = function(cv: any, ...)
+	grip = { cv.m.e, cv.m.f }
+	return weaponDraw(cv, ...)
+end
 table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
-Fighter2D.draw(canvas(24), s, char, 0, 2)
+Fighter2D.draw(canvas(24), s, char, T, 2)
+Weapons2D.draw = weaponDraw
 assert(weapons == 1, `the kit fighter's sword should be one sprite, drew {weapons}`)
 assert(blockHeads == 0, "the kit fighter drew the block head or chest mark as well")
 local by: any = {}
@@ -188,15 +202,18 @@ for _, sp in sprites do
 	by[piece] = by[piece] or {}
 	table.insert(by[piece], sp)
 end
-assert(#sprites == 7, `a kit fighter should be seven sprites, drew {#sprites}`)
-assert(#by.head == 1 and #by.torso == 1 and #by.pelvis == 1 and #by.arm == 2 and #by.leg == 2, "not one head, torso and pelvis and two arms and legs")
+assert(#sprites == 11, `a kit fighter at full detail should be eleven sprites, drew {#sprites}`)
+assert(#by.head == 1 and #by.torso == 1 and #by.pelvis == 1, "not one head, torso and pelvis")
 local kitBlocks = blocks
-for _, id in { "arm", "leg" } do
-	local far, near = 0, 0
+-- Each segment once near and once far (darkened), in its own picture cut from the limb.
+local seg: any = {}
+for _, id in { "upperarm", "forearm", "thigh", "shin" } do
+	assert(by[id] and #by[id] == 2, `{id}: expected two, drew {if by[id] then #by[id] else 0}`)
+	seg[id] = {}
 	for _, sp in by[id] do
-		if sp.list == art[id].farFull then far += 1 elseif sp.list == art[id].full then near += 1 end
+		if sp.list == art[id].farFull then seg[id].far = sp elseif sp.list == art[id].full then seg[id].near = sp end
 	end
-	assert(far == 1 and near == 1, `{id}: expected one far (darkened) and one near copy, got {far} and {near}`)
+	assert(seg[id].far and seg[id].near, `{id}: expected one far (darkened) and one near copy`)
 end
 -- Square cells a twelfth of the head wide, on every piece - the pixels are one size across the body.
 local PWANT = char.radius * 1.15 / 12
@@ -209,14 +226,64 @@ local head = by.head[1]
 local hx, hy = head.P(head.x0 + KIT.parts.head.ox * head.pw, head.y1 - KIT.parts.head.oy * head.ph)
 assert(math.abs(hx / 24 - s.x) < 0.3 and math.abs(hy / 24 - (s.y + char.height * 0.78)) < 0.35,
 	`the head hangs from ({hx / 24}, {hy / 24}), the neck is at ({s.x}, {s.y + char.height * 0.78})`)
--- The feet: the bottom of each leg's span is where the block rig's leg ends - the floor, lifted by
--- the idle breathing (`bob`) and the stance's leg angles, as the block legs are.
-local ch = Channels.For(s, char, nil, 0)
-for _, leg in by.leg do
-	local _, fy = leg.P(0, leg.y1 - KIT.parts.leg.span * leg.ph)
-	local rot = if leg.list == art.leg.farFull then ch.legL else ch.legR
-	local want = s.y + ch.bob + char.height * 0.34 * (1 - math.cos(rot))
-	assert(math.abs(fy / 24 - want) < 1e-6, `a foot ends at y {fy / 24}, the block leg ends at {want}`)
+-- A segment's root (its joint) and its far end, in world pixels.
+local function root(sp: any, id: string): (number, number)
+	local P = KIT.parts[id]
+	return sp.P(sp.x0 + P.ox * sp.pw, sp.y1 - P.oy * sp.ph)
+end
+local function tip(sp: any, id: string): (number, number)
+	local P = KIT.parts[id]
+	return sp.P(sp.x0 + P.ox * sp.pw, sp.y1 - (P.oy + P.span) * sp.ph)
+end
+-- The joints hold: each upper segment ends exactly where its lower one hangs from.
+for _, pair in { { "upperarm", "forearm" }, { "thigh", "shin" } } do
+	for _, side in { "near", "far" } do
+		local ex, ey = tip(seg[pair[1]][side], pair[1])
+		local jx, jy = root(seg[pair[2]][side], pair[2])
+		assert(math.abs(ex - jx) < 1e-9 and math.abs(ey - jy) < 1e-9,
+			`{side} {pair[1]} ends at ({ex}, {ey}), its {pair[2]} hangs from ({jx}, {jy})`)
+	end
+end
+-- The hand is the grip: the near forearm ends exactly where the sword is drawn from.
+assert(grip, "the weapon was never drawn")
+local gx, gy = tip(seg.forearm.near, "forearm")
+assert(math.abs(gx - grip[1]) < 1e-9 and math.abs(gy - grip[2]) < 1e-9, `the hand is at ({gx}, {gy}), the grip at ({grip[1]}, {grip[2]})`)
+-- And the elbow bends: the elbow is off the straight line from shoulder to hand.
+local sx, sy = root(seg.upperarm.near, "upperarm")
+local ex, ey = tip(seg.upperarm.near, "upperarm")
+local cross = (gx - sx) * (ey - sy) - (gy - sy) * (ex - sx)
+assert(math.abs(cross) / math.sqrt((gx - sx) ^ 2 + (gy - sy) ^ 2) > 2, "the front arm is straight: no elbow at rest")
+-- The feet are planted: each shin ends where the one-piece leg's foot would without the bob - on
+-- the floor, lifted only by the stance's leg angle - not riding the breathing up and down.
+for side, rot in { far = ch.legL, near = ch.legR } do
+	local _, fy = tip(seg.shin[side], "shin")
+	local want = s.y + char.height * 0.34 * (1 - math.cos(rot))
+	assert(math.abs(fy / 24 - want) < 1e-9, `the {side} foot is at y {fy / 24}, planted it is at {want} (bob {ch.bob})`)
+end
+-- Running too: the run writes its arm swing into armR.x, which the weapon never had - an armed arm
+-- that kept it swung a hand-width off its own grip.
+do
+	local runner: any = Fighter.new({ index = 1, char = char, x = 3, y = 2, stocks = 3 })
+	runner.state, runner.onGround, runner.vx = "run", true, 22
+	for _, fc in { 6, 27, 48 } do
+		runner.frameCount = fc
+		local rs = Snapshot.decode(Snapshot.encode(runner))
+		local rc = Channels.For(rs, char, nil, fc / 60)
+		assert(fc ~= 27 or math.abs(rc.armR.x) > 0.1, `the run's arm swing is too small at this moment ({rc.armR.x}) to test`)
+		grip = nil
+		Weapons2D.draw = function(cv: any, ...)
+			grip = { cv.m.e, cv.m.f }
+			return weaponDraw(cv, ...)
+		end
+		table.clear(sprites)
+		Fighter2D.draw(canvas(24), rs, char, fc / 60, 2)
+		Weapons2D.draw = weaponDraw
+		local fore
+		for _, sp in sprites do if sp.list == art.forearm.full then fore = sp end end
+		local rx, ry = tip(fore, "forearm")
+		assert(grip and math.abs(rx - grip[1]) < 1e-9 and math.abs(ry - grip[2]) < 1e-9,
+			`a running hand (frame {fc}) is at ({rx}, {ry}), its grip at ({grip and grip[1]}, {grip and grip[2]})`)
+	end
 end
 -- The torso fills hip to shoulder.
 local torso = by.torso[1]
@@ -238,7 +305,7 @@ local pwCell = char.radius * 1.15 / 12
 assert(pwCell * 8 < Fighter2D.KIT_LOD_PX and pwCell * 24 >= Fighter2D.KIT_LOD_PX, "the test's two zooms do not straddle the threshold")
 
 -- The presets are kit characters under their old ids (docs/briefs/character-rework-plan.md, phase
--- 1): every one draws seven sprites and no block body, and "Classic" draws exactly the pictures its
+-- 1): every one draws the eleven-piece kit body and no block body, and "Classic" draws exactly the pictures its
 -- own kit code draws.
 local function keysOf(avatarId: string): { string }
 	table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
@@ -249,7 +316,7 @@ local function keysOf(avatarId: string): { string }
 end
 for _, preset in Avatars.LIST do
 	local keys = keysOf(preset.id)
-	assert(#keys == 7 and blockHeads == 0, `preset {preset.id} drew {#keys} sprites and {blockHeads} block head pieces, want a kit body`)
+	assert(#keys == 11 and blockHeads == 0, `preset {preset.id} drew {#keys} sprites and {blockHeads} block head pieces, want a kit body`)
 end
 local classic, byCode = keysOf("Classic"), keysOf(Loadout.kitCodeOf("Classic") :: string)
 assert(table.concat(classic, ",") == table.concat(byCode, ","), "Classic does not draw what its kit code draws")
@@ -284,7 +351,7 @@ local function flashDraw(): { any }
 	return tinted
 end
 local tinted = flashDraw()
-assert(#tinted == 7, `a flashing kit fighter drew {#tinted} flash pieces, want one per piece (7)`)
+assert(#tinted == 11, `a flashing kit fighter drew {#tinted} flash pieces, want one per piece (11)`)
 for _, sp in tinted do
 	local base
 	for _, other in flashes do if other.key .. "|" .. want == sp.key then base = other end end
@@ -303,4 +370,4 @@ for i, sp in again do assert(sp.list == tinted[i].list, "the flash silhouette wa
 chilled.chillStacks = 0
 assert(#flashDraw() == 0, "a fighter with no flash drew flash pieces")
 
-print(`PASS kit fighter: seven sprites on the rig's joints (neck at the head, feet where the block legs end), far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece`)
+print(`PASS kit fighter: eleven jointed sprites at full detail (neck at the head, every elbow and knee joined, the hand on the grip, feet planted through the bob), seven below it, far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece`)

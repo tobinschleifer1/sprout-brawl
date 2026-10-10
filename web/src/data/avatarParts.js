@@ -30,6 +30,15 @@ export const PARTS = {
   arm: { w: 6, h: 16, ox: 3, oy: 0, span: 15 },
   leg: { w: 7, h: 18, ox: 3, oy: 0, span: 17 },
   pelvis: { w: 14, h: 10, ox: 7, oy: 2.5, span: 5 },
+  // The jointed rig's limb SEGMENTS. Nothing is drawn onto these: each is a band of rows `r0` to
+  // `r0 + h - 1` cut out of the composed arm or leg (`of`), so every sleeve, glove, trouser and shoe
+  // already made gets an elbow and a knee for free. The cut is at row 7.5 of the arm (span 15) and
+  // 8.5 of the leg (span 17); each side keeps one row past it, so the two overlap by two rows and a
+  // bent joint shows no gap. The lower piece hangs from the joint, half a row below its top edge.
+  upperarm: { w: 6, h: 9, ox: 3, oy: 0, span: 7.5, of: 'arm', r0: 0 },
+  forearm: { w: 6, h: 9, ox: 3, oy: 0.5, span: 7.5, of: 'arm', r0: 7 },
+  thigh: { w: 7, h: 10, ox: 3, oy: 0, span: 8.5, of: 'leg', r0: 0 },
+  shin: { w: 7, h: 10, ox: 3, oy: 0.5, span: 8.5, of: 'leg', r0: 8 },
 };
 
 // Colour roles. `slot` reads a colour slot; `shade` darkens (x0.72) or lightens (35% toward white)

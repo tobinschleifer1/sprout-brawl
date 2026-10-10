@@ -45,3 +45,6 @@ art/basic/
 
 # Zips: keep the unpacked folder (assets/ for art) rather than an archive of it.
 *.zip
+
+# Agents' worktrees (see AGENTS.md, Branches): one checkout per branch, never committed.
+.claude/worktrees/

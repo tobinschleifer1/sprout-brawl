@@ -48,12 +48,16 @@ local function instance(class: string): any
 	})
 end
 local images = 0
+-- `denied`: what Roblox does without the EditableImage permission - the image is created (with a
+-- warning) and its first write is refused.
+local denied = false
 local AssetService = {
 	CreateEditableImage = function(_, opts: any): any
 		if refuse then error("out of image memory") end
 		images += 1
 		return { size = opts.Size, Destroy = function() end,
 			WritePixelsBuffer = function(self: any, _origin: any, size: any, buf: buffer)
+				if denied then error("EditableImage is not accessible") end
 				self.pixels, self.written = buf, size
 			end }
 	end,
@@ -163,4 +167,17 @@ local c2 = canvas()
 Canvas2D.sprite(c2, "pic", PIC, 0, 3, 1, 1, 4, 3)
 if c2.sprites["pic#1"].frame.ClassName ~= "Frame" or #c2.sprites["pic#1"].frame.children ~= #PIC then fail("IMAGES = false still drew an image") end
 
-print("PASS canvas images: pixels are the rectangles (blended, mirrored), one ImageLabel a sprite, nothing rebuilt on redraw, a fade is one write, one image a picture, Frames when an image cannot be had")
+-- Without the permission (images are created but every write is refused), the probe finds out once:
+-- images are off, every picture is Frames, and no further image is ever attempted.
+denied = true
+Canvas2D.IMAGES = nil
+if Canvas2D.imagesOn() then fail("images taken as available when every write is refused") end
+local before = images
+local c3 = canvas()
+Canvas2D.sprite(c3, "pic", PIC, 0, 3, 1, 1, 4, 3)
+Canvas2D.sprite(c3, "other", { { 0, 0, 1, 1, "#FFFFFF", 1 } }, 0, 1, 1, 1, 1, 1)
+if images ~= before then fail(`{images - before} images attempted after the probe found them refused`) end
+if c3.sprites["pic#1"].frame.ClassName ~= "Frame" then fail("a refused-permission picture did not fall back to Frames") end
+denied = false
+
+print("PASS canvas images: images refused without the permission are found by one probe, and never attempted again; pixels are the rectangles (blended, mirrored), one ImageLabel a sprite, nothing rebuilt on redraw, a fade is one write, one image a picture, Frames when an image cannot be had")

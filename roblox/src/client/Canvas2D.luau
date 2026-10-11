@@ -383,8 +383,17 @@ local function imagesOn(): boolean
 	if Canvas2D.IMAGES == nil then
 		local ok = pcall(function()
 			assetService = game:GetService("AssetService")
+			-- Writing a pixel, not only creating the image: an experience without the EditableImage
+			-- permission still hands out an image object (with a warning) and refuses the first
+			-- write. Probing creation alone took images as available, so every new picture then
+			-- paid for a failed image before falling back to Frames - and imagesOn() told the hit
+			-- flash that the cheap path was on when it was not.
 			local probe = assetService:CreateEditableImage({ Size = Vector2.new(1, 1) })
+			local ok = pcall(function()
+				probe:WritePixelsBuffer(Vector2.zero, Vector2.new(1, 1), buffer.create(4))
+			end)
 			probe:Destroy()
+			assert(ok, "EditableImage refuses writes")
 		end)
 		Canvas2D.IMAGES = ok
 	end

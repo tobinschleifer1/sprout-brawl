@@ -135,6 +135,9 @@ do
 	FxPlayer.step(small, FxPlayer.GLOW_TIME)
 	if small.glows[0] then fail("the gold flash never ended") end
 	-- the flash reaches the drawn fighter as its silhouette tint, and the pose's own flash wins
+	-- (where pictures are images: on the Frame fallback the flash is a box - kit-draw tests that)
+	local imagesWas = Canvas.imagesOn
+	Canvas.imagesOn = function() return true end
 	local tints = {}
 	local spriteWas = Canvas.sprite
 	Canvas.rect = function() end; Canvas.ellipse = function() end; Canvas.tri = function() end; Canvas.line = function() end
@@ -162,6 +165,7 @@ do
 	Fighter2D.glows = nil
 	Canvas.sprite = spriteWas
 	for _, k in tints do if string.find(k, FxPlayer.PERFECT, 1, true) then fail("the gold flash painted over the pose's own flash") end end
+	Canvas.imagesOn = imagesWas
 
 	-- a finisher's hit: bigger, gold, a screen flash, and the finisher shake
 	local plain, fin = FxPlayer.new(), FxPlayer.new()

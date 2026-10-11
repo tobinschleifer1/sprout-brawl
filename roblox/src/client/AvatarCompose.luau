@@ -88,7 +88,9 @@ end
 -- ------------------------------------------------------------------ layers ----
 -- Sorted on (z, seq) with seq unique: a strict total order, so table.sort (not stable) lands on the
 -- JavaScript's stable-sort sequence.
-function AvatarCompose.layersOf(spec: AvatarKit.Spec): ({ any }, number)
+-- `override` (Roblox only: Expressions.luau) replaces a category's layers with others, by category
+-- id - an expression-only pair of eyes in place of the chosen ones. Without it this is the port.
+function AvatarCompose.layersOf(spec: AvatarKit.Spec, override: { [string]: { any } }?): ({ any }, number)
 	local list = {}
 	local seq, trim = 0, 0
 	for _, cat in KIT.categories do
@@ -101,7 +103,7 @@ function AvatarCompose.layersOf(spec: AvatarKit.Spec): ({ any }, number)
 		if chosen.trim and chosen.trim > trim then
 			trim = chosen.trim
 		end
-		for _, L in chosen.layers do
+		for _, L in (if override and override[cat.id] then override[cat.id] else chosen.layers) do
 			table.insert(list, { L = L, seq = seq })
 			seq += 1
 		end
@@ -119,10 +121,10 @@ function AvatarCompose.layersOf(spec: AvatarKit.Spec): ({ any }, number)
 	return layers, trim
 end
 
-function AvatarCompose.compose(raw: any): { [string]: Grid }
+function AvatarCompose.compose(raw: any, override: { [string]: { any } }?): { [string]: Grid }
 	local spec = AvatarKit.sanitize(raw)
 	local roles = AvatarCompose.resolveRoles(spec)
-	local layers, trim = AvatarCompose.layersOf(spec)
+	local layers, trim = AvatarCompose.layersOf(spec, override)
 	local out = {}
 	for _, id in AvatarCompose.PIECES do
 		local P = KIT.parts[id]

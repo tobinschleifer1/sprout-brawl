@@ -19,6 +19,7 @@ local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
 local AvatarCompose = require(script.Parent.AvatarCompose)
 local Rig = require(script.Parent.Rig)
+local Expressions = require(script.Parent.Expressions)
 local KIT_PARTS = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit).parts
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
@@ -165,12 +166,28 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- chilled. That fallback is what the lowest devices run, and a hit is the busiest moment of a
 	-- fight, so there the flash is one box over the fighter, as the block rig's has always been.
 	local silhouette = ch.tint ~= nil and kitArt ~= nil and Canvas2D.imagesOn()
+	-- The face (Expressions.luau): this frame's expression, held at least a few frames, and its head
+	-- picture - unless at this size it would look exactly like the character's own face.
+	local face, faceId = nil, nil
+	if kitArt then
+		faceId = Expressions.held(char, s, Expressions.of(s, move, half))
+		if faceId then
+			local made = Expressions.head(kitCode :: string, faceId)
+			if not (if half then made.sameHalf else made.sameFull) then
+				face = made
+			end
+		end
+	end
 	local function kitPiece(id: string, ph: number, far: boolean?)
 		local P = KIT_PARTS[id]
 		local art = (kitArt :: any)[id]
 		local list = if far then (if half then art.farHalf else art.farFull) else (if half then art.half else art.full)
 		local k = if half then 2 else 1
 		local key = `{kitCode}|{id}|{if far then "f" else ""}{if half then "h" else ""}`
+		if id == "head" and face then
+			list = if half then face.half else face.full
+			key = `{kitCode}|head|{faceId}{if half then "h" else ""}`
+		end
 		Canvas2D.sprite(c, key, list, -P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
 		if silhouette then
 			-- the hit flash: the same piece, in the flash colour, over itself

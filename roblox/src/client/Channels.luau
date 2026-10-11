@@ -747,6 +747,81 @@ end
 -- shows the wrong blue rather than erroring.
 local CHILL_TINT = { "#C9E6F5", "#A9D8F0", "#7FC0E6" }
 
+-- How far each elbow and knee bends (Rig.luau), by what the body is doing: channels.js
+-- jointChannels, line for line - read it there for the why. Only `bend` and `knee` are written,
+-- plus the crouch `bob` of a jumpsquat and a landing, which on planted feet is what bends the knees.
+local function jointChannels(ch: any, f: any, char: any, move: any, s: string, sf: number, t: number, runPhase: number)
+	local air = not f.onGround
+	if s == "idle" then
+		ch.armL.bend = 0.35; ch.armR.bend = 0.2
+	elseif s == "run" then
+		local sp = math.min(1, math.abs(f.vx) / char.runSpeed)
+		-- the leg swinging forward (its angle falling; a positive angle is the foot behind) folds
+		ch.kneeL = 0.6 * sp * math.max(0, -math.cos(runPhase))
+		ch.kneeR = 0.6 * sp * math.max(0, math.cos(runPhase))
+		ch.armL.bend = 0.3 + 0.35 * sp; ch.armR.bend = 0.2 + 0.2 * sp
+	elseif s == "dash" then
+		local k = clamp(sf / 8, 0, 1)
+		ch.kneeR = 0.55 * (1 - k); ch.armL.bend = 0.6; ch.armR.bend = 0.3
+	elseif s == "jumpsquat" then
+		local k = clamp(sf / 4, 0, 1)
+		ch.bob = -0.24 * k; ch.armL.bend = 0.3 + 0.4 * k; ch.armR.bend = 0.2 + 0.4 * k
+	elseif s == "air" or s == "helpless" or s == "recovery" then
+		if s == "helpless" then
+			ch.kneeL = 0.5; ch.kneeR = 0.4; ch.armL.bend = 0.2; ch.armR.bend = 0.2
+		elseif f.vy > 6 then
+			ch.kneeL = 0.15; ch.kneeR = 0.6; ch.armL.bend = 0.25; ch.armR.bend = 0.2
+		elseif f.vy < -6 then
+			local q = if f.fastFalling then 0 else 0.15
+			ch.kneeL = q; ch.kneeR = q; ch.armL.bend = 0.45; ch.armR.bend = 0.35
+		else
+			local hang = math.sin(t * 4.5 + f.index)
+			ch.kneeL = 0.45 + hang * 0.06; ch.kneeR = 0.35 - hang * 0.05; ch.armL.bend = 0.5; ch.armR.bend = 0.4
+		end
+	elseif s == "landing" then
+		local q = 1 - settle(clamp(sf / 10, 0, 1), 3.0, 6)
+		ch.bob -= 0.16 * q; ch.armL.bend = 0.35 + 0.35 * q; ch.armR.bend = 0.2 + 0.35 * q
+	elseif s == "attack" then
+		local m = move
+		if not m or m.id == "Ultimate" then
+			ch.armL.bend = 0.35; ch.armR.bend = 0.2
+		else
+			local w = Channels.swing(f, m)
+			-- straight by the first active frame even across a long active window
+			local load = if w.phase == "wind" then math.min(1, w.e) elseif w.phase == "strike" then math.max(0, 1 - 2 * w.e) else 0
+			local rest = if w.phase == "settle" then w.k else 0
+			ch.armR.bend = 0.9 * load + 0.2 * rest
+			ch.armL.bend = 0.3 + 0.4 * load
+			if air then
+				ch.kneeL = 0.2 + 0.45 * load + 0.15 * rest; ch.kneeR = 0.1 + 0.5 * load + 0.15 * rest
+			end
+		end
+	elseif s == "hitstun" then
+		local fresh = clamp(1 - sf / 10, 0, 1)
+		ch.armL.bend = 0.6 + 0.3 * fresh; ch.armR.bend = 0.5 + 0.3 * fresh
+		if air then
+			ch.kneeL = 0.3 + 0.3 * fresh; ch.kneeR = 0.2 + 0.3 * fresh
+		end
+	elseif s == "shield" or s == "shielddrop" then
+		ch.armL.bend = 0.9; ch.armR.bend = 0.8
+	elseif s == "ledge" or s == "ledgeaction" then
+		ch.kneeL = 0.4; ch.kneeR = 0.25; ch.armL.bend = 0.15; ch.armR.bend = 0.15
+	elseif s == "grabbed" or s == "flung" then
+		ch.kneeL = 0.5; ch.kneeR = 0.35; ch.armL.bend = 0.6; ch.armR.bend = 0.6
+	elseif s == "taunt" or s == "defeat" then
+		ch.armL.bend = 0.4; ch.armR.bend = 0.4
+	elseif s == "victory" then
+		ch.armL.bend = 0.5; ch.armR.bend = 0.05
+	else
+		ch.armL.bend = 0.3; ch.armR.bend = 0.2
+	end
+	-- a tumbling body balls up: the knees come in with the tuck that already closes the legs
+	if f.tumbling and (s == "air" or s == "hitstun") then
+		local tuck = clamp(math.max(0, f.frameCount - f.lastHitFrame) / 6, 0, 1)
+		ch.kneeL = math.max(ch.kneeL, 0.75 * tuck); ch.kneeR = math.max(ch.kneeR, 0.7 * tuck)
+	end
+end
+
 function Channels.For(f: any, char: any, move: any, t: number): any
 	local ch = {
 		lean = 0, bob = 0, sx = 1, sy = 1, spinY = 0, spinZ = 0,
@@ -973,6 +1048,7 @@ function Channels.For(f: any, char: any, move: any, t: number): any
 		ch.legL = ch.legL * (1 - tuck) + 0.26 * tuck
 		ch.legR = ch.legR * (1 - tuck) - 0.20 * tuck
 	end
+	jointChannels(ch, f, char, move, s, sf, t, runPhase)
 	if f.invincible > 0 and s ~= "ledge" and s ~= "respawn" and f.frameCount % 6 < 3 then
 		ch.opacity *= 0.55
 	end

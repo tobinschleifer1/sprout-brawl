@@ -19,6 +19,8 @@ import { channelsFor } from '../src/render2d/channels.js';
 import { WEAPONS } from '../src/data/weapons/index.js';
 import { weaponPose } from '../src/render2d/weapons2d.js';
 import { readFileSync } from 'node:fs';
+import { posedFighter } from '../src/render2d/preview.js';
+import { buildLoadout } from '../src/data/loadout.js';
 const PI_ = Math.PI;
 
 let pass = 0, fail = 0;
@@ -443,6 +445,55 @@ function angleAt(f, id, at) {
     }
   }
   check('signatures begin from the stance, without a jump on their first frame', pops.length === 0, pops.join('; ') || 'every signature within 20 degrees of the stance on frame 1');
+}
+
+// ---- the joints act: elbows and knees bend where an action reads from them ----
+// The jointed rig (rig.js) bends only as far as `bend` and `knee` say. These are the bends the
+// actions are authored around (channels.js jointChannels), asserted as properties: the Luau agrees
+// with all of it by replay, which cannot tell whether both builds agree on a dead pose.
+{
+  const bad = [];
+  // A striking arm is loaded in the wind-up and straight at contact, on every weapon's jab and side
+  // signature: the strike reads as a punch out of a folded arm, not a stick swinging.
+  let strikes = 0;
+  for (const w of WEAPONS) for (const id of ['LightNeutral1', 'SigSide']) {
+    const L = buildLoadout('Classic', w.id), m = L.moves[id];
+    if (!m) continue;
+    const cocked = channelsFor(posedFighter(L, id, m.startup, { onGround: true }), 0).armR.bend;
+    const contact = channelsFor(posedFighter(L, id, m.startup + 1, { onGround: true }), 0).armR.bend;
+    if (!(cocked > 0.7 && contact < 0.4)) bad.push(`${w.id} ${id}: elbow ${cocked.toFixed(2)} cocked, ${contact.toFixed(2)} at contact`);
+    strikes++;
+  }
+  // An aerial pulls the knees up to wind up and kicks them out at contact.
+  for (const w of WEAPONS) {
+    const L = buildLoadout('Classic', w.id), m = L.moves.AirForward;
+    if (!m) continue;
+    const at = (mf) => { const ch = channelsFor(posedFighter(L, 'AirForward', mf, { onGround: false }), 0); return ch.kneeL + ch.kneeR; };
+    if (!(at(m.startup) > at(m.startup + 1) + 0.3)) bad.push(`${w.id} AirForward: knees ${at(m.startup).toFixed(2)} wound up, ${at(m.startup + 1).toFixed(2)} at contact`);
+  }
+  // The run folds the leg swinging forward and only that one: a leg swings forward while its
+  // angle falls, and its knee is up for exactly that half of the stride.
+  const L = buildLoadout('Classic', 'Sword');
+  let swings = 0;
+  for (let fc = 0; fc < 34; fc++) {
+    const f = posedFighter(L, null, 0, { state: 'run', vx: L.runSpeed, onGround: true, frameCount: fc });
+    const ch = channelsFor(f, 0), next = channelsFor({ ...f, frameCount: fc + 0.01 }, 0);
+    const lFwd = next.legL < ch.legL;
+    if (Math.abs(next.legL - ch.legL) < 1e-6) continue;
+    if (lFwd ? !(ch.kneeL > 0 && ch.kneeR === 0) : !(ch.kneeR > 0 && ch.kneeL === 0)) bad.push(`run frame ${fc}: knees ${ch.kneeL.toFixed(2)}/${ch.kneeR.toFixed(2)} with the ${lFwd ? 'far' : 'near'} leg swinging forward`);
+    swings++;
+  }
+  // A jump loads into a crouch (on planted feet, that is bent knees); the apex tucks; a tumble
+  // balls up within its six-frame tuck.
+  const squat = channelsFor(posedFighter(L, null, 4, { state: 'jumpsquat', onGround: true }), 0);
+  if (!(squat.bob < -0.2)) bad.push(`jumpsquat drops the body only ${squat.bob.toFixed(2)}`);
+  const apex = channelsFor({ ...posedFighter(L, null, 6, { state: 'air', onGround: false }), vy: 0 }, 0.3);
+  if (!(apex.kneeL > 0.3 && apex.kneeR > 0.3)) bad.push(`the apex knees ${apex.kneeL.toFixed(2)}/${apex.kneeR.toFixed(2)}`);
+  const tumbler = { ...posedFighter(L, null, 8, { state: 'air', onGround: false, frameCount: 40 }), vy: -20, tumbling: true, lastHitFrame: 32 };
+  const tumble = channelsFor(tumbler, 0);
+  if (!(tumble.kneeL >= 0.7 && tumble.kneeR >= 0.7)) bad.push(`a tumble's knees ${tumble.kneeL.toFixed(2)}/${tumble.kneeR.toFixed(2)}`);
+  check('elbows load into a strike and knees work through a run, a jump and a tumble', bad.length === 0,
+    bad.length ? bad.slice(0, 6).join('; ') : `${strikes} strikes loaded then straight, every aerial kicks out, ${swings} run frames fold only the forward leg, a jumpsquat crouch, a tucked apex and tumble`);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -739,6 +739,79 @@ function attackChannels(ch, f, t) {
   }
 }
 
+// ------------------------------------------------------------------------- joints ----
+// How far each elbow and knee bends (rig.js), by what the body is doing. Written last and only into
+// `bend` and `knee`: a bend moves an elbow between a shoulder and a hand that are already decided,
+// so no weapon, hitbox, timing or other channel changes - except the crouch `bob` of a jumpsquat and
+// a landing, which on planted feet is what bends the knees at all.
+//
+// What each one is for. ATTACKS: the striking arm folds as it winds up and snaps straight into
+// contact, so the strike reads as a punch out of a loaded arm rather than a stick swinging; aerials
+// pull the knees up for the wind-up and kick out on contact. MOVEMENT: the run folds the swing leg
+// through, a jump loads into a real crouch and drives one knee up on the way off the ground, the
+// apex tucks, the fall reaches down for the floor, and a landing absorbs into bent knees. REACTIONS:
+// a hit folds the arms in, a tumble balls up. The off arm always carries a little bend, because a
+// dead-straight arm hanging off a shoulder is the single most puppet-like thing a body can do.
+function jointChannels(ch, f, s, sf, t, runPhase) {
+  const air = !f.onGround;
+  switch (s) {
+    case 'idle': ch.armL.bend = 0.35; ch.armR.bend = 0.2; break;
+    case 'run': {
+      const sp = Math.min(1, Math.abs(f.vx) / f.char.runSpeed);
+      // legL = sin(phase), and a positive leg angle puts the foot BEHIND: a leg swings forward while
+      // its angle falls, and that is the leg that folds. cos is the rate, so the fold peaks mid-swing
+      // and is gone by the footfall; the leg pushing back stays long.
+      ch.kneeL = 0.6 * sp * Math.max(0, -Math.cos(runPhase));
+      ch.kneeR = 0.6 * sp * Math.max(0, Math.cos(runPhase));
+      ch.armL.bend = 0.3 + 0.35 * sp; ch.armR.bend = 0.2 + 0.2 * sp;
+      break;
+    }
+    case 'dash': { const k = clamp(sf / 8, 0, 1); ch.kneeR = 0.55 * (1 - k); ch.armL.bend = 0.6; ch.armR.bend = 0.3; break; }
+    case 'jumpsquat': { const k = clamp(sf / 4, 0, 1); ch.bob = -0.24 * k; ch.armL.bend = 0.3 + 0.4 * k; ch.armR.bend = 0.2 + 0.4 * k; break; }
+    case 'air': case 'helpless': case 'recovery':
+      if (s === 'helpless') { ch.kneeL = 0.5; ch.kneeR = 0.4; ch.armL.bend = 0.2; ch.armR.bend = 0.2; break; }
+      if (f.vy > 6) { ch.kneeL = 0.15; ch.kneeR = 0.6; ch.armL.bend = 0.25; ch.armR.bend = 0.2; }
+      else if (f.vy < -6) { const q = f.fastFalling ? 0 : 0.15; ch.kneeL = q; ch.kneeR = q; ch.armL.bend = 0.45; ch.armR.bend = 0.35; }
+      else { const hang = Math.sin(t * 4.5 + f.index); ch.kneeL = 0.45 + hang * 0.06; ch.kneeR = 0.35 - hang * 0.05; ch.armL.bend = 0.5; ch.armR.bend = 0.4; }
+      break;
+    case 'landing': {
+      const q = 1 - settle(clamp(sf / 10, 0, 1), 3.0, 6);
+      ch.bob -= 0.16 * q; ch.armL.bend = 0.35 + 0.35 * q; ch.armR.bend = 0.2 + 0.35 * q;
+      break;
+    }
+    case 'attack': {
+      const m = f.move;
+      if (!m || m.id === 'Ultimate') { ch.armL.bend = 0.35; ch.armR.bend = 0.2; break; }
+      const w = swing(f, m);
+      // straight by the first active frame even across a long active window: the strike's own curve
+      // is only half done there on a ten-frame one
+      const load = w.phase === 'wind' ? Math.min(1, w.e) : w.phase === 'strike' ? Math.max(0, 1 - 2 * w.e) : 0;
+      const rest = w.phase === 'settle' ? w.k : 0;
+      ch.armR.bend = 0.9 * load + 0.2 * rest;
+      ch.armL.bend = 0.3 + 0.4 * load;
+      if (air) { ch.kneeL = 0.2 + 0.45 * load + 0.15 * rest; ch.kneeR = 0.1 + 0.5 * load + 0.15 * rest; }
+      break;
+    }
+    case 'hitstun': {
+      const fresh = clamp(1 - sf / 10, 0, 1);
+      ch.armL.bend = 0.6 + 0.3 * fresh; ch.armR.bend = 0.5 + 0.3 * fresh;
+      if (air) { ch.kneeL = 0.3 + 0.3 * fresh; ch.kneeR = 0.2 + 0.3 * fresh; }
+      break;
+    }
+    case 'shield': case 'shielddrop': ch.armL.bend = 0.9; ch.armR.bend = 0.8; break;
+    case 'ledge': case 'ledgeaction': ch.kneeL = 0.4; ch.kneeR = 0.25; ch.armL.bend = 0.15; ch.armR.bend = 0.15; break;
+    case 'grabbed': case 'flung': ch.kneeL = 0.5; ch.kneeR = 0.35; ch.armL.bend = 0.6; ch.armR.bend = 0.6; break;
+    case 'taunt': case 'defeat': ch.armL.bend = 0.4; ch.armR.bend = 0.4; break;
+    case 'victory': ch.armL.bend = 0.5; ch.armR.bend = 0.05; break;
+    default: ch.armL.bend = 0.3; ch.armR.bend = 0.2; break;
+  }
+  // A tumbling body balls up: the knees come in with the tuck that already closes the legs.
+  if (f.tumbling && (s === 'air' || s === 'hitstun')) {
+    const tuck = clamp(Math.max(0, f.frameCount - f.lastHitFrame) / 6, 0, 1);
+    ch.kneeL = Math.max(ch.kneeL, 0.75 * tuck); ch.kneeR = Math.max(ch.kneeR, 0.7 * tuck);
+  }
+}
+
 export function channelsFor(f, t) {
   const ch = { lean: 0, bob: 0, sx: 1, sy: 1, spinY: 0, spinZ: 0, armL: { z: 0.25, x: 0, ext: 1, bend: 0 }, armR: { z: -0.25, x: 0, ext: 1, bend: 0 }, legL: 0, legR: 0, kneeL: 0, kneeR: 0, head: 0, opacity: 1, tint: null, rigRotZ: 0, yOff: 0, bubble: 0, visible: true, shakeX: 0, smear: 0 };
   const s = f.state, sf = f.sf;
@@ -909,6 +982,7 @@ export function channelsFor(f, t) {
     ch.legL = ch.legL * (1 - tuck) + 0.26 * tuck;
     ch.legR = ch.legR * (1 - tuck) - 0.20 * tuck;
   }
+  jointChannels(ch, f, s, sf, t, runPhase);
   if (f.invincible > 0 && s !== 'ledge' && s !== 'respawn' && f.frameCount % 6 < 3) ch.opacity *= 0.55;
   if (f.effects.chill.stacks > 0 && !ch.tint) ch.tint = ['#C9E6F5', '#A9D8F0', '#7FC0E6'][f.effects.chill.stacks - 1];
   if (f.hitlag > 0) ch.shakeX = (f.frameCount % 2 ? 0.12 : -0.12);

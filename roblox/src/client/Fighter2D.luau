@@ -51,8 +51,9 @@ end
 -- is handed the limb's drawn length so a thrust stretches the art with the arm.
 local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number,
 	kit: ((number) -> ())?, limb: ((number, number, Rig.Limb, string, string, boolean, boolean?) -> ())?)
-	-- Jointed (a kit body at full detail): upper arm and forearm, the elbow solved so the hand lands
-	-- exactly where the one-piece arm's did - the weapon's grip (Rig.luau).
+	-- A kit body: upper arm and forearm at full detail, the elbow solved so the hand lands exactly on
+	-- the weapon's grip (Rig.luau); the one-piece arm to the same hand at half. Either way drawn out of
+	-- the torso's squash, which a Frame cannot shear.
 	if limb then
 		local sx = if front then r * 0.55 else -r * 0.35
 		limb(sx, len, Rig.armPose(sx, len, a.z - math.pi / 2 + a.x, if a.ext ~= 0 then a.ext else 1, a.bend or 0, h),
@@ -228,8 +229,13 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 			Canvas2D.rotate(c, ch.lean)
 			Canvas2D.translate(c, 0, -HIP)
 		end
-		seg(ax, ay, jx, jy, upper, far)
-		seg(jx, jy, ex, ey, lower, far)
+		if jointed then
+			seg(ax, ay, jx, jy, upper, far)
+			seg(jx, jy, ex, ey, lower, far)
+		else
+			-- half detail: the one-piece limb between the same carried points
+			seg(ax, ay, ex, ey, if upper == "thigh" then "leg" else "arm", far)
+		end
 		if inTorso then
 			Canvas2D.restore(c)
 		end
@@ -246,15 +252,10 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local legs = { { ch.legL, -r * 0.30, 0.74, ch.kneeL }, { ch.legR, r * 0.30, 1, ch.kneeR } }
 	for _, leg in legs do
 		local rot, dx, shade = leg[1], leg[2], leg[3]
-		if jointed then
-			limb(dx, HIP, Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0), "thigh", "shin", shade < 1)
-			continue
-		end
-		-- half detail: the one-piece leg aimed at the same planted foot, so the feet do not start
-		-- riding the breathing when a fighter shrinks past the detail threshold
+		-- a kit leg at either detail: at half detail the one-piece leg aimed at the same planted foot,
+		-- so the feet do not start riding the breathing as a fighter shrinks past the threshold
 		if kitArt then
-			local L = Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0)
-			seg(dx, HIP, L.ex, L.ey, "leg", shade < 1)
+			limb(dx, HIP, Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0), "thigh", "shin", shade < 1)
 			continue
 		end
 		Canvas2D.save(c)
@@ -292,7 +293,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local kitArm = if kitArt then function(far: boolean): (number) -> ()
 		return function(L: number) kitPiece("arm", L / KIT_PARTS.arm.span, far) end
 	end else nil
-	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74, if kitArm then kitArm(true) else nil, if jointed then limb else nil)
+	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74, if kitArm then kitArm(true) else nil, if kitArt then limb else nil)
 	if kitArt then
 		kitPiece("torso", (SHO - HIP) / KIT_PARTS.torso.span)
 	else
@@ -325,7 +326,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- An armed arm takes no `x` (the run's arm swing): the hand is where the weapon is, and the weapon
 	-- never had it - the arm used to swing while the sword hung still, a hand-width off its grip.
 	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = if wid then 0 else ch.armR.x, ext = ext, bend = ch.armR.bend }, h, true, 1,
-		if kitArm then kitArm(false) else nil, if jointed then limb else nil)
+		if kitArm then kitArm(false) else nil, if kitArt then limb else nil)
 
 	local scuff: any = nil
 	if wid and not wpose.hide then

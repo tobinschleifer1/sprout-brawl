@@ -333,6 +333,30 @@ do
 		end
 		local hx2, hy2 = tip(got.forearmN, "forearm")
 		assert(grip and math.abs(hx2 - grip[1]) < 1e-9 and math.abs(hy2 - grip[2]) < 1e-9, `{pose[1]} {pose[3]}: the hand is off the grip`)
+		-- And at half detail: the one-piece limbs are shear-free too, and the near arm ends on the grip
+		-- (its cells are handed over twice the size; the limb's length in studs is unchanged).
+		grip = nil
+		Weapons2D.draw = function(cv: any, ...)
+			grip = { cv.m.e, cv.m.f }
+			return weaponDraw(cv, ...)
+		end
+		table.clear(sprites)
+		Fighter2D.draw(canvas(8), ps, char, 0.3, 2)
+		Weapons2D.draw = weaponDraw
+		local nearArm
+		for _, sp in sprites do
+			local id = string.match(sp.key, "|(%a+)|")
+			if id == "arm" or id == "leg" then
+				local o, m, u = { sp.P(0, 0) }, { sp.P(1, 0) }, { sp.P(0, 1) }
+				local ax, ay, cx, cy = m[1] - o[1], m[2] - o[2], u[1] - o[1], u[2] - o[2]
+				local skew = math.abs(ax * cx + ay * cy) / (math.sqrt(ax * ax + ay * ay) * math.sqrt(cx * cx + cy * cy))
+				assert(skew < 1e-9, `{pose[1]} {pose[3]}: a half-detail {id} reaches Canvas2D sheared ({skew})`)
+				if id == "arm" and sp.list == art.arm.half then nearArm = sp end
+			end
+		end
+		local ax3, ay3 = nearArm.P(0, nearArm.y1 - (KIT.parts.arm.oy + KIT.parts.arm.span) * nearArm.ph / 2)
+		assert(grip and math.abs(ax3 - grip[1]) < 1e-9 and math.abs(ay3 - grip[2]) < 1e-9,
+			`{pose[1]} {pose[3]}: a half-detail hand is at ({ax3}, {ay3}), the grip at ({grip and grip[1]}, {grip and grip[2]})`)
 	end
 	assert(checked == #poses * 8, `{checked} segments checked, want {#poses * 8}`)
 end

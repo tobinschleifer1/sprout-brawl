@@ -124,6 +124,18 @@ near(tipOf(nearFore,'forearm'), gripAt, 1e-9, 'the hand is on the grip');
     for (const [u, l, uid] of [[0,1,'thigh'],[2,3,'thigh'],[5,6,'upperarm'],[9,10,'upperarm']]) near(tipOf(im[u], uid), rootOf(im[l]), 1e-9, `${state} ${sf}: a joint`);
     const ptm = mul(im[7].m, { a:1,b:0,c:0,d:-1,e:0,f:0 }), PAL = pf.h*0.30*(pc.armR.ext||1);
     near(tipOf(im[10],'forearm'), point(ptm, pf.r*0.55 + Math.cos(pw.angle)*PAL, (SHO-HIP) + Math.sin(pw.angle)*PAL), 1e-9, `${state} ${sf}: the hand on the grip`);
+    // And at half detail: one-piece limbs (far leg, near leg, pelvis, far arm, torso, head, near arm),
+    // shear-free, the near arm ending on the grip. A half raster's rows are drawn twice as tall.
+    const small = canvas(); view.drawFighterInto(small.ctx, pf, 0.3, { ppu: 5, x: 200, y: 200 });
+    const hm = small.ctx.images;
+    assert.equal(hm.length, 7, `${state} ${sf}: the half-detail body`);
+    for (const i of [0, 1, 3, 6]) {
+      const m = hm[i].m, skew = Math.abs(m.a*m.c + m.b*m.d) / (Math.hypot(m.a,m.b) * Math.hypot(m.c,m.d));
+      assert.ok(skew < 1e-9, `${state} ${sf}: a half-detail limb is drawn sheared (${skew})`);
+    }
+    const htm = mul(hm[4].m, { a:1,b:0,c:0,d:-1,e:0,f:0 });
+    near(point(hm[6].m, 0, KIT_PARTS.arm.span * hm[6].h / (hm[6].src.height * 2)),
+      point(htm, pf.r*0.55 + Math.cos(pw.angle)*PAL, (SHO-HIP) + Math.sin(pw.angle)*PAL), 1e-9, `${state} ${sf}: the half-detail hand on the grip`);
   }
 }
 // And the elbow bends at rest: the elbow is off the straight line from shoulder to hand.

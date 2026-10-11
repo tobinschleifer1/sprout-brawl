@@ -401,7 +401,9 @@ export class Renderer2D {
       const p = inTorso ? torsoPoint : (x, y) => [x, y];
       const [ax, ay] = p(rx, ry), [jx, jy] = p(L.jx, L.jy), [ex, ey] = p(L.ex, L.ey);
       if (inTorso) { b.save(); b.scale(1 / ch.sx, 1 / ch.sy); b.rotate(ch.lean); b.translate(0, -HIP); }
-      seg(ax, ay, jx, jy, upper, far); seg(jx, jy, ex, ey, lower, far);
+      // half detail: the one-piece limb between the same carried points
+      if (jointed) { seg(ax, ay, jx, jy, upper, far); seg(jx, jy, ex, ey, lower, far); }
+      else seg(ax, ay, ex, ey, upper === 'thigh' ? 'leg' : 'arm', far);
       if (inTorso) b.restore();
     };
     // A foot on the ground stays on it through the body's bob - unless the whole rig is rotated
@@ -415,10 +417,9 @@ export class Renderer2D {
     b.fillStyle = pal.tertiary;
     let farLeg = true;
     for (const [rot, dx, knee] of [[ch.legL, -r * 0.30, ch.kneeL], [ch.legR, r * 0.30, ch.kneeR]]) {
-      if (jointed) { limb(dx, HIP, legPose(dx, HIP, rot, ll, ch.bob, planted, knee), 'thigh', 'shin', farLeg); farLeg = false; continue; }
-      // Half detail: the one-piece leg, aimed at the same planted foot, so the feet do not start
-      // riding the breathing the moment a fighter shrinks past the detail threshold.
-      if (kitCode) { const L = legPose(dx, HIP, rot, ll, ch.bob, planted, knee); seg(dx, HIP, L.ex, L.ey, 'leg', farLeg); farLeg = false; continue; }
+      // A kit leg at either detail: at half detail the one-piece leg is aimed at the same planted
+      // foot, so the feet do not start riding the breathing as a fighter shrinks past the threshold.
+      if (kitCode) { limb(dx, HIP, legPose(dx, HIP, rot, ll, ch.bob, planted, knee), 'thigh', 'shin', farLeg); farLeg = false; continue; }
       b.save(); b.translate(dx, HIP); b.rotate(-rot);
       if (kitCode) kit('leg', ll / KIT_PARTS.leg.span, farLeg);
       else if (art && art.leg) drawPixelPart(b, 'leg', art.leg, pal, -lw / 2, -ll, lw, ll, farLeg ? 0.74 : 1);
@@ -443,7 +444,7 @@ export class Renderer2D {
 
     // back arm
     this._arm(b, pal.secondary, r, SHO - HIP, ch.armL, h, false, art, pal, 0.74,
-      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span, true) : null, jointed ? limb : null);
+      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span, true) : null, kitCode ? limb : null);
 
     // torso, and whatever the character wears on it
     if (kitCode) kit('torso', (SHO - HIP) / KIT_PARTS.torso.span);
@@ -473,7 +474,7 @@ export class Renderer2D {
     // the arm used to swing while the sword hung still, a hand-width off its grip.
     const armAng = wid ? wp.angle : ch.armR.z - PI / 2;
     this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: wid ? 0 : ch.armR.x, ext: ch.armR.ext, bend: ch.armR.bend }, h, true, art, pal, 1,
-      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span) : null, jointed ? limb : null);
+      kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span) : null, kitCode ? limb : null);
 
     // weapon, at the hand
     let scuff = null;
@@ -545,8 +546,9 @@ export class Renderer2D {
   }
 
   _arm(b, colour, r, len, a, h, front = false, art = null, pal = null, shade = 1, kit = null, limb = null) {
-    // Jointed (a kit body at full detail): upper arm and forearm, the elbow solved so the hand lands
-    // exactly where the one-piece arm's did - the weapon's grip (rig.js).
+    // A kit body: upper arm and forearm at full detail, the elbow solved so the hand lands exactly on
+    // the weapon's grip (rig.js); the one-piece arm to the same hand at half. Either way drawn out of
+    // the torso's squash, which a Roblox Frame cannot shear.
     if (limb) {
       const sx = front ? r * 0.55 : -r * 0.35;
       limb(sx, len, armPose(sx, len, a.z - PI / 2 + (a.x || 0), a.ext || 1, a.bend || 0, h), 'upperarm', 'forearm', !front, true);

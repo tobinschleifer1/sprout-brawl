@@ -491,6 +491,60 @@ do
 	assert(trails > 0, "the sweep never checked a swing trail")
 	print(`  weapon sweep: {poses} poses, {trails} trails, {ghostsChecked} axe afterimages, {squeezed} poses leaning and squeezed below a fifth`)
 end
+-- The drag scuff: a hauled axe throws its dirt from where its head is DRAWN - the scuff's centre is
+-- under the drawn head, through the lean, squash, bob and facing of every stance that drags. It used
+-- to be measured in the torso's frame without any of them; the sweep also proves that mattered.
+do
+	local axe = Loadout.build(code, "Axe")
+	local REACH = Weapons2D.REACH.Axe
+	local headM, scuffAt = nil, nil
+	local savedSprite, savedRect = Canvas.sprite, Canvas.rect
+	Canvas.sprite = function(cv: any, key: string)
+		if string.sub(key, 1, 6) == "weapon" then headM = { a = cv.m.a, b = cv.m.b, e = cv.m.e, f = cv.m.f } end
+	end
+	Canvas.rect = function(cv: any, x: number, y: number, w: number, hh: number)
+		if w == 1.0 and hh == 0.22 then scuffAt = cv.m.a * (x + 0.5) + cv.m.c * y + cv.m.e end
+	end
+	local n, moved, lifted = 0, 0, 0
+	for _, st in { { "idle", 0 }, { "run", 22 }, { "dash", 30 }, { "landing", 0 }, { "jumpsquat", 0 } } do
+		for _, sf in { 0, 2, 4, 7 } do
+			for _, fi in { 0, 1, 2, 3 } do
+				local facing, index = if fi % 2 == 0 then 1 else -1, fi // 2
+				local pf: any = Fighter.new({ index = index, char = axe, x = 3, y = 2, stocks = 3 })
+				pf.state, pf.onGround, pf.sf, pf.vx, pf.facing, pf.frameCount = st[1], true, sf, st[2], facing, 17
+				local ps = Snapshot.decode(Snapshot.encode(pf))
+				local pc = Channels.For(ps, axe, nil, 0.3)
+				local wp = WeaponPose.For(ps, axe, nil, 0.3)
+				local where = `{st[1]} {sf} facing {facing} index {index}`
+				assert(wp.drag, `{where}: the axe is not hauled`)
+				headM, scuffAt = nil, nil
+				Fighter2D.draw(canvas(24), ps, axe, 0.3, 2)
+				assert(headM, `{where}: the axe was not drawn`)
+				local head = headM.a * REACH + headM.e
+				local headY = (headM.b * REACH + headM.f) / 24 - 2
+				n += 1
+				-- dirt exactly when the drawn head is down at the floor (platform top 2): a dash leans the
+				-- body far enough forward to lift the head clear, and then there is nothing scraping
+				if headY >= 1.2 then
+					assert(not scuffAt, `{where}: a scuff under a head {headY} studs off the floor`)
+					lifted += 1
+					continue
+				end
+				assert(scuffAt, `{where}: the hauled axe's head is {headY} studs off the floor and left no scuff`)
+				assert(math.abs(head - scuffAt) < 1e-9, `{where}: the scuff is at x {scuffAt}, the drawn head at {head}`)
+				-- what the old torso-frame measurement would have said
+				local AL = axe.height * 0.30 * (if pc.armR.ext ~= 0 then pc.armR.ext else 1)
+				local hx = axe.radius * 0.55 + math.cos(wp.angle) * AL
+				local old = (ps.x + (hx + math.cos(wp.angle) * REACH) * facing) * 24
+				if math.abs(old - head) > 0.05 * 24 then moved += 1 end
+			end
+		end
+	end
+	Canvas.sprite, Canvas.rect = savedSprite, savedRect
+	assert(lifted > 0 and lifted < n, `the sweep should see both a scraping head and a lifted one ({lifted} of {n} lifted)`)
+	assert(moved > 0, "no stance moves the drawn head off the old torso-frame measurement - this sweep tests nothing")
+	print(`  drag scuff: {n} hauling poses, {lifted} with the head lifted clear, {moved} scuffs moved over 0.05 studs from where they used to be`)
+end
 -- The torso fills hip to shoulder.
 local torso = by.torso[1]
 assert(math.abs(torso.y1 - KIT.parts.torso.span * torso.ph) < 1e-9 and math.abs(torso.y1 - char.height * 0.36) < 1e-9, "the torso does not span hip to shoulder")

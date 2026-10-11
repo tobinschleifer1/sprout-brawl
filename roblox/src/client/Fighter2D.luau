@@ -342,20 +342,6 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local AL = h * 0.30 * ext
 		local hx = r * 0.55 + math.cos(armAng) * AL
 		local hy = (SHO - HIP) + math.sin(armAng) * AL
-		-- A hauled weapon scrapes: the head's world position is the hand plus the weapon's reach
-		-- along its angle, so the dirt comes off where the axe meets the floor (see renderer2d.js).
-		if wpose.drag and s.onGround and platformTop then
-			local rch = Weapons2D.REACH[wid] or 2.4
-			local wx = s.x + (hx + math.cos(wpose.angle) * rch) * s.facing
-			local wy = s.y + HIP + hy + math.sin(wpose.angle) * rch
-			if wy < platformTop + 1.2 then
-				scuff = { x = wx, y = platformTop }
-				if Fighter2D.effects then
-					Effects.dragDirt(Fighter2D.effects, wx, platformTop, s.facing, s.vx or 0, wpose.drag.scrape,
-						pal.tertiary or "#606678", math.random)
-				end
-			end
-		end
 		-- Drawn out of the torso's squash, like the arm holding it: rotated inside the non-uniform
 		-- squash the weapon is sheared, which a Frame cannot draw - Canvas2D.sprite dropped the shear and
 		-- a Shield air neutral put the sword 1.7 studs from the web's. The grip and every angle the
@@ -371,6 +357,24 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 			cw.ult.blur = blur
 		end
 		local gx, gy = torsoPoint(hx, hy)
+		-- A hauled weapon scrapes, from where the axe's head is DRAWN: the carried grip plus the reach
+		-- along the carried angle past the weapon's offset, out through the bob, facing and shake. It
+		-- was measured in the torso's frame with no lean, squash or bob, so a leaning run or a
+		-- squashed landing threw dirt from where the head was not (renderer2d.js).
+		if wpose.drag and s.onGround and platformTop then
+			local rch = Weapons2D.REACH[wid] or 2.4
+			local ca, sa = math.cos(cw.angle), math.sin(cw.angle)
+			local ux, uy = rch + wpose.ox, wpose.oy
+			local wx = s.x + ch.shakeX + (gx + ca * ux - sa * uy) * s.facing
+			local wy = s.y + ch.yOff + ch.bob + gy + sa * ux + ca * uy
+			if wy < platformTop + 1.2 then
+				scuff = { x = wx, y = platformTop }
+				if Fighter2D.effects then
+					Effects.dragDirt(Fighter2D.effects, wx, platformTop, s.facing, s.vx or 0, wpose.drag.scrape,
+						pal.tertiary or "#606678", math.random)
+				end
+			end
+		end
 		Canvas2D.save(c)
 		Canvas2D.scale(c, 1 / ch.sx, 1 / ch.sy)
 		Canvas2D.rotate(c, ch.lean)

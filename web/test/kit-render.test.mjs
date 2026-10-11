@@ -209,6 +209,41 @@ near(tipOf(nearFore,'forearm'), gripAt, 1e-9, 'the hand is on the grip');
   assert.ok(trails > 0, 'the sweep never checked a swing trail');
   console.log(`  weapon sweep: ${poses} poses, ${sprites} weapon sprites, ${trails} trails, ${squeezed} poses leaning and squeezed below a fifth`);
 }
+// The drag scuff: a hauled axe throws its dirt from where its head is DRAWN - the scuff's centre is
+// under the drawn head, through the lean, squash, bob and facing of every stance that drags. It used
+// to be measured in the torso's frame without any of them; the sweep also proves that mattered.
+{
+  const { REACH } = await import('../src/render2d/weapons2d.js');
+  const { WEAPON_SPRITES } = await import('../src/data/weaponArt.js');
+  const L = buildLoadout(code, 'Axe'), rects = WEAPON_SPRITES.Axe;
+  let n = 0, moved = 0, lifted = 0;
+  for (const [state, vx] of [['idle', 0], ['run', 22], ['dash', 30], ['landing', 0], ['jumpsquat', 0]]) for (const sf of [0, 2, 4, 7]) for (const facing of [1, -1]) for (const index of [0, 1]) {
+    const pf = posedFighter(L, null, sf, { index, state, onGround: true, vx, facing, frameCount: 17, platform: { top: 0 } });
+    pf.move = null; pf.moveId = null; pf.sf = sf;
+    const pc = channelsFor(pf, 0.3), pw = weaponPose(pf, 0.3);
+    const where = `${state} ${sf} facing ${facing} index ${index}`;
+    assert.ok(pw.drag, `${where}: the axe is not hauled`);
+    const target = canvas(); view.drawFighterInto(target.ctx, pf, 0.3, { ppu: 20, x: 200, y: 200 });
+    const { fills } = target.ctx;
+    const scuff = fills.find((d) => d.w === 1.0 && d.h === 0.22);
+    const at = fills.findIndex((d, i) => rects.every((r, k) => fills[i + k] && fills[i + k].x === r[0] && fills[i + k].y === r[1] && fills[i + k].w === r[2] && fills[i + k].h === r[3]));
+    const head = point(fills[at].m, REACH.Axe, 0), headY = (200 - head.y) / 20;
+    // dirt exactly when the drawn head is down at the floor (platform top 0): a dash leans the body
+    // far enough forward to lift the head clear, and then there is nothing scraping
+    n++;
+    if (headY >= 1.2) { assert.ok(!scuff, `${where}: a scuff under a head ${headY} studs off the floor`); lifted++; continue; }
+    assert.ok(scuff, `${where}: the hauled axe's head is ${headY} studs off the floor and left no scuff`);
+    const mark = point(scuff.m, scuff.x + 0.5, scuff.y);
+    assert.ok(Math.abs(head.x - mark.x) < 1e-9, `${where}: the scuff is at x ${mark.x}, the drawn head at ${head.x}`);
+    // what the old torso-frame measurement would have said
+    const AL = pf.h * 0.30 * (pc.armR.ext || 1), hx = pf.r * 0.55 + Math.cos(pw.angle) * AL;
+    const old = point(scuff.m, pf.x + (hx + Math.cos(pw.angle) * REACH.Axe) * facing, 0);
+    if (Math.abs(old.x - head.x) > 0.05 * 20) moved++;
+  }
+  assert.ok(lifted > 0 && lifted < n, `the sweep should see both a scraping head and a lifted one (${lifted} of ${n} lifted)`);
+  assert.ok(moved > 0, 'no stance moves the drawn head off the old torso-frame measurement - this sweep tests nothing');
+  console.log(`  drag scuff: ${n} hauling poses, ${lifted} with the head lifted clear, ${moved} scuffs moved over 0.05 studs from where they used to be`);
+}
 // And the elbow bends at rest: the elbow is off the straight line from shoulder to hand.
 const sh = rootOf(nearUpper), el = tipOf(nearUpper,'upperarm'), hd = tipOf(nearFore,'forearm');
 assert.ok(Math.abs((hd.x-sh.x)*(el.y-sh.y)-(hd.y-sh.y)*(el.x-sh.x))/Math.hypot(hd.x-sh.x,hd.y-sh.y) > 2,'the front arm has an elbow at rest');

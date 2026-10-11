@@ -496,13 +496,22 @@ export class Renderer2D {
       const AL = h * 0.30 * (ch.armR.ext || 1);   // same length the arm was drawn at
       const hx = r * 0.55 + Math.cos(armAng) * AL;
       const hy = (SHO - HIP) + Math.sin(armAng) * AL;
-      // A dragged weapon scrapes. The head's world position is the hand plus the weapon's own
-      // reach along its angle, so the dirt comes off exactly where the axe meets the floor rather
-      // than from under the fighter — which is the difference between "heavy" and "dusty".
+      // Every angle the weapon's drawing turns by is carried: its own, the afterimages' (absolute
+      // angles in the same frame, not offsets from it) and the trail's ends.
+      const cw = { ...wp, angle: torsoAngle(wp.angle) };
+      if (wp.ult && wp.ult.blur) cw.ult = { ...wp.ult, blur: wp.ult.blur.map(torsoAngle) };
+      const [gx, gy] = torsoPoint(hx, hy);
+      // A dragged weapon scrapes. The dirt comes off exactly where the axe's head meets the floor
+      // rather than from under the fighter — which is the difference between "heavy" and "dusty".
+      // The head is where the axe is DRAWN: the carried grip, plus the reach along the carried
+      // angle past the weapon's own offset, out through the fighter's bob, facing and shake. It used
+      // to be measured in the torso's frame with no lean, squash or bob, so a leaning run or a
+      // squashed landing threw its dirt from a point the drawn head was not at.
       if (wp.drag && f.platform) {
-        const rch = (REACH[wid] || 2.4);
-        const headLocal = { x: hx + Math.cos(wp.angle) * rch, y: hy + Math.sin(wp.angle) * rch };
-        const wx = f.x + headLocal.x * f.facing, wy = f.y + HIP + headLocal.y;
+        const rch = (REACH[wid] || 2.4), c = Math.cos(cw.angle), s = Math.sin(cw.angle);
+        const ux = rch + (wp.ox || 0), uy = wp.oy || 0;
+        const wx = f.x + ch.shakeX + (gx + c * ux - s * uy) * f.facing;
+        const wy = f.y + ch.yOff + ch.bob + gy + s * ux + c * uy;
         const floor = f.platform.top;
         if (wy < floor + 1.2) {
           // The scuff under the head is drawn once the body's transform is gone: it is in world
@@ -512,12 +521,6 @@ export class Renderer2D {
           dragDirt(this.fx, wx, floor, f.facing, f.vx, wp.drag.scrape, pal.tertiary, Math.random);
         }
       }
-
-      // Every angle the weapon's drawing turns by is carried: its own, the afterimages' (absolute
-      // angles in the same frame, not offsets from it) and the trail's ends.
-      const cw = { ...wp, angle: torsoAngle(wp.angle) };
-      if (wp.ult && wp.ult.blur) cw.ult = { ...wp.ult, blur: wp.ult.blur.map(torsoAngle) };
-      const [gx, gy] = torsoPoint(hx, hy);
       b.save(); b.scale(1 / ch.sx, 1 / ch.sy); b.rotate(ch.lean); b.translate(0, -HIP);
       // trail is drawn from the shoulder so the arc sweeps around the body
       if (wp.trail) {

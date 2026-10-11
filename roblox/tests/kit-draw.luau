@@ -285,6 +285,57 @@ do
 			`a running hand (frame {fc}) is at ({rx}, {ry}), its grip at ({grip and grip[1]}, {grip and grip[2]})`)
 	end
 end
+-- What Roblox can actually draw: a Frame rotates and scales, it cannot shear. Every limb segment
+-- must reach Canvas2D as a rotation and a scale (its matrix's columns at right angles), or the
+-- picture on screen is not the one these joint checks measured - the elbow came apart by a stud in
+-- a recovery, whose spin squeezes the torso to an eighth of its width. Checked across poses that
+-- lean, squash and spin, with the joints and the grip held in each.
+do
+	local poses = {
+		{ "recovery", false, 3 }, { "recovery", false, 6 }, { "idle", true, 0 }, { "run", true, 0 },
+		{ "landing", true, 1 }, { "hitstun", false, 2 }, { "jumpsquat", true, 3 }, { "air", false, 5 },
+	}
+	local SEG = { upperarm = true, forearm = true, thigh = true, shin = true }
+	local checked = 0
+	for _, pose in poses do
+		local pf: any = Fighter.new({ index = 1, char = char, x = 3, y = 2, stocks = 3 })
+		pf.state, pf.onGround, pf.stateFrame, pf.vx, pf.frameCount = pose[1], pose[2], pose[3], (if pose[1] == "run" then 22 else 0), 17
+		local ps = Snapshot.decode(Snapshot.encode(pf))
+		grip = nil
+		Weapons2D.draw = function(cv: any, ...)
+			grip = { cv.m.e, cv.m.f }
+			return weaponDraw(cv, ...)
+		end
+		table.clear(sprites)
+		Fighter2D.draw(canvas(24), ps, char, 0.3, 2)
+		Weapons2D.draw = weaponDraw
+		local got: any = {}
+		for _, sp in sprites do
+			local id = string.match(sp.key, "|(%a+)|")
+			if SEG[id] then
+				local m = { sp.P(1, 0) }
+				local o = { sp.P(0, 0) }
+				local u = { sp.P(0, 1) }
+				local ax, ay, cx, cy = m[1] - o[1], m[2] - o[2], u[1] - o[1], u[2] - o[2]
+				local skew = math.abs(ax * cx + ay * cy) / (math.sqrt(ax * ax + ay * ay) * math.sqrt(cx * cx + cy * cy))
+				assert(skew < 1e-9, `{pose[1]} {pose[3]}: the {id} reaches Canvas2D sheared ({skew}), which a Frame cannot draw`)
+				local far = sp.list == art[id].farFull
+				got[id .. (if far then "F" else "N")] = sp
+				checked += 1
+			end
+		end
+		for _, side in { "N", "F" } do
+			for _, pair in { { "upperarm", "forearm" }, { "thigh", "shin" } } do
+				local ex, ey = tip(got[pair[1] .. side], pair[1])
+				local jx, jy = root(got[pair[2] .. side], pair[2])
+				assert(math.abs(ex - jx) < 1e-9 and math.abs(ey - jy) < 1e-9, `{pose[1]} {pose[3]}: a {pair[1]} ends off its {pair[2]}`)
+			end
+		end
+		local hx2, hy2 = tip(got.forearmN, "forearm")
+		assert(grip and math.abs(hx2 - grip[1]) < 1e-9 and math.abs(hy2 - grip[2]) < 1e-9, `{pose[1]} {pose[3]}: the hand is off the grip`)
+	end
+	assert(checked == #poses * 8, `{checked} segments checked, want {#poses * 8}`)
+end
 -- The torso fills hip to shoulder.
 local torso = by.torso[1]
 assert(math.abs(torso.y1 - KIT.parts.torso.span * torso.ph) < 1e-9 and math.abs(torso.y1 - char.height * 0.36) < 1e-9, "the torso does not span hip to shoulder")
@@ -301,6 +352,22 @@ for _, sp in sprites do
 	assert(ok, `{sp.key}: not the half-resolution picture at 8 px per stud`)
 end
 assert(halfCount == 7, `{halfCount} of 7 pieces switched to half resolution`)
+-- And the half-detail feet are planted too: the one-piece legs end on the floor through the bob,
+-- or the feet would jump as a fighter crosses the detail threshold.
+table.clear(sprites)
+Fighter2D.draw(canvas(8), s, char, T, 2)
+local halfLegs = 0
+for _, sp in sprites do
+	if string.match(sp.key, "|(%a+)|") == "leg" then
+		-- a half-detail sprite is handed cells twice the size; the limb's length in studs is unchanged
+		local _, fy = sp.P(0, sp.y1 - (KIT.parts.leg.oy + KIT.parts.leg.span) * sp.ph / 2)
+		local rot = if sp.list == art.leg.farHalf then ch.legL else ch.legR
+		local want = s.y + char.height * 0.34 * (1 - math.cos(rot))
+		assert(math.abs(fy / 8 - want) < 1e-9, `a half-detail foot is at y {fy / 8}, planted it is at {want} (bob {ch.bob})`)
+		halfLegs += 1
+	end
+end
+assert(halfLegs == 2, `{halfLegs} half-detail legs checked`)
 local pwCell = char.radius * 1.15 / 12
 assert(pwCell * 8 < Fighter2D.KIT_LOD_PX and pwCell * 24 >= Fighter2D.KIT_LOD_PX, "the test's two zooms do not straddle the threshold")
 

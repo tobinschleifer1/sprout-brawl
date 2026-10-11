@@ -380,11 +380,29 @@ export class Renderer2D {
     // the upper drawn first and the lower over the joint. Half detail - a fighter too small on screen
     // for an elbow to read - keeps the one-piece limbs, and their cheaper art.
     const jointed = !!kitCode && !half;
-    const limb = (rx, ry, L, upper, lower, far) => {
-      b.save(); b.translate(rx, ry); b.rotate(Math.atan2(L.jy - ry, L.jx - rx) + PI / 2);
-      kit(upper, L.len / KIT_PARTS[upper].span, far); b.restore();
-      b.save(); b.translate(L.jx, L.jy); b.rotate(Math.atan2(L.ey - L.jy, L.ex - L.jx) + PI / 2);
-      kit(lower, L.len / KIT_PARTS[lower].span, far); b.restore();
+    // One segment from (x0, y0) to (x1, y1), drawn along its own line at exactly that length.
+    const seg = (x0, y0, x1, y1, id, far) => {
+      const dx = x1 - x0, dy = y1 - y0;
+      b.save(); b.translate(x0, y0); b.rotate(Math.atan2(dy, dx) + PI / 2);
+      kit(id, Math.sqrt(dx * dx + dy * dy) / KIT_PARTS[id].span, far); b.restore();
+    };
+    // An ARM is solved in the torso's frame - where the shoulder and the grip are - but drawn out of
+    // it. The torso's squash is non-uniform, and a segment rotated inside a non-uniform scale is a
+    // sheared picture: the web canvas draws that, a Roblox Frame cannot (it only rotates and scales),
+    // so the Roblox elbow came apart by a stud whenever a recovery's spin squeezed the body. So the
+    // three joints are carried through the torso's lean and squash and the segments drawn between the
+    // carried points, in the frame outside it: no shear, and the hand still lands on the grip, which
+    // the weapon reaches through the same transform.
+    const torsoPoint = (x, y) => {
+      const X = x * ch.sx, Y = y * ch.sy, c = Math.cos(-ch.lean), s = Math.sin(-ch.lean);
+      return [X * c - Y * s, X * s + Y * c + HIP];
+    };
+    const limb = (rx, ry, L, upper, lower, far, inTorso = false) => {
+      const p = inTorso ? torsoPoint : (x, y) => [x, y];
+      const [ax, ay] = p(rx, ry), [jx, jy] = p(L.jx, L.jy), [ex, ey] = p(L.ex, L.ey);
+      if (inTorso) { b.save(); b.scale(1 / ch.sx, 1 / ch.sy); b.rotate(ch.lean); b.translate(0, -HIP); }
+      seg(ax, ay, jx, jy, upper, far); seg(jx, jy, ex, ey, lower, far);
+      if (inTorso) b.restore();
     };
     // A foot on the ground stays on it through the body's bob - unless the whole rig is rotated
     // (a knockdown), when "down" is no longer the floor.
@@ -398,6 +416,9 @@ export class Renderer2D {
     let farLeg = true;
     for (const [rot, dx, knee] of [[ch.legL, -r * 0.30, ch.kneeL], [ch.legR, r * 0.30, ch.kneeR]]) {
       if (jointed) { limb(dx, HIP, legPose(dx, HIP, rot, ll, ch.bob, planted, knee), 'thigh', 'shin', farLeg); farLeg = false; continue; }
+      // Half detail: the one-piece leg, aimed at the same planted foot, so the feet do not start
+      // riding the breathing the moment a fighter shrinks past the detail threshold.
+      if (kitCode) { const L = legPose(dx, HIP, rot, ll, ch.bob, planted, knee); seg(dx, HIP, L.ex, L.ey, 'leg', farLeg); farLeg = false; continue; }
       b.save(); b.translate(dx, HIP); b.rotate(-rot);
       if (kitCode) kit('leg', ll / KIT_PARTS.leg.span, farLeg);
       else if (art && art.leg) drawPixelPart(b, 'leg', art.leg, pal, -lw / 2, -ll, lw, ll, farLeg ? 0.74 : 1);
@@ -528,7 +549,7 @@ export class Renderer2D {
     // exactly where the one-piece arm's did - the weapon's grip (rig.js).
     if (limb) {
       const sx = front ? r * 0.55 : -r * 0.35;
-      limb(sx, len, armPose(sx, len, a.z - PI / 2 + (a.x || 0), a.ext || 1, a.bend || 0, h), 'upperarm', 'forearm', !front);
+      limb(sx, len, armPose(sx, len, a.z - PI / 2 + (a.x || 0), a.ext || 1, a.bend || 0, h), 'upperarm', 'forearm', !front, true);
       return;
     }
     // `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere,

@@ -50,13 +50,13 @@ end
 -- `kit`, when the fighter is a kit character, draws the limb's pixel art instead of the block; it
 -- is handed the limb's drawn length so a thrust stretches the art with the arm.
 local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number,
-	kit: ((number) -> ())?, limb: ((number, number, Rig.Limb, string, string, boolean) -> ())?)
+	kit: ((number) -> ())?, limb: ((number, number, Rig.Limb, string, string, boolean, boolean?) -> ())?)
 	-- Jointed (a kit body at full detail): upper arm and forearm, the elbow solved so the hand lands
 	-- exactly where the one-piece arm's did - the weapon's grip (Rig.luau).
 	if limb then
 		local sx = if front then r * 0.55 else -r * 0.35
 		limb(sx, len, Rig.armPose(sx, len, a.z - math.pi / 2 + a.x, if a.ext ~= 0 then a.ext else 1, a.bend or 0, h),
-			"upperarm", "forearm", not front)
+			"upperarm", "forearm", not front, true)
 		return
 	end
 	local w = r * 0.34
@@ -199,17 +199,40 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- art, the upper drawn first and the lower over the joint. Half detail - a fighter too small on
 	-- screen for an elbow to read - keeps the one-piece limbs and their cheaper art.
 	local jointed = kitArt ~= nil and not half
-	local function limb(rx: number, ry: number, L: Rig.Limb, upper: string, lower: string, far: boolean)
+	-- one segment from (x0, y0) to (x1, y1), along its own line at exactly that length
+	local function seg(x0: number, y0: number, x1: number, y1: number, id: string, far: boolean)
+		local dx, dy = x1 - x0, y1 - y0
 		Canvas2D.save(c)
-		Canvas2D.translate(c, rx, ry)
-		Canvas2D.rotate(c, math.atan2(L.jy - ry, L.jx - rx) + math.pi / 2)
-		kitPiece(upper, L.len / KIT_PARTS[upper].span, far)
+		Canvas2D.translate(c, x0, y0)
+		Canvas2D.rotate(c, math.atan2(dy, dx) + math.pi / 2)
+		kitPiece(id, math.sqrt(dx * dx + dy * dy) / KIT_PARTS[id].span, far)
 		Canvas2D.restore(c)
-		Canvas2D.save(c)
-		Canvas2D.translate(c, L.jx, L.jy)
-		Canvas2D.rotate(c, math.atan2(L.ey - L.jy, L.ex - L.jx) + math.pi / 2)
-		kitPiece(lower, L.len / KIT_PARTS[lower].span, far)
-		Canvas2D.restore(c)
+	end
+	-- An ARM is solved in the torso's frame but drawn out of it: a segment rotated inside the torso's
+	-- non-uniform squash is sheared, which a Frame cannot draw - the elbow came apart by a stud when
+	-- a recovery's spin squeezed the body. The joints are carried through the lean and squash and the
+	-- segments drawn between the carried points (renderer2d.js).
+	local function torsoPoint(x: number, y: number): (number, number)
+		local X, Y = x * ch.sx, y * ch.sy
+		local cs, sn = math.cos(-ch.lean), math.sin(-ch.lean)
+		return X * cs - Y * sn, X * sn + Y * cs + HIP
+	end
+	local function limb(rx: number, ry: number, L: Rig.Limb, upper: string, lower: string, far: boolean, inTorso: boolean?)
+		local ax, ay, jx, jy, ex, ey = rx, ry, L.jx, L.jy, L.ex, L.ey
+		if inTorso then
+			ax, ay = torsoPoint(rx, ry)
+			jx, jy = torsoPoint(L.jx, L.jy)
+			ex, ey = torsoPoint(L.ex, L.ey)
+			Canvas2D.save(c)
+			Canvas2D.scale(c, 1 / ch.sx, 1 / ch.sy)
+			Canvas2D.rotate(c, ch.lean)
+			Canvas2D.translate(c, 0, -HIP)
+		end
+		seg(ax, ay, jx, jy, upper, far)
+		seg(jx, jy, ex, ey, lower, far)
+		if inTorso then
+			Canvas2D.restore(c)
+		end
 	end
 	-- A foot on the ground stays on it through the body's bob - unless the whole rig is rotated (a
 	-- knockdown), when "down" is no longer the floor.
@@ -225,6 +248,13 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local rot, dx, shade = leg[1], leg[2], leg[3]
 		if jointed then
 			limb(dx, HIP, Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0), "thigh", "shin", shade < 1)
+			continue
+		end
+		-- half detail: the one-piece leg aimed at the same planted foot, so the feet do not start
+		-- riding the breathing when a fighter shrinks past the detail threshold
+		if kitArt then
+			local L = Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0)
+			seg(dx, HIP, L.ex, L.ey, "leg", shade < 1)
 			continue
 		end
 		Canvas2D.save(c)

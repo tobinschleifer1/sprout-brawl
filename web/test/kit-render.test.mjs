@@ -102,6 +102,30 @@ near(tipOf(nearFore,'forearm'), gripAt, 1e-9, 'the hand is on the grip');
     near(tipOf(im[10],'forearm'), point(rtm, runner.r*0.55 + Math.cos(rw.angle)*RAL, (SHO-HIP) + Math.sin(rw.angle)*RAL), 1e-9, `a running hand is on the grip (t ${t})`);
   }
 }
+// Drawn the way Roblox can draw it: every limb segment's transform is a rotation and a scale, never a
+// shear (a Frame cannot shear, so a sheared web segment is a picture the Roblox build cannot match).
+// Across poses that lean, squash and spin - a recovery squeezes the torso to an eighth of its width
+// - with the joints and the grip held in each.
+{
+  const L = buildLoadout(code,'Sword');
+  const poses = [['recovery',false,3],['recovery',false,6],['idle',true,0],['run',true,0],['landing',true,1],['hitstun',false,2],['jumpsquat',true,3],['air',false,5]];
+  for (const [state, onGround, sf] of poses) {
+    const pf = posedFighter(L, null, sf, { state, onGround, vx: state === 'run' ? 22 : 0, frameCount: 17 });
+    pf.move = null; pf.moveId = null; pf.sf = sf;
+    const pc = channelsFor(pf, 0.3), pw = weaponPose(pf, 0.3);
+    const target = canvas(); view.drawFighterInto(target.ctx, pf, 0.3, { ppu: 20, x: 200, y: 200 });
+    const im = target.ctx.images;
+    assert.equal(im.length, 11, `${state} ${sf}: the jointed body`);
+    const segs = { 0:'thigh', 1:'shin', 2:'thigh', 3:'shin', 5:'upperarm', 6:'forearm', 9:'upperarm', 10:'forearm' };
+    for (const [i, id] of Object.entries(segs)) {
+      const m = im[i].m, skew = Math.abs(m.a*m.c + m.b*m.d) / (Math.hypot(m.a,m.b) * Math.hypot(m.c,m.d));
+      assert.ok(skew < 1e-9, `${state} ${sf}: the ${id} is drawn sheared (${skew}), which Roblox cannot draw`);
+    }
+    for (const [u, l, uid] of [[0,1,'thigh'],[2,3,'thigh'],[5,6,'upperarm'],[9,10,'upperarm']]) near(tipOf(im[u], uid), rootOf(im[l]), 1e-9, `${state} ${sf}: a joint`);
+    const ptm = mul(im[7].m, { a:1,b:0,c:0,d:-1,e:0,f:0 }), PAL = pf.h*0.30*(pc.armR.ext||1);
+    near(tipOf(im[10],'forearm'), point(ptm, pf.r*0.55 + Math.cos(pw.angle)*PAL, (SHO-HIP) + Math.sin(pw.angle)*PAL), 1e-9, `${state} ${sf}: the hand on the grip`);
+  }
+}
 // And the elbow bends at rest: the elbow is off the straight line from shoulder to hand.
 const sh = rootOf(nearUpper), el = tipOf(nearUpper,'upperarm'), hd = tipOf(nearFore,'forearm');
 assert.ok(Math.abs((hd.x-sh.x)*(el.y-sh.y)-(hd.y-sh.y)*(el.x-sh.x))/Math.hypot(hd.x-sh.x,hd.y-sh.y) > 2,'the front arm has an elbow at rest');
@@ -112,6 +136,13 @@ for (const [d, rot, what] of [[farShin, ch.legL, 'far'], [nearShin, ch.legR, 'ne
 
 const half = paint(5);
 assert.equal(half.images.length,7,'a fighter too small for an elbow to read keeps the seven one-piece pieces');
+// The half-detail feet are planted too, or they would jump as a fighter crosses the threshold.
+{
+  const hb = paintAt(5, T).images;
+  for (const [d, rot, what] of [[hb[0], ch.legL, 'far'], [hb[1], ch.legR, 'near']])
+    // a half-detail raster has half the rows, each drawn twice as tall: the limb's own length is unchanged
+    assert.ok(Math.abs(point(d.m, 0, KIT_PARTS.leg.span * d.h / (d.src.height * 2)).y - (200 - 5*HIP*(1-Math.cos(rot)))) < 1e-9, `the ${what} half-detail foot is planted (bob ${ch.bob})`);
+}
 assert.ok(half.images.some((d)=>d.src.width===Math.ceil(KIT_PARTS.head.w/2)),'low zoom uses half detail');
 assert.ok(full.images.some((d)=>d.src.width===KIT_PARTS.head.w),'near zoom uses full detail');
 assert.equal(paintAt(20, T).images[0].src,full.images[0].src,'raster is reused between frames');

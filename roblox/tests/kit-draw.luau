@@ -145,6 +145,7 @@ local Loadout = Loader.load("Loadout")
 local AvatarKit = Loader.load("AvatarKit")
 local KIT = Loader.load("Data/AvatarKit")
 local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
+local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
 local Avatars = Loader.load("Data/Avatars")
 
 -- The block body's head and chest mark come from Avatar2D; a kit fighter must not call either.
@@ -299,7 +300,10 @@ do
 	local checked = 0
 	for _, pose in poses do
 		local pf: any = Fighter.new({ index = 1, char = char, x = 3, y = 2, stocks = 3 })
-		pf.state, pf.onGround, pf.stateFrame, pf.vx, pf.frameCount = pose[1], pose[2], pose[3], (if pose[1] == "run" then 22 else 0), 17
+		-- `sf`, the Fighter's own field: Snapshot.encode reads it (as `stateFrame` on the wire), and a
+		-- `stateFrame` set on the Fighter is dropped - which left every pose here at frame 0, so the
+		-- recovery never spun and this sweep never saw the squash it was written for.
+		pf.state, pf.onGround, pf.sf, pf.vx, pf.frameCount = pose[1], pose[2], pose[3], (if pose[1] == "run" then 22 else 0), 17
 		local ps = Snapshot.decode(Snapshot.encode(pf))
 		grip = nil
 		Weapons2D.draw = function(cv: any, ...)
@@ -359,6 +363,133 @@ do
 			`{pose[1]} {pose[3]}: a half-detail hand is at ({ax3}, {ay3}), the grip at ({grip and grip[1]}, {grip and grip[2]})`)
 	end
 	assert(checked == #poses * 8, `{checked} segments checked, want {#poses * 8}`)
+end
+-- The weapon, drawn the way a Frame can draw it. It used to be drawn inside the torso's squash and
+-- turned by its own angle there - a sheared transform, whose shear Canvas2D.sprite dropped, so the
+-- sword sat up to 1.7 studs from the web's in an air neutral. Now, on every frame of every move of
+-- every weapon, both facings: the weapon sprite reaches Canvas2D as a rotation and a uniform scale -
+-- its own scale, never the body's squash, because a prop does not stretch - with its grip on the
+-- hand and pointing where its angle points in the torso's frame, carried through the lean and the
+-- squash. Every rectangle the weapon's drawing puts down (the trail, the lash, an ultimate's
+-- afterimages and effects) is shear-free too, the axe's afterimages point where theirs do, and the
+-- swing trail sweeps about the carried shoulder and ends on the blade's carried angle.
+do
+	local UltimateVfx = Loader.loadFrom("src/client/", "UltimateVfx")
+	local WEAPONS = {
+		"Sword", "Scythe", "Blasters", "Grimoire", "Axe", "Pike",
+		"Gauntlets", "Hammer", "Longbow", "Flail", "Shield", "Daggers", "Whip",
+	}
+	local SCALE = 24
+	local function skewOf(m: any): number
+		return math.abs(m.a * m.c + m.b * m.d) / (math.sqrt(m.a * m.a + m.b * m.b) * math.sqrt(m.c * m.c + m.d * m.d))
+	end
+	local function unit(x: number, y: number): (number, number)
+		local l = math.sqrt(x * x + y * y)
+		return x / l, y / l
+	end
+	local function copy(m: any): any return { a = m.a, b = m.b, c = m.c, d = m.d, e = m.e, f = m.f } end
+	local inWeapon = 0
+	local weaponM, torsoM, foreSp, rectSkew, rectWhere, ghosts, trailM = nil, nil, nil, 0, "", {}, nil
+	local inTrail = false
+	local saved = { Canvas.sprite, Canvas.rect, Weapons2D.draw, Weapons2D.drawTrail, UltimateVfx.drawUltimate, UltimateVfx.drawMuzzle }
+	local function inside(fn: any): any
+		return function(...)
+			inWeapon += 1
+			local r = fn(...)
+			inWeapon -= 1
+			return r
+		end
+	end
+	local trailDraw = inside(saved[4])
+	Weapons2D.draw = inside(saved[3])
+	Weapons2D.drawTrail = function(...)
+		inTrail = true
+		trailDraw(...)
+		inTrail = false
+	end
+	UltimateVfx.drawUltimate, UltimateVfx.drawMuzzle = inside(saved[5]), inside(saved[6])
+	Canvas.sprite = function(cv: any, key: string, list: any, x0: number, y1: number, pw: number, ph: number)
+		if string.sub(key, 1, 6) == "weapon" then
+			weaponM = copy(cv.m)
+		elseif string.find(key, "|torso|", 1, true) then
+			torsoM = copy(cv.m)
+		elseif list == art.forearm.full then
+			local m = cv.m
+			foreSp = { x0 = x0, y1 = y1, pw = pw, ph = ph, P = function(x: number, y: number) return m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f end }
+		end
+		if inWeapon > 0 and skewOf(cv.m) > rectSkew then rectSkew, rectWhere = skewOf(cv.m), key end
+	end
+	Canvas.rect = function(cv: any, x: number, y: number, w: number)
+		if inWeapon > 0 and skewOf(cv.m) > rectSkew then rectSkew, rectWhere = skewOf(cv.m), "a rectangle" end
+		-- the axe's afterimage: its haft is the one rectangle 3.55 studs long (UltimateVfx axeGhost)
+		if inWeapon > 0 and w == 3.55 then table.insert(ghosts, copy(cv.m)) end
+		-- the trail's last step, the one on the blade: in a frame turned to its angle about the shoulder
+		if inTrail then trailM = copy(cv.m) end
+	end
+	local poses, squeezed, ghostsChecked, trails = 0, 0, 0, 0
+	for _, weaponId in WEAPONS do
+		local wchar = Loadout.build(code, weaponId)
+		for id, m in wchar.moves do
+			for mf = 1, m.startup + m.active + m.recovery do
+				local facing = if mf % 2 == 1 then 1 else -1
+				local pf: any = Fighter.new({ index = 1, char = wchar, x = 3, y = 2, stocks = 3 })
+				pf.state, pf.moveId, pf.sf, pf.mf, pf.frameCount = "attack", id, mf, mf, mf
+				pf.startupEff, pf.charge, pf.facing = m.startup, 0, facing
+				pf.onGround = string.sub(id, 1, 3) ~= "Air"
+				local ps = Snapshot.decode(Snapshot.encode(pf))
+				local pc = Channels.For(ps, wchar, m, 0.3)
+				local wp = WeaponPose.For(ps, wchar, m, 0.3)
+				if wp.hide then continue end
+				weaponM, torsoM, foreSp, rectSkew, ghosts, trailM = nil, nil, nil, 0, {}, nil
+				Fighter2D.draw(canvas(SCALE), ps, wchar, 0.3, 2)
+				local where = `{weaponId} {id} f{mf} (facing {facing}, sx {pc.sx}, sy {pc.sy}, lean {pc.lean})`
+				assert(weaponM and torsoM and foreSp, `{where}: the weapon, torso or near forearm was not drawn`)
+				assert(rectSkew < 1e-9, `{where}: {rectWhere} in the weapon's drawing reaches Canvas2D sheared ({rectSkew})`)
+				local M = weaponM
+				assert(skewOf(M) < 1e-9, `{where}: the weapon reaches Canvas2D sheared ({skewOf(M)}), which a Frame cannot draw`)
+				local sc = if wp.scale ~= 1 then wp.scale else 1
+				for _, n in { math.sqrt(M.a * M.a + M.b * M.b), math.sqrt(M.c * M.c + M.d * M.d) } do
+					assert(math.abs(n - SCALE * sc) < 1e-9, `{where}: the weapon is drawn at scale {n / SCALE}, its own is {sc} - squashed with the body`)
+				end
+				local function pointsAlong(m: any, a: number, what: string)
+					local wx, wy = unit(torsoM.a * math.cos(a) + torsoM.c * math.sin(a), torsoM.b * math.cos(a) + torsoM.d * math.sin(a))
+					local gx2, gy2 = unit(m.a, m.b)
+					assert(math.abs(wx - gx2) < 1e-9 and math.abs(wy - gy2) < 1e-9,
+						`{where}: {what} points ({gx2}, {gy2}), its angle in the torso's frame points ({wx}, {wy})`)
+				end
+				pointsAlong(M, wp.angle, "the weapon")
+				-- The weapon's frame has its grip at the origin; the sprite is drawn past its offset and scale.
+				local gx, gy = M.a * (-wp.ox / sc) + M.c * (-wp.oy / sc) + M.e, M.b * (-wp.ox / sc) + M.d * (-wp.oy / sc) + M.f
+				local hx, hy = tip(foreSp, "forearm")
+				assert(math.abs(gx - hx) < 1e-9 and math.abs(gy - hy) < 1e-9, `{where}: the grip is at ({gx}, {gy}), the hand at ({hx}, {hy})`)
+				if weaponId == "Axe" and wp.ult and wp.ult.blur then
+					assert(#ghosts == #wp.ult.blur, `{where}: {#ghosts} afterimages drawn, {#wp.ult.blur} posed`)
+					for i, a in wp.ult.blur do
+						pointsAlong(ghosts[i], a, `afterimage {i}`)
+						ghostsChecked += 1
+					end
+				end
+				-- The swing trail: steps about the shoulder, the last on the blade's angle, both carried
+				-- out of the squash like the weapon's.
+				if wp.trail then
+					assert(trailM, `{where}: no trail drawn`)
+					local sx, sy = wchar.radius * 0.55, wchar.height * 0.36
+					local ox, oy = torsoM.a * sx + torsoM.c * sy + torsoM.e, torsoM.b * sx + torsoM.d * sy + torsoM.f
+					assert(math.abs(trailM.e - ox) < 1e-9 and math.abs(trailM.f - oy) < 1e-9,
+						`{where}: the trail sweeps about ({trailM.e}, {trailM.f}), the shoulder is at ({ox}, {oy})`)
+					pointsAlong(trailM, wp.trail.to, "the trail's end")
+					trails += 1
+				end
+				poses += 1
+				if math.min(pc.sx / pc.sy, pc.sy / pc.sx) < 0.2 and pc.lean ~= 0 then squeezed += 1 end
+			end
+		end
+	end
+	Canvas.sprite, Canvas.rect, Weapons2D.draw, Weapons2D.drawTrail, UltimateVfx.drawUltimate, UltimateVfx.drawMuzzle = table.unpack(saved)
+	assert(squeezed > 0, `the sweep never reached a pose that both leans and squeezes the torso to a fifth ({poses} poses)`)
+	assert(ghostsChecked > 0, "the sweep never checked an axe afterimage")
+	assert(trails > 0, "the sweep never checked a swing trail")
+	print(`  weapon sweep: {poses} poses, {trails} trails, {ghostsChecked} axe afterimages, {squeezed} poses leaning and squeezed below a fifth`)
 end
 -- The torso fills hip to shoulder.
 local torso = by.torso[1]

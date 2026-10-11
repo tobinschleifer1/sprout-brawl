@@ -218,6 +218,13 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local cs, sn = math.cos(-ch.lean), math.sin(-ch.lean)
 		return X * cs - Y * sn, X * sn + Y * cs + HIP
 	end
+	-- A direction at angle `a` in the torso's frame, carried through the same lean and squash: (cos a,
+	-- sin a) mapped by R(-lean)·diag(sx, sy), as an angle - `a` plus the turn the squash gives it, so
+	-- a trail's sweep keeps its winding where a bare atan2 would wrap (renderer2d.js).
+	local function torsoAngle(a: number): number
+		local cs, sn = math.cos(a), math.sin(a)
+		return a - ch.lean + math.atan2((ch.sy - ch.sx) * sn * cs, ch.sx * cs * cs + ch.sy * sn * sn)
+	end
 	local function limb(rx: number, ry: number, L: Rig.Limb, upper: string, lower: string, far: boolean, inTorso: boolean?)
 		local ax, ay, jx, jy, ex, ey = rx, ry, L.jx, L.jy, L.ex, L.ey
 		if inTorso then
@@ -349,21 +356,44 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				end
 			end
 		end
+		-- Drawn out of the torso's squash, like the arm holding it: rotated inside the non-uniform
+		-- squash the weapon is sheared, which a Frame cannot draw - Canvas2D.sprite dropped the shear and
+		-- a Shield air neutral put the sword 1.7 studs from the web's. The grip and every angle the
+		-- drawing turns by (its own, the afterimages', the trail's ends) are carried through the lean
+		-- and squash, and the weapon is drawn from there unsquashed: a rigid prop, which only its own
+		-- uniform scale (Colossus) changes (renderer2d.js).
+		local cw = table.clone(wpose)
+		cw.angle = torsoAngle(wpose.angle)
+		if wpose.ult and wpose.ult.blur then
+			cw.ult = table.clone(wpose.ult)
+			local blur = {}
+			for i, a in wpose.ult.blur do blur[i] = torsoAngle(a) end
+			cw.ult.blur = blur
+		end
+		local gx, gy = torsoPoint(hx, hy)
+		Canvas2D.save(c)
+		Canvas2D.scale(c, 1 / ch.sx, 1 / ch.sy)
+		Canvas2D.rotate(c, ch.lean)
+		Canvas2D.translate(c, 0, -HIP)
 		-- The trail sweeps around the SHOULDER, not the hand: it is where the blade has been.
 		if wpose.trail then
+			local trail = table.clone(wpose.trail)
+			trail.from, trail.to = torsoAngle(wpose.trail.from), torsoAngle(wpose.trail.to)
+			local sx0, sy0 = torsoPoint(r * 0.55, SHO - HIP)
 			Canvas2D.save(c)
-			Canvas2D.translate(c, r * 0.55, SHO - HIP)
-			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale)
+			Canvas2D.translate(c, sx0, sy0)
+			Weapons2D.drawTrail(c, wid, wpal, trail, wpose.scale)
 			Canvas2D.restore(c)
 		end
 		-- No rotation here. Weapons2D.draw applies pose.angle itself, and turning the frame by the
 		-- arm angle first would apply it twice.
 		Canvas2D.save(c)
-		Canvas2D.translate(c, hx, hy)
-		UltimateVfx.drawUltimate(c, wid, wpal, wpose, t)
-		Weapons2D.draw(c, wid, wpal, wpose)
-		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
+		Canvas2D.translate(c, gx, gy)
+		UltimateVfx.drawUltimate(c, wid, wpal, cw, t)
+		Weapons2D.draw(c, wid, wpal, cw)
+		UltimateVfx.drawMuzzle(c, wid, wpal, cw, t)
 		Canvas2D.restore(c)
+		Canvas2D.restore(c)   -- out of the squash
 	end
 
 	Canvas2D.restore(c)   -- torso

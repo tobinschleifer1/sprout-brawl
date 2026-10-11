@@ -14,8 +14,8 @@ let canvases = [];
 function canvas() {
   const cv = { width:480, height:270, style:{}, getBoundingClientRect:()=>({ width:480,height:270 }) };
   let m = ident(), alpha = 1, fill = '#000', smooth = true;
-  const stack = [], images = [], fills = [];
-  const ctx = new Proxy({ images, fills }, {
+  const stack = [], images = [], fills = [], arcs = [];
+  const ctx = new Proxy({ images, fills, arcs }, {
     get(t,k) {
       if (k === 'save') return () => stack.push([m,alpha,fill,smooth]);
       if (k === 'restore') return () => { [m,alpha,fill,smooth] = stack.pop(); };
@@ -25,6 +25,7 @@ function canvas() {
       if (k === 'setTransform') return (a,b,c,d,e,f) => { m={a,b,c,d,e,f}; };
       if (k === 'getTransform') return () => m;
       if (k === 'drawImage') return (src,x,y,w,h) => images.push({src,x,y,w,h,m:{...m},smooth});
+      if (k === 'arc') return (x,y,rad,a0,a1) => arcs.push({x,y,a0,a1,m:{...m}});
       if (k === 'fillRect') return (x,y,w,h) => fills.push({x,y,w,h,fill,alpha,m:{...m}});
       if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => ({ addColorStop() {} });
       if (k === 'measureText') return () => ({width:10});
@@ -137,6 +138,76 @@ near(tipOf(nearFore,'forearm'), gripAt, 1e-9, 'the hand is on the grip');
     near(point(hm[6].m, 0, KIT_PARTS.arm.span * hm[6].h / (hm[6].src.height * 2)),
       point(htm, pf.r*0.55 + Math.cos(pw.angle)*PAL, (SHO-HIP) + Math.sin(pw.angle)*PAL), 1e-9, `${state} ${sf}: the half-detail hand on the grip`);
   }
+}
+// The weapon, drawn the way Roblox can draw it. It used to be drawn inside the torso's squash and
+// turned by its own angle there - a sheared picture, which Canvas2D.sprite cannot make, so the
+// Roblox sword sat up to 1.7 studs from the web's in an air neutral. Now, on every frame of every
+// move of every weapon, both facings: each weapon sprite (the weapon, and an ultimate's afterimages)
+// reaches the canvas as a rotation and a uniform scale - the weapon's own scale, never the body's
+// squash, because a prop does not stretch - with the weapon's grip on the hand, and every sprite
+// pointing where its angle points in the torso's frame, carried through the lean and the squash.
+// The swing trail is carried the same way: about the carried shoulder, ending on the blade.
+{
+  const { WEAPONS } = await import('../src/data/weapons/index.js');
+  const { WEAPON_SPRITES } = await import('../src/data/weaponArt.js');
+  const PPU = 20, flip = { a:1,b:0,c:0,d:-1,e:0,f:0 };
+  const unit = (x, y) => { const l = Math.hypot(x, y); return [x / l, y / l]; };
+  let poses = 0, sprites = 0, squeezed = 0, trails = 0;
+  for (const w of WEAPONS) {
+    const L = buildLoadout(code, w.id), rects = WEAPON_SPRITES[w.id];
+    if (!rects) continue;
+    const isSprite = (d, k) => d.x === rects[k][0] && d.y === rects[k][1] && d.w === rects[k][2] && d.h === rects[k][3];
+    for (const [id, m] of Object.entries(L.moves)) for (let mf = 1; mf <= m.startup + m.active + m.recovery; mf++) {
+      const facing = mf % 2 ? 1 : -1;
+      const pf = posedFighter(L, id, mf, { frameCount: mf, facing });
+      const pc = channelsFor(pf, 0.3), pw = weaponPose(pf, 0.3);
+      if (pw.hide) continue;
+      const target = canvas(); view.drawFighterInto(target.ctx, pf, 0.3, { ppu: PPU, x: 200, y: 200 });
+      const { fills, images, arcs } = target.ctx;
+      // Every whole copy of the weapon's art among the fills: the afterimages first, the weapon last.
+      const runs = [];
+      for (let i = 0; i + rects.length <= fills.length; i++) {
+        let k = 0;
+        while (k < rects.length && isSprite(fills[i + k], k)) k++;
+        if (k === rects.length) { runs.push(fills[i].m); i += k - 1; }
+      }
+      const where = `${w.id} ${id} f${mf} (facing ${facing}, sx ${pc.sx.toFixed(2)}, sy ${pc.sy.toFixed(2)}, lean ${pc.lean.toFixed(2)})`;
+      const blur = (pw.ult && pw.ult.blur) || [];
+      assert.equal(runs.length, blur.length + 1, `${where}: the weapon and its ${blur.length} afterimages`);
+      const tm = mul(images.find((d) => dims(d, 'torso')).m, flip);
+      const sc = pw.scale || 1;
+      runs.forEach((M, i) => {
+        const what = i === runs.length - 1 ? 'the weapon' : `afterimage ${i + 1}`;
+        const skew = Math.abs(M.a*M.c + M.b*M.d) / (Math.hypot(M.a,M.b) * Math.hypot(M.c,M.d));
+        assert.ok(skew < 1e-9, `${where}: ${what} is drawn sheared (${skew}), which Roblox cannot draw`);
+        for (const n of [Math.hypot(M.a, M.b), Math.hypot(M.c, M.d)])
+          assert.ok(Math.abs(n - PPU * sc) < 1e-9, `${where}: ${what} is drawn at scale ${n / PPU}, its own is ${sc} - squashed with the body`);
+        const a = i === runs.length - 1 ? pw.angle : blur[i];
+        const want = unit(tm.a * Math.cos(a) + tm.c * Math.sin(a), tm.b * Math.cos(a) + tm.d * Math.sin(a)), got = unit(M.a, M.b);
+        assert.ok(Math.hypot(want[0] - got[0], want[1] - got[1]) < 1e-9, `${where}: ${what} points (${got}), its angle in the torso's frame points (${want})`);
+      });
+      // The weapon's own frame has its grip at the origin; the sprite is drawn past its offset and scale.
+      const M = runs[runs.length - 1], s = pw.scale && pw.scale !== 1 ? pw.scale : 1;
+      const hand = images.filter((d) => dims(d, 'forearm')).at(-1);
+      near(point(M, -(pw.ox || 0) / s, -(pw.oy || 0) / s), tipOf(hand, 'forearm'), 1e-9, `${where}: the grip on the hand`);
+      // The swing trail: fourteen arcs about the shoulder, the last centred on where the blade is
+      // now. Its centre and that angle are carried out of the squash like the weapon's.
+      if (pw.trail) {
+        const T = arcs[13], sh = point(tm, pf.r * 0.55, pf.h * 0.36);
+        near(point(T.m, T.x, T.y), sh, 1e-9, `${where}: the trail sweeps about the shoulder`);
+        const a = pw.trail.to, mid = (T.a0 + T.a1) / 2;
+        const want = unit(tm.a * Math.cos(a) + tm.c * Math.sin(a), tm.b * Math.cos(a) + tm.d * Math.sin(a));
+        const got = unit(T.m.a * Math.cos(mid) + T.m.c * Math.sin(mid), T.m.b * Math.cos(mid) + T.m.d * Math.sin(mid));
+        assert.ok(Math.hypot(want[0] - got[0], want[1] - got[1]) < 1e-9, `${where}: the trail ends at (${got}), the blade's angle in the torso's frame points (${want})`);
+        trails++;
+      }
+      poses++; sprites += runs.length;
+      if (Math.min(pc.sx / pc.sy, pc.sy / pc.sx) < 0.2 && pc.lean) squeezed++;
+    }
+  }
+  assert.ok(squeezed > 0, 'the sweep never reached a pose that both leans and squeezes the torso to a fifth');
+  assert.ok(trails > 0, 'the sweep never checked a swing trail');
+  console.log(`  weapon sweep: ${poses} poses, ${sprites} weapon sprites, ${trails} trails, ${squeezed} poses leaning and squeezed below a fifth`);
 }
 // And the elbow bends at rest: the elbow is off the straight line from shoulder to hand.
 const sh = rootOf(nearUpper), el = tipOf(nearUpper,'upperarm'), hd = tipOf(nearFore,'forearm');

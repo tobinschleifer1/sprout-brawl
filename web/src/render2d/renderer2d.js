@@ -397,6 +397,15 @@ export class Renderer2D {
       const X = x * ch.sx, Y = y * ch.sy, c = Math.cos(-ch.lean), s = Math.sin(-ch.lean);
       return [X * c - Y * s, X * s + Y * c + HIP];
     };
+    // A direction at angle `a` in the torso's frame, carried through the same lean and squash: the
+    // vector (cos a, sin a) mapped by R(-lean)·diag(sx, sy), as an angle. Written as `a` plus the
+    // turn the squash gives it, rather than a bare atan2, so it keeps its winding - a trail's sweep
+    // from `from` to `to` must not jump a turn where atan2 wraps. Both squash factors are positive,
+    // so the squash never turns a direction out of its quadrant and that turn is under a right angle.
+    const torsoAngle = (a) => {
+      const c = Math.cos(a), s = Math.sin(a);
+      return a - ch.lean + Math.atan2((ch.sy - ch.sx) * s * c, ch.sx * c * c + ch.sy * s * s);
+    };
     const limb = (rx, ry, L, upper, lower, far, inTorso = false) => {
       const p = inTorso ? torsoPoint : (x, y) => [x, y];
       const [ax, ay] = p(rx, ry), [jx, jy] = p(L.jx, L.jy), [ex, ey] = p(L.ex, L.ey);
@@ -476,15 +485,17 @@ export class Renderer2D {
     this._arm(b, pal.primary, r, SHO - HIP, { z: armAng + PI / 2, x: wid ? 0 : ch.armR.x, ext: ch.armR.ext, bend: ch.armR.bend }, h, true, art, pal, 1,
       kitCode ? (L) => kit('arm', L / KIT_PARTS.arm.span) : null, kitCode ? limb : null);
 
-    // weapon, at the hand
+    // weapon, at the hand. Drawn out of the torso's squash, like the arm holding it: a weapon rotated
+    // inside the non-uniform squash is a sheared picture, which a Roblox Frame cannot draw - in a
+    // Shield air neutral the Roblox sword sat 1.7 studs from the web's. So the grip and the weapon's
+    // angle are carried through the lean and squash (torsoPoint, torsoAngle) and the weapon drawn
+    // from there unsquashed. Unsquashed on purpose: it is a rigid prop, and a sword does not get
+    // shorter because the body holding it is spinning. Only its own uniform scale (Colossus) applies.
     let scuff = null;
     if (wid && !wp.hide) {
       const AL = h * 0.30 * (ch.armR.ext || 1);   // same length the arm was drawn at
       const hx = r * 0.55 + Math.cos(armAng) * AL;
       const hy = (SHO - HIP) + Math.sin(armAng) * AL;
-      // trail is drawn from the shoulder so the arc sweeps around the body
-      if (wp.trail) { b.save(); b.translate(r * 0.55, SHO - HIP); drawTrail(b, wid, wpal, wp.trail, wp.scale || 1); b.restore(); }
-      if (f.item) this._heldItem(b, f, hx, hy);
       // A dragged weapon scrapes. The head's world position is the hand plus the weapon's own
       // reach along its angle, so the dirt comes off exactly where the axe meets the floor rather
       // than from under the fighter — which is the difference between "heavy" and "dusty".
@@ -502,11 +513,27 @@ export class Renderer2D {
         }
       }
 
-      b.save(); b.translate(hx, hy);
-      drawUltimate(b, wid, wpal, wp, t);        // afterimages / moon / second pistol / rune stack
-      drawWeapon(b, wid, wpal, wp);
-      drawMuzzle(b, wid, wpal, wp, t);
+      // Every angle the weapon's drawing turns by is carried: its own, the afterimages' (absolute
+      // angles in the same frame, not offsets from it) and the trail's ends.
+      const cw = { ...wp, angle: torsoAngle(wp.angle) };
+      if (wp.ult && wp.ult.blur) cw.ult = { ...wp.ult, blur: wp.ult.blur.map(torsoAngle) };
+      const [gx, gy] = torsoPoint(hx, hy);
+      b.save(); b.scale(1 / ch.sx, 1 / ch.sy); b.rotate(ch.lean); b.translate(0, -HIP);
+      // trail is drawn from the shoulder so the arc sweeps around the body
+      if (wp.trail) {
+        const [sx0, sy0] = torsoPoint(r * 0.55, SHO - HIP);
+        b.save(); b.translate(sx0, sy0);
+        drawTrail(b, wid, wpal, { ...wp.trail, from: torsoAngle(wp.trail.from), to: torsoAngle(wp.trail.to) }, wp.scale || 1);
+        b.restore();
+      }
+      if (f.item) this._heldItem(b, f, hx, hy, torsoPoint);
+
+      b.save(); b.translate(gx, gy);
+      drawUltimate(b, wid, wpal, cw, t);        // afterimages / moon / second pistol / rune stack
+      drawWeapon(b, wid, wpal, cw);
+      drawMuzzle(b, wid, wpal, cw, t);
       b.restore();
+      b.restore();  // out of the squash
     }
 
     b.restore();  // body
@@ -950,16 +977,20 @@ export class Renderer2D {
   }
 
   // The item in a fighter's hands, drawn at the hand so it is obvious who is holding what.
-  _heldItem(b, f, hx, hy) {
+  // `hx, hy` and the shield's spot are in the torso's frame; `at` carries a point out of its squash,
+  // which is where this draws (see the weapon in _fighter).
+  _heldItem(b, f, hx, hy, at = (x, y) => [x, y]) {
     const it = f.item;
     if (!it) return;
     const d = it.def;
     if (d.id === 'Bulwark') {
       // A shield is carried in front, not held out at arm's length.
-      drawItem(b, d, f.facing * 1.1, 0.6, this.time, { scale: 0.85, hp: it.hp / d.guard.hp });
+      const [x, y] = at(f.facing * 1.1, 0.6);
+      drawItem(b, d, x, y, this.time, { scale: 0.85, hp: it.hp / d.guard.hp });
       return;
     }
-    drawItem(b, d, hx, hy - 0.5, this.time, { scale: 0.8, uses: it.uses });
+    const [x, y] = at(hx, hy - 0.5);
+    drawItem(b, d, x, y, this.time, { scale: 0.8, uses: it.uses });
   }
 
   _bursts(C) {

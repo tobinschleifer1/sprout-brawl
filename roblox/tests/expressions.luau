@@ -118,12 +118,16 @@ local cases = {
 	{ st({ state = "victory" }), "delighted" }, { st({ state = "defeat" }), "dejected" }, { st({ state = "stunned" }), "dizzy" },
 	{ st({ state = "hitstun" }), "hurt" }, { st({ state = "hitstun", tumbling = true }), "startled" }, { st({ state = "flung" }), "startled" },
 	{ st({ state = "grabbed" }), "hurt" }, { st({ state = "taunt" }), "smug" }, { st({ state = "idle" }), nil },
-	{ st({ state = "idle", stocks = 1 }), "determined" },
+	{ st({ state = "idle", stocks = 1 }), "determined", true }, { st({ state = "idle", stocks = 1 }), nil, false },
+	-- an attack whose move cannot be looked up (a counter burst, an item swing) is still effort
+	{ st({ state = "attack", startupEff = 5, moveFrame = 3 }), "effort", false, true },
+	-- late in a recovery, their own face - never a blink, even on a blink frame
+	{ st({ state = "attack", startupEff = 5, moveFrame = 18, frameCount = Expressions.BLINK_EVERY - 1 }), nil },
 	{ st({ state = "attack", startupEff = 5, moveFrame = 3 }), "focused" }, { st({ state = "attack", startupEff = 5, moveFrame = 6 }), "effort" },
 	{ st({ state = "attack", startupEff = 5, moveFrame = 9 }), "effort" }, { st({ state = "attack", startupEff = 5, moveFrame = 18 }), nil },
 }
 for i, c in cases do
-	local got = Expressions.of(c[1], if c[1].state == "attack" then move else nil, false)
+	local got = Expressions.of(c[1], if c[1].state == "attack" and not c[4] then move else nil, false, c[3])
 	if got ~= c[2] then fail(`state case {i} ({c[1].state}): {got}, want {c[2]}`) end
 end
 -- blinks: Expressions.BLINK_FOR frames in every BLINK_EVERY, offset per fighter; a third as often when small
@@ -141,6 +145,13 @@ for fc = 0, Expressions.BLINK_EVERY - 1 do
 	if Expressions.of(st({ frameCount = fc, index = 0 }), nil, false) == "blink" and Expressions.of(st({ frameCount = fc, index = 1 }), nil, false) == "blink" then together += 1 end
 end
 if together > 0 then fail("two fighters blink in unison") end
+-- a still picture posed at an early frame (a select-screen portrait, drawn from frame 1 forever)
+-- never has its eyes shut, for any fighter slot
+for index = 0, 7 do
+	for fc = 0, 10 do
+		if Expressions.of(st({ frameCount = fc, index = index }), nil, false) == "blink" then fail(`a portrait posed at frame {fc} (slot {index}) is blinking`) end
+	end
+end
 if Expressions.of(st({ state = "hitstun", frameCount = 0 }), nil, false) ~= "hurt" then fail("a blink interrupted a hurt face") end
 
 -- 6. The hold.
@@ -221,6 +232,24 @@ for _, p in KIT.presets do
 	end
 end
 if not (sawSame and sawOwn) then fail(`the half-detail check met only one kind of face (same {sawSame}, own {sawOwn})`) end
+-- the last-stock face only in a match that started with more than one stock
+local function lastStockFace(start: number?): boolean
+	Fighter2D.startStocks = start
+	local char = Loadout.build(code, "Sword")
+	local f: any = Fighter.new({ index = 0, char = char, x = 0, y = 0, stocks = 1 })
+	f.state, f.onGround, f.frameCount = "idle", true, 100
+	table.clear(keys)
+	local cv = setmetatable({ m = { a = 24, b = 0, c = 0, d = 24, e = 0, f = 0 }, stack = {}, alpha = 1, alphaStack = {} }, { __index = Canvas })
+	local s1 = Snapshot.decode(Snapshot.encode(f))
+	s1.stocks = 1
+	Fighter2D.draw(cv, s1, char, 0, 0)
+	Fighter2D.startStocks = nil
+	for _, k in keys do if string.find(k, "|head|determined", 1, true) then return true end end
+	return false
+end
+if not lastStockFace(3) then fail("a fighter down to the last of three stocks does not look determined") end
+if lastStockFace(1) then fail("everyone in a one-stock match looks determined from the start") end
+if lastStockFace(nil) then fail("a fighter drawn outside a match (a preview, the podium) looks determined") end
 local knightCode
 for _, p in KIT.presets do if p.id == "knight" then knightCode = p.code end end
 if string.find(headKey(knightCode, "hitstun", 24), "hurt", 1, true) then fail("a knight's helm drew a second, identical head picture") end

@@ -150,8 +150,9 @@ function Expressions.cacheSize(): number
 end
 
 -- What the fighter's face is doing this frame, from its state alone (nil: their own face).
--- `small`: drawn at half detail, where only every third blink happens.
-function Expressions.of(s: any, move: any, small: boolean): string?
+-- `small`: drawn at half detail, where only every third blink happens. `lastStock`: down to the last
+-- of more than one (Fighter2D works that out - a preview or a one-stock match is not a last stand).
+function Expressions.of(s: any, move: any, small: boolean, lastStock: boolean?): string?
 	local st = s.state
 	if st == "victory" then
 		return "delighted"
@@ -163,8 +164,10 @@ function Expressions.of(s: any, move: any, small: boolean): string?
 		return "startled"
 	elseif st == "hitstun" or st == "knockdown" or st == "grabbed" or st == "frozen" then
 		return "hurt"
-	elseif st == "attack" and move then
-		if move.id == "Ultimate" then
+	elseif st == "attack" then
+		-- a move built on the fly (a counter burst, an item swing) cannot be looked up from a
+		-- snapshot: it is an attack all the same
+		if not move or move.id == "Ultimate" then
 			return "effort"
 		end
 		local w = Channels.swing(s, move)
@@ -172,22 +175,26 @@ function Expressions.of(s: any, move: any, small: boolean): string?
 			return "focused"
 		end
 		-- the strike's face carries into the first third of the recovery, so a two-frame active
-		-- window still shows effort for long enough to read
+		-- window still shows effort for long enough to read; the rest of the recovery is their own
+		-- face (or the last stock's), never a blink mid-move
 		if w.phase == "strike" or w.k < 0.35 then
 			return "effort"
 		end
+		return if lastStock then "determined" else nil
 	elseif st == "groundpound" then
 		return if s.stateFrame <= 8 then "focused" else "effort"
 	elseif st == "taunt" then
 		return "smug"
 	end
-	-- an otherwise neutral face: determined on the last stock, and blinking
+	-- an otherwise neutral face: determined on the last stock, and blinking. The blink is at the END
+	-- of each cycle, so a still picture posed at an early frame (a select-screen portrait drawn from
+	-- frame 1, forever) is never caught with its eyes shut.
 	local fc = (s.frameCount or 0) + 37 * (s.index or 0)
 	local cycle = fc // Expressions.BLINK_EVERY
-	if fc % Expressions.BLINK_EVERY < Expressions.BLINK_FOR and (not small or cycle % 3 == 0) then
+	if fc % Expressions.BLINK_EVERY >= Expressions.BLINK_EVERY - Expressions.BLINK_FOR and (not small or cycle % 3 == 0) then
 		return "blink"
 	end
-	return if s.stocks == 1 then "determined" else nil
+	return if lastStock then "determined" else nil
 end
 
 -- The face actually shown: a new expression is taken only once the last one has held HOLD frames

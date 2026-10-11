@@ -884,6 +884,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		stage = stageView, platforms = interpBase and interpBase.platforms,
 		scene = scene, states = states, chars = chars, t = drawAt, fx = fx, player = fxPlayer,
 		cine = cine, caster = caster, casterChar = casterChar, ult = ult,
+		startStocks = matchCfg and matchCfg.stocks,
 		report = function(key: number, err: string)
 			if posedWarned[key] then return end
 			posedWarned[key] = true

@@ -35,6 +35,9 @@ Fighter2D.effects = nil :: any
 -- Team colour by fighter index in a team match, or nil: each fighter then stands in a disc of it
 -- (web/src/data/teams.js TEAM_GLOW). Set by the client when a match starts.
 Fighter2D.teamColours = nil :: any
+-- The match's stocks at its start, while FightScene draws the fight (nil otherwise): a fighter down to
+-- their last of more than one looks determined (Expressions.luau).
+Fighter2D.startStocks = nil :: number?
 -- A brief flash over a fighter by index - a timed link's gold (FxPlayer.glows) - drawn the way the
 -- hit flash is, as the fighter's own silhouette in the colour. Set each frame by FightScene.
 Fighter2D.glows = nil :: any
@@ -170,7 +173,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- picture - unless at this size it would look exactly like the character's own face.
 	local face, faceId = nil, nil
 	if kitArt then
-		faceId = Expressions.held(char, s, Expressions.of(s, move, half))
+		local lastStock = Fighter2D.startStocks ~= nil and (Fighter2D.startStocks :: number) > 1 and s.stocks == 1
+		faceId = Expressions.held(char, s, Expressions.of(s, move, half, lastStock))
 		if faceId then
 			local made = Expressions.head(kitCode :: string, faceId)
 			if not (if half then made.sameHalf else made.sameFull) then

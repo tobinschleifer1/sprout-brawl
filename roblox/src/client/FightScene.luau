@@ -66,9 +66,13 @@ end
 --   fx, player                           Effects state (sparks) and FxPlayer state (timed sprites)
 --   cine, caster, casterChar, ult        the cutscene, if one is running
 --   report(key, err)                     called once per failure kind; nil to rethrow
+--   startStocks                          the match's stocks at the start, for the last-stock face
 -- Returns the banner layout, which the HUD needs for the caster's name.
 function FightScene.draw(c: any, S: any): any
 	local view = S.view
+	-- A fighter on their last stock looks determined - in a match that started with more than one.
+	-- Set only while the fight is drawn, so previews, the podium and the plaza never inherit it.
+	Fighter2D.startStocks = S.startStocks
 	local function guard(key: number, what: string, fn: () -> ())
 		local ok, err = pcall(fn :: any)
 		if not ok then
@@ -218,6 +222,7 @@ function FightScene.draw(c: any, S: any): any
 		end)
 		c:world(view.x, view.y, view.ppu, S.shakeX, S.shakeY)
 	end
+	Fighter2D.startStocks = nil
 	return banner
 end
 

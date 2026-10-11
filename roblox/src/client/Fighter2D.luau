@@ -157,6 +157,14 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local PW = r * 1.15 / 12
 	local m = c.m
 	local half = kitArt ~= nil and PW * math.sqrt(math.abs(m.a * m.d - m.b * m.c)) < Fighter2D.KIT_LOD_PX
+	-- The hit flash (and the chill tint and a timed link's gold): a kit character flashes as ITSELF -
+	-- each piece drawn again over the top in the colour - where that is cheap, which is where pictures
+	-- are images (Canvas2D.imagesOn): one more image per piece. On the Frame fallback a tinted piece is
+	-- a second copy of every one of its rectangles, ~185 Frames a fighter (259 at worst), built the
+	-- first time it flashes in each colour and held for ten seconds - and held up continuously while
+	-- chilled. That fallback is what the lowest devices run, and a hit is the busiest moment of a
+	-- fight, so there the flash is one box over the fighter, as the block rig's has always been.
+	local silhouette = ch.tint ~= nil and kitArt ~= nil and Canvas2D.imagesOn()
 	local function kitPiece(id: string, ph: number, far: boolean?)
 		local P = KIT_PARTS[id]
 		local art = (kitArt :: any)[id]
@@ -164,7 +172,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local k = if half then 2 else 1
 		local key = `{kitCode}|{id}|{if far then "f" else ""}{if half then "h" else ""}`
 		Canvas2D.sprite(c, key, list, -P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
-		if ch.tint then
+		if silhouette then
 			-- the hit flash: the same piece, in the flash colour, over itself
 			Canvas2D.sprite(c, key .. "|" .. ch.tint, Canvas2D.tinted(list, ch.tint), -P.ox * PW, P.oy * ph, PW * k, ph * k,
 				math.ceil(P.w / k), math.ceil(P.h / k), 0.6)
@@ -389,9 +397,9 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		local hit = if Fighter2D.effects then Effects.shieldHit(Fighter2D.effects, s.index) else nil
 		ShieldArt.draw(c, s.x, s.y + h * 0.5, h, ch.bubble, math.floor(t * 60), hit, ShieldArt.colourOf(s.index, Fighter2D.teamColours))
 	end
-	-- The hit flash. A kit character flashes as itself - each piece is drawn again in the flash
-	-- colour over the top (see kitPiece) - so only the block rig still gets the box.
-	if ch.tint and not kitArt then
+	-- The hit flash as a box: the block rig always, and a kit character on the Frame fallback (see
+	-- `silhouette` above for why).
+	if ch.tint and not silhouette then
 		Canvas2D.rect(c, s.x - r, s.y, r * 2, h, Canvas2D.hex(ch.tint, BLACK), 0.5)
 	end
 	c.alpha = 1

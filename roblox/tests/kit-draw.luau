@@ -422,11 +422,21 @@ assert(#sprites == 0, "a body with no kit drew body sprites")
 assert(weapons == 1, "a body with no kit's sword is one sprite as well")
 assert(blockHeads == 2, "a body with no kit stopped drawing its head and chest mark")
 assert(blocks - kitBlocks >= 7, `the kit fighter drew the block body as well ({kitBlocks} rectangles against the block body's {blocks})`)
--- The hit flash on a kit fighter is the fighter: every piece drawn again over itself in the flash
--- colour, the same shape (a silhouette, not a box), and the same silhouette table every frame -
--- a sprite's identity is its rects table, so a fresh one each frame would rebuild the image.
-local flashes, flashBlocks = {}, 0
-Canvas.rect = function() flashBlocks += 1 end
+-- The hit flash on a kit fighter, where pictures are images, is the fighter: every piece drawn
+-- again over itself in the flash colour, the same shape (a silhouette, not a box), and the same
+-- silhouette table every frame - a sprite's identity is its rects table, so a fresh one each frame
+-- would rebuild the image. On the Frame fallback (the lowest devices) it is one box instead: a
+-- silhouette there is a second copy of every rectangle of the body.
+local imagesOn = Canvas.imagesOn
+Canvas.imagesOn = function() return true end
+local flashes, flashBlocks, flashBox = {}, 0, nil
+Canvas.rect = function(_: any, x: number, y: number, w: number, h: number, colour: any, alpha: number?)
+	flashBlocks += 1
+	-- the flash colour, #A9D8F0, read channel by channel (the test loader's Color3 is its own)
+	if colour and math.abs(colour.R - 0xA9 / 255) < 1e-6 and math.abs(colour.G - 0xD8 / 255) < 1e-6 and math.abs(colour.B - 0xF0 / 255) < 1e-6 then
+		flashBox = { x, y, w, h, alpha }
+	end
+end
 Canvas.sprite = function(_: any, key: string, list: any, _x0: number, _y1: number, _pw: number, _ph: number, _c: number, _r: number, alpha: number?)
 	if string.sub(key, 1, 7) == "weapon|" then return end
 	table.insert(flashes, { key = key, list = list, alpha = alpha })
@@ -436,6 +446,7 @@ chilled.chillStacks = 2
 local want = "#A9D8F0"
 local function flashDraw(): { any }
 	table.clear(flashes)
+	flashBox = nil
 	Fighter2D.draw(canvas(24), chilled, char, 0, 2)
 	local tinted = {}
 	for _, sp in flashes do if string.find(sp.key, "|" .. want, 1, true) then table.insert(tinted, sp) end end
@@ -443,6 +454,7 @@ local function flashDraw(): { any }
 end
 local tinted = flashDraw()
 assert(#tinted == 11, `a flashing kit fighter drew {#tinted} flash pieces, want one per piece (11)`)
+assert(flashBox == nil, "with images, the flash is the silhouette, not a box as well")
 for _, sp in tinted do
 	local base
 	for _, other in flashes do if other.key .. "|" .. want == sp.key then base = other end end
@@ -457,8 +469,20 @@ for _, sp in tinted do
 end
 local again = flashDraw()
 for i, sp in again do assert(sp.list == tinted[i].list, "the flash silhouette was rebuilt on the next frame") end
--- a fighter not flashing draws no flash
+-- On the Frame fallback: one box in the flash colour over the fighter, translucent, and no tinted
+-- pieces at all.
+Canvas.imagesOn = function() return false end
+local boxed = flashDraw()
+assert(#boxed == 0, `on the Frame fallback the flash drew {#boxed} tinted pieces, want none`)
+assert(flashBox, "on the Frame fallback the flash drew no box")
+local r0, h0 = char.radius, char.height
+assert(math.abs(flashBox[3] - r0 * 2) < 1e-9 and math.abs(flashBox[4] - h0) < 1e-9 and flashBox[5] and flashBox[5] > 0 and flashBox[5] < 1,
+	"the flash box does not cover the fighter translucently")
+-- a fighter not flashing draws no flash, either way
 chilled.chillStacks = 0
-assert(#flashDraw() == 0, "a fighter with no flash drew flash pieces")
+assert(#flashDraw() == 0 and flashBox == nil, "a fighter with no flash drew a flash on the Frame fallback")
+Canvas.imagesOn = function() return true end
+assert(#flashDraw() == 0 and flashBox == nil, "a fighter with no flash drew a flash with images")
+Canvas.imagesOn = imagesOn
 
-print(`PASS kit fighter: eleven jointed sprites at full detail (neck at the head, every elbow and knee joined, the hand on the grip, feet planted through the bob), seven below it, far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece`)
+print(`PASS kit fighter: eleven jointed sprites at full detail (neck at the head, every elbow and knee joined, the hand on the grip, feet planted through the bob), seven below it, far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece with images, one box on the Frame fallback`)

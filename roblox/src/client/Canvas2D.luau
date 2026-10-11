@@ -383,11 +383,12 @@ local function imagesOn(): boolean
 	if Canvas2D.IMAGES == nil then
 		local ok = pcall(function()
 			assetService = game:GetService("AssetService")
-			-- Writing a pixel, not only creating the image: an experience without the EditableImage
-			-- permission still hands out an image object (with a warning) and refuses the first
-			-- write. Probing creation alone took images as available, so every new picture then
-			-- paid for a failed image before falling back to Frames - and imagesOn() told the hit
-			-- flash that the cheap path was on when it was not.
+			-- Writing a pixel, not only creating the image: Roblox can hand out an image object (with
+			-- a warning) and refuse the write, which is what the Studio tool thread saw with the
+			-- permission off. A creation-only probe would take images as available there and pay
+			-- for a failed image per picture. (The game's own scripts in that place got a mix -
+			-- some images, some refusals - so this probe does not end the warnings there: turning
+			-- the permission on in the experience's Security settings does.)
 			local probe = assetService:CreateEditableImage({ Size = Vector2.new(1, 1) })
 			local ok = pcall(function()
 				probe:WritePixelsBuffer(Vector2.zero, Vector2.new(1, 1), buffer.create(4))

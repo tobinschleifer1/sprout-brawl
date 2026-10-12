@@ -399,7 +399,8 @@ function FxPlayer.draw(P: any, c: any)
 		local scale = FxArt.sized(art, it.size)
 		local alpha = 1
 		if it.fadeAt and u > it.fadeAt then alpha = 1 - (u - it.fadeAt) / (1 - it.fadeAt) end
-		FxArt.draw(c, art, it.x, it.y, scale, it.rot, alpha, it.sy)
+		-- an effect that never fades draws as the cheaper stack of layers (FxArt.draw)
+		FxArt.draw(c, art, it.x, it.y, scale, it.rot, if it.fadeAt then alpha else nil, it.sy)
 	end
 end
 

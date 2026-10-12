@@ -177,6 +177,7 @@ lune run tests/canvas-writes
 lune run tests/canvas-hotpath
 lune run tests/hud-writes
 lune run tests/render-reuse
+lune run tests/pixel-layers
 lune run tests/perf-budget
 lune run tests/creator-ui
 lune run tests/shield-parity

@@ -28,7 +28,7 @@ for frame = 1, 480 do
 	P:reset()
 	scene:draw(frame)
 	if frame == 1 then
-		assert(P.total.writes <= 22200 and P.total.creates <= 3070, "cold draw exceeded its build budget")
+		assert(P.total.writes <= 19400 and P.total.creates <= 2680, "cold draw exceeded its build budget")
 	end
 	if frame <= 120 then
 		if frame > 1 then
@@ -46,11 +46,14 @@ end
 -- Measured on tools/perf-scene (6 shipping weapons incl. Chakram and Rocket Boots): feature/character-rig
 -- before the perf pass 956.9 writes/f (4682 peak); after 592.7 (2926 peak), 4 created across 360
 -- frames, 0 destroyed, 11870 live Frames. ~4% headroom; no timing assertion on a shared host.
-assert(warmCreates <= 9360 and warmPeak <= 612, `warmup built {warmCreates} Instances ({warmPeak} peak)`)
+-- After the layered-art pass (PixelGrid.layers) writes are unchanged and the cold and resident
+-- costs are 14-15% down: first draw 18685 writes / 2576 creates, warm-up 7532 creates (401 peak),
+-- 10101 live Frames. The limits above are the new measurement plus the same ~4%.
+assert(warmCreates <= 7840 and warmPeak <= 420, `warmup built {warmCreates} Instances ({warmPeak} peak)`)
 assert(totals.writes / 360 <= 620, `mean writes {totals.writes / 360} > 620`)
 assert(peaks.writes <= 3050, `peak writes {peaks.writes} > 3050`)
 assert(totals.creates <= 6 and peaks.creates <= 4, `steady creates {totals.creates} ({peaks.creates} peak)`)
 assert(totals.destroys == 0, `steady draw destroyed {totals.destroys} Instances`)
-assert(peaks.liveFrames <= 12410, `live Frames {peaks.liveFrames} > 12410`)
+assert(peaks.liveFrames <= 10510, `live Frames {peaks.liveFrames} > 10510`)
 print(string.format("PASS match budget: %.1f writes/f (%d peak), %d creates, %d destroys, %d live Frames",
 	totals.writes / 360, peaks.writes, totals.creates, totals.destroys, peaks.liveFrames))

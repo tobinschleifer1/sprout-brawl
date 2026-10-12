@@ -762,9 +762,11 @@ gen.pop = function(f: number, seed: number)
 end
 
 -- ------------------------------------------------------------------ compile + cache ----
-export type Art = { key: string, rects: { any }, cols: number, rows: number, ax: number, ay: number, ppu: number }
+export type Art = { key: string, rects: { any }, stackKey: string, stack: { any }, cols: number, rows: number, ax: number, ay: number, ppu: number }
 
 local cache: { [string]: Art } = {}
+-- Tones 1-10 are opaque; 11-15 are the primary ramp at 45% (see tone).
+local function isOpaque(t: number): boolean return t <= 10 end
 local function tone(t: number, A: { string }, B: { string }): (string, number)
 	if t <= 5 then return A[t], 1 end
 	if t <= 10 then return B[t - 5], 1 end
@@ -792,7 +794,16 @@ function FxArt.get(kind: string, f: number, a: string?, b: string?, seed: number
 		row[5], row[6] = hex, alpha
 		rects[i] = row
 	end
-	local art = { key = key, rects = rects, cols = g.w, rows = g.h, ax = ax, ay = ay, ppu = FxArt.PPU }
+	-- The same picture as overlapping layers (PixelGrid.layers), about a quarter fewer rectangles.
+	-- Only exact at full opacity, which is how FxArt.draw uses it; `rects` stay the plain partition.
+	local stack: { any } = {}
+	for i, r in PixelGrid.layers(g, isOpaque) do
+		local hex, alpha = tone(r[5], A, B)
+		local row: { any } = { r[1], r[2], r[3], r[4] }
+		row[5], row[6] = hex, alpha
+		stack[i] = row
+	end
+	local art = { key = key, rects = rects, stackKey = key .. "|L", stack = stack, cols = g.w, rows = g.h, ax = ax, ay = ay, ppu = FxArt.PPU }
 	cache[key] = art
 	return art
 end
@@ -842,7 +853,14 @@ function FxArt.draw(c: any, art: Art, x: number, y: number, scale: number, rot: 
 	Canvas2D.translate(c, x, y)
 	if rot and rot ~= 0 then Canvas2D.rotate(c, rot) end
 	if sy and sy ~= 1 then Canvas2D.scale(c, 1, sy) end
-	Canvas2D.sprite(c, art.key, art.rects, -art.ax * pw, art.ay * pw, pw, pw, art.cols, art.rows, a, true)
+	-- Overlapping layers add up when they are translucent, so they are only exact at full opacity.
+	-- A caller that never fades passes no alpha and gets the stack; one that does gets the plain
+	-- partition for every draw, even at full opacity, so one effect is not built in both forms.
+	if alpha == nil and (c.alpha or 1) >= 1 then
+		Canvas2D.sprite(c, art.stackKey, art.stack, -art.ax * pw, art.ay * pw, pw, pw, art.cols, art.rows, a, true)
+	else
+		Canvas2D.sprite(c, art.key, art.rects, -art.ax * pw, art.ay * pw, pw, pw, art.cols, art.rows, a, true)
+	end
 	Canvas2D.restore(c)
 end
 

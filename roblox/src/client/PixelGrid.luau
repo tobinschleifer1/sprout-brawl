@@ -142,6 +142,101 @@ function PixelGrid.merge(g: Grid): { { number } }
 	return out
 end
 
+-- Layered merge: fewer rectangles than `merge` for the same picture, by letting rectangles OVERLAP.
+-- A rectangle of a lower layer may cover cells that a higher layer paints over afterwards, so a dark
+-- outline becomes its filled silhouette and the bodies drawn on it, where `merge` cuts the outline
+-- into a ring of strips. Returned bottom layer first (a sprite draws them in that order). Only
+-- tones `opaque(v)` accept may be covered: a translucent cell shows whatever is under it, and an
+-- empty one must stay empty, so those are merged on their own and nothing ever overlaps them.
+-- The picture is the same ONLY while every rectangle is drawn at full opacity. Overlapping
+-- translucent rectangles add up (two at 50% are 75%), so a faded sprite must use `merge`.
+function PixelGrid.layers(g: Grid, opaque: (number) -> boolean): { { number } }
+	local w, h, cells = g.w, g.h, g.cells
+	local rank: { [number]: number } = {}
+	local tones = {}
+	local hasTranslucent = false
+	for i = 1, w * h do
+		local v = cells[i]
+		if v ~= 0 then
+			if not opaque(v) then
+				hasTranslucent = true
+			elseif not rank[v] then
+				rank[v] = 0
+				table.insert(tones, v)
+			end
+		end
+	end
+	-- lowest value first: in the effect ramps tone 1 is the dark outline and 5 the hot core, and a
+	-- drawing interns its colours background first
+	table.sort(tones)
+	for k, v in tones do rank[v] = k end
+	local out = {}
+	local covered = table.create(w * h, false)
+	for k, tone in tones do
+		-- the cells this layer may paint: its own, and any a later layer will paint over
+		local function ok(x: number, y: number): boolean
+			local v = cells[y * w + x + 1]
+			return v == tone or (v ~= 0 and (rank[v] or 0) > k)
+		end
+		local function rowOk(y: number, x0: number, x1: number): boolean
+			for x = x0, x1 do if not ok(x, y) then return false end end
+			return true
+		end
+		local function colOk(x: number, y0: number, y1: number): boolean
+			for y = y0, y1 do if not ok(x, y) then return false end end
+			return true
+		end
+		local function gain(x0: number, y0: number, x1: number, y1: number): number
+			local n = 0
+			for y = y0, y1 do
+				for x = x0, x1 do
+					local j = y * w + x + 1
+					if cells[j] == tone and not covered[j] then n += 1 end
+				end
+			end
+			return n
+		end
+		for y = 0, h - 1 do
+			for x = 0, w - 1 do
+				local i = y * w + x + 1
+				if cells[i] ~= tone or covered[i] then continue end
+				-- wide: the longest run through the anchor, then as far down as all of it holds
+				local l, r = x, x
+				while l > 0 and ok(l - 1, y) do l -= 1 end
+				while r + 1 < w and ok(r + 1, y) do r += 1 end
+				local d = y
+				while d + 1 < h and rowOk(d + 1, l, r) do d += 1 end
+				local ax0, ay0, ax1, ay1 = l, y, r, d
+				-- tall: the longest column through the anchor, then as far across as all of it holds
+				local t, b = y, y
+				while t > 0 and ok(x, t - 1) do t -= 1 end
+				while b + 1 < h and ok(x, b + 1) do b += 1 end
+				local lc, rc = x, x
+				while lc > 0 and colOk(lc - 1, t, b) do lc -= 1 end
+				while rc + 1 < w and colOk(rc + 1, t, b) do rc += 1 end
+				if gain(lc, t, rc, b) > gain(ax0, ay0, ax1, ay1) then ax0, ay0, ax1, ay1 = lc, t, rc, b end
+				for yy = ay0, ay1 do
+					for xx = ax0, ax1 do
+						local j = yy * w + xx + 1
+						-- only this layer's own cells are done; the later layers' still need theirs
+						if cells[j] == tone then covered[j] = true end
+					end
+				end
+				table.insert(out, { ax0, ay0, ax1 - ax0 + 1, ay1 - ay0 + 1, tone })
+			end
+		end
+	end
+	if hasTranslucent then
+		local rest = PixelGrid.new(w, h)
+		for i = 1, w * h do
+			local v = cells[i]
+			if v ~= 0 and not opaque(v) then rest.cells[i] = v end
+		end
+		for _, r in PixelGrid.merge(rest) do table.insert(out, r) end
+	end
+	return out
+end
+
 -- ------------------------------------------------------------------ noise ----
 -- Deterministic, so a drawing is the same every time it is generated and a cache key is honest.
 local P = 2147483647

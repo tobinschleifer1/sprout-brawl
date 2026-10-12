@@ -61,7 +61,7 @@ local function inks(): ((string, number?) -> number, { { any } })
 	end, list
 end
 
-export type Art = { key: string, rects: { any }, cols: number, rows: number, ax: number, ay: number }
+export type Art = { key: string, rects: { any }, stackKey: string, stack: { any }, cols: number, rows: number, ax: number, ay: number }
 local cache: { [string]: Art } = {}
 
 local function compile(key: string, g: PixelGrid.Grid, list: { { any } }, ax: number, ay: number): Art
@@ -72,7 +72,16 @@ local function compile(key: string, g: PixelGrid.Grid, list: { { any } }, ax: nu
 		row[5], row[6] = ink[1], ink[2]
 		rects[i] = row
 	end
-	local art = { key = key, rects = rects, cols = g.w, rows = g.h, ax = ax, ay = ay }
+	-- The same picture as overlapping layers, about a third fewer rectangles (PixelGrid.layers).
+	-- Exact only at full opacity, which is how `place` uses it; `rects` stay the plain partition.
+	local stack: { any } = {}
+	for i, r in PixelGrid.layers(g, function(v: number): boolean return list[v][2] >= 1 end) do
+		local ink = list[r[5]]
+		local row: { any } = { r[1], r[2], r[3], r[4] }
+		row[5], row[6] = ink[1], ink[2]
+		stack[i] = row
+	end
+	local art = { key = key, rects = rects, stackKey = key .. "|L", stack = stack, cols = g.w, rows = g.h, ax = ax, ay = ay }
 	cache[key] = art
 	return art
 end
@@ -80,7 +89,11 @@ end
 -- Draws `art` with its anchor cell at (x, y), cells `cell` units on a side, in whatever space the
 -- transform is (world for islands, backbuffer for the sky).
 local function draw(c: any, art: Art, x: number, y: number, cell: number)
-	Canvas2D.sprite(c, art.key, art.rects, x - art.ax * cell, y + art.ay * cell, cell, cell, art.cols, art.rows)
+	if (c.alpha or 1) >= 1 then
+		Canvas2D.sprite(c, art.stackKey, art.stack, x - art.ax * cell, y + art.ay * cell, cell, cell, art.cols, art.rows)
+	else
+		Canvas2D.sprite(c, art.key, art.rects, x - art.ax * cell, y + art.ay * cell, cell, cell, art.cols, art.rows)
+	end
 end
 RealmArt.draw = draw
 
@@ -693,7 +706,12 @@ tiles = function(c: any, art: Art, shift: number, alpha: number)
 	Canvas2D.setTransform(c, s, 0, 0, -s, 0, vp.Y)
 	local x = math.floor(shift / TILE_W) * TILE_W - shift
 	while x < width do
-		Canvas2D.sprite(c, art.key, art.rects, x, TILE_H, SKY_PX, SKY_PX, art.cols, art.rows, alpha)
+		-- overlapping layers only add up exactly at full opacity (a storm lid fading in is not)
+		if alpha >= 1 and (c.alpha or 1) >= 1 then
+			Canvas2D.sprite(c, art.stackKey, art.stack, x, TILE_H, SKY_PX, SKY_PX, art.cols, art.rows, alpha)
+		else
+			Canvas2D.sprite(c, art.key, art.rects, x, TILE_H, SKY_PX, SKY_PX, art.cols, art.rows, alpha)
+		end
 		x += TILE_W
 	end
 end

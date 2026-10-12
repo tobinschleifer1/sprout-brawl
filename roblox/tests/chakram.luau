@@ -45,8 +45,11 @@ end
 
 -- 8. In the game.
 if not Weapons.BY_ID.Chakram or not Weapons.ROBLOX_ONLY.Chakram then fail("the Chakram is not in the merged weapon list") end
-if Weapons.LIST[#Weapons.LIST].id ~= "Chakram" then fail("the Chakram is not after the generated roster") end
-if #Loader.load("Data/Weapons").LIST ~= #Weapons.LIST - 1 then fail("merging changed the generated list") end
+local generated = #Loader.load("Data/Weapons").LIST
+if Weapons.LIST[generated + 1].id ~= "Chakram" then fail("the Chakram is not right after the generated roster") end
+for i = 1, generated do
+	if Weapons.LIST[i] ~= Loader.load("Data/Weapons").LIST[i] then fail("merging changed the generated list") end
+end
 local char = Loadout.build("Classic", "Chakram")
 if char.weapon.id ~= "Chakram" or char.mechanic.id ~= "Return" then fail("Loadout did not build the Chakram") end
 if not Weapons.ART.sprites.Chakram or #Weapons.ART.sprites.Chakram < 20 then fail("the Chakram has no art") end

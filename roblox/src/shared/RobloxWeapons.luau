@@ -492,4 +492,85 @@ local CHAKRAM = {
 		},
 	}
 
-return { LIST = { CHAKRAM } }
+
+-- ROCKET BOOTS, "Burn bright. Land harder." - fuel rushdown (designed by GPT-6-Astra, checked and
+-- built here). Every strike is a kick; the signatures and the recovery burn THRUST FUEL (mechanic
+-- ThrustFuel: 100, refilling after half a second standing still or running on the ground). Fuel is
+-- spent when a move ignites (its first active frame), so a kick interrupted in its wind-up costs
+-- nothing; a signature without the fuel for it is refused. The ultimate, Redline Reversal, runs on the
+-- ultimate meter alone: a forward kick, a reverse kick and a double-heel thrust that carry you.
+local function kick(t: any): any
+	t.kind = t.kind or "melee"
+	t.total = t.startup + t.active + t.recovery
+	t.hitboxes = t.hitboxes or {}
+	return t
+end
+local BOOTS = {
+	id = "RocketBoots",
+	name = "Rocket Boots",
+	archetype = "Fuel rushdown",
+	tagline = "Burn bright. Land harder.",
+	blurb = "Salvaged turbine boots: every attack a kick, every signature a burst of thrust. Burn the tank to break a guard open; stand still to fill it again.",
+	difficulty = 2,
+	stats = { set = { weight = 100 }, mul = { runSpeed = 1.08, airSpeed = 1.06, fallSpeed = 1.05 } },
+	palette = { primary = "#D76B32", secondary = "#465366", tertiary = "#17212D", accent = "#FFE3AF", glow = "#62E8FF" },
+	trail = "#FFB060",
+	mechanic = { id = "ThrustFuel", label = "Fuel", max = 100, regenDelay = 30, regen = 0.5, recoveryCost = 40, weakRecovery = 0.6 },
+	recovery = { kind = "hop", vy = 58, vx = 20 },
+	signature = "SigSide",
+	thrown = { speed = 50, vy = 4, gravity = 30, lifetime = 45, damage = 8, base = 28, growth = 6, angle = 40, size = { 2.2, 1.6 } },
+	moves = {
+		LightNeutral1 = kick({ id = "LightNeutral1", label = "Toe Kick", startup = 5, active = 2, recovery = 8, damage = 3, base = 10, growth = 0.8, angle = 45, grounded = true,
+			chains = { neutral = "LightNeutral2", side = "LightSide1", up = "LightUp", down = "LightDown" },
+			hitboxes = { { frames = { 6, 7 }, offset = { 2.1, 2.0 }, size = { 2.8, 1.8 } } } }),
+		LightNeutral2 = kick({ id = "LightNeutral2", label = "Heel Kick", startup = 4, active = 2, recovery = 9, damage = 3, base = 11, growth = 0.9, angle = 45, grounded = true,
+			chains = { neutral = "LightNeutral3", up = "LightUp", down = "LightDown" },
+			hitboxes = { { frames = { 5, 6 }, offset = { 2.3, 2.4 }, size = { 2.8, 2.0 } } } }),
+		LightNeutral3 = kick({ id = "LightNeutral3", label = "Roundhouse", startup = 6, active = 3, recovery = 16, damage = 5, base = 16, growth = 1.6, angle = 45, grounded = true,
+			extraHitstun = 7, finishers = { neutral = "Finisher" }, chainsHeavy = "SigSide",
+			hitboxes = { { frames = { 7, 9 }, offset = { 2.7, 2.5 }, size = { 3.4, 2.4 } } } }),
+		LightSide1 = kick({ id = "LightSide1", label = "Side Kick", startup = 8, active = 3, recovery = 12, damage = 4, base = 12, growth = 1.1, angle = 35, grounded = true, lunge = 2,
+			chains = { side = "LightSide2", neutral = "LightSide2" },
+			hitboxes = { { frames = { 9, 11 }, offset = { 2.9, 2.0 }, size = { 3.4, 2.0 } } } }),
+		LightSide2 = kick({ id = "LightSide2", label = "Push Kick", startup = 6, active = 3, recovery = 18, damage = 6, base = 19, growth = 2.3, angle = 40, grounded = true,
+			extraHitstun = 4, chainsHeavy = "SigSide",
+			hitboxes = { { frames = { 7, 9 }, offset = { 3.1, 2.5 }, size = { 3.6, 2.2 } } } }),
+		LightUp = kick({ id = "LightUp", label = "Rising Heel", startup = 7, active = 3, recovery = 14, damage = 5, base = 15, growth = 1.7, angle = 80, grounded = true,
+			cancels = { jump = true }, chainsHeavy = "SigNeutral",
+			hitboxes = { { frames = { 8, 10 }, offset = { 1.3, 3.8 }, size = { 3.0, 3.6 } } } }),
+		LightDown = kick({ id = "LightDown", label = "Low Sweep", startup = 8, active = 4, recovery = 16, damage = 5, base = 13, growth = 1.5, angle = 20, grounded = true,
+			trip = 60, chainsHeavy = "SigDown",
+			hitboxes = { { frames = { 9, 12 }, offset = { 2.5, 0.8 }, size = { 3.8, 1.4 } } } }),
+		AirNeutral = kick({ id = "AirNeutral", label = "Spin Kick", startup = 8, active = 10, recovery = 14, damage = 7, base = 16, growth = 2, angle = 50, grounded = false,
+			landingLag = 8, chains = { side = "AirForward", neutral = "AirForward" },
+			hitboxes = { { frames = { 9, 18 }, offset = { 0.0, 2.2 }, size = { 4.4, 4.0 } } } }),
+		AirForward = kick({ id = "AirForward", label = "Front Kick", startup = 10, active = 4, recovery = 15, damage = 8, base = 20, growth = 2.4, angle = 35, grounded = false,
+			landingLag = 10, chains = { down = "AirDown" }, finishers = { neutral = "AirFinisher" },
+			hitboxes = { { frames = { 11, 14 }, offset = { 2.9, 2.2 }, size = { 3.6, 2.6 } } } }),
+		AirUp = kick({ id = "AirUp", label = "Bicycle", startup = 9, active = 4, recovery = 14, damage = 7, base = 18, growth = 2.6, angle = 88, grounded = false,
+			landingLag = 8, hitboxes = { { frames = { 10, 13 }, offset = { 0.7, 4.6 }, size = { 3.2, 3.2 } } } }),
+		AirDown = kick({ id = "AirDown", label = "Stomp", startup = 13, active = 5, recovery = 19, damage = 10, base = 22, growth = 3, angle = 275, grounded = false,
+			landingLag = 13, hitboxes = { { frames = { 14, 18 }, offset = { 0.8, -0.4 }, size = { 2.4, 2.4 } } } }),
+		Finisher = kick({ id = "Finisher", label = "Axe Kick", startup = 8, active = 4, recovery = 24, damage = 8, base = 28, growth = 9.3, angle = 70, grounded = true,
+			finisher = true, hitboxes = { { frames = { 9, 12 }, offset = { 3.1, 2.5 }, size = { 4.0, 3.0 } } } }),
+		AirFinisher = kick({ id = "AirFinisher", label = "Falling Axe", startup = 12, active = 5, recovery = 21, damage = 11, base = 26, growth = 3.4, angle = 290, grounded = false,
+			finisher = true, landingLag = 14, hitboxes = { { frames = { 13, 17 }, offset = { 2.7, 1.2 }, size = { 3.6, 3.0 } } } }),
+		SigSide = kick({ id = "SigSide", label = "Jet Kick", startup = 16, active = 6, recovery = 26, damage = 14, base = 30, growth = 4.8, angle = 40, grounded = true, heavy = true,
+			lunge = 6, fuelCost = 20, hitboxes = { { frames = { 17, 22 }, offset = { 3.1, 2.3 }, size = { 4.0, 2.6 } } } }),
+		SigDown = kick({ id = "SigDown", label = "Burnout Sweep", startup = 14, active = 5, recovery = 25, damage = 12, base = 26, growth = 4.2, angle = 25, grounded = true, heavy = true,
+			lunge = 2, fuelCost = 15, hitboxes = { { frames = { 15, 19 }, offset = { 2.7, 0.8 }, size = { 4.4, 1.6 } } } }),
+		SigNeutral = kick({ id = "SigNeutral", label = "Ignition Heel", startup = 15, active = 4, recovery = 28, damage = 14, base = 32, growth = 5, angle = 85, grounded = true, heavy = true,
+			fuelCost = 25, hitboxes = { { frames = { 16, 19 }, offset = { 1.3, 4.0 }, size = { 3.4, 4.8 } } } }),
+		Ultimate = kick({ id = "Ultimate", label = "Redline Reversal", kind = "redline", startup = 24, active = 22, recovery = 36, damage = 20, base = 38, growth = 7, angle = 40,
+			grounded = true, heavy = true, ultimate = true,
+			-- forward 4 studs, back 4, forward 6, one window each (Combat.onMoveActiveFrame, redline)
+			redline = { { 25, 28, 4 }, { 33, 36, -4 }, { 41, 46, 6 } },
+			hitboxes = {
+				{ frames = { 25, 28 }, offset = { 2.8, 2.3 }, size = { 4, 3 }, damage = 6, base = 8, angle = 80 },
+				{ frames = { 33, 36 }, offset = { -2.8, 2.3 }, size = { 4, 3 }, damage = 6, base = 8, angle = 80 },
+				{ frames = { 41, 46 }, offset = { 3, 2.3 }, size = { 4.4, 3.2 } },
+			} }),
+	},
+}
+
+return { LIST = { CHAKRAM, BOOTS } }

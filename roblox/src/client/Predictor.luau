@@ -136,7 +136,7 @@ function Predictor.applyWire(self: any, w: any)
 	for _, pair in Snapshot.FIELDS do
 		local name = pair[1]
 		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" and name ~= "comboTarget"
-			and name ~= "armed" and name ~= "staleMoves" and name ~= "crackMark" and name ~= "crackExpires" and name ~= "rings" then
+			and name ~= "armed" and name ~= "staleMoves" and name ~= "crackMark" and name ~= "crackExpires" and name ~= "rings" and name ~= "fuel" then
 			-- Back through the name map: the snapshot calls them stateFrame and moveFrame, the
 			-- Fighter calls them sf and mf, and writing the snapshot's names onto a Fighter sets
 			-- two fields nothing reads while leaving the two that matter untouched.
@@ -159,6 +159,8 @@ function Predictor.applyWire(self: any, w: any)
 	if f.mech.id == "Crack" and w.crackMark ~= nil then f.mech.mark = w.crackMark; f.mech.expires = w.crackExpires or 0 end
 	-- the Chakram's rings in hand (RETURN): a predicted throw with none in hand would be refused
 	if f.mech.id == "Return" and w.rings ~= nil and w.rings >= 0 then f.mech.rings = w.rings end
+	-- Rocket Boots' fuel (THRUST FUEL): a predicted signature without the fuel would be refused
+	if f.mech.id == "ThrustFuel" and w.fuel ~= nil and w.fuel >= 0 then f.mech.fuel = w.fuel end
 	-- the server's staling memory, which a hit predicted and then taken back left wrong here
 	if w.staleMoves ~= nil then
 		f.staleMoves = if w.staleMoves == "" then {} else string.split(w.staleMoves, ",")
@@ -474,6 +476,7 @@ function Predictor.state(self: any): any
 	out.crackMark = if f.mech.id == "Crack" then f.mech.mark else -1
 	out.crackExpires = if f.mech.id == "Crack" then f.mech.expires else 0
 	out.rings = if f.mech.id == "Return" then f.mech.rings else -1
+	out.fuel = if f.mech.id == "ThrustFuel" then f.mech.fuel else -1
 	return out
 end
 

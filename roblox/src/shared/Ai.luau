@@ -378,6 +378,16 @@ function Ai.computeBotInput(f: any, match: any): any
 	if frame and frame.heavy and f.mech and f.mech.id == "Return" and (f.mech.rings or 0) <= 0 then
 		frame.heavy, frame.heavyHeld, frame.light = false, false, true
 	end
+	-- Rocket Boots (Roblox only), the same rule: a heavy on the ground is a signature, and below the
+	-- dearest signature's fuel it becomes a kick. Up + heavy in the air is the recovery, which an empty
+	-- tank still does (weakly), so that is left alone.
+	if frame and frame.heavy and f.mech and f.mech.id == "ThrustFuel" and (f.onGround or (frame.y or 0) <= 0.5) then
+		local dearest = 0
+		for _, m in f.char.moves do if m.fuelCost and m.fuelCost > dearest then dearest = m.fuelCost end end
+		if (f.mech.fuel or 0) < dearest then
+			frame.heavy, frame.heavyHeld, frame.light = false, false, true
+		end
+	end
 	return frame
 end
 function computeBotInput(f: any, match: any): any

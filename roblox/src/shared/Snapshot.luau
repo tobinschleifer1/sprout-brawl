@@ -73,6 +73,9 @@ local FIELDS = {
 	-- The Chakram's rings in hand (RETURN, Roblox only; -1 for any other weapon): drawn (no rings in
 	-- the hands once both are thrown) and predicted from (a throw with none in hand is refused).
 	{ "rings", "rg" },
+	-- Rocket Boots' thrust fuel (THRUST FUEL, Roblox only; -1 for any other weapon): the HUD's tank,
+	-- and predicted from (a signature without the fuel for it is refused).
+	{ "fuel", "fu" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -109,6 +112,8 @@ function Snapshot.encode(f: any): { [string]: any }
 			out[wire] = if f.mech and f.mech.id == "Crack" then f.mech.expires else 0
 		elseif name == "rings" then
 			out[wire] = if f.mech and f.mech.id == "Return" then f.mech.rings else -1
+		elseif name == "fuel" then
+			out[wire] = if f.mech and f.mech.id == "ThrustFuel" then f.mech.fuel else -1
 		elseif name == "ledgeAction" then
 			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
 			-- from the stage. Only the kind changes the pose.

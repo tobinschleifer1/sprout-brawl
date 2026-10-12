@@ -741,6 +741,12 @@ local ACTIVE_KINDS = { pulse = true }
 local FRAME_KINDS = {}
 
 function Combat.onMoveActive(self, f: any, m: any)
+	-- Rocket Boots (Roblox only): a fuel-burning move spends it now, at ignition, not when it began
+	if m.fuelCost and f.mech and f.mech.id == "ThrustFuel" then
+		f.mech.fuel = math.max(0, f.mech.fuel - m.fuelCost)
+		f.mech.grounded = 0
+		Combat.emit(self, { type = "thrust", x = f.x, y = f.y, fighter = f.index })
+	end
 	if m.kind == "weaponthrow" then
 		Combat.throwWeapon(self, f)
 		return
@@ -831,7 +837,30 @@ function Combat.lashAt(_self, f: any, S: any, i: number): any
 	return { x = f.x + f.facing * p.dx, y = f.y + p.dy }
 end
 
+-- Redline Reversal (Rocket Boots' ultimate, Roblox only): within each of its windows the kicker is
+-- carried `dist` studs (facing-relative), held at the edge of the platform rather than run off it,
+-- and each window is a fresh pass - a victim can be kicked once in each.
+function Combat.stepRedline(_self, f: any, m: any)
+	-- The kicker is MOVED a fixed step a frame rather than given a velocity, so the platform clamp is
+	-- exact: the step that would cross the edge is cut at it, and nothing carries past a window.
+	local mf = f.mf
+	f.vx = 0
+	for _, w in m.redline do
+		if mf == w[1] then f.hitVictims = {} end
+		if mf >= w[1] and mf <= w[2] then
+			local nx = f.x + f.facing * w[3] / (w[2] - w[1] + 1)
+			local pl = f.platform
+			if pl then nx = math.clamp(nx, pl.x1 + 0.6, pl.x2 - 0.6) end
+			f.x = nx
+		end
+	end
+end
+
 function Combat.onMoveActiveFrame(self, f: any, m: any)
+	if m.kind == "redline" then
+		Combat.stepRedline(self, f, m)
+		return
+	end
 	if m.kind == "volley" then
 		local p = m.projectile
 		local k = f.mf - f.startupEff - 1

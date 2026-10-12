@@ -3,7 +3,7 @@
 // (web/src/data/weaponArt.js compile / compileAwakened), into src/shared/RobloxArt.luau.
 //
 // weaponArt.js already holds the Chakram's grid but only exports art for weapons the web has, so the
-// grid is read out of its source. Run by hand after changing a grid or a palette:
+// grid is read out of its source. Weapons it has no grid for keep theirs here (LOCAL_GRIDS). Run by hand after changing a grid or a palette:
 //   node tools/gen-roblox-art.mjs
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,10 +15,28 @@ const { compile, compileAwakened } = await import(`${WEB}/weaponArt.js`);
 // Roblox-only weapons and their palettes (must match RobloxWeapons.luau)
 const WEAPONS = {
   Chakram: { primary: '#C0C8D4', secondary: '#1E4A4A', tertiary: '#0F2626', accent: '#F4E8C0', glow: '#3CE8C8' },
+  RocketBoots: { primary: '#D76B32', secondary: '#465366', tertiary: '#17212D', accent: '#FFE3AF', glow: '#62E8FF' },
+};
+const G = (ox, oy, rows, ink = {}) => ({ ox, oy, rows, ink });
+// Grids for weapons weaponArt.js has none for (the web is left as it is): one boot, ankle-anchored,
+// drawn once on each foot (GPT-6-Astra's design).
+const LOCAL_GRIDS = {
+  RocketBoots: G(4, 8, [
+    '..TTTTTT......',
+    '..TAAAAT......',
+    '..TPPPST......',
+    '..TPGGST......',
+    '.TSPGGST......',
+    '.TSPPPST......',
+    '.TSPPPPTTT....',
+    '.TSSPPPPPATT..',
+    '.TTSSSSSSSST..',
+    '..TTTTTTTTTT..',
+  ]),
 };
 const src = fs.readFileSync(`${WEB}/weaponArt.js`, 'utf8');
-const G = (ox, oy, rows, ink = {}) => ({ ox, oy, rows, ink });
 const gridOf = (id) => {
+  if (LOCAL_GRIDS[id]) return LOCAL_GRIDS[id];
   const m = src.match(new RegExp(`\\n  ${id}: (G\\([\\s\\S]*?\\]\\)),\\n`));
   if (!m) throw new Error(`no grid for ${id} in weaponArt.js`);
   return Function('G', `return ${m[1]}`)(G);

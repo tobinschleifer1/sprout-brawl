@@ -700,18 +700,31 @@ end
 
 -- The realm's sky, behind everything: the gradient and the sun in screen space, then the tiled
 -- layers, each parallaxed to the camera (and the clouds drifting on their own).
+local SKY_BANDS = 30
+local gradients: { [any]: { Color3 } } = setmetatable({}, { __mode = "k" }) :: any
+local function gradient(stops: { string }): { Color3 }
+	local hit = gradients[stops]
+	if hit then return hit end
+	local colours: { Color3 } = {}
+	for i = 0, SKY_BANDS - 1 do
+		local at = (i + 0.5) / SKY_BANDS * (#stops - 1)
+		local k = math.min(#stops - 1, math.floor(at) + 1)
+		colours[i + 1] = Canvas2D.hex(mix(stops[k], stops[k + 1], at - (k - 1)), Color3.new(1, 1, 1))
+	end
+	gradients[stops] = colours
+	return colours
+end
+
 function RealmArt.sky(c: any, realm: any, camX: number, t: number?)
 	local vp = Canvas2D.viewport(c)
 	if vp.Y <= 0 then return end
 	local now = t or 0
 	Canvas2D.screen(c)
-	local stops = realm.sky
-	local N = 30
+	-- The palette is immutable realm data. Camera and viewport changes only place these bands;
+	-- there is no need to mix hex strings and parse the same colours every render frame.
+	local colours, N = gradient(realm.sky), SKY_BANDS
 	for i = 0, N - 1 do
-		local at = (i + 0.5) / N * (#stops - 1)
-		local k = math.min(#stops - 1, math.floor(at) + 1)
-		local colour = Canvas2D.hex(mix(stops[k], stops[k + 1], at - (k - 1)), Color3.new(1, 1, 1))
-		Canvas2D.rect(c, 0, i * vp.Y / N, vp.X, vp.Y / N + 1, colour)
+		Canvas2D.rect(c, 0, i * vp.Y / N, vp.X, vp.Y / N + 1, colours[i + 1])
 	end
 	local s = vp.Y / TILE_H
 	local width = vp.X / s

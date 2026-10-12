@@ -176,6 +176,7 @@ lune run tests/rocketboots
 lune run tests/canvas-writes
 lune run tests/canvas-hotpath
 lune run tests/hud-writes
+lune run tests/render-reuse
 lune run tests/creator-ui
 lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="

@@ -371,16 +371,18 @@ function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolea
 end
 
 function FxPlayer.step(P: any, dt: number)
-	local keep = {}
-	for _, it in P.items do
+	-- Compact in draw order without allocating a replacement array every render frame. Effects
+	-- overlap translucently, so swapping the last survivor into an expired slot would change art.
+	local items, kept = P.items, 0
+	for _, it in items do
 		if it.delay > 0 then
 			it.delay -= dt
 		else
 			it.age += dt
 		end
-		if it.age < it.dur then table.insert(keep, it) end
+		if it.age < it.dur then kept += 1; items[kept] = it end
 	end
-	P.items = keep
+	for i = #items, kept + 1, -1 do items[i] = nil end
 	P.flash = math.max(0, P.flash - dt * 5)
 	for i, g in P.glows do
 		g.left -= dt

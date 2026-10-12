@@ -1,15 +1,7 @@
 --!strict
--- A fighter's body: the rig half of `_fighter` in web/src/render2d/renderer2d.js.
---
--- The pose comes from Channels.luau, which is a parity-tested port of render2d/channels.js, so
--- every limb angle, lean, squash, smear and flash here is the same number the web build computes.
--- What is left in this file is only the painting: where the joints are and what order they are
--- drawn in.
---
--- STILL TO COME: the avatar's head shape, face and headgear (avatar2d.js), the weapon and its
--- swing (weapons2d.js), and hand-drawn character parts. The head is a plain box until then. None
--- of those change the skeleton - they hang off HIP, SHO and HEAD, which is why those three are
--- load-bearing and why they are the JavaScript's proportions rather than convenient ones.
+-- A fighter's presentation. Channels/WeaponPose/Rig remain replay-held; Posture and PostureArt
+-- add Roblox-only articulation. Each kit piece is transformed separately: Roblox Frames can
+-- rotate and scale but cannot shear. The authored weapon grip and foot targets stay fixed.
 
 local Canvas2D = require(script.Parent.Canvas2D)
 local Channels = require(script.Parent.Channels)
@@ -17,10 +9,11 @@ local WeaponPose = require(script.Parent.WeaponPose)
 local Weapons2D = require(script.Parent.Weapons2D)
 local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
-local AvatarCompose = require(script.Parent.AvatarCompose)
+local Posture = require(script.Parent.Posture)
+local PostureArt = require(script.Parent.PostureArt)
 local Rig = require(script.Parent.Rig)
 local Expressions = require(script.Parent.Expressions)
-local KIT_PARTS = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit).parts
+local KIT_PARTS = PostureArt.parts
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
 local BLACK = Color3.new(0, 0, 0)
@@ -48,37 +41,14 @@ local function sign(v: number): number
 	return if v < 0 then -1 else 1
 end
 
--- `a.ext` extends the limb along its own length. A thrust's reach has to come from somewhere, and
--- sliding the PROP forward off a fixed-length arm is what put the pike's grip further from the hand
--- than the fighter is tall. Extending the arm moves the hand, so the weapon travels with it.
--- `kit`, when the fighter is a kit character, draws the limb's pixel art instead of the block; it
--- is handed the limb's drawn length so a thrust stretches the art with the arm.
-local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number,
-	kit: ((number) -> ())?, limb: ((number, number, Rig.Limb, string, string, boolean, boolean?) -> ())?)
-	-- A kit body: upper arm and forearm at full detail, the elbow solved so the hand lands exactly on
-	-- the weapon's grip (Rig.luau); the one-piece arm to the same hand at half. Either way drawn out of
-	-- the torso's squash, which a Frame cannot shear.
-	if limb then
-		local sx = if front then r * 0.55 else -r * 0.35
-		limb(sx, len, Rig.armPose(sx, len, a.z - math.pi / 2 + a.x, if a.ext ~= 0 then a.ext else 1, a.bend or 0, h),
-			"upperarm", "forearm", not front, true)
-		return
-	end
+-- The legacy block body (no Roblox kit) still uses the authored one-piece limbs.
+local function arm(c: any, colour: Color3, r: number, len: number, a: any, h: number, front: boolean, alpha: number)
 	local w = r * 0.34
 	local L = h * 0.30 * (if a.ext ~= 0 then a.ext else 1)
 	Canvas2D.save(c)
 	Canvas2D.translate(c, if front then r * 0.55 else -r * 0.35, len)
-	-- Arm channels are "direction the limb points, +X forward, +Y up", the same convention the
-	-- weapon uses. The limb is drawn along local -Y, so pointing it at angle A needs rotate(A) -
-	-- `a.z` already holds it. Negating it mirrors every channel-driven arm: a ledge hang (armL.z
-	-- 2.9, meant to be overhead) draws pointing backwards and down.
-	-- `a.x` is the across-the-body component; the run writes its whole arm swing into it.
 	Canvas2D.rotate(c, a.z + a.x)
-	if kit then
-		kit(L)
-	else
-		Canvas2D.rect(c, -w / 2, -L, w, L, colour, alpha)
-	end
+	Canvas2D.rect(c, -w / 2, -L, w, L, colour, alpha)
 	Canvas2D.restore(c)
 end
 
@@ -112,11 +82,10 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		glow = Canvas2D.hex(pal.glow, accent),
 	}
 	local feat = Avatar2D.features(char.avatar)
-	-- A kit character (AvatarKit) draws each puppet piece as its composed pixel art, one sprite per
-	-- piece, in exactly the transforms the block rig uses.
-	-- a kit body (every preset and every kit code) draws from its code (renderer2d.js)
+	-- Every preset and kit code uses the player's composed pixel art. PostureArt caches the
+	-- additional waist cut and beveled joints without changing the shared kit/composer.
 	local kitCode = if char.avatar and char.avatar.kit then char.avatar.code else nil
-	local kitArt = if kitCode then AvatarCompose.sprites(kitCode) else nil
+	local kitArt = if kitCode then PostureArt.sprites(kitCode) else nil
 
 	-- Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole drawing
 	-- out of its own hurtbox - a tech roll spans a full body height below the floor, and an air
@@ -223,13 +192,16 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	end
 
 	local HIP, SHO = h * 0.34, h * 0.70
-	local lw, ll = r * 0.42, HIP
+	local armAng = if wid then wpose.angle else ch.armR.z - math.pi / 2 + ch.armR.x
+	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
+	local hx = r * 0.55 + math.cos(armAng) * h * 0.30 * ext
+	local hy = SHO - HIP + math.sin(armAng) * h * 0.30 * ext
+	local gx, gy = Posture.torsoPoint(ch, h, hx, hy)
+	local wpal = char.weaponPalette or pal
+	local scuff: any = nil
 
-	-- Full detail: elbows and knees (Rig.luau). Each limb is two segments cut from the kit's limb
-	-- art, the upper drawn first and the lower over the joint. Half detail - a fighter too small on
-	-- screen for an elbow to read - keeps the one-piece limbs and their cheaper art.
-	local jointed = kitArt ~= nil and not half
-	-- one segment from (x0, y0) to (x1, y1), along its own line at exactly that length
+	-- Endpoints are already in the fighter's frame. Width never inherits a torso squash or the
+	-- length stretch of a segment: every arm/leg keeps the same number of PW-wide columns.
 	local function seg(x0: number, y0: number, x1: number, y1: number, id: string, far: boolean)
 		local dx, dy = x1 - x0, y1 - y0
 		Canvas2D.save(c)
@@ -238,138 +210,79 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		kitPiece(id, math.sqrt(dx * dx + dy * dy) / KIT_PARTS[id].span, far)
 		Canvas2D.restore(c)
 	end
-	-- An ARM is solved in the torso's frame but drawn out of it: a segment rotated inside the torso's
-	-- non-uniform squash is sheared, which a Frame cannot draw - the elbow came apart by a stud when
-	-- a recovery's spin squeezed the body. The joints are carried through the lean and squash and the
-	-- segments drawn between the carried points (renderer2d.js).
-	local function torsoPoint(x: number, y: number): (number, number)
-		local X, Y = x * ch.sx, y * ch.sy
-		local cs, sn = math.cos(-ch.lean), math.sin(-ch.lean)
-		return X * cs - Y * sn, X * sn + Y * cs + HIP
-	end
-	local function limb(rx: number, ry: number, L: Rig.Limb, upper: string, lower: string, far: boolean, inTorso: boolean?)
-		local ax, ay, jx, jy, ex, ey = rx, ry, L.jx, L.jy, L.ex, L.ey
-		if inTorso then
-			ax, ay = torsoPoint(rx, ry)
-			jx, jy = torsoPoint(L.jx, L.jy)
-			ex, ey = torsoPoint(L.ex, L.ey)
-			Canvas2D.save(c)
-			Canvas2D.scale(c, 1 / ch.sx, 1 / ch.sy)
-			Canvas2D.rotate(c, ch.lean)
-			Canvas2D.translate(c, 0, -HIP)
-		end
-		if jointed then
-			seg(ax, ay, jx, jy, upper, far)
-			seg(jx, jy, ex, ey, lower, far)
+	local function limb(x: number, y: number, L: Rig.Limb, upper: string, lower: string, far: boolean)
+		if half then
+			seg(x, y, L.ex, L.ey, if upper == "thigh" then "leg" else "arm", far)
 		else
-			-- half detail: the one-piece limb between the same carried points
-			seg(ax, ay, ex, ey, if upper == "thigh" then "leg" else "arm", far)
-		end
-		if inTorso then
-			Canvas2D.restore(c)
+			-- The lower segment's top edge tucks UNDER the upper's beveled end. Both pivots still
+			-- meet exactly; the overlap is in the cached art, not an offset to the solved joints.
+			seg(L.jx, L.jy, L.ex, L.ey, lower, far)
+			seg(x, y, L.jx, L.jy, upper, far)
 		end
 	end
-	-- A foot on the ground stays on it through the body's bob - unless the whole rig is rotated (a
-	-- knockdown), when "down" is no longer the floor.
-	local planted = s.onGround == true and ch.rigRotZ == 0
 
 	Canvas2D.save(c)
 	Canvas2D.translate(c, 0, ch.bob)
-
-	-- Legs, far one first and in the darker palette entry, which is where the depth in this art
-	-- style comes from - there is no lighting to do it. The channels rotate them about the hip.
-	local legs = { { ch.legL, -r * 0.30, 0.74, ch.kneeL }, { ch.legR, r * 0.30, 1, ch.kneeR } }
-	for _, leg in legs do
-		local rot, dx, shade = leg[1], leg[2], leg[3]
-		-- a kit leg at either detail: at half detail the one-piece leg aimed at the same planted foot,
-		-- so the feet do not start riding the breathing as a fighter shrinks past the threshold
-		if kitArt then
-			limb(dx, HIP, Rig.legPose(dx, HIP, rot, ll, ch.bob, planted, leg[4] or 0), "thigh", "shin", shade < 1)
-			continue
-		end
-		Canvas2D.save(c)
-		Canvas2D.translate(c, dx, HIP)
-		Canvas2D.rotate(c, -rot)
-		if kitArt then
-			kitPiece("leg", ll / KIT_PARTS.leg.span, shade < 1)
-		else
-			Canvas2D.rect(c, -lw / 2, -ll, lw, ll, tertiary, shade)
-		end
-		Canvas2D.restore(c)
-	end
-
-	-- The pelvis: a short block spanning both hip joints, drawn after the legs and before the
-	-- torso so it covers where they attach. Without it the torso starts AT the hip and goes up,
-	-- the legs hang from the hip and go down, and the joint is simply open - which is invisible
-	-- standing still and reads as two detached limbs the moment the body rotates away from them.
 	if kitArt then
+		local p = Posture.For(ch, s, char, wpose, move, t)
+		for i, leg in p.legs do limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 1) end
 		Canvas2D.save(c)
-		Canvas2D.translate(c, 0, HIP)
+		Canvas2D.translate(c, p.hipX, p.hipY)
+		Canvas2D.rotate(c, p.hipRot)
 		kitPiece("pelvis", h * 0.10 / KIT_PARTS.pelvis.span)
 		Canvas2D.restore(c)
+		limb(p.backX, p.backY, p.back, "upperarm", "forearm", true)
+
+		Canvas2D.save(c)
+		Canvas2D.translate(c, p.hipX, p.hipY)
+		Canvas2D.rotate(c, p.waistRot)
+		Canvas2D.scale(c, ch.sx, ch.sy)
+		kitPiece("abdomen", (SHO - HIP) / 18)
+		Canvas2D.restore(c)
+		Canvas2D.save(c)
+		Canvas2D.translate(c, p.waistX, p.waistY)
+		Canvas2D.rotate(c, p.chestRot)
+		Canvas2D.scale(c, p.chestSX, p.chestSY)
+		kitPiece("chest", (SHO - HIP) / 18)
+		Canvas2D.restore(c)
+
+		Canvas2D.save(c)
+		Canvas2D.translate(c, p.headX, p.headY)
+		Canvas2D.rotate(c, p.headRot)
+		Canvas2D.scale(c, ch.sx, ch.sy)
+		kitPiece("head", PW)
+		Canvas2D.restore(c)
+		limb(p.frontX, p.frontY, p.front, "upperarm", "forearm", false)
 	else
+		for _, leg in { { ch.legL, -r * 0.30, 0.74 }, { ch.legR, r * 0.30, 1 } } do
+			Canvas2D.save(c)
+			Canvas2D.translate(c, leg[2], HIP)
+			Canvas2D.rotate(c, -leg[1])
+			Canvas2D.rect(c, -r * 0.21, -HIP, r * 0.42, HIP, tertiary, leg[3])
+			Canvas2D.restore(c)
+		end
 		Canvas2D.rect(c, -r * 0.56, HIP - h * 0.05, r * 1.12, h * 0.10, secondary)
-	end
-
-	-- The torso carries the lean and the squash, so everything welded to it inherits both.
-	Canvas2D.save(c)
-	Canvas2D.translate(c, 0, HIP)
-	Canvas2D.rotate(c, -ch.lean)
-	Canvas2D.scale(c, ch.sx, ch.sy)
-
-	-- Back arm, then torso, then head, then front arm and the weapon it is holding. The torso has
-	-- to hide the far shoulder, and the front arm has to sit over the head.
-	local kitArm = if kitArt then function(far: boolean): (number) -> ()
-		return function(L: number) kitPiece("arm", L / KIT_PARTS.arm.span, far) end
-	end else nil
-	arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74, if kitArm then kitArm(true) else nil, if kitArt then limb else nil)
-	if kitArt then
-		kitPiece("torso", (SHO - HIP) / KIT_PARTS.torso.span)
-	else
+		Canvas2D.save(c)
+		Canvas2D.translate(c, 0, HIP)
+		Canvas2D.rotate(c, -ch.lean)
+		Canvas2D.scale(c, ch.sx, ch.sy)
+		arm(c, secondary, r, SHO - HIP, ch.armL, h, false, 0.74)
 		Canvas2D.rect(c, -r * 0.80, 0, r * 1.60, SHO - HIP, primary)
 		Avatar2D.drawTorsoMark(c, avPal, r, SHO - HIP, feat)
+		Canvas2D.save(c)
+		Canvas2D.translate(c, 0, h * 0.78 - HIP)
+		Canvas2D.rotate(c, -ch.head * 0.4)
+		Avatar2D.drawHead(c, avPal, r * 1.15, feat)
+		Canvas2D.restore(c)
+		arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = 0, ext = ext }, h, true, 1)
+		Canvas2D.restore(c)
 	end
 
-	-- The head: shape, face and headgear, all from the avatar, so a preset and a player-made
-	-- character are drawn by the same code at the same moment. It takes the head channel at 0.4 as
-	-- a nod rather than a full turn, as the JavaScript does.
-	local HEAD = h * 0.78
-	local hs = r * 1.15
-	Canvas2D.save(c)
-	Canvas2D.translate(c, 0, HEAD - HIP)
-	Canvas2D.rotate(c, -ch.head * 0.4)
-	if kitArt then
-		kitPiece("head", PW)
-	else
-		Avatar2D.drawHead(c, avPal, hs, feat)
-	end
-	Canvas2D.restore(c)
-
-	-- THE FRONT ARM IS DRIVEN BY THE WEAPON, not by armR.z, so the swing and the limb always
-	-- agree. Posing the arm from the channels and then hanging the weapon off it is the same
-	-- motion computed twice from two sources, and they disagree the moment a swing arc and a
-	-- body pose are not the same curve - which is most of the moveset.
-	local wpal = char.weaponPalette or pal
-	local armAng = if wid then wpose.angle else ch.armR.z - math.pi / 2
-	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
-	-- An armed arm takes no `x` (the run's arm swing): the hand is where the weapon is, and the weapon
-	-- never had it - the arm used to swing while the sword hung still, a hand-width off its grip.
-	arm(c, primary, r, SHO - HIP, { z = armAng + math.pi / 2, x = if wid then 0 else ch.armR.x, ext = ext, bend = ch.armR.bend }, h, true, 1,
-		if kitArm then kitArm(false) else nil, if kitArt then limb else nil)
-
-	local scuff: any = nil
 	if wid and not wpose.hide then
-		-- The hand is the far end of the arm, at the length the arm was actually drawn at, so a
-		-- thrust's armR.ext carries the weapon with it instead of leaving the grip behind.
-		local AL = h * 0.30 * ext
-		local hx = r * 0.55 + math.cos(armAng) * AL
-		local hy = (SHO - HIP) + math.sin(armAng) * AL
-		-- A hauled weapon scrapes: the head's world position is the hand plus the weapon's reach
-		-- along its angle, so the dirt comes off where the axe meets the floor (see renderer2d.js).
 		if wpose.drag and s.onGround and platformTop then
 			local rch = Weapons2D.REACH[wid] or 2.4
-			local wx = s.x + (hx + math.cos(wpose.angle) * rch) * s.facing
-			local wy = s.y + HIP + hy + math.sin(wpose.angle) * rch
+			local wx = s.x + (gx + math.cos(wpose.angle - ch.lean) * rch) * s.facing
+			local wy = s.y + ch.bob + gy + math.sin(wpose.angle - ch.lean) * rch
 			if wy < platformTop + 1.2 then
 				scuff = { x = wx, y = platformTop }
 				if Fighter2D.effects then
@@ -378,24 +291,24 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				end
 			end
 		end
-		-- The trail sweeps around the SHOULDER, not the hand: it is where the blade has been.
+		-- The authored shoulder/grip still carry lean and squash as POINTS. The trail and weapon
+		-- rotate outside the squash, just like the limbs: a sprite cannot rotate inside an axis scale.
 		if wpose.trail then
+			local tx, ty = Posture.torsoPoint(ch, h, r * 0.55, SHO - HIP)
 			Canvas2D.save(c)
-			Canvas2D.translate(c, r * 0.55, SHO - HIP)
+			Canvas2D.translate(c, tx, ty)
+			Canvas2D.rotate(c, -ch.lean)
 			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale)
 			Canvas2D.restore(c)
 		end
-		-- No rotation here. Weapons2D.draw applies pose.angle itself, and turning the frame by the
-		-- arm angle first would apply it twice.
 		Canvas2D.save(c)
-		Canvas2D.translate(c, hx, hy)
+		Canvas2D.translate(c, gx, gy)
+		Canvas2D.rotate(c, -ch.lean)
 		UltimateVfx.drawUltimate(c, wid, wpal, wpose, t)
 		Weapons2D.draw(c, wid, wpal, wpose)
 		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
 		Canvas2D.restore(c)
 	end
-
-	Canvas2D.restore(c)   -- torso
 	Canvas2D.restore(c)   -- bob
 	Canvas2D.restore(c)   -- fighter
 	if scuff then

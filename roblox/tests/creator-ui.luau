@@ -277,11 +277,11 @@ ed:open()
 ed:setView({ slots = { { name = "Kage 3", code = NINJA } }, active = 1, saving = false, max = 8, note = "Saving is off right now." })
 assert(string.find(ed.status.Text, "Saving is off"), "the studio must say when saving is off")
 
--- A whole character is one of the rig's two bodies: the jointed one at full detail, or the seven
--- one-piece pieces at half. Nothing missing, nothing doubled, nothing of one mixed into the other.
+-- A whole character is one of the rig's two bodies: the jointed one at full detail, or the eight
+-- pieces with one-piece limbs at half. Nothing missing, nothing doubled, nothing of one mixed into the other.
 local BODIES = {
-	["arm,arm,head,leg,leg,pelvis,torso"] = 7,
-	["forearm,forearm,head,pelvis,shin,shin,thigh,thigh,torso,upperarm,upperarm"] = 11,
+	["abdomen,arm,arm,chest,head,leg,leg,pelvis"] = 8,
+	["abdomen,chest,forearm,forearm,head,pelvis,shin,shin,thigh,thigh,upperarm,upperarm"] = 12,
 }
 local function body(pieces: { string }): number?
 	local sorted = table.clone(pieces)
@@ -297,7 +297,7 @@ for _, p in Editor.POSES do
 	ed:draw(10 + math.random())
 	local mine = {}
 	for _, sp in sprites do if string.find(sp.key, ed:code(), 1, true) == 1 then table.insert(mine, string.match(sp.key, "|(%a+)|")) end end
-	assert(body(mine) == 11, `{p[1]}: the preview drew {table.concat(mine, ",")}, want the character's whole jointed body`)
+	assert(body(mine) == 12, `{p[1]}: the preview drew {table.concat(mine, ",")}, want the character's whole jointed body`)
 end
 assert(Fighter2D.teamColours and Fighter2D.teamColours[0], "the preview cleared the match's team colours")
 Fighter2D.teamColours = nil

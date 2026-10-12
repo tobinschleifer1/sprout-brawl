@@ -6,11 +6,11 @@
 --    the mirror a facing of -1 puts in the transform, which a Frame cannot do and the sprite fakes
 --    with a flipped layout. Then the reason it exists: drawing it again creates nothing, and only a
 --    change of picture, mirror or alpha touches the children.
--- 2. Fighter2D with a kit character: at full detail eleven sprites (head, torso, pelvis, and an
+-- 2. Fighter2D with a kit character: at full detail twelve sprites (head, chest, abdomen, pelvis, and an
 --    upper and lower segment of each arm and leg) in place of the block body, the far limbs in their
 --    darkened copies - the neck at the head's height, every elbow and knee joined, the hand exactly on
 --    the weapon's grip, the feet planted on the floor through the breathing. Below a screen pixel and
---    a third a cell, the seven one-piece pieces at half resolution.
+--    a third a cell, the eight pieces with one-piece limbs at half resolution.
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local Rbx = require("@lune/roblox")
@@ -137,13 +137,14 @@ print(`PASS sprite: {cases} cells land where their rectangles would, through rot
 -- ---------------------------------------------------------------- 2. the fighter ----
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local Fighter2D = Loader.loadFrom("src/client/", "Fighter2D")
-local Compose = Loader.loadFrom("src/client/", "AvatarCompose")
+local Compose = Loader.loadFrom("src/client/", "PostureArt")
 local Channels = Loader.loadFrom("src/client/", "Channels")
 local Fighter = Loader.load("Fighter")
 local Snapshot = Loader.load("Snapshot")
 local Loadout = Loader.load("Loadout")
 local AvatarKit = Loader.load("AvatarKit")
-local KIT = Loader.load("Data/AvatarKit")
+local KIT = table.clone(Loader.load("Data/AvatarKit"))
+KIT.parts = Compose.parts
 local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
 local Avatars = Loader.load("Data/Avatars")
 
@@ -202,8 +203,8 @@ for _, sp in sprites do
 	by[piece] = by[piece] or {}
 	table.insert(by[piece], sp)
 end
-assert(#sprites == 11, `a kit fighter at full detail should be eleven sprites, drew {#sprites}`)
-assert(#by.head == 1 and #by.torso == 1 and #by.pelvis == 1, "not one head, torso and pelvis")
+assert(#sprites == 12, `a kit fighter at full detail should be twelve sprites, drew {#sprites}`)
+assert(#by.head == 1 and #by.chest == 1 and #by.abdomen == 1 and #by.pelvis == 1, "not one head, chest, abdomen and pelvis")
 local kitBlocks = blocks
 -- Each segment once near and once far (darkened), in its own picture cut from the limb.
 local seg: any = {}
@@ -248,11 +249,12 @@ end
 assert(grip, "the weapon was never drawn")
 local gx, gy = tip(seg.forearm.near, "forearm")
 assert(math.abs(gx - grip[1]) < 1e-9 and math.abs(gy - grip[2]) < 1e-9, `the hand is at ({gx}, {gy}), the grip at ({grip[1]}, {grip[2]})`)
--- And the elbow bends: the elbow is off the straight line from shoulder to hand.
+-- Rest elbows have a small visible bend, under twelve degrees from straight.
 local sx, sy = root(seg.upperarm.near, "upperarm")
 local ex, ey = tip(seg.upperarm.near, "upperarm")
-local cross = (gx - sx) * (ey - sy) - (gy - sy) * (ex - sx)
-assert(math.abs(cross) / math.sqrt((gx - sx) ^ 2 + (gy - sy) ^ 2) > 2, "the front arm is straight: no elbow at rest")
+local ux, uy, vx, vy = ex - sx, ey - sy, gx - ex, gy - ey
+local elbow = math.acos(math.clamp((ux * vx + uy * vy) / math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy)), -1, 1))
+assert(elbow > math.rad(1) and elbow < math.rad(12), `rest elbow is {math.deg(elbow)} degrees from straight`)
 -- The feet are planted: each shin ends where the one-piece leg's foot would without the bob - on
 -- the floor, lifted only by the stance's leg angle - not riding the breathing up and down.
 for side, rot in { far = ch.legL, near = ch.legR } do
@@ -299,7 +301,7 @@ do
 	local checked = 0
 	for _, pose in poses do
 		local pf: any = Fighter.new({ index = 1, char = char, x = 3, y = 2, stocks = 3 })
-		pf.state, pf.onGround, pf.stateFrame, pf.vx, pf.frameCount = pose[1], pose[2], pose[3], (if pose[1] == "run" then 22 else 0), 17
+		pf.state, pf.onGround, pf.sf, pf.vx, pf.frameCount = pose[1], pose[2], pose[3], (if pose[1] == "run" then 22 else 0), 17
 		local ps = Snapshot.decode(Snapshot.encode(pf))
 		grip = nil
 		Weapons2D.draw = function(cv: any, ...)
@@ -360,9 +362,12 @@ do
 	end
 	assert(checked == #poses * 8, `{checked} segments checked, want {#poses * 8}`)
 end
--- The torso fills hip to shoulder.
-local torso = by.torso[1]
-assert(math.abs(torso.y1 - KIT.parts.torso.span * torso.ph) < 1e-9 and math.abs(torso.y1 - char.height * 0.36) < 1e-9, "the torso does not span hip to shoulder")
+-- The abdomen ends at the chest pivot; its top edge is tucked beneath the chest's overlap.
+local abdomen, chest = by.abdomen[1], by.chest[1]
+local wx, wy = abdomen.P(0, abdomen.y1)
+local cx, cy = root(chest, "chest")
+assert(math.abs(wx - cx) < 1e-9 and math.abs(wy - cy) < 1e-9, "the torso parts do not meet at the waist")
+assert(KIT.parts.chest.h > KIT.parts.chest.oy, "the chest has no overlap below its waist pivot")
 
 -- Small on screen: half resolution, same places.
 table.clear(sprites)
@@ -375,7 +380,7 @@ for _, sp in sprites do
 	local ok = list == art[piece].half or list == art[piece].farHalf
 	assert(ok, `{sp.key}: not the half-resolution picture at 8 px per stud`)
 end
-assert(halfCount == 7, `{halfCount} of 7 pieces switched to half resolution`)
+assert(halfCount == 8, `{halfCount} of 8 pieces switched to half resolution`)
 -- And the half-detail feet are planted too: the one-piece legs end on the floor through the bob,
 -- or the feet would jump as a fighter crosses the detail threshold.
 table.clear(sprites)
@@ -396,7 +401,7 @@ local pwCell = char.radius * 1.15 / 12
 assert(pwCell * 8 < Fighter2D.KIT_LOD_PX and pwCell * 24 >= Fighter2D.KIT_LOD_PX, "the test's two zooms do not straddle the threshold")
 
 -- The presets are kit characters under their old ids (docs/briefs/character-rework-plan.md, phase
--- 1): every one draws the eleven-piece kit body and no block body, and "Classic" draws exactly the pictures its
+-- 1): every one draws the twelve-piece kit body and no block body, and "Classic" draws exactly the pictures its
 -- own kit code draws.
 local function keysOf(avatarId: string): { string }
 	table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
@@ -407,7 +412,7 @@ local function keysOf(avatarId: string): { string }
 end
 for _, preset in Avatars.LIST do
 	local keys = keysOf(preset.id)
-	assert(#keys == 11 and blockHeads == 0, `preset {preset.id} drew {#keys} sprites and {blockHeads} block head pieces, want a kit body`)
+	assert(#keys == 12 and blockHeads == 0, `preset {preset.id} drew {#keys} sprites and {blockHeads} block head pieces, want a kit body`)
 end
 local classic, byCode = keysOf("Classic"), keysOf(Loadout.kitCodeOf("Classic") :: string)
 assert(table.concat(classic, ",") == table.concat(byCode, ","), "Classic does not draw what its kit code draws")
@@ -453,7 +458,7 @@ local function flashDraw(): { any }
 	return tinted
 end
 local tinted = flashDraw()
-assert(#tinted == 11, `a flashing kit fighter drew {#tinted} flash pieces, want one per piece (11)`)
+assert(#tinted == 12, `a flashing kit fighter drew {#tinted} flash pieces, want one per piece (12)`)
 assert(flashBox == nil, "with images, the flash is the silhouette, not a box as well")
 for _, sp in tinted do
 	local base
@@ -485,4 +490,4 @@ Canvas.imagesOn = function() return true end
 assert(#flashDraw() == 0 and flashBox == nil, "a fighter with no flash drew a flash with images")
 Canvas.imagesOn = imagesOn
 
-print(`PASS kit fighter: eleven jointed sprites at full detail (neck at the head, every elbow and knee joined, the hand on the grip, feet planted through the bob), seven below it, far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece with images, one box on the Frame fallback`)
+print(`PASS kit fighter: twelve jointed sprites at full detail (neck at the head, every elbow and knee joined, the hand on the grip, feet planted through the bob), eight below it, far limbs darkened, half resolution below {Fighter2D.KIT_LOD_PX} px a cell; every preset a kit body, a body with no kit the block rig; hit flash a silhouette of each piece with images, one box on the Frame fallback`)

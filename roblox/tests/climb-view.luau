@@ -102,11 +102,11 @@ local function primitive(c: any, ...: any)
 	end
 	c.used += 1
 end
--- A whole character is one of the rig's two bodies: the jointed one at full detail, or the seven
--- one-piece pieces at half. Nothing missing, nothing doubled, nothing of one mixed into the other.
+-- A whole character is one of the rig's two bodies: the jointed one at full detail, or the eight
+-- pieces with one-piece limbs at half. Nothing missing, nothing doubled, nothing of one mixed into the other.
 local BODIES = {
-	["arm,arm,head,leg,leg,pelvis,torso"] = 7,
-	["forearm,forearm,head,pelvis,shin,shin,thigh,thigh,torso,upperarm,upperarm"] = 11,
+	["abdomen,arm,arm,chest,head,leg,leg,pelvis"] = 8,
+	["abdomen,chest,forearm,forearm,head,pelvis,shin,shin,thigh,thigh,upperarm,upperarm"] = 12,
 }
 local function body(pieces: { string }): number?
 	local sorted = table.clone(pieces)

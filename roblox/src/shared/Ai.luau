@@ -366,7 +366,21 @@ end
 
 local decide
 
+local computeBotInput: (any, any) -> any
+-- A Chakram bot (Roblox only) never asks for a throw it cannot make: every tactic below can press
+-- heavy - a kill attempt, an edge-guard, a recovery - and with no ring in hand that is a refused
+-- throw and a wasted frame. Empty-handed, heavy becomes light (the normals need no ring). (No bot
+-- tactic presses a neutral heavy, so the Halo - which needs both rings - is never asked for with
+-- one: tests/chakram holds a bot at one ring for 20 s to keep that true.) Every other weapon's
+-- input passes through untouched.
 function Ai.computeBotInput(f: any, match: any): any
+	local frame = computeBotInput(f, match)
+	if frame and frame.heavy and f.mech and f.mech.id == "Return" and (f.mech.rings or 0) <= 0 then
+		frame.heavy, frame.heavyHeld, frame.light = false, false, true
+	end
+	return frame
+end
+function computeBotInput(f: any, match: any): any
 	-- Draw from the match's own generator, so a bot match replays from its seed.
 	RNG = (if match.stage then match.stage.rng else nil) or math.random
 	if f.botLevel == "dummy" then

@@ -176,4 +176,47 @@ do
 	if f.mech.rings ~= 2 then fail("a new stock did not start with both rings") end
 end
 
-print("PASS chakram: Orbit Throw out ~22 studs, home and caught, a hit each way; rings spent and refused (dryfire, Halo needs both); Ground Saw on the floor and turning at the ledge; Halo circles both rings; Eclipse circles, out and back; no ring lost to a KO, the blast zone or a new stock; in the roster with its art")
+-- 9. A bot throws its rings - and never with empty hands (Ai.luau, "Returning zoner").
+do
+	local m = Match.new({ mode = "StockFFA", stage = stageData, seed = 2, items = false, stocks = 3,
+		fighters = { { char = Loadout.build("Classic", "Chakram"), isBot = true, botLevel = "hard", team = 0 },
+			{ char = Loadout.build("Noir", "Sword"), isBot = true, botLevel = "hard", team = 1 } } })
+	m.state = "fight"
+	local throws, dry, seen = 0, 0, 0
+	for _ = 1, 60 * 60 do
+		if m.results then break end
+		m:step()
+		if #m.events < seen then seen = 0 end
+		for i = seen + 1, #m.events do
+			local e = m.events[i]
+			if e.type == "projectile" and (e.shape == "ring" or e.shape == "eclipse") then throws += 1 end
+			if e.type == "dryfire" then dry += 1 end
+		end
+		seen = #m.events
+	end
+	if throws < 5 then fail(`a hard Chakram bot threw {throws} rings in a minute`) end
+	if dry > 0 then fail(`a Chakram bot tried {dry} throws with empty hands`) end
+	-- and with its hands held empty (both rings out, for 20 s), it does not try
+	local f = m.fighters[1]
+	for _ = 1, 20 * 60 do
+		if m.results then break end
+		f.mech.rings = 0
+		m:step()
+		if #m.events < seen then seen = 0 end
+		for i = seen + 1, #m.events do if m.events[i].type == "dryfire" then dry += 1 end end
+		seen = #m.events
+	end
+	if dry > 0 then fail(`a Chakram bot with no rings in hand tried {dry} throws`) end
+	-- and with one ring in hand, never the Halo, which needs both
+	for _ = 1, 20 * 60 do
+		if m.results then break end
+		f.mech.rings = 1
+		m:step()
+		if #m.events < seen then seen = 0 end
+		for i = seen + 1, #m.events do if m.events[i].type == "dryfire" then dry += 1 end end
+		seen = #m.events
+	end
+	if dry > 0 then fail(`a Chakram bot with one ring in hand tried {dry} Halos`) end
+end
+
+print("PASS chakram: Orbit Throw out ~22 studs, home and caught, a hit each way; rings spent and refused (dryfire, Halo needs both); Ground Saw on the floor and turning at the ledge; Halo circles both rings; Eclipse circles, out and back; no ring lost to a KO, the blast zone or a new stock; in the roster with its art; a bot throws its rings, never empty-handed")

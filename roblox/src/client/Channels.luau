@@ -445,6 +445,35 @@ local function ultChannels(ch: any, f: any, char: any, m: any, t: number)
 		else
 			ch.lean = 0.44 * (1 - out); ch.armR.z = F * (1 - out); ch.armR.ext = 1 + 0.4 * (1 - out)
 		end
+	elseif wid == "Chakram" then
+		-- ECLIPSE RING (Roblox only). The ring goes overhead in the right hand and the left comes up to
+		-- steady it; the fighter holds it there while it circles, then cocks and throws it out across
+		-- the last third of the recovery, which is when the ring leaves its orbit (see Combat.stepRing).
+		if wind then
+			local r = easeOut(k)
+			ch.armR.z = 2.7 * r; ch.armL.z = 0.4 + 1.5 * r
+			ch.lean = -0.3 * r; ch.sy = 1 + 0.12 * r; ch.sx = 1 - 0.06 * r
+			ch.bob = 0.3 * r; ch.head = -0.3 * r
+			ch.legL = -0.25 * r; ch.legR = 0.2 * r
+		elseif live or out < 0.5 then
+			ch.armR.z = 2.7 + math.sin(t * 5) * 0.06; ch.armL.z = 1.9; ch.lean = -0.3; ch.head = -0.3
+			ch.sy = 1.12; ch.sx = 0.94; ch.bob = 0.3 + math.sin(t * 4) * 0.05
+			ch.legL = -0.25; ch.legR = 0.2
+			ch.opacity = 1
+		elseif out < 0.68 then
+			local v = easeOut((out - 0.5) / 0.18)              -- cock the arm back behind the head
+			ch.armR.z = 2.7 + 0.5 * v; ch.armL.z = 1.9 - 1.2 * v
+			ch.lean = -0.3 - 0.2 * v; ch.head = -0.3 - 0.1 * v; ch.sy = 1.12
+			ch.sx = 0.94; ch.bob = 0.3; ch.legL = -0.25 - 0.1 * v; ch.legR = 0.2
+		else
+			local v = easeOut(math.min(1, (out - 0.68) / 0.14)) -- and throw
+			ch.armR.z = 3.2 + (F + 0.1 - 3.2) * v; ch.armL.z = 0.7 - 1.0 * v
+			ch.lean = -0.5 + 0.95 * v; ch.head = -0.4 + 0.5 * v
+			ch.legR = 0.2 + 0.4 * v; ch.legL = -0.35 - 0.1 * v
+			ch.sx = 0.94 + 0.2 * v; ch.sy = 1.12 - 0.2 * v; ch.bob = 0.3 * (1 - v)
+			ch.armR.ext = 1 + 0.3 * v
+			ch.smear = 1 - v
+		end
 	else
 		-- GRIMOIRE - ASTRAL RAIN. The book goes up and the fighter opens out under it, arched back,
 		-- pulsing with every wave that leaves the pages.
@@ -481,6 +510,10 @@ local function ultChannels(ch: any, f: any, char: any, m: any, t: number)
 	-- frames read as a fighter recovering their balance rather than as a pose being switched off.
 	if not wind and not live then
 		local d = 1 - settle(out, 2.4, 3.2)
+		-- the Chakram's own recovery IS its throw: the spring above would have killed the hold and the
+		-- release before they began (it is spent by a fifth of the way through), so it only settles
+		-- over the last 14% of the move
+		if wid == "Chakram" then d = 1 - clamp((out - 0.86) / 0.14, 0, 1) end
 		for _, key in { "lean", "bob", "head", "legL", "legR", "shakeX", "smear" } do
 			ch[key] *= d
 		end
@@ -489,6 +522,49 @@ local function ultChannels(ch: any, f: any, char: any, m: any, t: number)
 		ch.armR.ext = 1 + (ch.armR.ext - 1) * d
 	end
 end
+
+-- The Chakram's three throws (Roblox only: the web has no such weapon, so nothing replays these).
+-- Each is a body that lets go of something. `w` runs from -1 (fully cocked) through 0 to 1 (arm at
+-- full extension), as for the other moves; `l3` and `l4` are its lagged copies.
+local CHAKRAM_THROWS: { [string]: (any, number, number, number) -> () } = {
+	-- ORBIT THROW: a sidearm discus throw. The arm goes back past the shoulder with the torso
+	-- twisted away, then whips through flat, the front arm folding in as the hips drive round.
+	sigside = function(ch, w, l3, l4)
+		local p = math.max(0, w)
+		ch.lean = if w < 0 then -0.5 * -w else 0.5 * w
+		ch.armR.z = if w < 0 then -2.0 * -w else -2.0 + (F + 0.1 + 2.0) * w
+		ch.armR.ext = 1 + 0.3 * p
+		ch.armL.z = if w < 0 then 0.5 * -w else 0.5 - 0.9 * p
+		ch.legR = 0.6 * p; ch.legL = if w < 0 then 0.35 * -w else -0.45 * p
+		ch.sx = 1 + 0.16 * p; ch.head = -0.2 * math.max(0, l4)
+		ch.bob = -0.1 * math.max(0, -w)
+	end,
+	-- GROUND SAW: an underhand roll. A crouch, the arm swung back and low, then forward and down
+	-- until the hand brushes the floor and lets go.
+	sigdown = function(ch, w, l3, l4)
+		local p, c = math.max(0, w), math.abs(w)
+		ch.sy = 1 - 0.2 * c; ch.sx = 1 + 0.14 * c
+		ch.bob = -0.35 * c
+		ch.lean = if w < 0 then 0.15 * -w else 0.55 * w
+		ch.armR.z = if w < 0 then -0.9 * -w else -0.9 + (F * 0.55 + 0.9) * w
+		ch.armR.ext = 1 + 0.25 * p
+		ch.armL.z = -0.3 - 0.7 * c
+		ch.legR = if w < 0 then -0.5 * -w else 0.9 * w
+		ch.legL = -0.6 * c
+		ch.head = 0.15 * math.max(0, l3)
+	end,
+	-- HALO: both rings are lifted to the head and the arms spread wide round them; the body opens
+	-- upward and holds until the rings have settled into their orbit.
+	signeut = function(ch, w, l3, l4)
+		local p, c = math.max(0, w), math.abs(w)
+		ch.armR.z = if w < 0 then -0.4 - 1.6 * -w else -2.0 - 0.2 * p
+		ch.armL.z = if w < 0 then 0.4 + 1.6 * -w else 2.0 + 0.2 * p
+		ch.sy = 1 + 0.12 * c; ch.sx = 1 - 0.06 * c
+		ch.bob = 0.22 * c; ch.head = -0.2 * c
+		ch.lean = -0.1 * c
+		ch.legL = -0.2 * c; ch.legR = 0.2 * c
+	end,
+}
 
 -- ---------------------------------------------------------------- attacks ----
 local function attackChannels(ch: any, f: any, char: any, move: any, t: number)
@@ -539,7 +615,10 @@ local function attackChannels(ch: any, f: any, char: any, move: any, t: number)
 	local wLag2, wLag3, wLag4 = lagged(f, m, 2), lagged(f, m, 3), lagged(f, m, 4)
 	local function pos(v: number): number return math.max(0, v) end
 
-	if cat2 == "throw" then
+	local chakramThrow = if char.weapon and char.weapon.id == "Chakram" then CHAKRAM_THROWS[cat2] else nil
+	if chakramThrow then
+		chakramThrow(ch, w, wLag3, wLag4)
+	elseif cat2 == "throw" then
 		-- An overhand throw (weapon drops), by phase: cocked up and back, driven forward, settled
 		-- home. See channels.js.
 		if s.phase == "wind" then

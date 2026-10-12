@@ -412,6 +412,9 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		if not said then
 			local ult = AbilityStatus.ultimate(mine, chars[self.localIndex + 1])
 			if string.sub(ult, 1, 5) == "READY" then said = "ULTIMATE " .. ult end
+			-- a Chakram with a ring out says what it has left (Roblox only)
+			local rings = AbilityStatus.rings(mine, chars[self.localIndex + 1])
+			if not said and rings and string.sub(rings, 1, 3) ~= "2/2" then said = "RINGS " .. rings end
 		end
 	end
 	self.abilities.Text = said or ""

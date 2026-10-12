@@ -918,7 +918,7 @@ function methods.startMove(self, moveOrId: any, opts: any?)
 	-- ring leaves the hand (Combat.spawnProjectile), not here: a throw interrupted in its wind-up -
 	-- hit, grabbed, KO'd - never threw anything, and must not lose a ring.
 	if move.rings and self.mech.id == "Return" and (self.mech.rings or 0) < move.rings then
-		methods.emit(self, { type = "dryfire" })
+		methods.emit(self, { type = "dryfire", rings = move.rings })
 		return
 	end
 	if move.ammo and self.mech.id == "Spines" then

@@ -16,13 +16,28 @@ function Status.ultimate(state: any, char: any): string
 	end
 	return ultimate
 end
+-- The Chakram's rings in hand (Roblox only; Snapshot `rings`, -1 for any other weapon), and what
+-- that leaves you: Halo throws both, every other throw one.
+function Status.rings(state: any, char: any): string?
+	local n = state.rings
+	if not char.mechanic or char.mechanic.id ~= "Return" or n == nil or n < 0 then return nil end
+	local max = char.mechanic.rings
+	if n >= max then return `{n}/{max}` end
+	if n > 0 then return `{n}/{max} — Halo needs both` end
+	return `0/{max} — catch a ring to throw again`
+end
 function Status.describe(state: any, char: any): string
 	local ultimate = Status.ultimate(state, char)
 	local shield = if state.state == "shield" then "ACTIVE" else if not state.onGround then "land to shield" else "hold I / Ctrl"
-	return `YOU · {char.weapon.name}   |   SHIELD: {shield}   |   ULTIMATE: {ultimate}`
+	local rings = Status.rings(state, char)
+	local ringPart = if rings then `   |   RINGS: {rings}` else ""
+	return `YOU · {char.weapon.name}   |   SHIELD: {shield}{ringPart}   |   ULTIMATE: {ultimate}`
 end
 function Status.event(event: any): string?
 	if event.type == "ultready" then return "YOUR ULTIMATE IS READY — press O" end
+	if event.type == "dryfire" and event.rings then
+		return if event.rings > 1 then "Halo needs both rings in hand — catch them first." else "No ring in hand — catch one to throw again."
+	end
 	if event.type == "ultimate" then return "ULTIMATE ACTIVATED" end
 	if event.type == "ultdenied" then
 		return if event.reason == "grounded" then "This ultimate needs solid ground — land, then press O."

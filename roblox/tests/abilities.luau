@@ -72,6 +72,19 @@ for _, weapon in Loader.load("Data/Weapons").LIST do
 end
 assert(Status.event({type="ultdenied",reason="grounded"}):find("ground",1,true))
 assert(Status.event({type="ultready"}):find("YOUR",1,true))
+-- The Chakram's rings (Roblox only): the count and what it leaves, nothing for any other weapon,
+-- and a refused throw explained by how many rings it needed.
+do
+	local chak, sword = Loadout.build("Classic","Chakram"), Loadout.build("Classic","Sword")
+	assert(Status.rings({rings=2},chak)=="2/2","both rings in hand")
+	assert(Status.rings({rings=1},chak):find("Halo needs both",1,true),"one ring out names what it costs")
+	assert(Status.rings({rings=0},chak):find("catch",1,true),"no rings says how to get one back")
+	assert(Status.rings({rings=-1},sword)==nil and Status.rings({rings=2},sword)==nil,"a sword has no rings")
+	assert(Status.describe({rings=1,ultCharge=0,onGround=true,state="idle"},chak):find("RINGS: 1/2",1,true),"the status line carries the rings")
+	assert(not Status.describe({rings=-1,ultCharge=0,onGround=true,state="idle"},sword):find("RINGS",1,true),"no rings for a sword")
+	assert(Status.event({type="dryfire",rings=2}):find("both",1,true) and Status.event({type="dryfire",rings=1}):find("No ring",1,true),"a refused throw says why")
+	assert(Status.event({type="dryfire"})==nil,"a spine weapon's dry fire is not a ring message")
+end
 assert(Status.describe({ultCharge=20,onGround=false,state="air"},
 	{weapon={name="Grounded test"},moves={Ultimate={grounded=true}}}):find("land first",1,true))
 print("PASS abilities: all 12 weapons, real keys through prediction, shield blocks hits, held/released shield, short-tap ultimate, denial feedback, chat and reset guards")

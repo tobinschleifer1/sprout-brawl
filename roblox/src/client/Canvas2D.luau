@@ -27,19 +27,6 @@ local function identity(): Matrix
 	return { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 }
 end
 
-local function mul(m: Matrix, n: Matrix): Matrix
-	-- n applied first, then m - the order a canvas composes in, so translate/rotate/scale read the
-	-- same way round as they do in the JavaScript.
-	return {
-		a = m.a * n.a + m.c * n.b,
-		b = m.b * n.a + m.d * n.b,
-		c = m.a * n.c + m.c * n.d,
-		d = m.b * n.c + m.d * n.d,
-		e = m.a * n.e + m.c * n.f + m.e,
-		f = m.b * n.e + m.d * n.f + m.f,
-	}
-end
-
 function Canvas2D.new(parent: Instance): any
 	local self = setmetatable({}, Canvas2D)
 
@@ -100,7 +87,9 @@ end
 
 -- ---------------------------------------------------------------- transform stack ----
 function Canvas2D.save(self: any)
-	table.insert(self.stack, table.clone(self.m))
+	-- Transforms replace (never mutate) m: draw recorders and disaster overlays retain it. Save
+	-- can hold that immutable value directly instead of cloning it hundreds of times a frame.
+	table.insert(self.stack, self.m)
 	table.insert(self.alphaStack, self.alpha)
 end
 
@@ -116,21 +105,28 @@ function Canvas2D.restore(self: any)
 end
 
 function Canvas2D.translate(self: any, x: number, y: number)
-	self.m = mul(self.m, { a = 1, b = 0, c = 0, d = 1, e = x, f = y })
+	local m = self.m
+	-- Specialise the multiply so it needs only the result table, no temporary operand matrix.
+	self.m = { a = m.a, b = m.b, c = m.c, d = m.d,
+		e = m.a * x + m.c * y + m.e, f = m.b * x + m.d * y + m.f }
 end
 
 function Canvas2D.rotate(self: any, rad: number)
 	local c, s = math.cos(rad), math.sin(rad)
-	self.m = mul(self.m, { a = c, b = s, c = -s, d = c, e = 0, f = 0 })
+	local m = self.m
+	self.m = { a = m.a * c + m.c * s, b = m.b * c + m.d * s,
+		c = -m.a * s + m.c * c, d = -m.b * s + m.d * c, e = m.e, f = m.f }
 end
 
 function Canvas2D.scale(self: any, sx: number, sy: number)
-	self.m = mul(self.m, { a = sx, b = 0, c = 0, d = sy, e = 0, f = 0 })
+	local m = self.m
+	self.m = { a = m.a * sx, b = m.b * sx, c = m.c * sy, d = m.d * sy, e = m.e, f = m.f }
 end
 
 -- Replaces the matrix outright. Used once a frame to install the world transform, and again to go
 -- back to screen space for anything measured in pixels.
 function Canvas2D.setTransform(self: any, a: number, b: number, c: number, d: number, e: number, f: number)
+	-- Keep replacement semantics here: disaster overlays retain the old matrix across screen().
 	self.m = { a = a, b = b, c = c, d = d, e = e, f = f }
 end
 
@@ -264,11 +260,15 @@ end
 -- Where a Frame goes, written only where it moved: Position, Size and Rotation.
 local function place(f: Frame, st: any, sx: number, sy: number, w: number, h: number, rot: number)
 	if st.px ~= sx or st.py ~= sy then
-		f.Position = UDim2.fromOffset(sx, sy)
+		local position = UDim2.fromOffset(sx, sy)
+		-- UDim offsets have engine precision, not Lua-number precision. A subpixel camera/bone
+		-- movement can construct the SAME UDim2; do not cross into the engine for that either.
+		if st.position ~= position then f.Position = position; st.position = position end
 		st.px, st.py = sx, sy
 	end
 	if st.w ~= w or st.h ~= h then
-		f.Size = UDim2.fromOffset(w, h)
+		local size = UDim2.fromOffset(w, h)
+		if st.size ~= size then f.Size = size; st.size = size end
 		st.w, st.h = w, h
 	end
 	if st.rot ~= rot then
@@ -557,15 +557,19 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 				child.Parent = sp.frame
 				sp.children[i] = child
 			end
-			sp.rects, sp.flip, sp.alpha = rects, nil, nil
+			sp.rects, sp.flip, sp.alpha, sp.cols, sp.rows = rects, nil, nil, nil, nil
 		end
-		if sp.flip ~= flip then
+		local resized = sp.cols ~= cols or sp.rows ~= rows
+		if sp.flip ~= flip or resized then
 			for i, r in rects do
 				local row = if flip then rows - r[2] - r[4] else r[2]
-				sp.children[i].Position = UDim2.fromScale(r[1] / cols, row / rows)
-				sp.children[i].Size = UDim2.fromScale(r[3] / cols, r[4] / rows)
+				-- Mirroring changes rows only. Centred cells do not move, and no cell changes size.
+				if resized or r[2] * 2 + r[4] ~= rows then
+					sp.children[i].Position = UDim2.fromScale(r[1] / cols, row / rows)
+				end
+				if resized then sp.children[i].Size = UDim2.fromScale(r[3] / cols, r[4] / rows) end
 			end
-			sp.flip = flip
+			sp.flip, sp.cols, sp.rows = flip, cols, rows
 		end
 		local a = (alpha or 1) * self.alpha
 		if sp.alpha ~= a then

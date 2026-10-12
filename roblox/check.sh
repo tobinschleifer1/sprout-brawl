@@ -174,6 +174,7 @@ lune run tests/chakram
 echo "== Rocket Boots (Roblox-only weapon): thrust fuel and Redline Reversal =="
 lune run tests/rocketboots
 lune run tests/canvas-writes
+lune run tests/canvas-hotpath
 lune run tests/creator-ui
 lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="

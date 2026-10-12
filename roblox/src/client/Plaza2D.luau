@@ -19,7 +19,7 @@ local Plaza = require(Shared.Plaza)
 local Loadout = require(Shared.Loadout)
 local Input = require(Shared.Input)
 local Config = require(Shared.Config)
-local Weapons = require(Shared.Data.Weapons)
+local Weapons = require(Shared.Weapons)
 local Stages = require(Shared.Data.Stages)
 local KIT: any = require(Shared.Data.AvatarKit)
 local InputClient = require(script.Parent.InputClient)
@@ -644,6 +644,11 @@ local function boardThumb(c: any, shapes: { any }, x0: number, y0: number, w: nu
 	Canvas.restore(c)
 end
 
+-- How many columns the weapon rack needs to hold `n` weapons in three rows (at least four).
+function Plaza2D.rackColumns(n: number): number
+	return math.max(4, math.ceil(n / 3))
+end
+
 -- A preparation station, standing at its depth. The room's own state is drawn on it: the map
 -- board the map, the ready rail a lamp per place, the rules board lives or a clock, the rack your
 -- weapon.
@@ -655,15 +660,20 @@ local function stationArt(c: any, s: any, active: boolean, room: any, weaponId: 
 	Canvas.rect(c, x - 5, 0.8, 10, 0.4, colour)
 	if s.kind == "Weapons" then
 		Canvas.rect(c, x - 8, 5.3, 16, 9, INK)
+		-- Three rows inside the rack's panel, as many columns as the roster needs, spread across
+		-- its width: a fixed four a row put the 13th and 14th weapons below the panel.
+		local cols = Plaza2D.rackColumns(#Weapons.LIST)
+		local step = 12.8 / math.max(1, cols - 1)
+		local art = math.min(0.45, step * 0.13)
 		for i, weapon in Weapons.LIST do
+			local gx, gy = x - 6.4 + ((i - 1) % cols) * step, 7 + math.floor((i - 1) / cols) * 2.6
 			if weapon.id == weaponId then
-				local gx, gy = x - 6 + ((i - 1) % 4) * 4, 7 + math.floor((i - 1) / 4) * 2.6
-				Canvas.rect(c, gx - 1.6, gy - 1.1, 3.4, 2.4, AMBER, 0.9)
-				Canvas.rect(c, gx - 1.4, gy - 0.9, 3.0, 2.0, INK)
+				Canvas.rect(c, gx - step * 0.45, gy - 1.1, step * 0.9, 2.4, AMBER, 0.9)
+				Canvas.rect(c, gx - step * 0.4, gy - 0.9, step * 0.8, 2.0, INK)
 			end
 			Canvas.save(c)
-			Canvas.translate(c, x - 6 + ((i - 1) % 4) * 4, 7 + math.floor((i - 1) / 4) * 2.6)
-			Canvas.scale(c, 0.45, 0.45)
+			Canvas.translate(c, gx, gy)
+			Canvas.scale(c, art, art)
 			WeaponArt.draw(c, weapon.id, weapon.palette, { angle = 0.2, ox = 0, oy = 0, scale = 1, charge = 0 })
 			Canvas.restore(c)
 		end

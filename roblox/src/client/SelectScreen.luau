@@ -16,7 +16,7 @@
 -- Empty pedestals offer ADD BOT; a bot's offers REMOVE. Either starts a vote (Rooms.BOT_VOTE_TIME):
 -- every player gets YES / NO, and a strict majority of the players in the room decides.
 local Shared = game:GetService("ReplicatedStorage").Shared
-local Weapons = require(Shared.Data.Weapons)
+local Weapons = require(Shared.Weapons)
 local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
 local Fighter = require(Shared.Fighter)

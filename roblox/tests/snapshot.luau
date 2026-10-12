@@ -34,7 +34,7 @@ local EXPECTED = {
 	"comboHits", "breakable", "breakCooldown",
 	"armed",
 	"staleMoves",
-	"crackMark", "crackExpires",
+	"crackMark", "crackExpires", "rings", "fuel",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation
@@ -171,6 +171,28 @@ do
 	w.mech.mark, w.mech.expires = 2, 517
 	local got = Snapshot.decode(Snapshot.encode(w))
 	if got.crackMark ~= 2 or got.crackExpires ~= 517 then fail(`a whip's mark sent as {tostring(got.crackMark)} until {tostring(got.crackExpires)}`) end
+	checked += 4
+end
+-- 7. The Chakram's rings in hand (Roblox only), every number of them; every other weapon sends -1.
+do
+	if Snapshot.decode(Snapshot.encode(f)).rings ~= -1 then fail("a sword sent rings") end
+	local c = Fighter.new({ index = 0, char = Loadout.build("Classic", "Chakram"), x = 0, y = 0, stocks = 3 })
+	for n = 0, 2 do
+		c.mech.rings = n
+		local got = Snapshot.decode(Snapshot.encode(c)).rings
+		if got ~= n then fail(`a Chakram holding {n} rings sent {tostring(got)}`) end
+	end
+	checked += 4
+end
+-- 8. Rocket Boots' fuel (Roblox only), full, part-spent and empty; every other weapon sends -1.
+do
+	if Snapshot.decode(Snapshot.encode(f)).fuel ~= -1 then fail("a sword sent fuel") end
+	local b = Fighter.new({ index = 0, char = Loadout.build("Classic", "RocketBoots"), x = 0, y = 0, stocks = 3 })
+	for _, n in { 100, 62.5, 0 } do
+		b.mech.fuel = n
+		local got = Snapshot.decode(Snapshot.encode(b)).fuel
+		if got ~= n then fail(`Rocket Boots with {n} fuel sent {tostring(got)}`) end
+	end
 	checked += 4
 end
 

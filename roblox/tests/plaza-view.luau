@@ -13,7 +13,11 @@ local WeaponArt = Loader.loadFrom("src/client/", "Weapons2D")
 local drawWeapon = WeaponArt.draw
 local drawnWeapons = {}
 WeaponArt.draw = function(c, id, ...)
-	drawnWeapons[id] = true
+	-- where it was drawn, keeping the smallest draw of each: the rack's icons are under half size,
+	-- the weapons fighters hold nearby are full size
+	local size = math.abs(c.m.a) + math.abs(c.m.b)
+	local was = drawnWeapons[id]
+	if not was or size < was[3] then drawnWeapons[id] = { c.m.e, c.m.f, size } end
 	return drawWeapon(c, id, ...)
 end
 local codes = setmetatable({}, { __index = function(_, key) return key end })
@@ -362,7 +366,8 @@ do
 	local recorder = function(c, _x, _y, w, h, colour, ...)
 		local key = string.format("%d,%d,%d", math.floor(colour.R * 255 + 0.5), math.floor(colour.G * 255 + 0.5), math.floor(colour.B * 255 + 0.5))
 		colours[key] = (colours[key] or 0) + 1
-		if key == "232,162,74" and math.abs(w - 3.4) < 1e-6 and math.abs(h - 2.4) < 1e-6 then frames += 1 end
+		-- the amber frame round your weapon: its width follows the rack's columns, its height does not
+		if key == "232,162,74" and w > 1 and w < 4 and math.abs(h - 2.4) < 1e-6 then frames += 1 end
 		c.used += 1
 	end
 	local function drawAt(st: any): { [string]: number }
@@ -395,7 +400,17 @@ do
 	frames = 0
 	drawAt(stations.Weapons)
 	assert(frames == 1, `exactly one weapon framed on the rack, got {frames}`)
-	for _, w in Loader.load("Data/Weapons").LIST do assert(drawnWeapons[w.id], "the rack shows every weapon: " .. w.id) end
+	-- every weapon in the game (the merged roster, Roblox-only ones too), in the rack's three rows:
+	-- a fixed four a row once hung the 13th and 14th below the panel
+	local rows: { [number]: boolean } = {}
+	local nrows = 0
+	for _, w in Loader.load("Weapons").LIST do
+		local at = drawnWeapons[w.id]
+		assert(at, "the rack shows every weapon: " .. w.id)
+		local key = math.floor(at[2] + 0.5)
+		if not rows[key] then rows[key] = true; nrows += 1 end
+	end
+	assert(nrows <= 3, `the rack's weapons spill onto {nrows} rows, the panel holds three`)
 	for _, st in PLAZA.rooms.Doubles.stations do
 		stand(st)
 		hub:draw(canvas(1280, 720), 1/60)

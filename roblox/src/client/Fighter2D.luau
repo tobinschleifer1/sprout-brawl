@@ -297,7 +297,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Canvas2D.restore(c)
 	end
 
-	if wid and not wpose.hide then
+	-- a Chakram with both rings thrown has nothing in its hands (Roblox only: Snapshot `rings`)
+	if wid and not wpose.hide and not (wid == "Chakram" and s.rings == 0) then
 		if wpose.drag and s.onGround and platformTop then
 			local rch = Weapons2D.REACH[wid] or 2.4
 			local wx = s.x + (gx + math.cos(wpose.angle - ch.lean) * rch) * s.facing

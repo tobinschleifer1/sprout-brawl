@@ -9,7 +9,7 @@
 -- Each is scaled across the roster to 3..9, so the bars compare weapons with each other and no
 -- weapon is empty or maxed on anything. Pure; tests/select-screen.luau checks it.
 local Shared = game:GetService("ReplicatedStorage").Shared
-local Weapons = require(Shared.Data.Weapons)
+local Weapons = require(Shared.Weapons)
 local Loadout = require(Shared.Loadout)
 
 local WeaponStats = {}

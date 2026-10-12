@@ -17,7 +17,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Callouts = require(ReplicatedStorage.Shared.Data.Callouts)
-local WeaponData = require(ReplicatedStorage.Shared.Data.Weapons)
+local WeaponData = require(ReplicatedStorage.Shared.Weapons)
 local HudColors = require(script.Parent.HudColors)
 local Bindings = require(script.Parent.Bindings)
 local AbilityStatus = require(script.Parent.AbilityStatus)
@@ -412,6 +412,12 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		if not said then
 			local ult = AbilityStatus.ultimate(mine, chars[self.localIndex + 1])
 			if string.sub(ult, 1, 5) == "READY" then said = "ULTIMATE " .. ult end
+			-- a Chakram with a ring out says what it has left (Roblox only)
+			local rings = AbilityStatus.rings(mine, chars[self.localIndex + 1])
+			if not said and rings and string.sub(rings, 1, 3) ~= "2/2" then said = "RINGS " .. rings end
+			-- and Rocket Boots short of fuel for a signature say so (Roblox only)
+			local fuel = AbilityStatus.fuel(mine, chars[self.localIndex + 1])
+			if not said and fuel and string.find(fuel, "—", 1, true) then said = "FUEL " .. fuel end
 		end
 	end
 	self.abilities.Text = said or ""

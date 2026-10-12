@@ -193,6 +193,12 @@ function methods._initMechanic(self)
 	elseif m.id == "Chill" then return { id = "Chill" }
 	-- CRACK (the whip): whom its tip last marked, and the frameCount the mark lasts until
 	elseif m.id == "Crack" then return { id = "Crack", mark = -1, expires = 0 }
+	-- RETURN (the Chakram, Roblox only): rings in hand. A throw spends them; Combat.returnRing
+	-- gives them back when the ring comes home.
+	elseif m.id == "Return" then return { id = "Return", rings = m.rings }
+	-- THRUST FUEL (Rocket Boots, Roblox only): the tank, and how long the fighter has stood (or run)
+	-- on the ground since it last spent - it refills only after M.regenDelay frames of that
+	elseif m.id == "ThrustFuel" then return { id = "ThrustFuel", fuel = m.max, grounded = 0 }
 	end
 	return { id = m.id }
 end
@@ -882,7 +888,20 @@ function methods._startRecovery(self, ctx)
 		methods.setState(self, "recovery"); return
 	end
 	-- hop
-	self.vy = rec.vy * methods.jumpMul(self); self.vx = dir * rec.vx; self.facing = dir
+	-- Rocket Boots (Roblox only): the boosted hop burns fuel; without enough, the boots only sputter -
+	-- a weaker hop, still once per airtime, so an empty tank costs height and never the whole recovery.
+	local boost = 1
+	if self.mech.id == "ThrustFuel" then
+		local M = self.char.mechanic
+		if self.mech.fuel >= M.recoveryCost then
+			self.mech.fuel -= M.recoveryCost
+		else
+			boost = M.weakRecovery
+			methods.emit(self, { type = "dryfire", fuel = M.recoveryCost })
+		end
+		self.mech.grounded = 0
+	end
+	self.vy = rec.vy * methods.jumpMul(self) * boost; self.vx = dir * rec.vx * boost; self.facing = dir
 	methods.setState(self, "recovery")
 end
 
@@ -909,6 +928,19 @@ end
 function methods.startMove(self, moveOrId: any, opts: any?)
 	local move = if type(moveOrId) == "string" then self.char.moves[moveOrId] else moveOrId
 	if not move then
+		return
+	end
+	-- A move that throws rings needs them in hand (the Chakram, Roblox only). They are SPENT when a
+	-- ring leaves the hand (Combat.spawnProjectile), not here: a throw interrupted in its wind-up -
+	-- hit, grabbed, KO'd - never threw anything, and must not lose a ring.
+	if move.rings and self.mech.id == "Return" and (self.mech.rings or 0) < move.rings then
+		methods.emit(self, { type = "dryfire", rings = move.rings })
+		return
+	end
+	-- A move that burns fuel needs the fuel (Rocket Boots, Roblox only); it is SPENT at ignition
+	-- (Combat.onMoveActive), so a kick interrupted in its wind-up costs nothing.
+	if move.fuelCost and self.mech.id == "ThrustFuel" and (self.mech.fuel or 0) < move.fuelCost then
+		methods.emit(self, { type = "dryfire", fuel = move.fuelCost })
 		return
 	end
 	if move.ammo and self.mech.id == "Spines" then
@@ -1759,6 +1791,10 @@ function methods.respawn(self, x: number, opts: any?)
 	methods.reset(self, x, RESPAWN.height,
 		{ state = "respawn", percent = o.percent or 0, invincible = RESPAWN.invinc })
 	self.facing = if x < 0 then 1 else -1
+	-- a new stock starts with both rings in hand (the Chakram, Roblox only)
+	if self.mech.id == "Return" then self.mech.rings = self.char.mechanic.rings end
+	-- and a full tank (Rocket Boots, Roblox only)
+	if self.mech.id == "ThrustFuel" then self.mech.fuel = self.char.mechanic.max; self.mech.grounded = 0 end
 end
 
 function methods._stepRespawn(self)
@@ -1879,6 +1915,14 @@ function methods._mechanicsFrame(self, ctx)
 	elseif m.id == "Crack" then
 		-- the mark fades on its own
 		if m.mark >= 0 and self.frameCount >= m.expires then m.mark = -1; m.expires = 0 end
+	elseif m.id == "ThrustFuel" then
+		-- refills only while settled on the ground: standing or running, unbroken, for regenDelay frames
+		if self.onGround and (self.state == "idle" or self.state == "run") then
+			m.grounded += 1
+			if m.grounded > M.regenDelay then m.fuel = math.min(M.max, m.fuel + M.regen) end
+		else
+			m.grounded = 0
+		end
 	elseif m.id == "Brace" then
 		-- Banked only while actually holding shield, and dropped the moment the shield does.
 		if self.state == "shield" then

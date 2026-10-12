@@ -7,7 +7,7 @@
 -- here is what makes the rest of the port a straight translation.
 
 local Avatars = require(script.Parent.Data.Avatars)
-local Weapons = require(script.Parent.Data.Weapons)
+local Weapons = require(script.Parent.Weapons)
 local AvatarKit = require(script.Parent.AvatarKit)
 
 local Loadout = {}

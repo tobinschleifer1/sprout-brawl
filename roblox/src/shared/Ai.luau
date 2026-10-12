@@ -366,7 +366,31 @@ end
 
 local decide
 
+local computeBotInput: (any, any) -> any
+-- A Chakram bot (Roblox only) never asks for a throw it cannot make: every tactic below can press
+-- heavy - a kill attempt, an edge-guard, a recovery - and with no ring in hand that is a refused
+-- throw and a wasted frame. Empty-handed, heavy becomes light (the normals need no ring). (No bot
+-- tactic presses a neutral heavy, so the Halo - which needs both rings - is never asked for with
+-- one: tests/chakram holds a bot at one ring for 20 s to keep that true.) Every other weapon's
+-- input passes through untouched.
 function Ai.computeBotInput(f: any, match: any): any
+	local frame = computeBotInput(f, match)
+	if frame and frame.heavy and f.mech and f.mech.id == "Return" and (f.mech.rings or 0) <= 0 then
+		frame.heavy, frame.heavyHeld, frame.light = false, false, true
+	end
+	-- Rocket Boots (Roblox only), the same rule: a heavy on the ground is a signature, and below the
+	-- dearest signature's fuel it becomes a kick. Up + heavy in the air is the recovery, which an empty
+	-- tank still does (weakly), so that is left alone.
+	if frame and frame.heavy and f.mech and f.mech.id == "ThrustFuel" and (f.onGround or (frame.y or 0) <= 0.5) then
+		local dearest = 0
+		for _, m in f.char.moves do if m.fuelCost and m.fuelCost > dearest then dearest = m.fuelCost end end
+		if (f.mech.fuel or 0) < dearest then
+			frame.heavy, frame.heavyHeld, frame.light = false, false, true
+		end
+	end
+	return frame
+end
+function computeBotInput(f: any, match: any): any
 	-- Draw from the match's own generator, so a bot match replays from its seed.
 	RNG = (if match.stage then match.stage.rng else nil) or math.random
 	if f.botLevel == "dummy" then
@@ -680,6 +704,10 @@ function decide(f: any, match: any, L: any, st: any): any
 			st.plan = if adx > 12 and math.abs(dy) < 8 and r < 0.55 then "zone" else "approach"
 		elseif arche == "Reach / combo" then
 			st.plan = if adx > 6 and adx < 14 and r < 0.4 then "lasso" else "approach"
+		-- The Chakram (Roblox only, not one of the web's four): throw from inside the ring's 22-stud
+		-- range, and only with a ring in hand - an empty-handed throw is refused and wastes the plan.
+		elseif arche == "Returning zoner" then
+			st.plan = if adx > 8 and adx < 22 and math.abs(dy) < 5 and r < 0.55 and (f.mech.rings or 0) > 0 then "zone" else "approach"
 		else
 			st.plan = if r < 0.15 then "retreat" else "approach"
 		end

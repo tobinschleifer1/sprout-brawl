@@ -4,6 +4,7 @@
 -- their authored targets; a moving shoulder/hip changes the solve, never those anchors.
 local Rig = require(script.Parent.Rig)
 local Channels = require(script.Parent.Channels)
+local Movement = require(script.Parent.Movement)
 local Posture = {}
 
 local function point(x: number, y: number, rot: number, sx: number, sy: number): (number, number)
@@ -33,11 +34,12 @@ end
 
 function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: number): any
 	local h, r = char.height, char.radius
-	local hip, trunk = h * 0.34, h * 0.36
+	local motion = Movement.For(ch, s, char)
+	local hip, trunk = h * 0.34 + motion.hipY, h * 0.36
 	local idle = s.state == "idle"
 	local running = s.state == "run"
 	local speed = if running then math.min(1, math.abs(s.vx) / char.runSpeed) else 0
-	local phase = s.frameCount * 0.38
+	local phase = motion.phase or s.frameCount * 0.38
 	local breath = if idle then math.sin(t * 2.6 + s.index) else 0
 	local drive, delayed = 0, 0
 	if s.state == "attack" and move and move.id ~= "Ultimate" then
@@ -45,10 +47,10 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	end
 	local stride = math.sin(phase) * speed
 	local chestSwing = math.sin(phase - 0.6) * speed
-	local hipX = r * (0.07 * stride + 0.035 * breath - 0.06 * drive)
+	local hipX = r * (0.07 * stride + 0.035 * breath - 0.06 * drive) + motion.hipX
 	local hipRot = 0.055 * stride + 0.055 * drive
 	local waistRot = -ch.lean * 0.45 + hipRot * 0.4
-	local chestRot = -ch.lean - 0.11 * drive - 0.075 * chestSwing
+	local chestRot = -ch.lean - 0.11 * drive - 0.075 * chestSwing + motion.chest
 	local chestSX = ch.sx * (1 - 0.055 * math.abs(drive) - 0.035 * math.abs(chestSwing))
 	local chestSY = ch.sy * (1 + 0.014 * breath)
 	local waistX, waistY = point(0, trunk * 7 / 18, waistRot, ch.sx, ch.sy)
@@ -75,30 +77,49 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	if idle or running or s.state == "dash" or (s.state == "attack" and s.onGround and move and move.id ~= "Ultimate") then
 		backSwing = math.clamp(backSwing * 0.65 - 0.18, -0.7, 0.65)
 	end
+	if motion.back then backSwing = motion.back end
 	local backAng = -math.pi / 2 + backSwing - ch.lean * 0.35
 	local backBend = math.rad(8 + math.min(16, math.abs(backSwing) * 14))
-	local bx, by = backX + math.cos(backAng) * h * 0.30, backY + math.sin(backAng) * h * 0.30
+	local bx, by = backX + math.cos(backAng) * h * motion.armLength, backY + math.sin(backAng) * h * motion.armLength
 	local neckX, neckY = chestPoint(0, chestH + h * 0.08)
 	local p = {
 		hipX = hipX, hipY = hip, hipRot = hipRot,
 		waistX = waistX, waistY = waistY, waistRot = waistRot,
 		chestRot = chestRot, chestSX = chestSX, chestSY = chestSY,
 		headX = neckX, headY = neckY,
-		headRot = -ch.lean * 0.55 - ch.head * 0.4 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed,
+		headRot = -ch.lean * 0.55 - ch.head * 0.4 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head,
+		rigRotZ = motion.rigRotZ, yOff = motion.yOff,
 		frontX = frontX, frontY = frontY, backX = backX, backY = backY,
 		front = Posture.limb(frontX, frontY, gx, gy, frontBend, 1),
 		back = Posture.limb(backX, backY, bx, by, backBend, 1),
 		legs = {},
 	}
 	local planted = s.onGround == true and ch.rigRotZ == 0
-	for _, leg in { { ch.legL, -r * 0.30, ch.kneeL }, { ch.legR, r * 0.30, ch.kneeR } } do
+	for i, leg in { { ch.legL, -r * 0.30, ch.kneeL }, { ch.legR, r * 0.30, ch.kneeR } } do
 		local rot, dx, tuck = leg[1], leg[2], leg[3] or 0
 		local target = Rig.legPose(dx, hip, rot, hip, ch.bob, planted, tuck)
+		local foot = if motion.feet then motion.feet[i] else nil
+		if foot then
+			target.ex, target.ey = foot.x, foot.y
+			dx = foot.rootX or dx
+		end
 		local rx, ry = point(dx, 0, hipRot, 1, 1)
 		rx += hipX; ry += hip
+		if foot and foot.lane then rx = dx end
 		local crouch = math.clamp(-ch.bob / (h * 0.09), 0, 1)
-		local bend = math.rad(if idle then 9 else 10 + 65 * tuck + 32 * crouch)
-		table.insert(p.legs, { x = rx, y = ry, pose = Posture.limb(rx, ry, target.ex, target.ey, bend, -1) })
+		local bend = math.rad(if foot then foot.bend elseif idle then 9 else 10 + 65 * tuck + 32 * crouch)
+		local solved = Posture.limb(rx, ry, target.ex, target.ey, bend, -1)
+		if foot and foot.lane then
+			-- In a side view the passing shin should occlude the support shin, never draw an X
+			-- through it. Ease the forward knee projection to zero at the passing point; retain
+			-- its lifted height. Both lower segments stay in their foot's projected lane.
+			local forward = solved.jx - (rx + target.ex) * 0.5
+			solved.jx = (dx + target.ex) * 0.5 + forward * math.abs(foot.lane)
+			-- Keep the thigh as well as the shin in that lane. A swaying hip root could still
+			-- cross the other thigh, even when the shin-only intersection test passed.
+			solved.jx = if foot.lane < 0 then math.min(0, solved.jx) else math.max(0, solved.jx)
+		end
+		table.insert(p.legs, { x = rx, y = ry, pose = solved })
 	end
 	return p
 end

@@ -20,7 +20,7 @@ local function bend(x, y, L)
 end
 local function setup(char, state, frame, ground)
 	local f = Fighter.new({ index = 0, char = char, x = 0, y = 0, stocks = 3 })
-	f.state, f.sf, f.frameCount, f.onGround, f.invul = state, frame, frame, ground, 0
+	f.state, f.sf, f.frameCount, f.onGround, f.invincible = state, frame, frame, ground, 0
 	f.vx = if state == "run" then char.runSpeed else 0
 	return f
 end
@@ -276,11 +276,15 @@ for _, preset in Kits.presets do
 		Canvas.finish(cv)
 	end
 	draw(states[1], 0)
-	local bodyFrames, bodySprites = 0, 0
+	local bodyFrames, bodySprites, trailingSprites = 0, 0, 0
 	for key, sp in cv.sprites do
-		if not string.find(key, "^weapon") then bodyFrames += #sp.children; bodySprites += 1 end
+		if not string.find(key, "^weapon") then
+			bodyFrames += #sp.children -- include the optional trailing art in the SAME Frame budget
+			if string.find(key, "^secondary|") then trailingSprites += 1 else bodySprites += 1 end
+		end
 	end
 	assert(bodySprites == 12, "Frame fallback exceeds one extra torso sprite")
+	assert(trailingSprites <= 1, "Frame fallback exceeds one trailing sprite per fighter")
 	assert(bodyFrames - oldFrames <= 32, `posture grew the body from {oldFrames} to {bodyFrames} child Frames`)
 	framePeak, extraPeak = math.max(framePeak, bodyFrames), math.max(extraPeak, bodyFrames - oldFrames)
 	for _, s in states do draw(s, 0.3) end -- warm the existing expression pictures

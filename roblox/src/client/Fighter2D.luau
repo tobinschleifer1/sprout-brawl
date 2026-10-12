@@ -86,16 +86,19 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- additional waist cut and beveled joints without changing the shared kit/composer.
 	local kitCode = if char.avatar and char.avatar.kit then char.avatar.code else nil
 	local kitArt = if kitCode then PostureArt.sprites(kitCode) else nil
+	local posture = if kitArt then Posture.For(ch, s, char, wpose, move, t) else nil
+	local rigRot = if posture and posture.rigRotZ ~= nil then posture.rigRotZ else ch.rigRotZ
+	local yOff = if posture and posture.yOff ~= nil then posture.yOff else ch.yOff
 
 	-- Rotate about the body's centre, not its feet. Pivoting at the origin swings the whole drawing
 	-- out of its own hurtbox - a tech roll spans a full body height below the floor, and an air
 	-- dodge's centre swings several studs across. `rotPivot` is the fraction of height to pivot at,
 	-- so knockdown keeps its deliberate feet-pivot.
 	local function applyRigRot()
-		if ch.rigRotZ ~= 0 then
+		if rigRot ~= 0 then
 			local pv = h * (if ch.rotPivot then ch.rotPivot else 0.5)
 			Canvas2D.translate(c, 0, pv)
-			Canvas2D.rotate(c, ch.rigRotZ * s.facing)
+			Canvas2D.rotate(c, rigRot * s.facing)
 			Canvas2D.translate(c, 0, -pv)
 		end
 	end
@@ -110,7 +113,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		for g = 1, 2 do
 			Canvas2D.save(c)
 			local a = ch.opacity * ch.smear * (0.45 / g)
-			Canvas2D.translate(c, s.x - dir * dist * g * 0.55, s.y + ch.yOff)
+			Canvas2D.translate(c, s.x - dir * dist * g * 0.55, s.y + yOff)
 			Canvas2D.scale(c, s.facing, 1)
 			applyRigRot()
 			Canvas2D.rect(c, -r * 0.82, h * 0.06, r * 1.64, h * 0.72, primary, a)
@@ -119,7 +122,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	end
 
 	Canvas2D.save(c)
-	Canvas2D.translate(c, s.x + ch.shakeX, s.y + ch.yOff)
+	Canvas2D.translate(c, s.x + ch.shakeX, s.y + yOff)
 	-- One drawing, both facings. Everything below is drawn facing +X and mirrored here, which is
 	-- why a weapon that looked right for months can turn out to have been mirrored the whole time.
 	Canvas2D.scale(c, s.facing, 1)
@@ -224,7 +227,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.save(c)
 	Canvas2D.translate(c, 0, ch.bob)
 	if kitArt then
-		local p = Posture.For(ch, s, char, wpose, move, t)
+		local p = posture
 		for i, leg in p.legs do limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 1) end
 		Canvas2D.save(c)
 		Canvas2D.translate(c, p.hipX, p.hipY)

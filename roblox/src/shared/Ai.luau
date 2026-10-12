@@ -680,6 +680,10 @@ function decide(f: any, match: any, L: any, st: any): any
 			st.plan = if adx > 12 and math.abs(dy) < 8 and r < 0.55 then "zone" else "approach"
 		elseif arche == "Reach / combo" then
 			st.plan = if adx > 6 and adx < 14 and r < 0.4 then "lasso" else "approach"
+		-- The Chakram (Roblox only, not one of the web's four): throw from inside the ring's 22-stud
+		-- range, and only with a ring in hand - an empty-handed throw is refused and wastes the plan.
+		elseif arche == "Returning zoner" then
+			st.plan = if adx > 8 and adx < 22 and math.abs(dy) < 5 and r < 0.55 and (f.mech.rings or 0) > 0 then "zone" else "approach"
 		else
 			st.plan = if r < 0.15 then "retreat" else "approach"
 		end

@@ -71,6 +71,15 @@ local SWING_BY_MOVE: { [string]: { [string]: any } } = {
 		-- Full Circle winds up from overhead behind, so it reads as the orbit it is and not Return again
 		LightNeutral3 = { arc = { D(160), D(205), D(225) }, via = D(-12), trail = D(200), heavy = true },
 	},
+	-- The Chakram's three throws (Roblox only: no web weapon has this id, so no replay reaches it).
+	-- The rings leave the hand on the first active frame, so each arc ends where the arm is
+	-- LETTING GO, not where a blade would be: a sidearm discus throw from far behind, an underhand
+	-- roll from behind and below, and Halo's rings lifted to the head and spread.
+	Chakram = {
+		SigSide = { arc = { D(168), D(6), D(-6) }, trail = D(90) },
+		SigDown = { arc = { D(-150), D(-34), D(-52) }, trail = D(70) },
+		SigNeutral = { arc = { D(52), D(112), D(104) }, trail = D(40) },
+	},
 }
 
 local SWING_BY_WEAPON: { [string]: { [string]: any } } = {
@@ -200,6 +209,7 @@ local REST: { [string]: number } = {
 	Pike = D(-58), Gauntlets = D(-28), Hammer = D(-98), Longbow = D(-84), Flail = D(-96),
 	Shield = D(-20), Daggers = D(-66),
 	Whip = D(-84),                                        -- the whip hangs coiled at the side
+	Chakram = D(-62),                                     -- the rings hang from the fist, low
 }
 local function restOf(wid: string?): number
 	return if wid and REST[wid] then REST[wid] else D(-70)
@@ -211,6 +221,7 @@ end
 -- The guard while standing and moving; see GUARD in web/src/render2d/weapons2d.js.
 local GUARD: { [string]: number } = {
 	Sword = D(-28), Scythe = D(-38), Blasters = D(-34), Pike = D(-10), Daggers = D(-40), Whip = D(-44),
+	Chakram = D(-16),                                     -- the rings held up in front, ready to throw
 }
 local function guardOf(wid: string?): number
 	return if wid and GUARD[wid] then GUARD[wid] else restOf(wid)
@@ -572,6 +583,30 @@ local function ultimatePose(f: any, m: any, wid: string?, out: any, t: number, c
 		return out
 	end
 
+	if wid == "Chakram" then
+		-- ECLIPSE RING (Roblox only). The ring comes up over the head and grows with the charge, the
+		-- fighter lets it go - and for as long as the giant ring is circling or flying, the hand is
+		-- EMPTY: the pair held in the fist would be a second ring that is not there. The remaining
+		-- ring comes back to hand as the fighter finishes the throw.
+		local HI = D(98)
+		if inWindup then
+			out.angle = restOr0(wid) + (HI - restOr0(wid)) * easeOut(k)
+			out.scale = 1 + 0.5 * k
+			out.oy = 0.5 * k; out.charge = k
+			out.ult.glow = k
+			return out
+		end
+		if recK < 0.8 then out.hide = true end
+		out.angle = HI + math.sin(mf * 0.5) * 0.05
+		out.oy = 0.5
+		if recK >= 0.8 then
+			local b = (recK - 0.8) / 0.2
+			out.angle = HI + (restOr0(wid) - HI) * b
+			out.oy = 0.5 * (1 - b)
+		end
+		return out
+	end
+
 	-- Grimoire: the book goes overhead and stays there while the sky falls.
 	if inWindup then
 		out.angle = D(-70) + k * D(160); out.charge = k; out.oy = k * 0.3
@@ -773,6 +808,14 @@ function WeaponPose.For(f: any, char: any, move: any, t: number): any
 
 	if swing.thrust then
 		out.ox = swing.thrust * (if mf > st and mf <= st + act then 1 else 0)
+	end
+
+	-- A thrown ring has left the hand: the fist is empty from the release until the follow-through is
+	-- nearly done, whether the other ring is still in hand or not (Fighter2D hides the pair itself
+	-- only at zero). Without this the arm throws and the ring stays glued to it.
+	if wid == "Chakram" and (cat == "sigside" or cat == "sigdown" or cat == "signeut")
+		and mf > st and mf <= st + act + math.floor(rec * 0.7) then
+		out.hide = true
 	end
 
 	-- The trail smears behind the blade while it is actually live, and fades through recovery.

@@ -222,4 +222,66 @@ do
 	if dry > 0 then fail(`a Chakram bot with one ring in hand tried {dry} Halos`) end
 end
 
-print("PASS chakram: Orbit Throw out ~22 studs, home and caught, a hit each way; rings spent and refused (dryfire, Halo needs both); Ground Saw on the floor and turning at the ledge; Halo circles both rings; Eclipse circles, out and back; no ring lost to a KO, the blast zone or a new stock; in the roster with its art; a bot throws its rings, never empty-handed")
+-- 9. Its own poses: the Chakram is neither the defaults nor a borrowed Grimoire. Every move below
+-- is posed through the same WeaponPose and Channels the renderer uses.
+do
+	local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
+	local Channels = Loader.loadFrom("src/client/", "Channels")
+	local Fighter, Snapshot = Loader.load("Fighter"), Loader.load("Snapshot")
+	local function posed(weapon: string, id: string, mfAt: (any) -> number): (any, any)
+		local ch = Loadout.build("Classic", weapon)
+		local f = Fighter.new({ index = 0, char = ch, x = 0, y = 0, stocks = 3 })
+		f.facing = 1; f.onGround = true
+		f:setState("idle"); f:startMove(id)
+		f.mf = mfAt(f)
+		local snap = Snapshot.decode(Snapshot.encode(f))
+		return WeaponPose.For(snap, ch, ch.moves[id], 0), Channels.For(snap, ch, ch.moves[id], 0)
+	end
+	local REST = WeaponPose.REST
+	if REST.Chakram == nil then fail("the Chakram has no REST angle of its own") end
+	if REST.Chakram == -70 * math.pi / 180 then fail("the Chakram rests where an unknown weapon would") end
+
+	-- the ultimate is not the Grimoire's, at several frames of the move
+	for _, at in { 8, 24, 26, 40, 50, 55 } do
+		local wp, body = posed("Chakram", "Ultimate", function() return at end)
+		local gp, gbody = posed("Grimoire", "Ultimate", function() return at end)
+		local same = wp.angle == gp.angle and wp.oy == gp.oy and wp.hide == gp.hide
+			and body.armR.z == gbody.armR.z and body.armL.z == gbody.armL.z
+		if same then fail(`the Chakram's ultimate at frame {at} is the Grimoire's pose`) end
+	end
+	-- wound up, the ring is raised overhead; while it circles the hand is empty, and it is back by the end
+	local wind = posed("Chakram", "Ultimate", function(f) return f.startupEff end)
+	if wind.angle < 1.5 or wind.hide then fail("Eclipse Ring's wind-up does not raise the ring overhead in hand") end
+	local orbit = posed("Chakram", "Ultimate", function(f) return f.startupEff + 4 end)
+	if not orbit.hide then fail("the hand still holds a ring while the giant one circles") end
+	local done = posed("Chakram", "Ultimate", function(f) return f.startupEff + 2 + f.move.recovery end)
+	if done.hide then fail("the ring never comes back to hand after Eclipse Ring") end
+	-- the throw: the arm winds up high behind the head, then reaches forward
+	local _, cocked = posed("Chakram", "Ultimate", function(f) return f.startupEff + 2 + math.floor(f.move.recovery * 0.62) end)
+	local _, thrown = posed("Chakram", "Ultimate", function(f) return f.startupEff + 2 + math.floor(f.move.recovery * 0.82) end)
+	if cocked.armR.z < 2.9 then fail(`Eclipse Ring's arm is not cocked back ({cocked.armR.z})`) end
+	if thrown.armR.z > 2.0 then fail(`Eclipse Ring's arm never throws forward ({thrown.armR.z})`) end
+
+	-- the signatures: a ring thrown leaves an empty hand, and it is back when the throw ends
+	for _, id in { "SigSide", "SigDown", "SigNeutral" } do
+		local held = posed("Chakram", id, function(f) return f.startupEff end)
+		if held.hide then fail(`{id}: the ring is not in hand while winding up`) end
+		local gone = posed("Chakram", id, function(f) return f.startupEff + 2 end)
+		if not gone.hide then fail(`{id}: the ring is still in the hand after it was thrown`) end
+		local back = posed("Chakram", id, function(f) return f.startupEff + 2 + f.move.recovery end)
+		if back.hide then fail(`{id}: the hand stays empty after the throw ends`) end
+	end
+	-- Orbit Throw winds far behind and finishes forward; Ground Saw winds low and finishes low and forward
+	local _, sideCock = posed("Chakram", "SigSide", function(f) return f.startupEff end)
+	local _, sideThrow = posed("Chakram", "SigSide", function(f) return f.startupEff + 2 end)
+	if sideCock.armR.z > -1.5 or sideThrow.armR.z < 0.9 then fail("Orbit Throw is not a back-to-front throwing arm") end
+	local sawWp = posed("Chakram", "SigDown", function(f) return f.startupEff end)
+	local _, sawThrow = posed("Chakram", "SigDown", function(f) return f.startupEff + 2 end)
+	if sawWp.angle > 0 then fail("Ground Saw does not wind up low") end
+	if sawThrow.armR.z > 1.2 or sawThrow.armR.z < 0.2 then fail("Ground Saw is not an underhand arm (low and forward)") end
+	-- Halo: both arms raised and spread (right behind, left ahead, both above the shoulders)
+	local _, halo = posed("Chakram", "SigNeutral", function(f) return f.startupEff + 2 end)
+	if halo.armR.z > -1.5 or halo.armL.z < 1.5 then fail("Halo's arms are not raised and spread") end
+end
+
+print("PASS chakram: its own rest, throwing arms and ultimate (not the defaults, not the Grimoire's), an empty hand once a ring is thrown; Orbit Throw out ~22 studs, home and caught, a hit each way; rings spent and refused (dryfire, Halo needs both); Ground Saw on the floor and turning at the ledge; Halo circles both rings; Eclipse circles, out and back; no ring lost to a KO, the blast zone or a new stock; in the roster with its art; a bot throws its rings, never empty-handed")

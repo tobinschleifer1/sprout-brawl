@@ -39,6 +39,18 @@ local PANEL = Ui.PANEL
 local GOLD = Ui.GOLD                            -- a timed link's colour (FxPlayer.PERFECT)
 local BROKE = Color3.fromRGB(150, 156, 168)
 local SLATE = Color3.fromRGB(40, 54, 80)        -- an empty ultimate block
+-- HUD values usually stand still while the camera moves. Keep the last assignment in Lua:
+-- even an equal engine property write dirties UI state. Weak keys let rebuilt roster tiles go.
+local written: { [any]: { [string]: any } } = setmetatable({}, { __mode = "k" }) :: any
+local function write(object: any, property: string, value: any)
+	local last = written[object]
+	if not last then last = {}; written[object] = last end
+	if last[property] ~= value then
+		object[property] = value
+		last[property] = value
+	end
+end
+
 local ULT_BLOCKS = 10                           -- the meter's blocks: two hits of charge each
 
 -- Hold H for your combo card mid-fight (it shows by itself through the countdown). Polled from
@@ -306,26 +318,28 @@ end
 -- space because both ScreenGuis ignore the inset.
 function Hud.ultBanner(self: any, B: any, ult: any)
 	if not B or not ult then
-		self.ultName.Visible, self.ultCaster.Visible = false, false
+		write(self.ultName, "Visible", false)
+		write(self.ultCaster, "Visible", false)
 		return
 	end
 	local deg = math.deg(B.rot)
 	local size = B.text.size
 	-- The caster's name sits above the ultimate's, perpendicular to the band's axis.
 	local nx, ny = math.sin(B.rot) * size * 1.1, -math.cos(B.rot) * size * 1.1
-	self.ultName.Visible, self.ultCaster.Visible = true, true
-	self.ultName.Text = string.upper(ult.label)
-	self.ultName.TextSize = math.floor(size + 0.5)
-	self.ultName.Size = UDim2.fromOffset(B.h * 4, size * 1.3)
-	self.ultName.Position = UDim2.fromOffset(B.text.x, B.text.y)
-	self.ultName.Rotation = deg
-	self.ultName.TextTransparency = 1 - B.alpha
-	self.ultCaster.Text = string.upper(ult.name)
-	self.ultCaster.TextSize = math.floor(size * 0.5 + 0.5)
-	self.ultCaster.Size = UDim2.fromOffset(B.h * 4, size * 0.7)
-	self.ultCaster.Position = UDim2.fromOffset(B.text.x + nx, B.text.y + ny)
-	self.ultCaster.Rotation = deg
-	self.ultCaster.TextTransparency = 1 - B.alpha * 0.85
+	write(self.ultName, "Visible", true)
+	write(self.ultCaster, "Visible", true)
+	write(self.ultName, "Text", string.upper(ult.label))
+	write(self.ultName, "TextSize", math.floor(size + 0.5))
+	write(self.ultName, "Size", UDim2.fromOffset(B.h * 4, size * 1.3))
+	write(self.ultName, "Position", UDim2.fromOffset(B.text.x, B.text.y))
+	write(self.ultName, "Rotation", deg)
+	write(self.ultName, "TextTransparency", 1 - B.alpha)
+	write(self.ultCaster, "Text", string.upper(ult.name))
+	write(self.ultCaster, "TextSize", math.floor(size * 0.5 + 0.5))
+	write(self.ultCaster, "Size", UDim2.fromOffset(B.h * 4, size * 0.7))
+	write(self.ultCaster, "Position", UDim2.fromOffset(B.text.x + nx, B.text.y + ny))
+	write(self.ultCaster, "Rotation", deg)
+	write(self.ultCaster, "TextTransparency", 1 - B.alpha * 0.85)
 end
 
 -- Is COMBO_KEY held (and not into a chat box)?
@@ -343,24 +357,24 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex, self.teamsOn) end
 	-- Timer. A stock match has no clock, and says so by showing nothing rather than 0:00.
 	if snap and snap.state == "suddendeath" then
-		self.timer.Text = "SUDDEN DEATH"
-		self.timer.TextColor3 = Color3.fromRGB(232, 98, 42)
+		write(self.timer, "Text", "SUDDEN DEATH")
+		write(self.timer, "TextColor3", Color3.fromRGB(232, 98, 42))
 	elseif cfg and cfg.timed and snap then
 		local left = (cfg.timeLimit or 180) - snap.time
-		self.timer.Text = mmss(left)
-		self.timer.TextColor3 = if left < 30 then Color3.fromRGB(232, 98, 42) else Ui.WHITE
+		write(self.timer, "Text", mmss(left))
+		write(self.timer, "TextColor3", if left < 30 then Color3.fromRGB(232, 98, 42) else Ui.WHITE)
 	else
-		self.timer.Text = ""
+		write(self.timer, "Text", "")
 	end
-	self.timerPill.Visible = self.timer.Text ~= ""
-	self.timerPill.Size = UDim2.fromOffset(if #self.timer.Text > 6 then 250 else 124, 42)
+	write(self.timerPill, "Visible", self.timer.Text ~= "")
+	write(self.timerPill, "Size", UDim2.fromOffset(if #self.timer.Text > 6 then 250 else 124, 42))
 
 	local banner = DisasterShapes.banner(self.disasterView)
 	if banner then
-		self.disaster.Text = if banner.seconds ~= nil then `⚠ {banner.text} · {banner.seconds}` else `⚠ {banner.text}`
-		self.disaster.TextColor3 = Color3.fromHex(banner.colour)
+		write(self.disaster, "Text", if banner.seconds ~= nil then `⚠ {banner.text} · {banner.seconds}` else `⚠ {banner.text}`)
+		write(self.disaster, "TextColor3", Color3.fromHex(banner.colour))
 	else
-		self.disaster.Text = ""
+		write(self.disaster, "Text", "")
 	end
 
 	-- The callout: the countdown, then the go call, then whatever was announced last.
@@ -368,39 +382,43 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	local sf = self.stageFlash
 	if sf and now < sf.start + sf.dur then
 		local k = (now - sf.start) / sf.dur
-		self.stageName.Text, self.stageName.TextColor3 = sf.text, sf.colour
-		self.stageName.TextTransparency = if k < 0.7 then 0 else (k - 0.7) / 0.3
+		write(self.stageName, "Text", sf.text)
+		write(self.stageName, "TextColor3", sf.colour)
+		write(self.stageName, "TextTransparency", if k < 0.7 then 0 else (k - 0.7) / 0.3)
 	else
-		self.stageName.TextTransparency = 1
+		write(self.stageName, "TextTransparency", 1)
 	end
-	self.callout.TextSize = 72
+	local calloutSize = 72
 	if snap and snap.state == "countdown" then
 		local n = math.ceil(snap.countdown / 60)
-		self.callout.Text = if n > 0 then tostring(n) else Callouts.go.text
-		self.callout.TextColor3 = if n > 0 then Color3.fromHex(Callouts.count.colour) else Color3.fromHex(Callouts.go.colour)
-		self.callout.TextTransparency = 0
+		write(self.callout, "Text", if n > 0 then tostring(n) else Callouts.go.text)
+		write(self.callout, "TextColor3", if n > 0 then Color3.fromHex(Callouts.count.colour) else Color3.fromHex(Callouts.go.colour))
+		write(self.callout, "TextTransparency", 0)
 	elseif snap and snap.state == "fight" and snap.time < Callouts.go.ms / 1000 then
-		self.callout.Text = Callouts.go.text
-		self.callout.TextColor3 = Color3.fromHex(Callouts.go.colour)
-		self.callout.TextTransparency = math.clamp(snap.time / (Callouts.go.ms / 1000), 0, 1)
+		write(self.callout, "Text", Callouts.go.text)
+		write(self.callout, "TextColor3", Color3.fromHex(Callouts.go.colour))
+		write(self.callout, "TextTransparency", math.clamp(snap.time / (Callouts.go.ms / 1000), 0, 1))
 	elseif self.flash and now < self.flash.start + self.flash.dur then
 		-- held, then faded over the last third
 		local k = (now - self.flash.start) / self.flash.dur
-		self.callout.Text = self.flash.text
-		self.callout.TextColor3 = self.flash.colour
-		self.callout.TextSize = if #self.flash.text > 10 then 48 else 72
-		self.callout.TextTransparency = if k < 0.7 then 0 else (k - 0.7) / 0.3
+		write(self.callout, "Text", self.flash.text)
+		write(self.callout, "TextColor3", self.flash.colour)
+		calloutSize = if #self.flash.text > 10 then 48 else 72
+		write(self.callout, "TextTransparency", if k < 0.7 then 0 else (k - 0.7) / 0.3)
 	else
-		self.callout.TextTransparency = 1
+		write(self.callout, "TextTransparency", 1)
 	end
-	self.calloutOutline.Transparency = self.callout.TextTransparency
-	self.stageOutline.Transparency = self.stageName.TextTransparency
+	write(self.callout, "TextSize", calloutSize)
+	write(self.calloutOutline, "Transparency", self.callout.TextTransparency)
+	write(self.stageOutline, "Transparency", self.stageName.TextTransparency)
 	-- the combo card: through the countdown, and while its key is held
-	self.guideCard.Visible = self.guide.Text ~= "" and ((snap ~= nil and snap.state == "countdown") or self:comboHeld())
+	write(self.guideCard, "Visible", self.guide.Text ~= "" and ((snap ~= nil and snap.state == "countdown") or self:comboHeld()))
 	-- (a disaster's banner steps down under the card while it shows)
-	self.disaster.Position = UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 218 else 128)
+	write(self.disaster, "Position", UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 218 else 128))
 
-	local byIndex: { [number]: any } = {}
+	local byIndex: { [number]: any } = self.byIndex or {}
+	self.byIndex = byIndex
+	table.clear(byIndex)
 	for _, st in states do
 		byIndex[st.index] = st
 	end
@@ -420,44 +438,46 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			if not said and fuel and string.find(fuel, "—", 1, true) then said = "FUEL " .. fuel end
 		end
 	end
-	self.abilities.Text = said or ""
-	self.abilityPill.Visible = said ~= nil
-	if said then self.abilityPill.Size = UDim2.fromOffset(math.clamp(Ui.textWidth(said, 15) + 44, 200, 640), 30) end
+	write(self.abilities, "Text", said or "")
+	write(self.abilityPill, "Visible", said ~= nil)
+	if said then write(self.abilityPill, "Size", UDim2.fromOffset(math.clamp(Ui.textWidth(said, 15) + 44, 200, 640), 30)) end
 
 	local combos = ComboHud.view(self.combo, states, now)
 	for _, tile in self.tiles do
 		local c = combos[tile.index]
 		if c then
 			local team = if c.team then "TEAM " else ""
-			tile.combo.Text = if c.broken then `{team}{c.hits} HITS · BROKEN` else `{team}{c.hits} HITS  {c.damage}%`
-			tile.combo.TextColor3 = if c.broken then BROKE elseif c.finisher then GOLD else Color3.new(1, 1, 1)
-			tile.combo.TextTransparency = 1 - c.alpha
-			tile.perfect.Text = if c.finisher then "FINISHER!" elseif c.perfect > 0 then `PERFECT ×{c.perfect}` else ""
-			tile.perfect.TextTransparency = 1 - c.alpha
+			write(tile.combo, "Text", if c.broken then `{team}{c.hits} HITS · BROKEN` else `{team}{c.hits} HITS  {c.damage}%`)
+			write(tile.combo, "TextColor3", if c.broken then BROKE elseif c.finisher then GOLD else Color3.new(1, 1, 1))
+			write(tile.combo, "TextTransparency", 1 - c.alpha)
+			write(tile.perfect, "Text", if c.finisher then "FINISHER!" elseif c.perfect > 0 then `PERFECT ×{c.perfect}` else "")
+			write(tile.perfect, "TextTransparency", 1 - c.alpha)
 		else
-			tile.combo.Text, tile.perfect.Text = "", ""
+			write(tile.combo, "Text", "")
+			write(tile.perfect, "Text", "")
 		end
 		local b = ComboHud.breakView(byIndex[tile.index])
-		tile.breakCd.Text = if b.cooldown > 0 then string.format("BREAK %.0fs", math.ceil(b.cooldown)) else ""
+		write(tile.breakCd, "Text", if b.cooldown > 0 then string.format("BREAK %.0fs", math.ceil(b.cooldown)) else "")
 	end
 	local prompt = ComboHud.breakView(mine)
-	self.breakPrompt.Visible = false
+	local showBreak = prompt.prompt and mine ~= nil and canvas ~= nil
 	if prompt.prompt and mine and canvas then
 		local ch = chars[self.localIndex + 1]
 		local p = canvas:project(mine.x, mine.y + (if ch then ch.height else 5) + 3.2)
-		self.breakPrompt.Position = UDim2.fromOffset(p.X - 60, p.Y - 24)
-		self.breakPrompt.Visible = true
+		write(self.breakPrompt, "Position", UDim2.fromOffset(p.X - 60, p.Y - 24))
 	end
+
+	write(self.breakPrompt, "Visible", showBreak)
 
 	for i, tile in self.tiles do
 		local st = byIndex[tile.index]
 		local float = self.floats[i]
 		if not st then
-			float.Visible = false
+			write(float, "Visible", false)
 		else
 			local pct = math.floor(st.percent + 0.5)
-			tile.pct.Text = `{pct}%`
-			tile.pct.TextColor3 = HudColors.percent(st.percent)
+			write(tile.pct, "Text", `{pct}%`)
+			write(tile.pct, "TextColor3", HudColors.percent(st.percent))
 			-- Stocks as pips, capped: past eight the count stops being readable at a glance and
 			-- the number would be better, but no mode here goes past a handful.
 			-- weapon drops: both weapons on the tile, the one in hand in gold, written when it changes
@@ -468,27 +488,27 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 					local name = string.upper((WeaponData.BY_ID[id] or { name = id }).name)
 					table.insert(parts, if st.armed == k - 1 then `<font color="#FFD24A">{name}</font>` else name)
 				end
-				tile.weapon.RichText = true
-				tile.weapon.Text = table.concat(parts, "  ·  ")
+				write(tile.weapon, "RichText", true)
+				write(tile.weapon, "Text", table.concat(parts, "  ·  "))
 			end
 			local stocks = math.clamp(st.stocks, 0, 8)
-			for k, pip in tile.pips do pip.Visible = k <= stocks end
+			for k, pip in tile.pips do write(pip, "Visible", k <= stocks) end
 			local out = st.stocks <= 0 and not st.alive
-			tile.root.BackgroundTransparency = if out then 0.6 else 0.08
-			tile.name.TextTransparency = if out then 0.6 else 0
+			write(tile.root, "BackgroundTransparency", if out then 0.6 else 0.08)
+			write(tile.name, "TextTransparency", if out then 0.6 else 0)
 
 			if tile.ultBack.Visible then
 				local meter = math.min(1, st.ultCharge / Config.ULTIMATE.hitsRequired)
 				local lit = math.floor(meter * ULT_BLOCKS + 1e-9)
 				local ready = st.ultCharge >= Config.ULTIMATE.hitsRequired
 				for k, block in tile.ult do
-					block.BackgroundColor3 = if k > lit then SLATE elseif ready then GOLD else tile.colour
+					write(block, "BackgroundColor3", if k > lit then SLATE elseif ready then GOLD else tile.colour)
 				end
 			end
 			if tile.shield then
 				local up = st.state == "shield"
-				tile.shield.Text = if up then "SHIELD UP" else "SHIELD"
-				tile.shield.TextColor3 = if up then Color3.fromRGB(120, 220, 255) else DIM
+				write(tile.shield, "Text", if up then "SHIELD UP" else "SHIELD")
+				write(tile.shield, "TextColor3", if up then Color3.fromRGB(120, 220, 255) else DIM)
 			end
 
 			-- The floating label, over the head and a little above it.
@@ -496,14 +516,14 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			local h = if char then char.height else 5
 			if st.alive and st.state ~= "ko" and canvas then
 				local x, y, arrow = Hud.floatPlace(canvas:project(st.x, st.y + h + 1.4), canvas:viewport())
-				float.Visible = true
-				float.Position = UDim2.fromOffset(x - FLOAT_W / 2, y - 22)
+				write(float, "Visible", true)
+				write(float, "Position", UDim2.fromOffset(x - FLOAT_W / 2, y - 22))
 				-- your own fighter says so: in a room of six it is the first thing you look for
 				local you = if tile.index == self.localIndex then "YOU " else ""
-				float.Text = `{arrow}{you}{self.floatMarks[i] or ""} {pct}%`
-				float.TextColor3 = HudColors.percent(st.percent)
+				write(float, "Text", `{arrow}{you}{self.floatMarks[i] or ""} {pct}%`)
+				write(float, "TextColor3", HudColors.percent(st.percent))
 			else
-				float.Visible = false
+				write(float, "Visible", false)
 			end
 		end
 	end
@@ -526,7 +546,7 @@ function Hud.showResults(self: any, res: any, chars: { any }?)
 		if row.index == self.localIndex then view.localPlace = i end
 	end
 	self.results = view
-	self.callout.TextTransparency = 1
+	write(self.callout, "TextTransparency", 1)
 end
 
 function Hud.clearResults(self: any)

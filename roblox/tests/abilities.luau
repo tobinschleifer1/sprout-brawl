@@ -85,6 +85,18 @@ do
 	assert(Status.event({type="dryfire",rings=2}):find("both",1,true) and Status.event({type="dryfire",rings=1}):find("No ring",1,true),"a refused throw says why")
 	assert(Status.event({type="dryfire"})==nil,"a spine weapon's dry fire is not a ring message")
 end
+-- Rocket Boots' fuel (Roblox only): the tank, which signatures it no longer pays for, nothing for
+-- any other weapon, and a refused signature explained.
+do
+	local boots, sword = Loadout.build("Classic","RocketBoots"), Loadout.build("Classic","Sword")
+	assert(Status.fuel({fuel=100},boots)=="100/100","a full tank")
+	assert(Status.fuel({fuel=18},boots):find("Ignition Heel",1,true) and Status.fuel({fuel=18},boots):find("Jet Kick",1,true)
+		and not Status.fuel({fuel=18},boots):find("Burnout",1,true),"part-spent names exactly what it cannot pay for")
+	assert(Status.fuel({fuel=5},boots):find("refuel",1,true),"an empty tank says how to refill it")
+	assert(Status.fuel({fuel=-1},sword)==nil,"a sword has no fuel")
+	assert(Status.describe({fuel=50,ultCharge=0,onGround=true,state="idle"},boots):find("FUEL: 50/100",1,true),"the status line carries the fuel")
+	assert(Status.event({type="dryfire",fuel=25}):find("25 needed",1,true),"a refused signature says what it needed")
+end
 assert(Status.describe({ultCharge=20,onGround=false,state="air"},
 	{weapon={name="Grounded test"},moves={Ultimate={grounded=true}}}):find("land first",1,true))
 print("PASS abilities: all 12 weapons, real keys through prediction, shield blocks hits, held/released shield, short-tap ultimate, denial feedback, chat and reset guards")

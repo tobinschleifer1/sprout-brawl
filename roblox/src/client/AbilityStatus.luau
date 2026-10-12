@@ -26,15 +26,35 @@ function Status.rings(state: any, char: any): string?
 	if n > 0 then return `{n}/{max} — Halo needs both` end
 	return `0/{max} — catch a ring to throw again`
 end
+-- Rocket Boots' thrust fuel (Roblox only; Snapshot `fuel`, -1 for any other weapon), and which
+-- signatures it still pays for.
+function Status.fuel(state: any, char: any): string?
+	local n = state.fuel
+	if not char.mechanic or char.mechanic.id ~= "ThrustFuel" or n == nil or n < 0 then return nil end
+	local tank = `{math.floor(n)}/{char.mechanic.max}`
+	local short = {}
+	for _, id in { "SigSide", "SigDown", "SigNeutral" } do
+		local m = char.moves[id]
+		if m and m.fuelCost and n < m.fuelCost then table.insert(short, m.label) end
+	end
+	if #short == 0 then return tank end
+	if #short == 3 then return `{tank} — stand on the ground to refuel` end
+	return `{tank} — not enough for {table.concat(short, ", ")}`
+end
 function Status.describe(state: any, char: any): string
 	local ultimate = Status.ultimate(state, char)
 	local shield = if state.state == "shield" then "ACTIVE" else if not state.onGround then "land to shield" else "hold I / Ctrl"
 	local rings = Status.rings(state, char)
 	local ringPart = if rings then `   |   RINGS: {rings}` else ""
+	local fuel = Status.fuel(state, char)
+	if fuel then ringPart ..= `   |   FUEL: {fuel}` end
 	return `YOU · {char.weapon.name}   |   SHIELD: {shield}{ringPart}   |   ULTIMATE: {ultimate}`
 end
 function Status.event(event: any): string?
 	if event.type == "ultready" then return "YOUR ULTIMATE IS READY — press O" end
+	if event.type == "dryfire" and event.fuel then
+		return `Not enough fuel ({event.fuel} needed) — stand on the ground to refuel.`
+	end
 	if event.type == "dryfire" and event.rings then
 		return if event.rings > 1 then "Halo needs both rings in hand — catch them first." else "No ring in hand — catch one to throw again."
 	end

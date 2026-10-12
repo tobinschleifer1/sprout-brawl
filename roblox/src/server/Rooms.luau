@@ -2,7 +2,7 @@
 -- Server-owned membership and setup, independent of transport and simulation.
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Plaza = require(Shared.Plaza)
-local Weapons = require(Shared.Data.Weapons)
+local Weapons = require(Shared.Weapons)
 local Loadout = require(Shared.Loadout)
 local AvatarKit = require(Shared.AvatarKit)
 local Stages = require(Shared.Data.Stages)

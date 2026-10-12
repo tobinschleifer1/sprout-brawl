@@ -193,6 +193,9 @@ function methods._initMechanic(self)
 	elseif m.id == "Chill" then return { id = "Chill" }
 	-- CRACK (the whip): whom its tip last marked, and the frameCount the mark lasts until
 	elseif m.id == "Crack" then return { id = "Crack", mark = -1, expires = 0 }
+	-- RETURN (the Chakram, Roblox only): rings in hand. A throw spends them; Combat.returnRing
+	-- gives them back when the ring comes home.
+	elseif m.id == "Return" then return { id = "Return", rings = m.rings }
 	end
 	return { id = m.id }
 end
@@ -909,6 +912,13 @@ end
 function methods.startMove(self, moveOrId: any, opts: any?)
 	local move = if type(moveOrId) == "string" then self.char.moves[moveOrId] else moveOrId
 	if not move then
+		return
+	end
+	-- A move that throws rings needs them in hand (the Chakram, Roblox only). They are SPENT when a
+	-- ring leaves the hand (Combat.spawnProjectile), not here: a throw interrupted in its wind-up -
+	-- hit, grabbed, KO'd - never threw anything, and must not lose a ring.
+	if move.rings and self.mech.id == "Return" and (self.mech.rings or 0) < move.rings then
+		methods.emit(self, { type = "dryfire" })
 		return
 	end
 	if move.ammo and self.mech.id == "Spines" then
@@ -1759,6 +1769,8 @@ function methods.respawn(self, x: number, opts: any?)
 	methods.reset(self, x, RESPAWN.height,
 		{ state = "respawn", percent = o.percent or 0, invincible = RESPAWN.invinc })
 	self.facing = if x < 0 then 1 else -1
+	-- a new stock starts with both rings in hand (the Chakram, Roblox only)
+	if self.mech.id == "Return" then self.mech.rings = self.char.mechanic.rings end
 end
 
 function methods._stepRespawn(self)

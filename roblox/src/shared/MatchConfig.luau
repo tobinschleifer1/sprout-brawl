@@ -15,7 +15,7 @@
 -- a request with nobody in it for the player who sent it.
 
 local Stages = require(script.Parent.Data.Stages)
-local Weapons = require(script.Parent.Data.Weapons)
+local Weapons = require(script.Parent.Weapons)
 local Avatars = require(script.Parent.Data.Avatars)
 local AvatarKit = require(script.Parent.AvatarKit)
 

@@ -1,7 +1,7 @@
 --!strict
 -- Only opened from a world portal. All choices are server-confirmed room edits.
 local Shared = game:GetService("ReplicatedStorage").Shared
-local Weapons = require(Shared.Data.Weapons)
+local Weapons = require(Shared.Weapons)
 local Stages = require(Shared.Data.Stages)
 local Canvas = require(script.Parent.Canvas2D)
 local Art = require(script.Parent.Weapons2D)

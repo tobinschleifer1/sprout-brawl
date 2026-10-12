@@ -167,6 +167,8 @@ lune run tests/kit-draw
 lune run tests/posture
 echo "== faces: expressions from the player's own face (Roblox only) =="
 lune run tests/expressions
+echo "== the Chakram (Roblox-only weapon): rings out, home and caught =="
+lune run tests/chakram
 lune run tests/canvas-writes
 lune run tests/creator-ui
 lune run tests/shield-parity

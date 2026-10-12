@@ -758,7 +758,10 @@ function Combat.onMoveActive(self, f: any, m: any)
 	end
 	f.chargeMods = nil
 	if m.kind == "projectile" then
-		Combat.spawnProjectile(self, f, m, {})
+		local n = m.projectile.ring and m.projectile.ring.count or 1
+		for k = 0, n - 1 do
+			Combat.spawnProjectile(self, f, m, { angle0 = (k / n) * 2 * math.pi })
+		end
 		return
 	end
 	if m.kind == "summon" then
@@ -1256,10 +1259,121 @@ function Combat.spawnProjectile(self, f: any, m: any, extra: any): any
 		grounded = not not p.grounded, gravity = 0, hitVictims = {}, facing = f.facing,
 		item = false, bloom = rm > 1,
 	}
+	if p.ring then
+		-- ROBLOX ONLY (the Chakram). A ring is a projectile that comes back: see Combat.stepRing.
+		-- Nothing in the web build sets `ring`, so every replayed weapon is untouched.
+		local R = p.ring
+		pr.ring = {
+			phase = if R.orbitFrames then "orbit" elseif R.rollFrames then "roll" else "out",
+			t = 0, travel = 0, range = (R.range or 0) * rm, speed = p.speed,
+			backSpeed = R.backSpeed or p.speed, catch = R.catch or 1.6, rings = R.rings or 1,
+			orbitFrames = R.orbitFrames, radius = R.radius or 2.6, period = R.period or 30,
+			rehit = R.rehit or 0, angle0 = extra.angle0 or 0, rollFrames = R.rollFrames,
+			gravity = R.gravity or 80, then_ = R.thenOut,
+		}
+		pr.pierce = true
+		pr.ghost = pr.ring.phase == "orbit"
+		-- the ring leaves the hand now (Fighter.startMove only checked there was one to throw)
+		if f.mech and f.mech.id == "Return" then
+			f.mech.rings = math.max(0, (f.mech.rings or 0) - pr.ring.rings)
+		end
+		pr.life = jsRound((R.life or 600) * rm)
+	end
 	pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)
 	table.insert(self.projectiles, pr)
 	Combat.emit(self, { type = "projectile", shape = pr.shape, x = pr.x, y = pr.y })
 	return pr
+end
+
+-- ROBLOX ONLY. A thrown ring, one frame: it sets the ring's velocity (and, orbiting, aims it at
+-- its next point on the circle) for stepProjectiles to integrate like any shot.
+--   orbit  circling the owner, `radius` out, once every `period` frames, for `orbitFrames`;
+--          a victim can be hit again every `rehit` frames. Then out (if `thenOut`) or home.
+--   roll   along the floor at its throw speed, turning at every ledge, for `rollFrames`; then home.
+--   out    straight ahead until it has covered `range` studs (or a wall turns it); then home.
+--   back   homing on the owner at `backSpeed`, through scenery, until within `catch` of them,
+--          when it is caught and its rings are back in hand.
+-- Every pass is a fresh pass: the victims list clears at each turn, so a ring hits once going
+-- out and once coming back.
+function Combat.stepRing(self, p: any)
+	local R, o = p.ring, p.owner
+	R.t += 1
+	-- an owner KO'd mid-throw takes the ring with them, whatever it was doing
+	if not o.alive then
+		p.caught = true
+		return
+	end
+	if R.phase == "orbit" then
+		local a = R.angle0 + (R.t / R.period) * 2 * math.pi
+		local tx, ty = o.x + math.cos(a) * R.radius * o.facing, o.cy + math.sin(a) * R.radius
+		p.vx, p.vy = (tx - p.x) / FRAME, (ty - p.y) / FRAME
+		if R.rehit > 0 and R.t % R.rehit == 0 then
+			p.hitVictims = {}
+		end
+		if R.t >= R.orbitFrames then
+			p.hitVictims = {}
+			if R.then_ then
+				R.phase, R.travel = "out", 0
+				p.ghost = false
+				p.facing = o.facing
+				p.vx, p.vy = o.facing * R.speed, 0
+			else
+				R.phase = "back"
+			end
+		end
+		return
+	end
+	if R.phase == "roll" then
+		-- the floor under the ring: the highest platform top at or just below it
+		local floor: any = nil
+		for _, pl in self.match.stage.platforms do
+			if p.x >= pl.x1 and p.x <= pl.x2 and pl.top <= p.y + 0.5 and (floor == nil or pl.top > floor.top) then
+				floor = pl
+			end
+		end
+		if floor then
+			p.vy = (floor.top + p.h / 2 - p.y) / FRAME
+			local nx = p.x + p.vx * FRAME
+			if nx < floor.x1 + p.w / 2 or nx > floor.x2 - p.w / 2 then
+				p.vx = -p.vx
+				Combat.emit(self, { type = "bounce", x = p.x, y = p.y })
+			end
+		else
+			p.vy -= R.gravity * FRAME
+		end
+		if R.t >= R.rollFrames then
+			R.phase = "back"
+			p.hitVictims = {}
+		end
+		return
+	end
+	if R.phase == "out" then
+		R.travel += math.abs(p.vx) * FRAME
+		if R.travel >= R.range then
+			R.phase = "back"
+			p.hitVictims = {}
+		end
+		return
+	end
+	-- back
+	p.ghost = true
+	local dx, dy = o.x - p.x, o.cy - p.y
+	local d = hypot(dx, dy)
+	if d <= R.catch then
+		p.caught = true
+		return
+	end
+	local step = math.min(R.backSpeed, d / FRAME)
+	p.vx, p.vy = dx / d * step, dy / d * step
+end
+
+-- ROBLOX ONLY. Rings back in the owner's hand, however the throw ended - caught, lost off the
+-- stage, or timed out - so a ring can never be gone for good.
+function Combat.returnRing(_self, p: any)
+	local o = p.owner
+	if o.mech and o.mech.id == "Return" then
+		o.mech.rings = math.min(o.char.mechanic.rings, (o.mech.rings or 0) + p.ring.rings)
+	end
 end
 
 function Combat.stepProjectiles(self)
@@ -1267,6 +1381,9 @@ function Combat.stepProjectiles(self)
 		local p = self.projectiles[i]
 		-- `px` is unused here exactly as it is in the JavaScript; `py` is the landing check below.
 		local _px, py = p.x, p.y
+		if p.ring then
+			Combat.stepRing(self, p)
+		end
 		if p.gravity ~= 0 then
 			p.vy -= p.gravity * FRAME
 		end
@@ -1307,12 +1424,18 @@ function Combat.stepProjectiles(self)
 		p.life -= 1
 		p.rect = rectFrom(p.x, p.y, p.w, p.h)
 		table.insert(self.debugBoxes, { rect = p.rect, kind = "proj" })
-		local dead = p.life <= 0
+		local dead = p.life <= 0 or p.caught == true
 		-- Stage body: every solid stops a shot, not just the main floor. This is what makes a
 		-- tower or a mesa actual cover instead of scenery.
 		if not p.grounded and not p.ghost then
 			for _, sp in self.match.stage.solids do
 				if p.x > sp.x1 and p.x < sp.x2 and p.y < sp.top and p.y > sp.bottom then
+					-- A ring that meets a wall turns for home rather than breaking (Roblox only).
+					if p.ring then
+						p.ring.phase = "back"
+						p.hitVictims = {}
+						break
+					end
 					-- A thrown shield coming DOWN onto a solid's top skips off it; into its side,
 					-- it stops like anything else.
 					if (p.bounces or 0) > 0 and p.vy < 0 and py >= sp.top - 0.3 then
@@ -1428,6 +1551,12 @@ function Combat.stepProjectiles(self)
 		end
 		if dead then
 			table.remove(self.projectiles, i)
+			if p.ring then
+				Combat.returnRing(self, p)
+				if p.caught then
+					Combat.emit(self, { type = "ringcatch", x = p.owner.x, y = p.owner.cy, fighter = p.owner.index })
+				end
+			end
 			-- A thrown weapon that hits, lands or is stopped falls where it is, for anyone to take.
 			-- One that leaves the stage is gone.
 			if p.weaponDrop and not lost then

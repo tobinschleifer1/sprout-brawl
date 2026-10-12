@@ -15,7 +15,8 @@
 
 local Canvas2D = require(script.Parent.Canvas2D)
 local WeaponPose = require(script.Parent.WeaponPose)
-local Art = require(game:GetService("ReplicatedStorage").Shared.Data.Art)
+-- the generated art plus the Roblox-only weapons' (Shared/Weapons.luau)
+local Art = require(game:GetService("ReplicatedStorage").Shared.Weapons).ART
 
 local Weapons2D = {}
 

@@ -184,4 +184,36 @@ do
 	if dry > 0 then fail(`a Rocket Boots bot asked for {dry} signatures it could not afford`) end
 end
 
-print("PASS rocket boots: in the roster with art; fuel spent at ignition by the cost, nothing for an interrupted kick; signatures refused without fuel, kicks free; refill only after the wait on the ground, never in the air; recovery burns fuel or sputters, never none, once per airtime; Redline carries forward, back, forward, held on the platform, once a window; full tank each stock; bots never ask for what they cannot afford")
+-- 9. Worn, not held: one boot sprite on each foot, on the floor, none in the hand - and a sword still
+-- draws its one weapon sprite. A boot is one sprite, not a Frame for each of its ~95 rectangles.
+do
+	local Fighter2D = Loader.loadFrom("src/client/", "Fighter2D")
+	local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
+	local Fighter, Snapshot = Loader.load("Fighter"), Loader.load("Snapshot")
+	local drawn: { any } = {}
+	local rects = 0
+	Canvas.rect = function() rects += 1 end; Canvas.ellipse = function() end; Canvas.tri = function() end; Canvas.line = function() end
+	Canvas.sprite = function(cv: any, key: string)
+		if string.sub(key, 1, 7) == "weapon|" then table.insert(drawn, { key = key, x = cv.m.e / 24, y = cv.m.f / 24 }) end
+	end
+	Fighter2D.effects = nil
+	local function draw(weapon: string): { any }
+		table.clear(drawn)
+		local ch = Loadout.build("Classic", weapon)
+		local f: any = Fighter.new({ index = 0, char = ch, x = 0, y = 2, stocks = 3 })
+		f.state, f.onGround = "idle", true
+		local cv = setmetatable({ m = { a = 24, b = 0, c = 0, d = 24, e = 0, f = 0 }, stack = {}, alpha = 1, alphaStack = {} }, { __index = Canvas })
+		Fighter2D.draw(cv, Snapshot.decode(Snapshot.encode(f)), ch, 0.3, 2)
+		return table.clone(drawn)
+	end
+	local boots = draw("RocketBoots")
+	if #boots ~= 2 then fail(`a fighter in Rocket Boots drew {#boots} weapon sprites, want 2 (one a foot, none in the hand)`) end
+	for _, b in boots do
+		if b.key ~= "weapon|RocketBoots" then fail("a boot drew another weapon's picture") end
+		if math.abs(b.y - 2) > 0.5 then fail(`a boot is at height {b.y}, the floor is at 2`) end
+	end
+	if math.abs(boots[1].x - boots[2].x) < 0.1 then fail("both boots are on the same foot") end
+	if #draw("Sword") ~= 1 then fail("a sword stopped drawing its one weapon sprite") end
+end
+
+print("PASS rocket boots: worn, one boot sprite on each foot on the floor and none in the hand; in the roster with art; fuel spent at ignition by the cost, nothing for an interrupted kick; signatures refused without fuel, kicks free; refill only after the wait on the ground, never in the air; recovery burns fuel or sputters, never none, once per airtime; Redline carries forward, back, forward, held on the platform, once a window; full tank each stock; bots never ask for what they cannot afford")

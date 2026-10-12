@@ -24,6 +24,8 @@ local ShieldArt = require(script.Parent.ShieldArt)
 local Fighter2D = {}
 -- Screen pixels per kit cell below which a kit character is drawn at half resolution.
 Fighter2D.KIT_LOD_PX = 1.3
+-- Rocket Boots' art against a foot: the boot is drawn at this fraction of its art's size.
+Fighter2D.BOOT_SCALE = 0.55
 -- The live effects state (Effects.new()) that a hauled weapon kicks dirt into; set by the client.
 Fighter2D.effects = nil :: any
 -- Team colour by fighter index in a team match, or nil: each fighter then stands in a disc of it
@@ -244,7 +246,23 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				trail.pw, trail.ph, trailingArt.w, trailingArt.h)
 			Canvas2D.restore(c)
 		end
-		for i, leg in p.legs do limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 1) end
+		for i, leg in p.legs do
+			limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 1)
+			-- Rocket Boots are worn (Roblox only): one boot on each foot, turned with its shin,
+			-- instead of a weapon in the hand. The boot's art is anchored at the ankle.
+			if wid == "RocketBoots" and not wpose.hide then
+				local L = leg.pose
+				Canvas2D.save(c)
+				Canvas2D.translate(c, L.ex, L.ey)
+				Canvas2D.rotate(c, math.atan2(L.ey - L.jy, L.ex - L.jx) + math.pi / 2)
+				-- the art's rows run down from the shaft to the sole: flipped so the shaft climbs the shin
+				Canvas2D.scale(c, Fighter2D.BOOT_SCALE, -Fighter2D.BOOT_SCALE)
+				-- one sprite a boot (the weapon-in-hand path), not a Frame per rectangle: ~95 each
+				local sp = Weapons2D.sprite(wid)
+				Canvas2D.sprite(c, "weapon|" .. wid, sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 1 then 0.85 else 1)
+				Canvas2D.restore(c)
+			end
+		end
 		Canvas2D.save(c)
 		Canvas2D.translate(c, p.hipX, p.hipY)
 		Canvas2D.rotate(c, p.hipRot)
@@ -298,7 +316,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	end
 
 	-- a Chakram with both rings thrown has nothing in its hands (Roblox only: Snapshot `rings`)
-	if wid and not wpose.hide and not (wid == "Chakram" and s.rings == 0) then
+	-- (and Rocket Boots are on the feet, drawn with the legs above, not in the hand)
+	if wid and not wpose.hide and not (wid == "Chakram" and s.rings == 0) and wid ~= "RocketBoots" then
 		if wpose.drag and s.onGround and platformTop then
 			local rch = Weapons2D.REACH[wid] or 2.4
 			local wx = s.x + (gx + math.cos(wpose.angle - ch.lean) * rch) * s.facing

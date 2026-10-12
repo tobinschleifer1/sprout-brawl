@@ -164,6 +164,7 @@ lune run tests/kit-parity
 echo "== jointed rig: elbows and knees where the web puts them =="
 lune run tests/rig-parity
 lune run tests/kit-draw
+lune run tests/posture
 echo "== faces: expressions from the player's own face (Roblox only) =="
 lune run tests/expressions
 lune run tests/canvas-writes

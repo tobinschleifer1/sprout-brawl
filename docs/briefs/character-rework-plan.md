@@ -173,3 +173,25 @@ test is mutation-checked; each ends with a Studio playtest.
    desktop: the six-fighter Studio measurement runs with the image path forced off, and a phase whose
    characters cost more than the fighters they replace has to buy that cost back (detail levels,
    fewer pieces at small sizes) before it merges.
+
+## Progress (2026-10-13)
+
+Work so far is on `feature/character-rig`, with the commit for each item in backticks.
+
+- **Phase 1, a kit body by default: done** (`15c3412`). The six presets are kit bodies under their
+  old ids, in both builds.
+- **Phase 2, faces that act: done, Roblox only** (`20ae183`, with `dff7d8a` fixing three bugs found
+  in review). The owner has left the web build as it is for now, so the faces are held by
+  `tests/expressions.luau` rather than by replay.
+- **Phase 3, the articulated rig: done, with the posture follow-up.** Elbows and knees (`8b96c0b`)
+  and the actions authored around them (`2c1e6b0`) are in both builds, held by channel and rig
+  parity. The posture layer (`9f2da19`) is a Roblox-only follow-up that lets the waist, shoulders and
+  head respond on their own, without breaking the grip or the planted feet.
+- **Hit flash: decided, Roblox only** (`6f4aa0d`). The plan asked for one hit-flash behaviour in both
+  builds; the owner's later decision changed that. A kit silhouette flashes every body piece where
+  images are on. On the Frame fallback it is one translucent box, because tinted copies of every
+  rectangle would cost about 185 Frames a fighter.
+- **Outside the phases:** the Chakram, a Roblox-only returning zoner (`34729a8` to `9dda648`). Its
+  design and limits are in `roblox/README.md`, under "Roblox-only code".
+- **In progress:** phase 4 (movement feel) and a performance pass. Neither has a commit on this
+  branch yet.

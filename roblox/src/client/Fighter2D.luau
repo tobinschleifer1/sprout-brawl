@@ -11,6 +11,7 @@ local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
 local Posture = require(script.Parent.Posture)
 local PostureArt = require(script.Parent.PostureArt)
+local Secondary = require(script.Parent.Secondary)
 local Rig = require(script.Parent.Rig)
 local Expressions = require(script.Parent.Expressions)
 local KIT_PARTS = PostureArt.parts
@@ -133,6 +134,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local PW = r * 1.15 / 12
 	local m = c.m
 	local half = kitArt ~= nil and PW * math.sqrt(math.abs(m.a * m.d - m.b * m.c)) < Fighter2D.KIT_LOD_PX
+	local trailingArt = if kitArt and not half then Secondary.art(kitCode :: string) else nil
 	-- The hit flash (and the chill tint and a timed link's gold): a kit character flashes as ITSELF -
 	-- each piece drawn again over the top in the colour - where that is cheap, which is where pictures
 	-- are images (Canvas2D.imagesOn): one more image per piece. On the Frame fallback a tinted piece is
@@ -163,6 +165,10 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		if id == "head" and face then
 			list = if half then face.half else face.full
 			key = `{kitCode}|head|{faceId}{if half then "h" else ""}`
+		end
+		if trailingArt and trailingArt.replacements[id] then
+			list = if id == "head" and face then Secondary.head(trailingArt, faceId :: string) else trailingArt.replacements[id]
+			key ..= "|cut"
 		end
 		Canvas2D.sprite(c, key, list, -P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
 		if silhouette then
@@ -228,6 +234,16 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	Canvas2D.translate(c, 0, ch.bob)
 	if kitArt then
 		local p = posture
+		if trailingArt and trailingArt.full then
+			local trail = Secondary.pose(trailingArt, p, ch, s, char)
+			Canvas2D.save(c)
+			Canvas2D.translate(c, trail.x, trail.y)
+			Canvas2D.rotate(c, trail.rot)
+			Canvas2D.scale(c, trail.sx, trail.sy)
+			Canvas2D.sprite(c, `secondary|{kitCode}`, trailingArt.full, -2 * trail.pw, trail.ph,
+				trail.pw, trail.ph, trailingArt.w, trailingArt.h)
+			Canvas2D.restore(c)
+		end
 		for i, leg in p.legs do limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 1) end
 		Canvas2D.save(c)
 		Canvas2D.translate(c, p.hipX, p.hipY)

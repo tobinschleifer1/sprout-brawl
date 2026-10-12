@@ -58,6 +58,11 @@ rojo serve          # sync into Studio (needs the Rojo Studio plugin)
 rojo build --output Blockfall.rbxl
 ```
 
+For the Roblox-only Frame renderer's reproducible six-fighter benchmark, assignment budgets,
+before/after numbers and visual checks, see [match performance](docs/match-performance.md).
+Run `lune run tools/perf-match /tmp/charplan/perf.json` from this folder; `check.sh` includes
+the deterministic budget test.
+
 ### Parity with the JavaScript
 
 `web/src/engine/knockback.js` is the source of truth for the damage model. `tests/parity.luau`

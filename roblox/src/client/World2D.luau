@@ -99,6 +99,31 @@ function World2D.thrownWeapon(c: any, p: any, t: number)
 	Canvas.restore(c)
 end
 
+-- A Chakram ring in flight (Roblox only): the silver rim, the dark middle and the teal light the
+-- weapon's art has, two notches on the rim spinning with the throw so it reads as a blade, not a
+-- disc. The Eclipse Ring wears a teal halo and a cream glint. A few shapes a ring: cheap on Frames.
+local RING_RIM, RING_DARK, RING_GLINT = Color3.fromHex("#C0C8D4"), Color3.fromHex("#0F2626"), Color3.fromHex("#F4E8C0")
+function World2D.ring(c: any, p: any, t: number, col: Color3)
+	local r = p.w / 2
+	local eclipse = p.shape == "eclipse"
+	if eclipse then
+		Canvas.circle(c, p.x, p.y, r * 1.25, col, 0.3)
+	end
+	Canvas.circle(c, p.x, p.y, r, DARK)
+	Canvas.circle(c, p.x, p.y, r * 0.86, RING_RIM)
+	Canvas.circle(c, p.x, p.y, r * 0.58, col)
+	Canvas.circle(c, p.x, p.y, r * 0.42, RING_DARK)
+	local spin = t * 22 * (if (p.vx or 0) < 0 then -1 else 1)
+	for k = 0, 1 do
+		local a = spin + k * math.pi
+		Canvas.save(c)
+		Canvas.translate(c, p.x + math.cos(a) * r * 0.72, p.y + math.sin(a) * r * 0.72)
+		Canvas.rotate(c, a)
+		rect(c, -r * 0.16, -r * 0.16, r * 0.32, r * 0.32, if eclipse then RING_GLINT else WHITE)
+		Canvas.restore(c)
+	end
+end
+
 function World2D.entities(c: any, scene: any, chars: any, states: any, t: number)
 	for _, d in scene.drops or {} do
 		World2D.drop(c, d, scene.frame or 0)
@@ -129,6 +154,8 @@ function World2D.entities(c: any, scene: any, chars: any, states: any, t: number
 			World2D.thrownWeapon(c, p, t)
 		elseif p.item then
 			World2D.item(c, p.item, p.x, p.y - 0.5, t, p)
+		elseif p.shape == "ring" or p.shape == "eclipse" then
+			World2D.ring(c, p, t, col)
 		elseif p.shape == "orb" then
 			-- a pulsing core, as renderer2d.js draws it, trailing sparks
 			Canvas.circle(c, p.x, p.y, p.w * 0.85, col, 0.35)

@@ -70,6 +70,9 @@ local FIELDS = {
 	-- and predicted from: a crack's extra damage sets its hit freeze. An end frame, not a countdown,
 	-- so neither changes on the wire while the mark lasts.
 	{ "crackMark", "cm" }, { "crackExpires", "ce" },
+	-- The Chakram's rings in hand (RETURN, Roblox only; -1 for any other weapon): drawn (no rings in
+	-- the hands once both are thrown) and predicted from (a throw with none in hand is refused).
+	{ "rings", "rg" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -104,6 +107,8 @@ function Snapshot.encode(f: any): { [string]: any }
 			out[wire] = if f.mech and f.mech.id == "Crack" then f.mech.mark else -1
 		elseif name == "crackExpires" then
 			out[wire] = if f.mech and f.mech.id == "Crack" then f.mech.expires else 0
+		elseif name == "rings" then
+			out[wire] = if f.mech and f.mech.id == "Return" then f.mech.rings else -1
 		elseif name == "ledgeAction" then
 			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
 			-- from the stage. Only the kind changes the pose.

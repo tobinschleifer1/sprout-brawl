@@ -34,7 +34,7 @@ local EXPECTED = {
 	"comboHits", "breakable", "breakCooldown",
 	"armed",
 	"staleMoves",
-	"crackMark", "crackExpires", "rings", "fuel",
+	"crackMark", "crackExpires", "rings", "fuel", "fuelGrounded",
 }
 
 -- 1. FIELDS is a bijection. A duplicate wire name silently drops a field; a duplicate simulation
@@ -172,6 +172,16 @@ do
 	local got = Snapshot.decode(Snapshot.encode(w))
 	if got.crackMark ~= 2 or got.crackExpires ~= 517 then fail(`a whip's mark sent as {tostring(got.crackMark)} until {tostring(got.crackExpires)}`) end
 	checked += 4
+end
+
+do
+	if Snapshot.decode(Snapshot.encode(f)).fuelGrounded ~= -1 then fail("a sword sent a fuel refill clock") end
+	local b = Fighter.new({ index = 0, char = Loadout.build("Classic", "RocketBoots"), x = 0, y = 0, stocks = 3 })
+	for _, n in { 0, 29, 30, 60 } do
+		b.mech.grounded = n
+		if Snapshot.decode(Snapshot.encode(b)).fuelGrounded ~= n then fail("fuel refill clock lost on the wire") end
+	end
+	checked += 5
 end
 -- 7. The Chakram's rings in hand (Roblox only), every number of them; every other weapon sends -1.
 do

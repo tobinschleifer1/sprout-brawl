@@ -37,6 +37,7 @@ local Stage = require(game:GetService("ReplicatedStorage").Shared.Stage)
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Combat = require(game:GetService("ReplicatedStorage").Shared.Combat)
 local Knockback = require(game:GetService("ReplicatedStorage").Shared.Knockback)
+local RobloxResources = require(game:GetService("ReplicatedStorage").Shared.RobloxResources)
 
 local Predictor = {}
 Predictor.__index = Predictor
@@ -62,8 +63,14 @@ local function stubCombat(fighters: { any }): any
 		fruiting = function() end,
 		nearestNode = function() return nil end,
 		removeSummon = function() end,
-		onMoveActive = function() end,
-		onMoveActiveFrame = function() end,
+		onMoveActive = function(_, f, move)
+			RobloxResources.ignite(f, move)
+			local ring = move.projectile and move.projectile.ring
+			if ring then RobloxResources.throwRing(f, (ring.rings or 1) * (ring.count or 1)) end
+		end,
+		onMoveActiveFrame = function(self, f, move)
+			if move.kind == "redline" then Combat.stepRedline(self, f, move) end
+		end,
 		spawnBurst = function() end,
 		checkGrab = function() end,
 		resolveThrow = function() end,
@@ -136,7 +143,8 @@ function Predictor.applyWire(self: any, w: any)
 	for _, pair in Snapshot.FIELDS do
 		local name = pair[1]
 		if name ~= "index" and name ~= "item" and name ~= "chillStacks" and name ~= "ledgeAction" and name ~= "comboTarget"
-			and name ~= "armed" and name ~= "staleMoves" and name ~= "crackMark" and name ~= "crackExpires" and name ~= "rings" and name ~= "fuel" then
+			and name ~= "armed" and name ~= "staleMoves" and name ~= "crackMark" and name ~= "crackExpires"
+			and name ~= "rings" and name ~= "fuel" and name ~= "fuelGrounded" then
 			-- Back through the name map: the snapshot calls them stateFrame and moveFrame, the
 			-- Fighter calls them sf and mf, and writing the snapshot's names onto a Fighter sets
 			-- two fields nothing reads while leaving the two that matter untouched.
@@ -161,6 +169,7 @@ function Predictor.applyWire(self: any, w: any)
 	if f.mech.id == "Return" and w.rings ~= nil and w.rings >= 0 then f.mech.rings = w.rings end
 	-- Rocket Boots' fuel (THRUST FUEL): a predicted signature without the fuel would be refused
 	if f.mech.id == "ThrustFuel" and w.fuel ~= nil and w.fuel >= 0 then f.mech.fuel = w.fuel end
+	if f.mech.id == "ThrustFuel" and w.fuelGrounded ~= nil and w.fuelGrounded >= 0 then f.mech.grounded = w.fuelGrounded end
 	-- the server's staling memory, which a hit predicted and then taken back left wrong here
 	if w.staleMoves ~= nil then
 		f.staleMoves = if w.staleMoves == "" then {} else string.split(w.staleMoves, ",")
@@ -477,6 +486,7 @@ function Predictor.state(self: any): any
 	out.crackExpires = if f.mech.id == "Crack" then f.mech.expires else 0
 	out.rings = if f.mech.id == "Return" then f.mech.rings else -1
 	out.fuel = if f.mech.id == "ThrustFuel" then f.mech.fuel else -1
+	out.fuelGrounded = if f.mech.id == "ThrustFuel" then f.mech.grounded else -1
 	return out
 end
 

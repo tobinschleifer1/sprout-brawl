@@ -76,6 +76,9 @@ local FIELDS = {
 	-- Rocket Boots' thrust fuel (THRUST FUEL, Roblox only; -1 for any other weapon): the HUD's tank,
 	-- and predicted from (a signature without the fuel for it is refused).
 	{ "fuel", "fu" },
+	-- The refill clock is also needed when joining/correcting mid-refill; fuel alone cannot
+	-- say when the next half-unit is due. -1 for every other mechanic.
+	{ "fuelGrounded", "fg" },
 }
 
 -- The fields a snapshot carries, by the name everything except the wire uses. Exported so a test
@@ -114,6 +117,8 @@ function Snapshot.encode(f: any): { [string]: any }
 			out[wire] = if f.mech and f.mech.id == "Return" then f.mech.rings else -1
 		elseif name == "fuel" then
 			out[wire] = if f.mech and f.mech.id == "ThrustFuel" then f.mech.fuel else -1
+		elseif name == "fuelGrounded" then
+			out[wire] = if f.mech and f.mech.id == "ThrustFuel" then f.mech.grounded else -1
 		elseif name == "ledgeAction" then
 			-- `la` is { kind, L }; L is the ledge the fighter is on, which the client already knows
 			-- from the stage. Only the kind changes the pose.

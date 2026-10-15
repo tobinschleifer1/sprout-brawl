@@ -14,6 +14,7 @@
 local Config = require(script.Parent.Config)
 local Knockback = require(script.Parent.Knockback)
 local ItemData = require(script.Parent.Data.Items)
+local RobloxResources = require(script.Parent.RobloxResources)
 
 local FRAME = Config.FRAME
 local GRAVITY = Config.GRAVITY
@@ -742,9 +743,7 @@ local FRAME_KINDS = {}
 
 function Combat.onMoveActive(self, f: any, m: any)
 	-- Rocket Boots (Roblox only): a fuel-burning move spends it now, at ignition, not when it began
-	if m.fuelCost and f.mech and f.mech.id == "ThrustFuel" then
-		f.mech.fuel = math.max(0, f.mech.fuel - m.fuelCost)
-		f.mech.grounded = 0
+	if RobloxResources.ignite(f, m) then
 		Combat.emit(self, { type = "thrust", x = f.x, y = f.y, fighter = f.index })
 	end
 	if m.kind == "weaponthrow" then
@@ -1303,9 +1302,7 @@ function Combat.spawnProjectile(self, f: any, m: any, extra: any): any
 		pr.pierce = true
 		pr.ghost = pr.ring.phase == "orbit"
 		-- the ring leaves the hand now (Fighter.startMove only checked there was one to throw)
-		if f.mech and f.mech.id == "Return" then
-			f.mech.rings = math.max(0, (f.mech.rings or 0) - pr.ring.rings)
-		end
+		RobloxResources.throwRing(f, pr.ring.rings)
 		pr.life = jsRound((R.life or 600) * rm)
 	end
 	pr.rect = rectFrom(pr.x, pr.y, pr.w, pr.h)

@@ -130,6 +130,7 @@ echo "== what a client is allowed to ask the server for =="
 lune run tests/match-config
 echo "== prediction: rollback and replay against a straight simulation =="
 lune run tests/prediction
+lune run tests/prediction-roblox
 lune run tests/prediction-platforms
 echo "== combos predicted on the server's frames: timed strings, chases, the victim's break =="
 lune run tests/prediction-combos
@@ -179,6 +180,7 @@ lune run tests/hud-writes
 lune run tests/render-reuse
 lune run tests/pixel-layers
 lune run tests/perf-budget
+lune run tests/fighter-warmup
 lune run tests/creator-ui
 lune run tests/shield-parity
 echo "== parity: Combat vs web/src/engine/combat.js =="

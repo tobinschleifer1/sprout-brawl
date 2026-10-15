@@ -54,6 +54,16 @@ Nothing above has been seen running in **Roblox Studio**. Every check so far is 
    - If you are stopped part-way, commit what you have as `WIP: <task>` so it is not lost.
 9. **When a decision belongs to the owner, do not make it.** Write the question down in "Questions for the owner" at the end of this file, commit that, and move to the next task.
 
+## Progress (2026-10-16)
+
+- **Done:** tasks 1, 2, 3 and 5, from GPT's work, reviewed, split into commits and merged by Claude
+  (`8c21714`, `9a63d01`, `31a8356`, `34f2f27`). Part of task 6 is done too: the prediction of fuel and
+  rings (`9dd574a`).
+- **Task 4 done, no tuning needed.** Hard bots, 8 matches a pairing (112 matches each): Chakram 47%,
+  Rocket Boots 41%, Sword 53%.
+- **Next for GPT:** the rest of task 6, the full review of `feature/character-rig` against `main`.
+  Task 7, the PR text, is being written by Claude.
+
 ## Task queue, in order (none needs the owner)
 
 1. **Close the test gap in movement.** `tests/movement.luau` asserts that the run's shins never cross, but it does not catch `rootX = 0` in `src/client/Movement.luau`. That mutation makes both legs hang from one hip point, and they can't cross from a shared point, so the test still passes. Add a direct assertion that the two hips stay separate sockets through the stride, then mutation-check it.

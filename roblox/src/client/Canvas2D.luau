@@ -296,6 +296,7 @@ Canvas2D.offscreen = offscreen
 -- `round` makes it an ellipse (see Canvas2D.ellipse); decided here, so a round Frame is not squared
 -- and rounded again every frame.
 local function box(self: any, x: number, y: number, w: number, h: number, colour: Color3, alpha: number?, round: boolean)
+	if self.collectingSprites then return end
 	local m = self.m
 	local cx, cy = x + w / 2, y + h / 2
 	local sx = m.a * cx + m.c * cy + m.e
@@ -493,6 +494,11 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 	local flip = m.a * m.d - m.b * m.c > 0
 	local n = (self.spriteUse[key] or 0) + 1
 	self.spriteUse[key] = n
+	if self.collectingSprites then
+		table.insert(self.collectingSprites, { key = key, n = n, rects = rects, x0 = x0, y1 = y1,
+			pw = pw, ph = ph, cols = cols, rows = rows, alpha = alpha, canvasAlpha = self.alpha, m = m })
+		return
+	end
 	-- Counted before culling, so the n-th draw of a key keeps its slot whatever is off screen.
 	if offscreen(self, sx, sy, sizeX, sizeY) then
 		return
@@ -524,6 +530,7 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 			f.BackgroundTransparency = 1
 		end
 		f.Name = "Sprite"
+		if self.prewarming then f.Visible = false end
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		f.Parent = self.layer
 		sp = { frame = f, children = {}, seen = self.frameNo, image = if image then true else nil }
@@ -586,11 +593,43 @@ function Canvas2D.sprite(self: any, key: string, rects: { any }, x0: number, y1:
 		f.ZIndex = self.z
 		sp.z = self.z
 	end
-	if not sp.vis then
+	if self.prewarming then
+		if sp.vis then f.Visible = false end
+		sp.vis = false
+	elseif not sp.vis then
 		f.Visible = true
 		sp.vis = true
 	end
 	sp.seen = self.frameNo
+end
+
+-- Record the renderer's own keys and occurrence numbers without allocating GUI objects. Using
+-- the real draw avoids a second roster/LOD/footwear implementation drifting from sprite slots.
+function Canvas2D.collectSprites(self: any, draw: (any) -> ()): { any }
+	local c = Canvas2D.inFrame(self.gui)
+	c.collectingSprites = {}
+	draw(c)
+	return c.collectingSprites
+end
+
+-- Build hidden slots on the destination canvas in bounded countdown batches. Neither its draw
+-- counters nor transform are advanced, and the first visible draw still sets its own ordering.
+function Canvas2D.warmSprites(self: any, queue: any, budget: number): boolean
+	local c = Canvas2D.inFrame(self.gui)
+	c.layer, c.sprites, c.frameNo, c.prewarming = self.layer, self.sprites, self.frameNo, true
+	local cost = 0
+	while queue.at <= #queue do
+		local q = queue[queue.at]
+		local sp = self.sprites[q.key .. "#" .. q.n]
+		local build = if sp and sp.rects == q.rects then 0 else #q.rects + 1
+		if cost > 0 and cost + build > budget then break end
+		c.m, c.alpha = q.m, q.canvasAlpha
+		c.spriteUse[q.key] = q.n - 1
+		Canvas2D.sprite(c, q.key, q.rects, q.x0, q.y1, q.pw, q.ph, q.cols, q.rows, q.alpha)
+		queue.at += 1
+		cost += build
+	end
+	return queue.at > #queue
 end
 
 -- An ellipse centred on (x, y). UICorner at half the smaller side rounds a Frame into a capsule,

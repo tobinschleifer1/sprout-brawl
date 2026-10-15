@@ -12,6 +12,7 @@ local capture = process.args[4] and process.args[4] ~= "-"
 assert(not (native and capture), "output capture needs the counting probe")
 local scene = Scene.new(native, process.args[6])
 local P = scene.probe
+local countdown = if not process.args[6] then scene:countdown() else nil
 local function sample(frame)
 	scene:prepare(frame)
 	P:reset()
@@ -68,9 +69,10 @@ end
 print(string.format("TOTAL               %8.1f %9.2f %10.2f %10.3f", totals.writes/frames, totals.creates/frames, totals.destroys/frames, totals.ms/frames))
 print(`Peak: {peaks.writes} writes, {peaks.creates} creates, {peaks.destroys} destroys, {peaks.liveFrames} live Frames`)
 print(`First render: {startup.writes} writes, {startup.creates} creates, {startup.destroys} destroys, {startup.liveFrames} live Frames`)
+if countdown then print(`Countdown: {countdown.creates} creates, {countdown.peakCreates}/tick peak, {countdown.ticks} ticks`) end
 print(`Warmup after first render: {warming.creates} creates, {warming.destroys} destroys ({warming.peakCreates} creates/f peak)`)
 if process.args[1] then fs.writeFile(process.args[1], serde.encode("json", { frames = frames, warmup = warmup, startup = startup,
-	setup = scene.setup, warming = warming, sourceRef = process.args[6] or "working tree", native = native,
+	setup = scene.setup, countdown = countdown, warming = warming, sourceRef = process.args[6] or "working tree", native = native,
 	totals = totals, peaks = peaks, groups = groups, frameOwners = owners, samples = samples })) end
 if capture then
 	fs.writeFile(process.args[4] .. "-draw.json", serde.encode("json", { w = Scene.W, h = Scene.H, frames = pictures }))

@@ -20,6 +20,9 @@ end
 local scene = Scene.new()
 local P = scene.probe
 assert(scene.Canvas.IMAGES == false and #scene.state.states == 6, "budget must exercise six fighters on Frames")
+local countdown = scene:countdown()
+assert(countdown.creates <= 1540 and countdown.peakCreates <= 180 and countdown.ticks <= 12,
+	`countdown exceeded budget: {countdown.creates} creates, {countdown.peakCreates}/tick, {countdown.ticks} ticks`)
 local totals = { writes = 0, creates = 0, destroys = 0 }
 local peaks = { writes = 0, creates = 0, destroys = 0, liveFrames = 0 }
 local warmCreates, warmPeak = 0, 0
@@ -28,7 +31,7 @@ for frame = 1, 480 do
 	P:reset()
 	scene:draw(frame)
 	if frame == 1 then
-		assert(P.total.writes <= 19400 and P.total.creates <= 2680, "cold draw exceeded its build budget")
+		assert(P.total.writes <= 10010 and P.total.creates <= 1225, "first fight draw exceeded its build budget after countdown")
 	end
 	if frame <= 120 then
 		if frame > 1 then
@@ -49,6 +52,8 @@ end
 -- After the layered-art pass (PixelGrid.layers) writes are unchanged and the cold and resident
 -- costs are 14-15% down: first draw 18685 writes / 2576 creates, warm-up 7532 creates (401 peak),
 -- 10101 live Frames. The limits above are the new measurement plus the same ~4%.
+-- Countdown moves 1400 creations off that draw: 1472 across 9 ticks (179 peak); first visible
+-- draw 9618 writes / 1176 creates. A spare neutral head adds 72 resident Frames in this workload.
 assert(warmCreates <= 7840 and warmPeak <= 420, `warmup built {warmCreates} Instances ({warmPeak} peak)`)
 assert(totals.writes / 360 <= 620, `mean writes {totals.writes / 360} > 620`)
 assert(peaks.writes <= 3050, `peak writes {peaks.writes} > 3050`)

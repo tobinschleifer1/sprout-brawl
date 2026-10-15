@@ -84,6 +84,24 @@ function Scene:prepare(frame)
 	for i, drop in S.scene.hazards.slagfall.drops do drop.y = 14 - ((n / 8 + i * 4) % 18) end
 end
 
+-- Count this separately from setup and the first fight render, as the client does during the
+-- countdown. Source-ref baselines intentionally retain their original cold draw.
+function Scene:countdown()
+	local Warmup = self.probe:load("src/client/FighterWarmup")
+	local queue = Warmup.new(self.canvas, self.state.chars, self.state.view.ppu)
+	local total, peak, ticks = 0, 0, 0
+	repeat
+		self.probe:reset()
+		local done = Warmup.step(self.canvas, queue)
+		total += self.probe.total.creates
+		peak = math.max(peak, self.probe.total.creates)
+		ticks += 1
+		if done then break end
+		assert(ticks < 100, "countdown warmup made no progress")
+	until false
+	return { creates = total, peakCreates = peak, ticks = ticks }
+end
+
 function Scene:draw(frame)
 	local S, n = self.state, (frame - 1) % Scene.PERIOD
 	self.probe.section = "Effects/other"

@@ -29,6 +29,8 @@ local Camera2D = require(script.Camera2D)
 local Canvas2D = require(script.Canvas2D)
 local UltCinematic = require(script.UltCinematic)
 local FightScene = require(script.FightScene)
+local FighterWarmup = require(script.FighterWarmup)
+local fighterWarmup: any = nil
 local RealmArt = require(script.RealmArt)
 local FxPlayer = require(script.FxPlayer)
 local Effects = require(script.Effects)
@@ -313,6 +315,7 @@ end)
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 	watchGui.Enabled = false
 	acceptingSnapshots = false
+	fighterWarmup = nil
 	predictor = nil
 	launch:reset()
 	buffer, scenes = {}, {}
@@ -461,6 +464,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 		teamHex = hexes
 	end
 	hud:bind(roster, chars, localIndex, string.find(cfg.mode or "", "Teams", 1, true) ~= nil)
+	fighterWarmup = FighterWarmup.new(canvas, chars, cam2d.ppu)
 
 	predictor = nil
 	if localIndex and stageView then
@@ -539,6 +543,7 @@ end)
 -- this the client would sit on the last frame with no idea the match had ended.
 Net.remote("Results").OnClientEvent:Connect(function(res: any)
 	acceptingSnapshots = false
+	fighterWarmup = nil
 	predictor = nil
 	launch:reset()
 	if select_ then select_:hide() end
@@ -716,6 +721,14 @@ end
 RunService.RenderStepped:Connect(function(dt: number)
 	local began = os.clock()
 	local mark = began
+	if fighterWarmup then
+		local newest = buffer[#buffer]
+		-- A late join must draw immediately. Normal starts have a full countdown to spread
+		-- the build over; snapshots/input continue normally while these hidden slots fill.
+		if (newest and newest.state ~= "countdown") or FighterWarmup.step(canvas, fighterWarmup) then
+			fighterWarmup = nil
+		end
+	end
 	if select_ then select_:drawPreviews() end
 	mark = section("Previews", mark)
 	if parkour.active then
@@ -740,6 +753,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 		return
 	end
 	local drawAt = os.clock()
+	if fighterWarmup then
+		measured(dt, began)
+		return
+	end
 	local states = interpolate(drawAt - interp.delay)
 	-- Our own fighter, predicted. Interpolation exists to hide other people's packet jitter, and
 	-- applying it to the local fighter cost the interpolation delay on top of the round trip. This is the

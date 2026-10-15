@@ -9,9 +9,10 @@
 local fs, serde, process = require("@lune/fs"), require("@lune/serde"), require("@lune/process")
 local Scene = require("./perf-scene")
 local Output = require("./perf-output")
-local FRAMES = { 121, 150, 181, 212, 270, 331, 392, 450, 480 }
+local FRAMES = { 1, 121, 150, 181, 212, 270, 331, 392, 450, 480 }
 local W, H = Scene.W, Scene.H
 local scene = Scene.new(false, process.args[2])
+if not process.args[2] then scene:countdown() end
 local function hexRGB(h) return tonumber(string.sub(h, 2, 3), 16), tonumber(string.sub(h, 4, 5), 16), tonumber(string.sub(h, 6, 7), 16) end
 local OX, OY = 0.3719, 0.4143
 local function raster(shapes)

@@ -184,6 +184,45 @@ do
 	if dry > 0 then fail(`a Rocket Boots bot asked for {dry} signatures it could not afford`) end
 end
 
+-- Fuel reserved under ledge pressure must buy actual recoveries, not merely change an input.
+-- Before this policy: 0/16 returned, all launched with 20 fuel. These same seeds/launches now
+-- return 14/16, after spending one Jet Kick and keeping the required 40. Keep a small margin
+-- for unrelated bot choices; deleting the reserve must fail both fuel and outcome properties.
+do
+	local result = require("./fuel-recovery-case")()
+	for _, fuel in result.fuels do
+		if fuel < M.recoveryCost then fail("ledge pressure spent the bot's recovery reserve") end
+		if fuel > 60 - B.moves.SigSide.fuelCost then fail("reserve refused an affordable ledge signature") end
+	end
+	if result.recovered < 12 then fail(`fuel reserve only recovered {result.recovered}/{result.cases} launched bots`) end
+	print(`PASS bot recovery: {result.recovered}/{result.cases} returned (before: 0/16); pre-launch fuel {result.fuels[1]} (before: 20)`)
+end
+
+-- An airborne heavy chain still spends signature fuel. Up-heavy outside an attack must remain
+-- available for recovery. The decision uses the mechanic's recoveryCost, not a hardcoded 40.
+do
+	local Ai = Loader.load("Ai")
+	local match, f, foe = setup()
+	f.botLevel = "just_dont"
+	foe.x, foe.y = 3, 10
+	Ai.computeBotInput(f, match) -- initialise the bot's ordinary decision state
+	f:startMove("LightUp")
+	f.onGround, f.x, f.y, f.moveLanded = false, 0, 10, true
+	f.mf = f.startupEff + f.move.active + 1
+	f.ai.comboMove = f.moveSerial
+	f.ai.combo = { press = "heavy", dir = "up", timed = true }
+	local old = f.char.mechanic
+	f.char.mechanic = table.clone(old)
+	f.char.mechanic.recoveryCost = 47
+	for _, fuel in { 71, 72 } do
+		f.mech.fuel = fuel
+		local input = Ai.computeBotInput(f, match)
+		if fuel == 71 and (input.heavy or input.heavyHeld or not input.light) then fail("airborne chain spent the recovery reserve") end
+		if fuel == 72 and not input.heavy then fail("airborne chain refused fuel above the reserve") end
+	end
+	f.char.mechanic = old
+end
+
 -- 9. Worn, not held: one boot sprite on each foot, on the floor, none in the hand - and a sword still
 -- draws its one weapon sprite. A boot is one sprite, not a Frame for each of its ~95 rectangles.
 do

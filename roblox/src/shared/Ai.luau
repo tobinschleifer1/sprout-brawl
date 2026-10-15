@@ -378,13 +378,21 @@ function Ai.computeBotInput(f: any, match: any): any
 	if frame and frame.heavy and f.mech and f.mech.id == "Return" and (f.mech.rings or 0) <= 0 then
 		frame.heavy, frame.heavyHeld, frame.light = false, false, true
 	end
-	-- Rocket Boots (Roblox only), the same rule: a heavy on the ground is a signature, and below the
-	-- dearest signature's fuel it becomes a kick. Up + heavy in the air is the recovery, which an empty
-	-- tank still does (weakly), so that is left alone.
-	if frame and frame.heavy and f.mech and f.mech.id == "ThrustFuel" and (f.onGround or (frame.y or 0) <= 0.5) then
-		local dearest = 0
-		for _, m in f.char.moves do if m.fuelCost and m.fuelCost > dearest then dearest = m.fuelCost end end
-		if (f.mech.fuel or 0) < dearest then
+	-- Only ThrustFuel signatures reserve recovery fuel; ordinary weapons never take this path.
+	-- Aerial heavy outside an attack is recovery/groundpound, not a paid signature.
+	if frame and frame.heavy and f.mech and f.mech.id == "ThrustFuel" and (f.onGround or f.state == "attack") then
+		local dir = if frame.y > 0.5 then "up" elseif frame.y < -0.5 then "down"
+			elseif math.abs(frame.x) > 0.5 then "side" else "neutral"
+		local id = if frame.y < -0.5 then "SigDown" elseif math.abs(frame.x) > 0.5 then "SigSide" else "SigNeutral"
+		local chain = if f.move then f.move.chainsHeavy else nil
+		if chain then id = (if type(chain) == "string" then chain else chain[dir]) or id end
+		local move = f.char.moves[id]
+		local cost = if move then move.fuelCost or 0 else 0
+		-- Check actual stage ledges, including island gaps. Cost is the chosen signature's:
+		-- reserving the dearest one's cost would needlessly refuse a Jet Kick at 60 fuel.
+		local nearEdge = match.stage:nearestLedge(f.x, f.y).dist < 12
+		local reserve = if not f.onGround or nearEdge then f.char.mechanic.recoveryCost else 0
+		if (f.mech.fuel or 0) < cost + reserve then
 			frame.heavy, frame.heavyHeld, frame.light = false, false, true
 		end
 	end

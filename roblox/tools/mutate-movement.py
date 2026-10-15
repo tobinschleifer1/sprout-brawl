@@ -9,6 +9,7 @@ import subprocess
 
 # name, module, original, fault, expected assertion
 movement = [
+    ('shared hip socket', 'Movement', 'rootX = x / reach * r * 0.30', 'rootX = 0', 'gait hips collapse to one socket'),
     ('crossed shins', 'Posture', 'forward * math.abs(foot.lane)', 'forward', 'gait shins cross'),
     ('crossed thighs', 'Posture', 'if foot and foot.lane then rx = dx end', 'if foot and foot.lane then rx = -dx end', 'gait thighs cross'),
     ('sliding support', 'Movement', 's.x * s.facing * math.pi', '0 * s.facing * math.pi', 'support foot slides'),

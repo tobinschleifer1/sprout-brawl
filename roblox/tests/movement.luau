@@ -43,6 +43,12 @@ for _, facing in { -1, 1 } do
 			assert(not crosses({ la.x, la.y }, { a.jx, a.jy }, { lb.x, lb.y }, { b.jx, b.jy }), "gait thighs cross")
 			assert(not crosses({ la.x, la.y }, { a.jx, a.jy }, { b.jx, b.jy }, { b.ex, b.ey })
 				and not crosses({ lb.x, lb.y }, { b.jx, b.jy }, { a.jx, a.jy }, { a.ex, a.ey }), "swing shin cuts through support thigh")
+			-- Side-view sockets may occlude at the passing point. Away from that point they
+			-- must separate across the pelvis: non-crossing alone also accepts a single hip.
+			if math.abs(a.ex - b.ex) > h * 0.10 then
+				assert(math.abs(la.x - lb.x) > r * 0.04, "gait hips collapse to one socket")
+				assert(la.x * a.ex > 0 and lb.x * b.ex > 0, "gait hip leaves its leg's side of the pelvis")
+			end
 			assert(math.min(a.ey, b.ey) + raw.bob < 1e-8, "gait has no support foot")
 			for i, leg in p.legs do
 				local L = leg.pose

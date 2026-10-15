@@ -62,6 +62,16 @@ local View = luau.load(fs.readFile("src/client/PodiumView.luau"), { environment 
 }, injectGlobals = true })()
 
 local Loadout = Loader.load("Loadout")
+-- Previews and the podium use the same decoded contract as a live fighter, including nested
+-- mechanic fields. Reading raw Fighter fields by name silently dropped these from still poses.
+for _, weapon in { "Sword", "Chakram", "RocketBoots" } do
+	local char = Loadout.build("Classic", weapon)
+	local st = View.posed(char, 0, "victory", 1)
+	assert(st.rings == (if weapon == "Chakram" then 2 else -1), "posed fighter lost ring count")
+	assert(st.fuel == (if weapon == "RocketBoots" then 100 else -1), "posed fighter lost fuel")
+	assert(st.fuelGrounded == (if weapon == "RocketBoots" then 0 else -1), "posed fighter lost refill clock")
+	assert(st.staleMoves == "", "posed fighter exposes raw stale-move table")
+end
 local chars = { Loadout.build("Classic", "Sword"), Loadout.build("Noir", "Flail"), Loadout.build("Ember", "Axe"), Loadout.build("Moss", "Hammer") }
 local function rowsFor(order: { number }, teams: { number }): { any }
 	local out = {}

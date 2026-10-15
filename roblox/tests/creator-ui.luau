@@ -70,7 +70,7 @@ local UIS = { GetFocusedTextBox = function() return focused end }
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local sprites: { any } = {}
 Canvas.sprite = function(c: any, key: string, list: any, ...: any)
-	table.insert(sprites, { canvas = c, key = key, list = list })
+	table.insert(sprites, { canvas = c, key = key, list = list, m = c.m, ph = select(4, ...) })
 end
 local blocks = 0
 Canvas.rect = function() blocks += 1 end
@@ -104,6 +104,44 @@ local function preset(id: string): string
 	error(id)
 end
 local KNIGHT, NINJA = preset("knight"), preset("ninja")
+
+-- A whole character is one of the rig's two bodies: the jointed one at full detail, or the eight
+-- pieces with one-piece limbs at half. Nothing missing, nothing doubled, nothing of one mixed into the other.
+local BODIES = {
+	["abdomen,arm,arm,chest,head,leg,leg,pelvis"] = 8,
+	["abdomen,chest,forearm,forearm,head,pelvis,shin,shin,thigh,thigh,upperarm,upperarm"] = 12,
+}
+local function body(pieces: { string }): number?
+	local sorted = table.clone(pieces)
+	table.sort(sorted)
+	return BODIES[table.concat(sorted, ",")]
+end
+
+-- Still tiles share the jointed body and the player's neutral face with the fight, without
+-- inheriting match glows/teams or paying for a separate face sprite. Existing redraw checks
+-- above keep their cost off the per-frame path.
+	do
+	local Portrait = Loader.loadFrom("src/client/", "KitPortrait")
+	local Art = Loader.loadFrom("src/client/", "PostureArt")
+	local cv = Canvas.inFrame(instance("Frame"))
+	for _, preset in KIT.presets do
+		table.clear(sprites)
+		Portrait.figure(cv, preset.code, 0, 0, 1)
+		local pieces, rects = {}, 0
+		for _, sp in sprites do
+			local id = string.match(sp.key, "|(%a+)|")
+			table.insert(pieces, id)
+			rects += #sp.list
+			assert(math.abs(sp.m.a * sp.m.c + sp.m.b * sp.m.d) < 1e-8, "portrait shears a sprite")
+			if id == "head" then assert(sp.list == Art.sprites(preset.code).head.full, "portrait lost the chosen neutral face") end
+		end
+		assert(body(pieces) == 12, "portrait lost the jointed body")
+		assert(#sprites == 12 and rects <= 240, `portrait exceeded tile budget: {#sprites} sprites, {rects} rects`)
+		table.clear(sprites)
+		Portrait.head(cv, preset.code, 0, 0, 1)
+		assert(#sprites == 1 and sprites[1].list == Art.sprites(preset.code).head.full, "head tile lost the chosen neutral face")
+	end
+end
 
 -- A deterministic stand-in for Roblox's Random (Lune has none).
 local function rng(seed: number): any
@@ -277,18 +315,6 @@ ed:open()
 ed:setView({ slots = { { name = "Kage 3", code = NINJA } }, active = 1, saving = false, max = 8, note = "Saving is off right now." })
 assert(string.find(ed.status.Text, "Saving is off"), "the studio must say when saving is off")
 
--- A whole character is one of the rig's two bodies: the jointed one at full detail, or the eight
--- pieces with one-piece limbs at half. Nothing missing, nothing doubled, nothing of one mixed into the other.
-local BODIES = {
-	["abdomen,arm,arm,chest,head,leg,leg,pelvis"] = 8,
-	["abdomen,chest,forearm,forearm,head,pelvis,shin,shin,thigh,thigh,upperarm,upperarm"] = 12,
-}
-local function body(pieces: { string }): number?
-	local sorted = table.clone(pieces)
-	table.sort(sorted)
-	return BODIES[table.concat(sorted, ",")]
-end
-
 -- 10. The preview is the real fighter, in every pose, and leaves team colours alone.
 Fighter2D.teamColours = { [0] = Rbx.Color3.new(1, 0, 0) }
 for _, p in Editor.POSES do
@@ -301,6 +327,45 @@ for _, p in Editor.POSES do
 end
 assert(Fighter2D.teamColours and Fighter2D.teamColours[0], "the preview cleared the match's team colours")
 Fighter2D.teamColours = nil
+
+-- Run is a treadmill preview: the distance-driven stride must advance while the fighter's
+-- root stays in the middle of the pedestal, in either facing.
+do
+	local draw = Fighter2D.draw
+	local shinSpan = Loader.loadFrom("src/client/", "PostureArt").parts.shin.span
+	local rootX
+	Fighter2D.draw = function(c, st, char, t, top)
+		rootX = Canvas.project(c, st.x, st.y).X
+		return draw(c, st, char, t, top)
+	end
+	ed.pose, ed.poseAt = "run", 0
+	for _, facing in { -1, 1 } do
+		ed.facing = facing
+		local first
+		for _, clock in { 0.07, 0.18 } do
+			table.clear(sprites)
+			ed:draw(clock)
+			assert(math.abs(rootX - ed.stagePx.X / 2) < 1e-6, "run preview leaves the pedestal")
+			local legs = {}
+			for _, sp in sprites do
+				if string.find(sp.key, "|shin|", 1, true) then
+					-- The ankle endpoint, not the knee: authored body bob still moves a knee even
+					-- when the new distance-based stride is frozen.
+					table.insert(legs, { x = sp.m.e - sp.m.c * shinSpan * sp.ph, y = sp.m.f - sp.m.d * shinSpan * sp.ph })
+				end
+			end
+			assert(#legs == 2, "run preview must draw both shins")
+			if first then
+				assert(math.abs(legs[1].x - first[1].x) + math.abs(legs[1].y - first[1].y)
+					+ math.abs(legs[2].x - first[2].x) + math.abs(legs[2].y - first[2].y) > 1,
+					"run preview freezes the distance-driven legs")
+			end
+			first = legs
+		end
+	end
+	Fighter2D.draw = draw
+	ed.facing = 1
+end
 
 -- 11. Layout: phone, tablet, desktop. The panes sit inside the panel and do not overlap.
 local function rect(f: any): { number }

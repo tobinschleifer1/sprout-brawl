@@ -15,13 +15,9 @@ function PosedFighter.posed(char: any, index: number, state: string, sf: number)
 	-- as a blink - 55% opacity three frames in six. Posed afresh every frame, every lobby character
 	-- and podium winner flickered at 10Hz, re-tinting every rectangle of its sprites each time.
 	f.invincible = 0
-	local out: any = {}
-	for _, pair in Snapshot.FIELDS do
-		local name = pair[1]
-		out[name] = f[Snapshot.FROM_FIGHTER[name] or name]
-	end
-	out.index, out.chillStacks = index, 0
-	return out
+	-- Nested mechanics and wire encodings belong to Snapshot too. A field-name copy silently
+	-- omitted rings/fuel and exposed the raw stale-move table instead of the decoded string.
+	return Snapshot.decode(Snapshot.encode(f))
 end
 
 return PosedFighter

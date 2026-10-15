@@ -2,58 +2,62 @@
 -- Still pictures of kit characters: the creator's option tiles, its slot chips, anything that
 -- shows a character without animating one.
 --
--- The same composed pieces (AvatarCompose) the fighter is drawn from, laid on the rig's standing
--- proportions (Fighter2D's HIP, SHO, HEAD and limb lengths at the base stat line) rather than
--- posed by the channels: a thumbnail has no state to pose from, and the stand is what a player
--- recognises. Both functions draw into whatever transform the canvas has, with y up.
+-- Uses the fight's posture, joint art and body draw order at a fixed, unarmed idle frame.
+-- Neutral means the player's chosen face (the same composed head the fight uses between
+-- expressions), never a blink or a match's last-stock face.
 
 local Canvas2D = require(script.Parent.Canvas2D)
-local AvatarCompose = require(script.Parent.AvatarCompose)
+local PostureArt = require(script.Parent.PostureArt)
+local KitBody = require(script.Parent.KitBody)
+local Posture = require(script.Parent.Posture)
+local Channels = require(script.Parent.Channels)
+local Shared = game:GetService("ReplicatedStorage").Shared
+local Loadout = require(Shared.Loadout)
+local Fighter = require(Shared.Fighter)
+local Snapshot = require(Shared.Snapshot)
 local KIT: any = require(game:GetService("ReplicatedStorage").Shared.Data.AvatarKit)
 
 local KitPortrait = {}
 
-local H, R = 5.2, 1.1                    -- Data/Avatars BASE: every character is this size
-local HIP, SHO, HEADY = H * 0.34, H * 0.70, H * 0.78
+local char = Loadout.build("Classic", "Fists")
+char.weapon = nil -- private presentation loadout, with relaxed, unarmed hands
+local fighter = Fighter.new({ index = 0, char = char, x = 0, y = 0, stocks = 3 })
+fighter.state, fighter.sf, fighter.invincible, fighter.onGround = "idle", 0, 0, true
+local snapshot = Snapshot.decode(Snapshot.encode(fighter))
+local ch = Channels.For(snapshot, char, nil, 0)
+local pose = Posture.For(ch, snapshot, char, { angle = 0 }, nil, 0)
+local H, R = char.height, char.radius
 local PW = R * 1.15 / 12
 KitPortrait.HEIGHT = H
 
-local function piece(c: any, code: string, id: string, list: any, ph: number, tag: string)
-	local P = KIT.parts[id]
-	Canvas2D.sprite(c, `{code}|{id}|{tag}`, list, -P.ox * PW, P.oy * ph, PW, ph, P.w, P.h)
+local function piece(c: any, code: string, art: any, id: string, ph: number, far: boolean?, half: boolean?)
+	local P, a = PostureArt.parts[id], art[id]
+	local k = if half then 2 else 1
+	local list = if far then (if half then a.farHalf else a.farFull) else (if half then a.half else a.full)
+	Canvas2D.sprite(c, `{code}|{id}|{if far then "f" else ""}{if half then "h" else ""}`, list,
+		-P.ox * PW, P.oy * ph, PW * k, ph * k, math.ceil(P.w / k), math.ceil(P.h / k))
 end
 
--- The whole character standing, feet at (x, y), `k` canvas units per stud.
-function KitPortrait.figure(c: any, code: string, x: number, y: number, k: number)
-	local art = AvatarCompose.sprites(code)
+-- Full detail on editor tiles; the offline sheet can also inspect the fight's half-detail body.
+function KitPortrait.figure(c: any, code: string, x: number, y: number, k: number, half: boolean?)
+	local art = PostureArt.sprites(code)
 	Canvas2D.save(c)
 	Canvas2D.translate(c, x, y)
 	Canvas2D.scale(c, k, k)
-	local function at(dx: number, dy: number, rot: number, fn: () -> ())
-		Canvas2D.save(c)
-		Canvas2D.translate(c, dx, dy)
-		Canvas2D.rotate(c, rot)
-		fn()
-		Canvas2D.restore(c)
-	end
-	local L = H * 0.30
-	at(-R * 0.30, HIP, -0.12, function() piece(c, code, "leg", art.leg.farFull, HIP / KIT.parts.leg.span, "sf") end)
-	at(R * 0.30, HIP, 0.12, function() piece(c, code, "leg", art.leg.full, HIP / KIT.parts.leg.span, "sn") end)
-	at(0, HIP, 0, function() piece(c, code, "pelvis", art.pelvis.full, H * 0.10 / KIT.parts.pelvis.span, "s") end)
-	at(-R * 0.35, SHO, -0.18, function() piece(c, code, "arm", art.arm.farFull, L / KIT.parts.arm.span, "sf") end)
-	at(0, HIP, 0, function() piece(c, code, "torso", art.torso.full, (SHO - HIP) / KIT.parts.torso.span, "s") end)
-	at(0, HEADY, 0, function() piece(c, code, "head", art.head.full, PW, "s") end)
-	at(R * 0.55, SHO, 0.22, function() piece(c, code, "arm", art.arm.full, L / KIT.parts.arm.span, "sn") end)
+	Canvas2D.translate(c, 0, ch.bob)
+	KitBody.draw(c, H, PW, ch, pose, half == true, function(id, ph, far)
+		piece(c, code, art, id, ph, far, half)
+	end)
 	Canvas2D.restore(c)
 end
 
--- The head alone, its neck joint at (x, y).
-function KitPortrait.head(c: any, code: string, x: number, y: number, k: number)
-	local art = AvatarCompose.sprites(code)
+-- The player's neutral head, its neck joint at (x, y).
+function KitPortrait.head(c: any, code: string, x: number, y: number, k: number, half: boolean?)
+	local art = PostureArt.sprites(code)
 	Canvas2D.save(c)
 	Canvas2D.translate(c, x, y)
 	Canvas2D.scale(c, k, k)
-	piece(c, code, "head", art.head.full, PW, "s")
+	piece(c, code, art, "head", PW, false, half)
 	Canvas2D.restore(c)
 end
 

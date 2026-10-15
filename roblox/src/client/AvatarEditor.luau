@@ -1061,7 +1061,10 @@ function AvatarEditor.draw(self: any, clock: number)
 		st.moveId, st.moveFrame, st.startupEff = char.signature, math.min(f, total), move.startup or 10
 	elseif self.pose == "run" then
 		st = PosedFighter.posed(char, 0, "run", math.floor(t * 60))
-		st.vx = char.runSpeed
+		-- Movement's stride is driven by distance. Advance that distance on a treadmill;
+		-- the draw below cancels the root travel so the runner stays on the pedestal.
+		st.vx = char.runSpeed * self.facing
+		st.x = t * st.vx
 	elseif self.pose == "air" then
 		local phase = (t % 1.2) / 1.2
 		st = PosedFighter.posed(char, 0, "air", math.floor(t * 60))
@@ -1074,7 +1077,10 @@ function AvatarEditor.draw(self: any, clock: number)
 	-- Team colours belong to matches; the studio is not one.
 	local teams = Fighter2D.teamColours
 	Fighter2D.teamColours = nil
+	Canvas2D.save(c)
+	Canvas2D.translate(c, -st.x, 0)
 	Fighter2D.draw(c, st, char, clock, 0)
+	Canvas2D.restore(c)
 	Fighter2D.teamColours = teams
 	Canvas2D.finish(c, true)
 end

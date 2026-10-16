@@ -167,6 +167,7 @@ lune run tests/rig-parity
 lune run tests/kit-draw
 lune run tests/posture
 lune run tests/movement
+lune run tests/overlap
 lune run tests/secondary
 echo "== faces: expressions from the player's own face (Roblox only) =="
 lune run tests/expressions

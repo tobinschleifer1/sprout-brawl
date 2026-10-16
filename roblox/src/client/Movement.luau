@@ -9,6 +9,30 @@ local function smooth(x: number): number
 	return x * x * (3 - 2 * x)
 end
 
+-- The stride, in proportion to the fighter. The legs keep one length (`leg`) through the whole
+-- cycle; the step is set so a planted foot never needs more than that: it lands `contact` ahead
+-- of the hip and leaves after `support` of the step. The rest of each step is flight.
+function Movement.gait(char: any): any
+	local h = char.height
+	return { step = h * 0.58, contact = h * 0.14, support = 0.62, leg = h * 0.34 }
+end
+
+-- The body's height through the stride, studs above its rest. A walk rides highest over the
+-- passing leg and dips just after each contact; a run is the other way about, lowest in the middle
+-- of the planted step (the "down", the knee taking the weight) and highest in the flight between
+-- steps. A pure function of distance travelled, like the feet, so it lands on the footfalls.
+function Movement.bob(s: any, char: any): number
+	local h = char.height
+	local speed = math.clamp(math.abs(s.vx) / char.runSpeed, 0, 1)
+	local run = smooth((speed - 0.42) / 0.28)
+	local q = (s.x * s.facing / Movement.gait(char).step) % 1
+	local k = h / 5.2
+	local passing = Movement.gait(char).support / 2
+	local walk = k * (-0.03 + 0.035 * math.cos(2 * math.pi * (q - passing)))
+	local runs = k * (-0.10 - 0.125 * math.cos(2 * math.pi * (q - 0.28)))
+	return walk + (runs - walk) * run
+end
+
 function Movement.For(ch: any, s: any, char: any): any
 	local h, r, state, sf = char.height, char.radius, s.state, s.stateFrame
 	local m: any = { feet = nil, hipX = 0, hipY = 0, chest = 0, head = 0, back = nil, armLength = 0.30 }
@@ -21,23 +45,38 @@ function Movement.For(ch: any, s: any, char: any): any
 	if state == "run" and s.onGround then
 		local speed = math.clamp(math.abs(s.vx) / char.runSpeed, 0, 1)
 		local run = smooth((speed - 0.42) / 0.28)
-		local reach = h * 0.24
-		local phase = s.x * s.facing * math.pi / (2 * reach)
-		m.phase = phase + math.pi / 2 -- chest/hips counter the same stride as the feet
+		local G = Movement.gait(char)
+		local S, x0, DP = G.step, G.contact, G.support
+		local base = s.x * s.facing / S
+		local q = base % 1
+		m.phase = base * math.pi + math.pi / 2 -- chest/hips counter the same stride as the feet
+		m.bob = Movement.bob(s, char)
 		m.feet = {}
+		local heelMax = h * 0.04
 		for i = 1, 2 do
-			local cycle = (phase + (i - 1) * math.pi) % (2 * math.pi) / math.pi
-			local u = cycle - 1
-			local lift = if cycle < 1 then 0 else math.sin(u * math.pi) ^ 2
-			local x = if cycle < 1 then reach * (1 - 2 * cycle) else reach * (2 * smooth(u) - 1)
-			local y = h * (0.085 + 0.13 * run) * lift - ch.bob
-			-- The projected hip turns inside the pelvis with the leg. Fixed opposing hip sockets
-			-- made the old straight shins form an X when the feet passed one another.
-			m.feet[i] = { x = x, y = y, bend = 9 + (44 + 40 * run) * lift,
-				rootX = x / reach * r * 0.30, lane = x / reach, support = cycle < 1 }
+			-- c runs 0-2 per foot: planted from its contact (0) to toe-off (DP), then the swing.
+			local c = (base + (i - 1)) % 2
+			local x, y, support
+			if c < DP then
+				-- Planted: it moves back exactly as far as the body travels forward, so it never
+				-- slides. Late in the step the heel peels up, as the toe pushes off.
+				x = x0 - S * c
+				y = heelMax * smooth((c - DP * 0.6) / (DP * 0.4))
+				support = y == 0
+			else
+				-- The swing, classic style: the heel kicks up behind first (the lift peaks before
+				-- the passing point), then the leg unfolds and reaches forward into the next contact.
+				local u = (c - DP) / (2 - DP)
+				local xl = x0 - S * DP
+				x = xl + (x0 - xl) * smooth(u)
+				y = heelMax * (1 - u) ^ 2 + h * (0.087 + 0.07 * run) * math.sin(math.pi * u ^ 0.8)
+				support = false
+			end
+			local lane = math.clamp(x / x0, -1, 1)
+			m.feet[i] = { x = x, y = y - m.bob, len = G.leg, rootX = lane * r * 0.30, lane = lane, support = support }
 		end
-		m.back = -m.feet[1].x / reach * (0.32 + 0.38 * run) - 0.12
-		m.head = -0.025 * math.sin(phase - 0.8)
+		m.back = -math.clamp(m.feet[1].x / x0, -1.4, 1.4) * (0.32 + 0.38 * run) - 0.12
+		m.head = -0.025 * math.sin(q * 2 * math.pi - 0.8)
 	elseif state == "jumpsquat" then
 		local load = smooth(sf / Config.MOVE.jumpsquat)
 		plant(0.65, 12 + 50 * load)

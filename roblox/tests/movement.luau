@@ -25,52 +25,80 @@ local function pose(s)
 	table.freeze(s)
 	return Posture.For(ch, s, char, WeaponPose.For(s, char, move, s.frameCount / 60), move, s.frameCount / 60), ch
 end
-local function crosses(a, b, c, d)
-	local function turn(p, q, v) return (q[1] - p[1]) * (v[2] - p[2]) - (q[2] - p[2]) * (v[1] - p[1]) end
-	return turn(a, b, c) * turn(a, b, d) < -1e-10 and turn(c, d, a) * turn(c, d, b) < -1e-10
+local G = Movement.gait(char)
+local function sample(x, ratio, facing)
+	local s = state("run", 0, { x = x * facing, facing = facing, vx = char.runSpeed * ratio * facing })
+	local p, raw = pose(s)
+	return p, raw, s
+end
+local function len(leg)
+	local L = leg.pose
+	return math.sqrt((L.jx - leg.x) ^ 2 + (L.jy - leg.y) ^ 2) + math.sqrt((L.ex - L.jx) ^ 2 + (L.ey - L.jy) ^ 2)
+end
+local function kneeForward(leg)
+	-- how far the knee sits forward of the hip-to-foot line (positive: forward, as a knee bends)
+	local L = leg.pose
+	local dx, dy = L.ex - leg.x, L.ey - leg.y
+	return (dx * (L.jy - leg.y) - dy * (L.jx - leg.x)) / math.sqrt(dx * dx + dy * dy)
 end
 local samples, clearance = 0, math.huge
 for _, facing in { -1, 1 } do
 	for _, ratio in { 0.12, 0.28, 0.55, 1 } do
-		local last, lastS, lastRaw
+		local last, lastS, flight = nil, nil, 0
+		local low, high = { math.huge }, { -math.huge }
 		for j = 0, 240 do
-			local x = h * 0.96 * j / 240
-			local s = state("run", j, { x = x * facing, facing = facing, vx = char.runSpeed * ratio * facing })
-			local p, raw = pose(s)
+			local x = G.step * 2 * j / 240
+			local p, _, s = sample(x, ratio, facing)
 			local a, b = p.legs[1].pose, p.legs[2].pose
-			assert(not crosses({ a.jx, a.jy }, { a.ex, a.ey }, { b.jx, b.jy }, { b.ex, b.ey }), `gait shins cross at sample {j}, speed {ratio}: {a.jx},{a.jy} -> {a.ex},{a.ey}; {b.jx},{b.jy} -> {b.ex},{b.ey}`)
 			local la, lb = p.legs[1], p.legs[2]
-			assert(not crosses({ la.x, la.y }, { a.jx, a.jy }, { lb.x, lb.y }, { b.jx, b.jy }), "gait thighs cross")
-			assert(not crosses({ la.x, la.y }, { a.jx, a.jy }, { b.jx, b.jy }, { b.ex, b.ey })
-				and not crosses({ lb.x, lb.y }, { b.jx, b.jy }, { a.jx, a.jy }, { a.ex, a.ey }), "swing shin cuts through support thigh")
-			-- Side-view sockets may occlude at the passing point. Away from that point they
-			-- must separate across the pelvis: non-crossing alone also accepts a single hip.
+			-- Away from the passing point the sockets separate across the pelvis: a single hip
+			-- would let both legs hang from one point.
 			if math.abs(a.ex - b.ex) > h * 0.10 then
 				assert(math.abs(la.x - lb.x) > r * 0.04, "gait hips collapse to one socket")
 				assert(la.x * a.ex > 0 and lb.x * b.ex > 0, "gait hip leaves its leg's side of the pelvis")
 			end
-			assert(math.min(a.ey, b.ey) + raw.bob < 1e-8, "gait has no support foot")
+			local planted = false
 			for i, leg in p.legs do
 				local L = leg.pose
-				assert(L.ey + raw.bob >= -1e-8, "gait foot penetrates ground")
-				if last and math.abs(L.ey + raw.bob) < 1e-8 and math.abs(last.legs[i].pose.ey + lastRaw.bob) < 1e-8 then
-					near(s.x + L.ex * facing, lastS.x + last.legs[i].pose.ex * facing, "support foot slides in world space")
+				-- the gait's ground is its own bounce below the body (Movement.bob), not the authored bob
+				assert(L.ey + p.bob >= -1e-8, "gait foot penetrates ground")
+				-- one length through the whole stride: the knee folds, the leg's art never stretches
+				-- by more than the 3% a walk's trailing toe-off reaches
+				assert(len(leg) <= G.leg * 1.03 + 1e-9 and len(leg) >= G.leg - 1e-9, `gait leg is {len(leg)} long, not {G.leg}`)
+				assert(kneeForward(leg) > -1e-6, "gait knee bends backwards")
+				if math.abs(L.ey + p.bob) < 1e-8 then
+					planted = true
+					if last and math.abs(last.legs[i].pose.ey + last.bob) < 1e-8 then
+						near(s.x + L.ex * facing, lastS.x + last.legs[i].pose.ex * facing, "support foot slides in world space")
+					end
 				end
 			end
+			if not planted then flight += 1 end
 			if math.abs(a.ex - b.ex) < r * 0.12 then
 				clearance = math.min(clearance, math.abs(a.ey - b.ey))
 				assert(math.abs(a.ey - b.ey) > h * 0.075, "passing feet collide instead of clearing")
 			end
-			last, lastS, lastRaw = p, s, raw
+			if p.bob < low[1] then low = { p.bob, x } end
+			if p.bob > high[1] then high = { p.bob, x } end
+			last, lastS = p, s
 			samples += 1
+		end
+		-- A foot is flat on the ground for the first 60% of its planted step, then its heel peels
+		-- up for the push-off; the rest of the step is the flight between steps.
+		local flat = 1 - flight / 241
+		assert(math.abs(flat - G.support * 0.6) < 0.03, `gait is flat-footed {flat} of the stride, not {G.support * 0.6}`)
+		-- The bounce rides the step. A run is lowest while a foot is planted (the down) and highest
+		-- with both feet off the ground; a walk rides highest over the planted leg (the passing).
+		local q = function(x) return (x / G.step) % 1 end
+		if ratio == 1 then
+			assert(q(low[2]) < G.support and q(high[2]) > G.support, `a run's lowest point is at {q(low[2])} and highest at {q(high[2])} of the step`)
+			-- (the authored run bob it replaces rose 0.14 studs, under a pixel at match scale)
+			assert(high[1] - low[1] > h * 0.04, `a run bounces {high[1] - low[1]} studs`)
+		elseif ratio <= 0.28 then
+			assert(math.abs(q(high[2]) - G.support / 2) < 0.12 or math.abs(q(high[2]) - G.support / 2 - 1) < 0.12, `a walk's highest point is at {q(high[2])} of the step, not the passing`)
 		end
 	end
 end
-local walk = pose(state("run", 5, { x = h * 0.24, vx = char.runSpeed * 0.28 }))
-local run = pose(state("run", 5, { x = h * 0.24, vx = char.runSpeed }))
-assert(run.legs[2].pose.ey - walk.legs[2].pose.ey > h * 0.10, `walk and run have the same swing lift: {run.legs[2].pose.ey} {walk.legs[2].pose.ey} h={h}`)
-local stride = pose(state("run", 5, { x = h * 0.05, vx = char.runSpeed }))
-assert((stride.back.ex - stride.backX) * stride.legs[1].pose.ex < -h * 0.05, "free arm does not oppose its leg")
 
 -- Timing in Channels still owns the weapon. Cosmetic torso counter-motion, however, must
 -- follow distance just like the feet, rather than drifting through an unrelated lifetime loop.
@@ -82,11 +110,43 @@ do
 	local pb = Posture.For(raw, b, char, { angle = 0 }, nil, 0)
 	near(pa.hipRot, pb.hipRot, "hips use a different stride clock from the feet")
 	near(pa.chestRot, pb.chestRot, "chest uses a different stride clock from the feet")
-	b.x += h * 0.48
+	b.x += G.step -- the next step
 	local pc = Posture.For(raw, b, char, { angle = 0 }, nil, 0)
 	assert(pa.hipRot * pc.hipRot < -0.001, "hips never exchange weight on the next step")
 	assert((pc.chestRot + raw.lean) * pc.hipRot < -0.001, "chest fails to counter next step")
 end
+
+-- The keys. Contact: the step's first planted frame. The leading leg reaches forward, on the
+-- ground and nearly straight, the trailing one already off it.
+for _, ratio in { 0.28, 1 } do
+	local p = sample(0, ratio, 1)
+	local front, back = p.legs[1], p.legs[2]
+	assert(front.pose.ex - front.x > h * 0.06 and math.abs(front.pose.ey + p.bob) < 1e-8, "contact: the leading foot does not reach forward onto the ground")
+	assert(kneeForward(front) < h * 0.03, `contact: the leading leg is bent {kneeForward(front)}, not nearly straight`)
+	assert(back.pose.ex < 0 and back.pose.ey + p.bob > h * 0.05, "contact: the trailing foot is not lifted behind")
+	-- Passing: the planted foot under the hip, the swinging one lifted and folded past it.
+	local pass = sample(G.step * G.support / 2, ratio, 1)
+	local plant, swing = pass.legs[1], pass.legs[2]
+	assert(math.abs(plant.pose.ex - plant.x) < h * 0.03 and math.abs(plant.pose.ey + pass.bob) < 1e-8, "passing: the planted foot is not under its hip")
+	assert(swing.pose.ey - plant.pose.ey > h * 0.075, "passing: the swinging foot is not lifted")
+	assert(kneeForward(swing) > h * 0.06 and swing.pose.jx > plant.pose.jx, "passing: the swinging knee is not folded forward past the planted leg")
+	-- (a run's planted knee folds here too; that follows from the fixed leg and the run's bounce,
+	-- both asserted above, so no separate check could fail on its own)
+	if ratio <= 0.28 then
+		assert(kneeForward(plant) < h * 0.025, `passing: a walk's planted leg is bent {kneeForward(plant)}, not carrying the body over it`)
+	end
+end
+local function maxLift(ratio)
+	local most = 0
+	for j = 0, 60 do
+		local p = sample(G.step * 2 * j / 60, ratio, 1)
+		for _, leg in p.legs do most = math.max(most, leg.pose.ey + p.bob) end
+	end
+	return most
+end
+assert(maxLift(1) - maxLift(0.28) > h * 0.06, `walk and run have the same swing lift: {maxLift(1)} {maxLift(0.28)} h={h}`)
+local stride = pose(state("run", 5, { x = h * 0.05, vx = char.runSpeed }))
+assert((stride.back.ex - stride.backX) * stride.legs[1].pose.ex < -h * 0.05, "free arm does not oppose its leg")
 
 -- Changing speed within a support step must not slide the foot. Sample in physical frame
 -- increments as well as the dense geometric sweep above, through acceleration/deceleration.
@@ -178,4 +238,4 @@ for _, action in { { "getup", 10 }, { "attack", 8 } } do
 	local p, raw = pose(state("ledgeaction", action[2], { ledgeAction = action[1] }))
 	for _, leg in p.legs do near(leg.pose.ey + raw.bob, 0, "ledge action feet miss platform arrival") end
 end
-print(string.format("PASS movement: %d gait samples, support world-lock, uncrossed shins, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties", samples, clearance))
+print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties", samples, clearance))

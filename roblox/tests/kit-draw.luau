@@ -257,7 +257,7 @@ local elbow = math.acos(math.clamp((ux * vx + uy * vy) / math.sqrt((ux * ux + uy
 assert(elbow > math.rad(1) and elbow < math.rad(12), `rest elbow is {math.deg(elbow)} degrees from straight`)
 -- The feet are planted: each shin ends where the one-piece leg's foot would without the bob - on
 -- the floor, lifted only by the stance's leg angle - not riding the breathing up and down.
-for side, rot in { far = ch.legL, near = ch.legR } do
+for side, rot in { far = ch.legR, near = ch.legL } do -- the left leg is the near one
 	local _, fy = tip(seg.shin[side], "shin")
 	local want = s.y + char.height * 0.34 * (1 - math.cos(rot))
 	assert(math.abs(fy / 24 - want) < 1e-9, `the {side} foot is at y {fy / 24}, planted it is at {want} (bob {ch.bob})`)
@@ -390,7 +390,7 @@ for _, sp in sprites do
 	if string.match(sp.key, "|(%a+)|") == "leg" then
 		-- a half-detail sprite is handed cells twice the size; the limb's length in studs is unchanged
 		local _, fy = sp.P(0, sp.y1 - (KIT.parts.leg.oy + KIT.parts.leg.span) * sp.ph / 2)
-		local rot = if sp.list == art.leg.farHalf then ch.legL else ch.legR
+		local rot = if sp.list == art.leg.farHalf then ch.legR else ch.legL -- the left leg is the near one
 		local want = s.y + char.height * 0.34 * (1 - math.cos(rot))
 		assert(math.abs(fy / 8 - want) < 1e-9, `a half-detail foot is at y {fy / 8}, planted it is at {want} (bob {ch.bob})`)
 		halfLegs += 1

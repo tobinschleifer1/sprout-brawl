@@ -4,6 +4,7 @@
 local fs, luau, Rbx = require("@lune/fs"), require("@lune/luau"), require("@lune/roblox")
 local Loader = require("./loader")
 local Posture = Loader.loadFrom("src/client/", "Posture")
+local Movement = Loader.loadFrom("src/client/", "Movement")
 local Art = Loader.loadFrom("src/client/", "PostureArt")
 local Compose = Loader.loadFrom("src/client/", "AvatarCompose")
 local Channels = Loader.loadFrom("src/client/", "Channels")
@@ -166,6 +167,9 @@ local function check(s, ch, t)
 					end
 				end
 			end
+			-- The left leg is the near one: all of it is drawn over all of the right.
+			local nearLeg, farLeg = by[if half then "legN" else "shinN"], by[if half then "legF" else "thighF"]
+			assert(nearLeg and farLeg and nearLeg.order > farLeg.order, "the near leg is not drawn over the far one")
 			if grip then
 				local ex, ey = pivot(by[if half then "armN" else "forearmN"], half, true)
 				near(ex, grip[1], "hand/grip x"); near(ey, grip[2], "hand/grip y")
@@ -180,7 +184,9 @@ local function check(s, ch, t)
 				Canvas.scale(ref, facing, 1)
 				local pv = ch.height * (raw.rotPivot or 0.5)
 				Canvas.translate(ref, 0, pv); Canvas.rotate(ref, raw.rigRotZ * facing); Canvas.translate(ref, 0, -pv)
-				Canvas.translate(ref, 0, raw.bob + ch.height * 0.34)
+				-- a grounded run carries the gait's bounce (Movement.bob) in place of the authored bob
+				local bob = if s.state == "run" and s.onGround then Movement.bob(s, ch) else raw.bob
+				Canvas.translate(ref, 0, bob + ch.height * 0.34)
 				Canvas.rotate(ref, -raw.lean); Canvas.scale(ref, raw.sx, raw.sy)
 				Canvas.translate(ref, ch.radius * 0.55 + math.cos(wp.angle) * ch.height * 0.30 * ext,
 					ch.height * 0.36 + math.sin(wp.angle) * ch.height * 0.30 * ext)
@@ -299,6 +305,37 @@ for _, preset in Kits.presets do
 			local before = identities[key]
 			assert(before and #before == #sp.children, `animation rebuilt/added a picture: {key}`)
 			for i, child in sp.children do assert(child == before[i], `animation rebuilt sprite children: {key}`) end
+		end
+	end
+end
+-- And the near leg is lit, as the far one is shaded: the composer's leg colours, brighter on the
+-- near leg and darker on the far, outlines untouched.
+do
+	local function channels(hex) local v = tonumber(string.sub(hex, 2), 16); return { v // 65536, v // 256 % 256, v % 256 } end
+	for _, preset in Kits.presets do
+		local art, base = Art.sprites(preset.code), Compose.sprites(preset.code)
+		local lit = 0
+		for _, pair in { { art.leg.half, base.leg.half }, { art.leg.full, base.leg.full }, { art.leg.farHalf, base.leg.farHalf } } do
+			for i, rect in pair[1] do
+				local was = pair[2][i]
+				if was[5] == Compose.OUTLINE or pair[1] == art.leg.farHalf then
+					assert(rect[5] == was[5], "a leg's outline or far shade changed")
+				else
+					local a, b = channels(rect[5]), channels(was[5])
+					for c = 1, 3 do assert(a[c] >= b[c], "the near leg is darker than its art") end
+					if a[1] + a[2] + a[3] > b[1] + b[2] + b[3] then lit += 1 end
+				end
+			end
+		end
+		assert(lit > 0, `{preset.id}: the near leg is not lit`)
+		for _, id in { "thigh", "shin" } do
+			local near, far = art[id].full, art[id].farFull
+			for i, rect in near do
+				if rect[5] ~= Compose.OUTLINE then
+					local a, b = channels(rect[5]), channels(far[i][5])
+					assert(a[1] + a[2] + a[3] > b[1] + b[2] + b[3], `{preset.id} {id}: near is not lighter than far`)
+				end
+			end
 		end
 	end
 end

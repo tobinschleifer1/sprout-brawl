@@ -11,6 +11,7 @@ local Recorder = require("./recorder")
 local Rbx = require("@lune/roblox")
 local shapes = Recorder.install(Canvas)
 local W, H, scale = 260, 220, tonumber(process.args[3]) or 26
+if process.args[5] == "cycle" then W, H = 300, 420 end
 local avatar = process.args[2] or "Classic"
 for _, preset in Loader.load("Data/AvatarKit").presets do
 	if preset.id == avatar then avatar = preset.code; break end
@@ -26,6 +27,16 @@ if sheet == "gait" then
 	poses = {}
 	for _, speed in { 0.28, 1 } do
 		for _, frame in { 0, 2, 4, 6, 8, 10, 12, 14 } do table.insert(poses, { "run", frame, vx = char.runSpeed * speed }) end
+	end
+elseif sheet == "cycle" then
+	-- one full stride (two steps) in eight even slices of distance, at a run and at a walk
+	poses = {}
+	local S = char.height * 0.58 -- Movement.gait(char).step
+	for _, speed in { 1, 0.28 } do
+		for j = 0, 7 do
+			local vx = char.runSpeed * speed
+			table.insert(poses, { "run", 2 * S * j / 8 * 60 / vx, vx = vx })
+		end
 	end
 elseif sheet == "jump" then
 	poses = { { "jumpsquat", 0 }, { "jumpsquat", 3 }, { "air", 3, vy = 32 }, { "air", 9, vy = 14 },
@@ -70,7 +81,7 @@ for _, pose in poses do
 	table.clear(shapes)
 	Canvas.screen(c)
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromHex("#22303f"), 1)
-	Canvas.world(c, f.x + 1 * f.facing, 3.2, scale, 0, 0)
+	Canvas.world(c, f.x + (if sheet == "cycle" then 0.3 else 1) * f.facing, if sheet == "cycle" then 3.0 else 3.2, scale, 0, 0)
 	Canvas.rect(c, -20, -1, 40, 1, Rbx.Color3.fromHex("#4a5a46"), 1)
 	Fighter2D.draw(c, Snapshot.decode(Snapshot.encode(f)), char, if pose[1] == "idle" then pose[2] else pose[2] / 60, 0)
 	table.insert(frames, { frame = #frames, label = `{pose[1]} {pose[2]}`, shapes = table.clone(shapes) })

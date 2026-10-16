@@ -88,7 +88,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		chestRot = chestRot, chestSX = chestSX, chestSY = chestSY,
 		headX = neckX, headY = neckY,
 		headRot = -ch.lean * 0.55 - ch.head * 0.4 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head,
-		rigRotZ = motion.rigRotZ, yOff = motion.yOff,
+		rigRotZ = motion.rigRotZ, yOff = motion.yOff, bob = motion.bob,
 		frontX = frontX, frontY = frontY, backX = backX, backY = backY,
 		front = Posture.limb(frontX, frontY, gx, gy, frontBend, 1),
 		back = Posture.limb(backX, backY, bx, by, backBend, 1),
@@ -107,18 +107,15 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		rx += hipX; ry += hip
 		if foot and foot.lane then rx = dx end
 		local crouch = math.clamp(-ch.bob / (h * 0.09), 0, 1)
-		local bend = math.rad(if foot then foot.bend elseif idle then 9 else 10 + 65 * tuck + 32 * crouch)
-		local solved = Posture.limb(rx, ry, target.ex, target.ey, bend, -1)
-		if foot and foot.lane then
-			-- In a side view the passing shin should occlude the support shin, never draw an X
-			-- through it. Ease the forward knee projection to zero at the passing point; retain
-			-- its lifted height. Both lower segments stay in their foot's projected lane.
-			local forward = solved.jx - (rx + target.ex) * 0.5
-			solved.jx = (dx + target.ex) * 0.5 + forward * math.abs(foot.lane)
-			-- Keep the thigh as well as the shin in that lane. A swaying hip root could still
-			-- cross the other thigh, even when the shin-only intersection test passed.
-			solved.jx = if foot.lane < 0 then math.min(0, solved.jx) else math.max(0, solved.jx)
+		local bend = math.rad(if foot then (foot.bend or 0) elseif idle then 9 else 10 + 65 * tuck + 32 * crouch)
+		if foot and foot.len then
+			-- A gait leg is one fixed length: the knee folds by exactly what the hip-to-foot
+			-- distance leaves over, so a lowered body bends the planted knee and a lifted foot
+			-- folds the swinging one. Nothing stretches the leg's art.
+			local dx, dy = target.ex - rx, target.ey - ry
+			bend = 2 * math.acos(math.min(1, math.sqrt(dx * dx + dy * dy) / foot.len))
 		end
+		local solved = Posture.limb(rx, ry, target.ex, target.ey, bend, -1)
 		table.insert(p.legs, { x = rx, y = ry, pose = solved })
 	end
 	return p

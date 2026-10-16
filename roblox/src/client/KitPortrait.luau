@@ -44,7 +44,7 @@ function KitPortrait.figure(c: any, code: string, x: number, y: number, k: numbe
 	Canvas2D.save(c)
 	Canvas2D.translate(c, x, y)
 	Canvas2D.scale(c, k, k)
-	Canvas2D.translate(c, 0, ch.bob)
+	Canvas2D.translate(c, 0, if pose.bob ~= nil then pose.bob else ch.bob)
 	KitBody.draw(c, H, PW, ch, pose, half == true, function(id, ph, far)
 		piece(c, code, art, id, ph, far, half)
 	end)

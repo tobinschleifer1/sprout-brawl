@@ -9,14 +9,21 @@ import subprocess
 
 # name, module, original, fault, expected assertion
 movement = [
-    ('shared hip socket', 'Movement', 'rootX = x / reach * r * 0.30', 'rootX = 0', 'gait hips collapse to one socket'),
-    ('crossed shins', 'Posture', 'forward * math.abs(foot.lane)', 'forward', 'gait shins cross'),
-    ('crossed thighs', 'Posture', 'if foot and foot.lane then rx = dx end', 'if foot and foot.lane then rx = -dx end', 'gait thighs cross'),
-    ('sliding support', 'Movement', 's.x * s.facing * math.pi', '0 * s.facing * math.pi', 'support foot slides'),
-    ('feet below floor', 'Movement', '* lift - ch.bob', '* lift - ch.bob - 0.1', 'foot penetrates ground'),
-    ('no passing clearance', 'Movement', '* lift - ch.bob', '* 0 - ch.bob', 'support foot slides'),
-    ('walk identical to run', 'Movement', 'local run = smooth((speed - 0.42) / 0.28)', 'local run = 0', 'same swing lift'),
-    ('arm follows leg', 'Movement', 'm.back = -m.feet[1].x', 'm.back = m.feet[1].x', 'free arm does not oppose'),
+    ('shared hip socket', 'Movement', 'rootX = lane * r * 0.30', 'rootX = 0', 'gait hips collapse to one socket'),
+    ('sliding support', 'Movement', 'x = x0 - S * c', 'x = x0 - S * c * 0.9', 'support foot slides'),
+    ('feet below floor', 'Movement', 'y = y - m.bob,', 'y = y - m.bob - 0.1,', 'foot penetrates ground'),
+    ('stretching legs', 'Movement', 'len = G.leg,', 'len = nil,', 'gait leg is'),
+    ('backward knees', 'Posture', 'Posture.limb(rx, ry, target.ex, target.ey, bend, -1)', 'Posture.limb(rx, ry, target.ex, target.ey, bend, 1)', 'gait knee bends backwards'),
+    ('no passing clearance', 'Movement', 'h * (0.087 + 0.07 * run)', 'h * (0.01 + 0.07 * run)', 'passing feet collide'),
+    ('walk identical to run', 'Movement', 'h * (0.087 + 0.07 * run)', 'h * 0.157', 'same swing lift'),
+    ('no heel peel', 'Movement', 'y = heelMax * smooth((c - DP * 0.6) / (DP * 0.4))', 'y = 0', 'gait leg is'),
+    ('early heel peel', 'Movement', 'y = heelMax * smooth((c - DP * 0.6) / (DP * 0.4))', 'y = heelMax * smooth((c - DP * 0.2) / (DP * 0.8))', 'flat-footed'),
+    ('flat bounce', 'Movement', 'k * (-0.10 - 0.125 * math.cos', 'k * (-0.10 - 0.03 * math.cos', 'a run bounces'),
+    ('bounce off the step', 'Movement', 'math.cos(2 * math.pi * (q - 0.28))', 'math.cos(2 * math.pi * (q - 0.78))', "a run's lowest point"),
+    ('walk peaks in flight', 'Movement', 'math.cos(2 * math.pi * (q - passing))', 'math.cos(2 * math.pi * (q - passing - 0.5))', "a walk's highest point"),
+    ('crouched walk', 'Movement', 'k * (-0.03 + 0.035', 'k * (-0.09 + 0.035', 'contact: the leading leg is bent'),
+    ('bent walk passing', 'Movement', 'k * (-0.03 + 0.035', 'k * (-0.065 + 0.005', "a walk's planted leg is bent"),
+    ('arm follows leg', 'Movement', 'm.back = -math.clamp', 'm.back = math.clamp', 'free arm does not oppose'),
     ('torso on another clock', 'Posture', 'motion.phase or s.frameCount * 0.38', 's.frameCount * 0.38', 'hips use a different stride clock'),
     ('frozen torso', 'Posture', 'motion.phase or s.frameCount * 0.38', '0', 'hips never exchange weight'),
     ('load lifts planted feet', 'Movement', 'plant(0.65, 12 + 50 * load)', 'feet(-r, 0.1, 12, r, 0.1, 12)', 'jumpsquat planted foot leaves floor'),
@@ -41,6 +48,21 @@ movement = [
     ('overwritten attack', 'Movement', 'state == "run" and s.onGround', '(state == "run" and s.onGround) or state == "attack"', 'movement overwrote authored action'),
     ('snapshot written', 'Movement', 'local m: any =', 's.vx = 0\n\tlocal m: any =', 'readonly table'),
     ('channels written', 'Movement', 'local m: any =', 'ch.bob = 0\n\tlocal m: any =', 'readonly table'),
+]
+posture = [
+    ('far leg on top', 'KitBody', 'for _, i in { 2, 1 } do', 'for _, i in { 1, 2 } do', 'near leg is not drawn over'),
+    ('unlit near leg', 'PostureArt', 'PostureArt.NEAR_LIGHT = 0.14', 'PostureArt.NEAR_LIGHT = 0', 'is not lit'),
+    ('lit outline', 'PostureArt', 'if hex == Compose.OUTLINE or type(hex) ~= "string" then', 'if type(hex) ~= "string" then', 'outline or far shade changed'),
+]
+overlap = [
+    ('blade leads', 'Fighter2D', 'then 0 else k * turn', 'then 0 else -k * turn', 'the blade led it'),
+    ('cut drags', 'Fighter2D', 'if math.abs(turn) > SNAP then 0', 'if false then 0', 'a cut between poses'),
+    ('unclamped', 'Fighter2D', 'return math.clamp(lag, -MAX_LAG, MAX_LAG)', 'return lag * 2', 'past its limit'),
+    ('never settles', 'Fighter2D', 'then 0 else k * turn', 'then 0 else k * turn - 0.02', 'still moving'),
+    ('bounce carries the tip', 'Fighter2D', 'lag -= k * 0.9 *', 'lag += k * 0.9 *', 'and the blade tip'),
+    ('drawn as posed', 'Fighter2D', 'drawn.angle += lag', 'drawn.angle += 0', 'the blade is drawn at'),
+    ('ultimate lags', 'Fighter2D', 'or (move and move.id == "Ultimate")', 'or false', 'frozen frame lags'),
+    ('every weapon lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]', 'local k = 0.4', 'is not listed, and lags'),
 ]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
@@ -67,7 +89,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         path = Path(f'src/client/{module}.luau')
@@ -85,4 +107,4 @@ for suite, faults in [('movement', movement), ('secondary', secondary)]:
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(secondary)} independent mutations rejected; sources restored.')

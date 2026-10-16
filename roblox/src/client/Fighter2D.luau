@@ -14,6 +14,7 @@ local PostureArt = require(script.Parent.PostureArt)
 local Secondary = require(script.Parent.Secondary)
 local KitBody = require(script.Parent.KitBody)
 local Expressions = require(script.Parent.Expressions)
+local Movement = require(script.Parent.Movement)
 local KIT_PARTS = PostureArt.parts
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
@@ -37,6 +38,34 @@ Fighter2D.startStocks = nil :: number?
 -- A brief flash over a fighter by index - a timed link's gold (FxPlayer.glows) - drawn the way the
 -- hit flash is, as the fighter's own silhouette in the colour. Set each frame by FightScene.
 Fighter2D.glows = nil :: any
+-- Overlapping action on a held blade (Roblox only): the blade trails the hand by this fraction of
+-- where the hand was LAG frames ago, so it drags into a swing and settles after the hand stops,
+-- and dips as the body rises in a run. It turns about the grip: the hand never leaves it, and the
+-- hitboxes are untouched. By weapon id; a weapon not listed is drawn exactly as posed.
+Fighter2D.OVERLAP = { Sword = 0.4 } :: { [string]: number }
+local LAG, MAX_LAG, SNAP = 3, 0.3, 1.2
+local function wrap(a: number): number
+	return (a + math.pi) % (2 * math.pi) - math.pi
+end
+function Fighter2D.bladeLag(s: any, char: any, move: any, t: number, wpose: any): number
+	local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]
+	-- an ultimate's cinematic holds its move frame while time runs on: nothing is moving to lag
+	if not k or wpose.hide or (move and move.id == "Ultimate") then return 0 end
+	local was = table.clone(s)
+	was.moveFrame = math.max(0, (s.moveFrame or 0) - LAG)
+	was.stateFrame = math.max(0, (s.stateFrame or 0) - LAG)
+	was.frameCount = (s.frameCount or 0) - LAG
+	was.x = s.x - (s.vx or 0) * LAG / 60
+	local turn = wrap(WeaponPose.For(was, char, move, t - LAG / 60).angle - wpose.angle)
+	-- More than SNAP in LAG frames is a cut between poses, not a swing; which way round the blade
+	-- went is unknowable, so nothing trails it.
+	local lag = if math.abs(turn) > SNAP then 0 else k * turn
+	if s.state == "run" and s.onGround and char.avatar and char.avatar.kit then
+		-- the body's own bounce: rising, the blade's weight holds its tip back down
+		lag -= k * 0.9 * (Movement.bob(s, char) - Movement.bob(was, char))
+	end
+	return math.clamp(lag, -MAX_LAG, MAX_LAG)
+end
 local TEAMS = require(game:GetService("ReplicatedStorage").Shared.Data.Teams)
 local TEAM_GLOW, TEAM_MARKER = TEAMS.glow, TEAMS.marker
 
@@ -211,8 +240,10 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local wpal = char.weaponPalette or pal
 	local scuff: any = nil
 
+	-- a gait carries its own bounce, in step with the feet (Movement.bob)
+	local bob = if posture and posture.bob ~= nil then posture.bob else ch.bob
 	Canvas2D.save(c)
-	Canvas2D.translate(c, 0, ch.bob)
+	Canvas2D.translate(c, 0, bob)
 	if kitArt then
 		local p = posture
 		if trailingArt and trailingArt.full then
@@ -236,7 +267,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				Canvas2D.scale(c, Fighter2D.BOOT_SCALE, -Fighter2D.BOOT_SCALE)
 				-- one sprite a boot (the weapon-in-hand path), not a Frame per rectangle: ~95 each
 				local sp = Weapons2D.sprite(wid)
-				Canvas2D.sprite(c, "weapon|" .. wid, sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 1 then 0.85 else 1)
+				Canvas2D.sprite(c, "weapon|" .. wid, sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 2 then 0.85 else 1)
 				Canvas2D.restore(c)
 			end
 		end)
@@ -271,7 +302,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		if wpose.drag and s.onGround and platformTop then
 			local rch = Weapons2D.REACH[wid] or 2.4
 			local wx = s.x + (gx + math.cos(wpose.angle - ch.lean) * rch) * s.facing
-			local wy = s.y + ch.bob + gy + math.sin(wpose.angle - ch.lean) * rch
+			local wy = s.y + bob + gy + math.sin(wpose.angle - ch.lean) * rch
 			if wy < platformTop + 1.2 then
 				scuff = { x = wx, y = platformTop }
 				if Fighter2D.effects then
@@ -294,7 +325,14 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Canvas2D.translate(c, gx, gy)
 		Canvas2D.rotate(c, -ch.lean)
 		UltimateVfx.drawUltimate(c, wid, wpal, wpose, t)
-		Weapons2D.draw(c, wid, wpal, wpose)
+		local lag = Fighter2D.bladeLag(s, char, move, t, wpose)
+		if lag ~= 0 then
+			local drawn: any = table.clone(wpose)
+			drawn.angle += lag
+			Weapons2D.draw(c, wid, wpal, drawn)
+		else
+			Weapons2D.draw(c, wid, wpal, wpose)
+		end
 		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
 		Canvas2D.restore(c)
 	end

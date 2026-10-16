@@ -28,8 +28,11 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 		end
 	end
 
-	for i, leg in p.legs do
-		limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 1)
+	-- The right leg (2) is the far one, drawn first and shaded; the left (1) is nearer the camera,
+	-- drawn over it and lit (PostureArt.NEAR_LIGHT).
+	for _, i in { 2, 1 } do
+		local leg = p.legs[i]
+		limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 2)
 		if foot then foot(i, leg.pose) end
 	end
 	Canvas2D.save(c)

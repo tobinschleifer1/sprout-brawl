@@ -151,7 +151,7 @@ for _, case in cases do
 					tails = 0
 					local angle = (p.rigRotZ or ch.rigRotZ) * facing
 					local pv = c.height * (ch.rotPivot or 0.5)
-					local qy = trail.y + ch.bob - pv
+					local qy = trail.y + (if p.bob ~= nil then p.bob else ch.bob) - pv -- a gait carries its own bounce
 					expectedRoot = {
 						scale * (s.x + ch.shakeX + facing * (trail.x * math.cos(angle) - qy * math.sin(angle))),
 						-scale * (s.y + (p.yOff or ch.yOff) + trail.x * math.sin(angle) + qy * math.cos(angle) + pv),

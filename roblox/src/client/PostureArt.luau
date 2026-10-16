@@ -38,6 +38,28 @@ local function bevel(rects: { Compose.Rect }, w: number, h: number, top: boolean
 end
 
 local CUTS: { [string]: { number } } = { chest = { 0, 15 }, abdomen = { 11, 7 } }
+-- The near leg (the fighter's left, on the camera's side of a right-facing fighter) is lit a
+-- little, as the far one is shaded: the pair separate in value, so a passing leg reads as one leg
+-- in front of the other rather than an X. Outlines stay as they are.
+PostureArt.NEAR_LIGHT = 0.14
+local function lit(rects: { Compose.Rect }): { Compose.Rect }
+	local out = {}
+	for i, r in rects do
+		local hex = r[5]
+		if hex == Compose.OUTLINE or type(hex) ~= "string" then
+			out[i] = r
+		else
+			local v = tonumber(string.sub(hex, 2), 16) :: number
+			local function up(c: number): number
+				return math.floor(c + (255 - c) * PostureArt.NEAR_LIGHT + 0.5)
+			end
+			local hx = string.format("#%02X%02X%02X", up(v // 65536), up(v // 256 % 256), up(v % 256))
+			out[i] = { r[1], r[2], r[3], r[4], hx, r[6] }
+		end
+	end
+	return out
+end
+
 local CACHE: { [string]: any } = {}
 function PostureArt.sprites(code: string): any
 	if CACHE[code] then return CACHE[code] end
@@ -52,7 +74,11 @@ function PostureArt.sprites(code: string): any
 		local P = PARTS[id]
 		local full = bevel(art[id].full, P.w, P.h, id == "forearm" or id == "shin")
 		art[id] = { full = full, farFull = Compose.shadeRects(full) }
+		if id == "thigh" or id == "shin" then art[id].full = lit(full) end
 	end
+	local leg = art.leg
+	art.leg = table.clone(leg)
+	art.leg.full, art.leg.half = lit(leg.full), lit(leg.half)
 	CACHE[code] = art
 	return art
 end

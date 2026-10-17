@@ -248,4 +248,50 @@ do
 	local b1, b2 = Locker.botLoadout(1), Locker.botLoadout(2)
 	assert(b1.hit ~= b2.hit and b1.ko ~= b2.ko, "Studio bots all wear the same effects")
 end
-print(string.format("PASS cosmetics: %d weapon skins each their weapon's exact footprint in new colours (every form); worn skins, trails, hit and KO effects drawn as their items say, nothing worn drawn as before; inventory and loadouts refuse unknown, unowned and misplaced items; the Locker owns everything only in Studio", skins))
+-- 8. What a worn effect costs on the Frame fallback: the rectangles it builds the first time it is
+-- seen (a mid-fight hitch on the lowest devices) and its peak live in one frame. Measured with
+-- tools/cosmetic-fx-cost (2026-10-18): the plain heavy hit builds 565 and peaks at 156; the dearest
+-- hit effect (Event Horizon) 898 / 222, the dearest KO (Dragon's Breath) 1059 / 255. Limits are that
+-- plus under 10%; Firework built 1,276 with three shells and was cut to two to fit.
+local HIT_BUILD, HIT_PEAK, KO_BUILD, KO_PEAK = 980, 240, 1150, 280
+local fxCost = 0
+do
+	local built, live = {}, 0
+	local saved = { sprite = Canvas.sprite, rect = Canvas.rect, save = Canvas.save, restore = Canvas.restore,
+		translate = Canvas.translate, rotate = Canvas.rotate, scale = Canvas.scale }
+	Canvas.sprite = function(_c, key, rects) live += #rects; built[key] = #rects end
+	Canvas.rect = function() live += 1 end
+	for _, k in { "save", "restore", "translate", "rotate", "scale" } do Canvas[k] = function() end end
+	local states = { { index = 0, x = 0, y = 0, state = "attack", moveId = "LightNeutral1", moveFrame = 6 }, { index = 1, x = 4, y = 0, state = "idle" } }
+	local bare = table.clone(Loadout.build("Classic", "Sword"))
+	local function cost(event, chars)
+		table.clear(built)
+		local P = FxPlayer.new()
+		if event.type == "hit" then FxPlayer.hit(P, event, states, chars) else FxPlayer.spawn(P, event, states, chars) end
+		local peak = 0
+		for _ = 1, 60 do
+			live = 0
+			FxPlayer.draw(P, {})
+			peak = math.max(peak, live)
+			FxPlayer.step(P, 1 / 60)
+		end
+		local total = 0
+		for _, n in built do total += n end
+		return total, peak
+	end
+	local hit = { type = "hit", attacker = 0, victim = 1, x = 1, y = 2, damage = 8, angle = 45, facing = 1, heavy = true }
+	for _, it in Cosmetics.LIST do
+		if it.type == "hit_effect" then
+			local w = wearing("Sword", { hit = it.id })
+			local b, p = cost(hit, { w, w })
+			assert(b <= HIT_BUILD and p <= HIT_PEAK, `{it.id} builds {b} rectangles and peaks at {p} (limits {HIT_BUILD} / {HIT_PEAK})`)
+			fxCost += 1
+		elseif it.type == "ko_effect" then
+			local b, p = cost({ type = "ko", fighter = 1, by = 0, x = 10, y = 4 }, { wearing("Sword", { ko = it.id }), bare })
+			assert(b <= KO_BUILD and p <= KO_PEAK, `{it.id} builds {b} rectangles and peaks at {p} (limits {KO_BUILD} / {KO_PEAK})`)
+			fxCost += 1
+		end
+	end
+	for k, f in saved do Canvas[k] = f end
+end
+print(string.format("PASS cosmetics: %d weapon skins each their weapon's exact footprint in new colours (every form); worn skins, trails, hit and KO effects drawn as their items say, nothing worn drawn as before; inventory and loadouts refuse unknown, unowned and misplaced items; the Locker owns everything only in Studio; %d worn effects within their Frame budgets", skins, fxCost))

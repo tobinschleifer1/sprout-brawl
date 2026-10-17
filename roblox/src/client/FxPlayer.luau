@@ -243,10 +243,10 @@ FxPlayer.KO_STYLES = {
 		add(P, "ring", x, y, 6, 0.4, "#DDE6FF", { seed = 0, sy = 0.4 })
 	end,
 	ko_firework = function(P: any, x: number, y: number)
+		-- (two shells, not three: a third colour built 1,276 rectangles the first time it played)
 		add(P, "burst", x, y, 6, 0.45, "red", ONE)
-		add(P, "burst", x + 2.5, y + 1.5, 4.5, 0.45, "gold", { seed = 0, delay = 0.1 })
-		add(P, "burst", x - 2.2, y + 2.4, 4.5, 0.45, "volt", { seed = 0, delay = 0.2 })
-		add(P, "star", x, y, 3, 0.3, "gold", { seed = 0, delay = 0.28 })
+		add(P, "burst", x + 2.5, y + 1.5, 4.5, 0.45, "gold", { seed = 0, delay = 0.12 })
+		add(P, "star", x - 1.5, y + 2, 3, 0.3, "gold", { seed = 0, delay = 0.24 })
 	end,
 	ko_pixelshatter = function(P: any, x: number, y: number)
 		add(P, "xslash", x, y, 6, 0.32, "#E8ECF2", ONE)

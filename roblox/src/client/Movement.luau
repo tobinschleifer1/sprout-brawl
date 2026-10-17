@@ -25,7 +25,7 @@ function Movement.bob(s: any, char: any): number
 	local h = char.height
 	local speed = math.clamp(math.abs(s.vx) / char.runSpeed, 0, 1)
 	local run = smooth((speed - 0.42) / 0.28)
-	local q = (s.x * s.facing / Movement.gait(char).step) % 1
+	local q = ((s.strideDistance or s.x * s.facing) / Movement.gait(char).step) % 1
 	local k = h / 5.2
 	local passing = Movement.gait(char).support / 2
 	local walk = k * (-0.03 + 0.035 * math.cos(2 * math.pi * (q - passing)))
@@ -47,7 +47,9 @@ function Movement.For(ch: any, s: any, char: any): any
 		local run = smooth((speed - 0.42) / 0.28)
 		local G = Movement.gait(char)
 		local S, x0, DP = G.step, G.contact, G.support
-		local base = s.x * s.facing / S
+		-- The plaza supplies distance along its two-dimensional floor (and to its fixed mirror).
+		-- Match snapshots keep using their actual horizontal travel, preserving planted feet.
+		local base = (s.strideDistance or s.x * s.facing) / S
 		local q = base % 1
 		m.phase = base * math.pi + math.pi / 2 -- chest/hips counter the same stride as the feet
 		m.bob = Movement.bob(s, char)

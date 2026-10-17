@@ -461,10 +461,32 @@ function Plaza2D.drawRails(self: any, c: any, scene: any, left: number, right: n
 end
 
 -- ------------------------------------------------------------------ drawing: people ----
-local function posed(char: any, state: string, sf: number, x: number, z: number, y: number, facing: number, vx: number): any
+-- Presentation-only distance on the plaza floor, keyed by actor rather than loadout: two people
+-- wearing the same kit must not advance each other's stride. The mirror reads the same actor.
+local strides: { [any]: any } = setmetatable({}, { __mode = "k" }) :: any
+local function stride(actor: any, char: any): number
+	local prev = strides[actor]
+	if not prev then
+		prev = { x = actor.x, z = actor.z, distance = 0 }
+		strides[actor] = prev
+	end
+	local dx, dz = actor.x - prev.x, actor.z - prev.z
+	local distance = math.sqrt(dx * dx + dz * dz)
+	-- A warp starts afresh, instead of inserting a roof's worth of steps into the next pose.
+	prev.distance = if distance > char.height * 2 then 0 else prev.distance + distance
+	prev.x, prev.z = actor.x, actor.z
+	return prev.distance
+end
+local function posed(char: any, state: string, sf: number, x: number, z: number, y: number, facing: number, vx: number, actor: any?): any
 	local st = PosedFighter.posed(char, 0, state, sf)
 	st.x, st.y, st.facing, st.vx = x, y + z * D, facing, vx
 	st.onGround = y <= 0.01
+	if actor then
+		st.strideDistance = stride(actor, char)
+		if actor.vx ~= nil and actor.vz ~= nil then
+			st.vx = facing * math.sqrt(actor.vx * actor.vx + actor.vz * actor.vz)
+		end
+	end
 	return st
 end
 
@@ -772,7 +794,8 @@ function Plaza2D.drawWardrobe(self: any, c: any, s: any, clock: number)
 	end
 	if self.char then
 		local p = self.model.p
-		local r = posed(self.char, p.state, p.sf, s.x, 17.4, 0.6 + math.max(0, p.y) * 0.3, -p.facing, p.vx)
+		local r = posed(self.char, p.state, p.sf, s.x, 17.4, 0.6 + math.max(0, p.y) * 0.3, -p.facing, p.vx, p)
+		r.onGround = p.y <= 0.01
 		Fighter2D.draw(c, r, self.char, clock, baseY + 0.6)
 	end
 	Canvas.rect(c, s.x - 2.4, baseY + 0.9, 4.8, 8.7, CYAN, 0.10)
@@ -829,7 +852,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		if peer.x > left and peer.x < right then
 			add(peer.z, function()
 				local state = if peer.y > 0.1 then "air" elseif goal.moving then "run" else "idle"
-				local st = posed(peer.char, state, math.floor(clock * 60), peer.x, peer.z, peer.y, goal.facing or 1, if goal.moving then (goal.facing or 1) * 15 else 0)
+				local st = posed(peer.char, state, math.floor(clock * 60), peer.x, peer.z, peer.y, goal.facing or 1, if goal.moving then (goal.facing or 1) * 15 else 0, peer)
 				self:drawPerson(c, peer.char, st, peer.z, clock)
 				local head = peer.y + peer.z * D + peer.char.height
 				self:placeLabel(c, "name" .. id, peer.name or "", peer.x, head + 1.6, 12, WHITE, 180)
@@ -839,7 +862,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	end
 	if self.char then
 		add(p.z, function()
-			local st = posed(self.char, p.state, p.sf, p.x, p.z, p.y, p.facing, p.vx)
+			local st = posed(self.char, p.state, p.sf, p.x, p.z, p.y, p.facing, p.vx, p)
 			self:drawPerson(c, self.char, st, p.z, clock)
 			if self.localId then self:drawOverhead(c, self.localId, p.x, p.y + p.z * D + self.char.height + 0.2) end
 		end)

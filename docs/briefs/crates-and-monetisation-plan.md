@@ -28,7 +28,9 @@ shows is what ships.
      player. Where it is true, Robux keys are not sold and a bought key cannot open anything; the
      player keeps the free route (earned crates, earned keys, Sparks crafting) and the featured shop,
      where items are priced directly. If the check fails, the player is treated as restricted;
-   - **no trading** at launch, which keeps `IsPaidItemTradingAllowed`, scams and duplication out of it.
+   - **trading** (the owner wants it, 2026-10-18) follows `IsPaidItemTradingAllowed`: a player for whom
+     it is false can never trade an item that came from Robux, directly or through a bought key. Every
+     owned item is therefore an *instance* that remembers whether it was paid for (see Trading).
 4. **One source of odds.** The table the server rolls from is the table the odds screen shows. It is
    data, not two copies of the numbers, and a test holds every table to exactly 100%.
 5. **Server authority.** Rolls, drops, grants and spends happen on the server, from a saved record
@@ -227,13 +229,165 @@ Each on its own branch, merged when `check.sh` passes, ending with a Studio play
   Not yet used by the game.
 - The design board (an Artifact) with every design, the odds tables and the screen mockups.
 
-## Decisions for you
+## Decided (2026-10-18)
 
-1. **Sell keys for Robux at all?** Recommended yes, with the policy handled as above; the alternative
-   is earned keys only and Robux only for passes and the featured shop.
-2. **Prices** for the passes, keys and shop tiers (the tables are starting points).
-3. **Season length** (8 weeks suggested) and when Series 1 starts.
-4. **VIP's contents.** In particular, whether +20% Sparks is too strong a boost to an earned currency.
-5. **Trading** later? Recommended not before the economy has run for a season.
-6. **Phase 6** (emotes, KO departures, victory poses) feeds the catalogue; it still needs the answers
-   you skipped earlier.
+1. **Keys are sold for Robux**, under the policy rules above.
+2. **The recommended prices** in the tables above stand.
+3. **Phase 2 has started**: cosmetics drawn in matches.
+4. **Trading is in**, and items show their rarity and how many exist.
+5. **Clothing sells one piece at a time** as well as in packs, and players can **draw their own**.
+6. **Estimated value** is worked out below; it is not built yet.
+
+Still open: season length and Series 1's start date; VIP's contents (whether +20% Sparks is too
+strong); phase 6's answers.
+
+## Clothing, one piece at a time
+
+New clothing (tops, bottoms, headwear, hair, back pieces, gloves, shoes, face accessories) comes in
+themed packs, and **every piece is also sold on its own** for a few Robux, so a player who wants only
+the jacket buys only the jacket.
+
+| | Price |
+|---|---|
+| A common piece | 15 R$ |
+| An uncommon or rare piece | 25 R$ |
+| An epic piece (capes, animated-looking hair) | 49 R$ |
+| A whole pack (5-6 pieces) | about 35% less than its pieces bought one by one |
+| A piece you already own counts toward the pack | the pack's price drops by what you paid |
+
+Sold as Developer Products by price tier ("clothing piece, 25 R$"), with the server recording which
+piece the player chose before prompting; a receipt grants that piece (the existing `Purchases.luau`
+keeps a receipt to one grant). Pieces are direct purchases, never random, so the paid-random rules do
+not apply to them. GPT is designing the first pieces and packs (`docs/briefs/gpt-cosmetics.md`).
+
+**The kit code.** `k1` cannot name options that did not exist when it was specified. New pieces need
+the `k2` format already planned in the character rework (phase 5): versioned decoding, canonical ids,
+and an ownership check where saves and rooms are validated, so a code naming a piece its wearer does
+not own falls back to the default.
+
+## Drawing your own (Pixel Studio)
+
+Part of the Character Studio+ pass: a pixel editor for clothing layers in the kit's own format, the
+same grids and colour roles the shipped parts use (so a drawn top recolours with the outfit and
+animates with the rig). Templates per slot (a top is the torso grid plus sleeve layers), a cap on
+cells per layer so drawn items stay inside the draw budget, and mirror/fill tools.
+
+What others see is the hard part. A drawing is user-generated content, and Roblox holds experiences
+responsible for moderating what they show. So:
+
+- **you and your friends** see your drawings, and so does anyone in a private room you made;
+- **everyone else** sees the slot's default until a drawing is approved for public view (a review
+  queue the owner works through in an admin tool), and any player can report one, which hides it
+  until it is reviewed;
+- drawings carry no text field and cannot be traded or sold to others; the palette is the kit's roles,
+  not free colours, which also keeps them on-style.
+
+## Trading
+
+Player-to-player swaps of items (not Sparks, not keys, never Robux), at a Trading Post in the plaza.
+
+- **Both sides** offer up to six items; both accept; any change resets the acceptance; a five-second
+  countdown; both accept again. The server swaps the items in one step.
+- **Who can trade:** Fighter Level 10+ and an account at least 7 days old (slows alt-farming);
+  `IsPaidItemTradingAllowed` decides whether paid items may be offered by or to that player.
+- **Fresh items** cannot be traded for 3 days after they are obtained (blunts stolen-account
+  laundering and bots dumping drops).
+- **Scam guards:** each side's estimated value is shown, with a warning when a trade is lopsided; the
+  countdown restarts on any change; a full trade history per player.
+- **No duplication.** A trade writes both players' records through one trade log entry: each record
+  gets the trade id, the swap is applied, and a crash part-way is finished from the log on next load.
+  Records need session locking (one server owns a player's record at a time) before trading ships;
+  today's `AvatarStore` does not have it. This is the riskiest engineering in the plan, and it gets its
+  own tests: a crash at every step, the same trade applied twice, two servers racing.
+
+**Instances.** To trade, show serials and honour the paid flag, an owned item becomes an instance:
+`{ uid, item, serial, paid, obtained, source }`. Items owned before instances exist are migrated as
+earned (`paid = false`) instances.
+
+## How rare is mine? Serials and copies in existence
+
+Every item instance carries a **serial** (#57 of the Starforged), and every item shows **how many
+exist**. Both are shown on the item card with its rarity colour.
+
+- **Serials** come from a global counter per item. A DataStore key can only be written about once every
+  six seconds, so a server reserves a block of serials at a time (10 to start, doubling for items it
+  mints quickly) and hands them out; unused serials in a block are skipped. Serials are unique, not
+  contiguous.
+- **Copies in existence** is minted minus destroyed (a Mythic salvaged for Sparks no longer exists),
+  kept as a per-item count updated with each block and refreshed hourly for display ("about 1,240").
+- **Low serials** (#1-#100) get a small badge: collectors care, and it costs nothing.
+
+## Estimated value (designed, not built)
+
+A number shown on each item, in **value points**, where one point is one Robux of key spending. It
+answers "what is this worth in a trade?", and it has to be hard to game.
+
+**1. What the crate says (the model value).** A Forge Key costs `K` Robux at the best bundle rate
+(700 / 12 = 58.3). Opening a Forge Crate spends `K`, and the crate's items share that value by
+scarcity. For an item `i` with per-opening chance `p_i` (its rarity's share divided by the number of
+items in that rarity):
+
+```
+V_model(i) = K * (1 / p_i)^a / sum_j( p_j * (1 / p_j)^a )
+```
+
+The denominator makes the expected value of one opening exactly `K` (the crate is worth what it costs),
+and `a` sets how steeply rarity raises value. At `a = 1` every item contributes equally to the crate,
+which with today's Forge table (14 Rares sharing 62%, 2 Mythics sharing 1.5%) leaves a Mythic worth
+only about four Rares: too flat for a collectible. Computed from `Loot.luau`'s tables:
+
+| `a` | Rare | Epic | Legendary | Mythic |
+|---|---|---|---|---|
+| 1 | 41 | 71 | 117 | 190 |
+| 1.5 | 32 | 73 | 154 | 318 |
+| **2 (suggested)** | **24** | **71** | **192** | **502** |
+| 2.5 | 16 | 64 | 223 | 745 |
+
+At `a = 2` a Mythic is worth about 21 Rares while an opening is still worth exactly one key.
+
+Scrap Crate items are free to open, so their model value comes from the Workshop instead: their
+Sparks craft cost, converted at the exchange rate the Forge items imply (points per Spark for a Rare,
+which both crates hold).
+
+**2. What exists (the supply adjustment).** The model assumes copies exist in proportion to their
+odds. When an item is scarcer or more common than its odds predict (a retired series, a mass of
+salvaging), value follows:
+
+```
+V_supply(i) = V_model(i) * (expected_copies(i) / copies(i))^b,   b = 0.5
+```
+
+`expected_copies` is total openings of its crate times `p_i`. Retired series are scarce by
+construction, so their items drift up over time, which is the effect the owner wants.
+
+**3. What players pay (the market).** Once trading has history, trades reveal value: in an item-for-item
+trade, each side's items are worth what the other side's are. A trade gives each item an implied value
+(its share of the other side's model value, split by model value within its own side). The market
+value is the median of its last 30 implied values, and the shown value blends model and market by how
+much evidence there is:
+
+```
+V_shown(i) = (n * V_market(i) + 10 * V_supply(i)) / (n + 10)      n = trades in the window
+```
+
+**4. Not gameable.** Lopsided trades (one side under a third of the other), trades between accounts
+that trade only with each other, and trades of fresh items are left out of the market median. A value
+moves at most 15% a day. Low serials and Pixel Studio drawings carry no value bonus (collectors may pay
+more; the number stays honest).
+
+**Building it:** a pure `Value.luau` beside `Loot.luau`, with the model computed from the same crate
+tables, and tests that the expected value of an opening equals the key price, that scarcer is worth
+more, that a retired series rises, and that a ring of wash trades does not move the market value.
+
+## Phases, revised
+
+1. Foundations (done: catalogue, loot, tests).
+2. **Wearing things** (in progress): weapon skins, hit and KO effects and swing trails drawn in matches;
+   the inventory and equipped loadout in the saved record; ownership validated; perf measured.
+3. Earning things: drop meter, crates, guarantees, duplicates, Workshop, results banner; **instances
+   with serials** from the start, so nothing needs migrating twice.
+4. Screens: Locker (rarity, serial, copies in existence), crate opening, Workshop, Odds & Details.
+5. Robux: keys (sold), the featured shop, passes, single clothing pieces and packs.
+6. Clothing and `k2`: GPT's pieces joined to the kit; Pixel Studio.
+7. Trading: session locking first, then the Trading Post; estimated value.
+8. Coming back: levels, season track, challenges, mastery, login calendar.

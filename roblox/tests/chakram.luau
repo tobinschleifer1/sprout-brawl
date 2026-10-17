@@ -257,6 +257,39 @@ do
 	if dry > 0 then fail(`a Chakram bot with one ring in hand tried {dry} Halos`) end
 end
 
+-- Empty hands only prevent throws. An airborne up-heavy is the free recovery hop; replacing it
+-- with light makes a bot swing an aerial while falling past the ledge, even with recovery unused.
+do
+	local Ai = Loader.load("Ai")
+	local recovered, cases, hops = 0, 0, 0
+	for _, side in { -1, 1 } do
+		for seed = 1, 8 do
+			local match = Match.new({ mode = "Training", stage = stageData, seed = seed, items = false,
+				fighters = { { char = Loadout.build("Classic", "Chakram"), isBot = true, botLevel = "hard", team = 0 },
+					{ char = Loadout.build("Noir", "Sword"), isBot = true, botLevel = "dummy", team = 1 } } })
+			match.state = "fight"
+			local f, foe = match.fighters[1], match.fighters[2]
+			local main = match.stage.main
+			local edge = if side < 0 then main.x1 else main.x2
+			f:reset(edge + side * (9 + seed * 0.4), main.top - 8 - seed * 0.8, { state = "air", invincible = 0 })
+			f.jumpsLeft, f.vx, f.vy, f.mech.rings = 0, side * 12, -12, 0
+			foe:reset(0, main.top, { state = "idle", invincible = 0 })
+			foe.onGround, foe.platform = true, main
+			local input = Ai.computeBotInput(f, match)
+			if input.heavy and input.y > 0 and not input.light then hops += 1 end
+			for _ = 1, 240 do
+				match:step()
+				if f.state == "ledge" or (f.onGround and f.alive) then recovered += 1; break end
+				if not f.alive then break end
+			end
+			cases += 1
+		end
+	end
+	print(`Chakram empty-handed recovery: {hops}/{cases} hops requested, {recovered}/{cases} returned`)
+	assert(hops == cases, "empty-handed bot replaced its recovery hop with an aerial")
+	assert(recovered >= 12, "empty-handed Chakram bots failed to return to the ledge")
+end
+
 -- 9. Its own poses: the Chakram is neither the defaults nor a borrowed Grimoire. Every move below
 -- is posed through the same WeaponPose and Channels the renderer uses.
 do

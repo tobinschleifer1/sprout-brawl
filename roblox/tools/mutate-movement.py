@@ -103,6 +103,19 @@ kicks = [
     ('one-legged redline', 'Kicks', 'local REDLINE: { any } = { 1, 2, "both" }', 'local REDLINE: { any } = { 1, 1, "both" }', 'reverse kick'),
     ('strike outlasts its box', 'Kicks', 'elseif fa <= b then', 'elseif fa <= b + 1 then', 'with no live box'),
 ]
+loot = [
+    ('uneven shares', 'shared/Loot', 'percent = pct * 100 / total / #ids', 'percent = pct * 100 / total / (#ids + 1)', 'sum to'),
+    ('roll off its list', 'shared/Loot', 'local at = rand() * 100\n\tlocal pick', 'local at = rand() * 90\n\tlocal pick', 'times in'),
+    ('guarantee one late', 'shared/Loot', 'if crate.guarantee and (count or 0) + 1 >= crate.guarantee.at then', 'if crate.guarantee and (count or 0) + 1 > crate.guarantee.at then', 'ruled out'),
+    ('guarantee never resets', 'shared/Loot', 'then next = 0 end', 'then next = count + 1 end', 'reset'),
+    ('drops off their table', 'shared/Loot', 'at -= d.chance', 'at -= d.chance * 0.9', 'times in'),
+    ('meter never reaches 5', 'shared/Loot', 'lo + math.floor(rand() * (hi - lo + 1))', 'lo + math.floor(rand() * (hi - lo))', 'meter'),
+    ('crate item in no crate', 'shared/Cosmetics', 'if t.source == "crate" then t.crates = t.crates or cratesFor(t.rarity) end', '', 'in no crate'),
+    ('mythic in scrap', 'shared/Cosmetics', 'if rarity == "Mythic" then return FORGE end', 'if rarity == "Mythic" then return BOTH end', 'scrap never gives'),
+    ('mastery items craftable', 'shared/Loot', 'if not item or item.source ~= "crate" then return nil end', 'if not item then return nil end', 'can be crafted'),
+    ('odds rounded too far', 'shared/Loot', 'decimals = k + 4', 'decimals = k + 3', '0.03571%'),
+    ('an item hidden', 'shared/Loot', 'for _, id in ids do\n\t\t\t\ttable.insert(out', 'for i, id in ids do\n\t\t\t\tif i == 1 then continue end\n\t\t\t\ttable.insert(out', 'sum to'),
+]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
     ('wrong accessory priority', 'Secondary', 'if neck == "summitMantle" or neck == "scarf" then', 'if false then', 'catalogue tail missing or priority wrong'),
@@ -128,10 +141,11 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
-        path = Path(f'src/client/{module}.luau')
+        # 'shared/Loot' reaches src/shared; a bare name is a client module
+        path = Path(f'src/{module}.luau' if '/' in module else f'src/client/{module}.luau')
         source = path.read_bytes()
         text = source.decode()
         assert text.count(old) == 1, (name, text.count(old))
@@ -146,4 +160,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(secondary)} independent mutations rejected; sources restored.')

@@ -2,6 +2,7 @@
 -- Development tool: every FxArt drawing, every frame, in one or more ramps, as JSON for
 -- tools/fx-sheet.mjs to paint into a PNG.
 --   lune run tools/fx-sheet <out.json> [ramp ...]
+-- FX_KINDS=pop,ring,burst limits it to those drawings.
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 local serde = require("@lune/serde")
@@ -11,7 +12,10 @@ local ramps = {}
 for i = 2, #process.args do table.insert(ramps, process.args[i]) end
 if #ramps == 0 then ramps = { "#9FE8FF" } end
 local rows = {}
+local only = {}
+for k in string.gmatch(process.env.FX_KINDS or "", "[^,]+") do only[k] = true end
 for _, kind in FxArt.kinds() do
+	if next(only) and not only[kind] then continue end
 	for _, ramp in ramps do
 		local row = { kind = kind, ramp = ramp, frames = {} }
 		for f = 0, FxArt.FRAMES[kind] - 1 do

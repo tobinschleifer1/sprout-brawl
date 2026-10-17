@@ -8,66 +8,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WEB, ROBLOX_PALETTES as WEAPONS, SINGLE_GRIDS, gridOf, paletteOf } from './roblox-grids.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const WEB = path.join(HERE, '../../web/src/data');
 const { compile, compileAwakened } = await import(`${WEB}/weaponArt.js`);
 
-// Roblox-only weapons and their palettes (must match RobloxWeapons.luau)
-const WEAPONS = {
-  Chakram: { primary: '#C0C8D4', secondary: '#1E4A4A', tertiary: '#0F2626', accent: '#F4E8C0', glow: '#3CE8C8' },
-  RocketBoots: { primary: '#D76B32', secondary: '#465366', tertiary: '#17212D', accent: '#FFE3AF', glow: '#62E8FF' },
-};
-const G = (ox, oy, rows, ink = {}) => ({ ox, oy, rows, ink });
-// Grids for weapons weaponArt.js has none for (the web is left as it is): one boot, ankle-anchored,
-// drawn once on each foot (GPT-6-Astra's design).
-const LOCAL_GRIDS = {
-  RocketBoots: G(4, 8, [
-    '..TTTTTT......',
-    '..TAAAAT......',
-    '..TPPPST......',
-    '..TPGGST......',
-    '.TSPGGST......',
-    '.TSPPPST......',
-    '.TSPPPPTTT....',
-    '.TSSPPPPPATT..',
-    '.TTSSSSSSSST..',
-    '..TTTTTTTTTT..',
-  ]),
-};
-// One of a pair, for weapons held one in each hand (src/client/DualWield.luau). The web's grids
-// draw the pair as one picture in one hand; these are the single unit each hand holds. A weapon
-// whose grid is already one unit (Blasters, Gauntlets) needs none: each hand draws its grid.
-// Reach is kept: the dagger's tip is as far ahead of its grip as the pair's front blade (11 px).
-const SINGLE_GRIDS = {
-  Daggers: G(4, 3, [
-    '..............AC',
-    '.....SS.....AAPq',
-    '.....SS.ACCCcPS.',
-    'eTjTjGGASSSSSS..',
-    '.TTTTSS.........',
-    '.....SS.........',
-  ], { c: '#FF4A6A', C: '#FFB0BE', q: '#8A1A30', e: '#A0ACBE', j: '#4A3A5A' }),
-  Chakram: G(4, 4, [
-    '..PPPPP..',
-    '.PPGGGPP.',
-    'PPG...GPP',
-    'PG.....GP',
-    'PG.....GP',
-    'PG.....GP',
-    'PPG...GPP',
-    '.PPGGGPP.',
-    '..PPPPP..',
-  ]),
-};
-const { WEAPON_BY_ID } = await import(`${WEB}/weapons/index.js`);
-const paletteOf = (id) => WEAPONS[id] || WEAPON_BY_ID[id].palette;
-const src = fs.readFileSync(`${WEB}/weaponArt.js`, 'utf8');
-const gridOf = (id) => {
-  if (LOCAL_GRIDS[id]) return LOCAL_GRIDS[id];
-  const m = src.match(new RegExp(`\\n  ${id}: (G\\([\\s\\S]*?\\]\\)),\\n`));
-  if (!m) throw new Error(`no grid for ${id} in weaponArt.js`);
-  return Function('G', `return ${m[1]}`)(G);
-};
 const emitRects = (rects) => `{\n${rects.map((r) => `\t\t\t{ ${r.map((x) => (typeof x === 'string' ? `"${x}"` : String(x))).join(', ')} },`).join('\n')}\n\t\t}`;
 const sprites = [], awakened = [];
 for (const [id, pal] of Object.entries(WEAPONS)) {

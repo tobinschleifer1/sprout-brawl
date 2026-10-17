@@ -17,6 +17,7 @@ local PARKOUR: any = require(Shared.Data.Parkour)
 local PLAZA = Plaza.DATA
 local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
 local MatchService = require(script.MatchService)
+local Locker = require(script.Locker)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
 local arcade = Cabinets.new()
@@ -27,6 +28,10 @@ local okStore, dataStore = pcall(function()
 	return game:GetService("DataStoreService"):GetDataStore("BlockfallCharacters1")
 end)
 local avatars = AvatarStore.new(if okStore then dataStore else nil)
+-- Cosmetics owned and worn (Locker); every match reads what a player wears from here.
+local locker = Locker.new({ store = avatars, studio = RunService:IsStudio() })
+MatchService.cosmeticsFor = function(player: Player) return locker:loadout(player.UserId) end
+if RunService:IsStudio() then MatchService.botCosmetics = Locker.botLoadout end
 avatars.wait = function(n: number) task.wait(n) end
 local climbs = ClimbProgress.new(avatars, #PARKOUR.course.checkpoints)
 -- The climb's leaderboards, shared by every server and re-read every two hours (ClimbBoards). No
@@ -98,6 +103,7 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	loaded[player.UserId] = player
 	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
 	sendAvatars(player)
+	Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
 	local climbView = climbs:view(player.UserId)
 	Net.remote("ClimbView"):FireClient(player, climbView)
 	Net.remote("ClimbBoards"):FireClient(player, boards:view())
@@ -147,6 +153,13 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 	rooms:advance(room)            -- everyone ready, everyone voted: the room moves on (Rooms.PICK_TIME)
 	publish(room)
 	launchRoom(room)
+end)
+Net.remote("Locker").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or not admitted(player, "locker", 0.15) then return end
+	local _, why = locker:apply(player.UserId, msg)
+	local view = locker:view(player.UserId)
+	view.error = why
+	Net.remote("LockerView"):FireClient(player, view)
 end)
 Net.remote("Avatar").OnServerEvent:Connect(function(player: Player, msg: any)
 	if not loaded[player.UserId] or not admitted(player, "avatar", 0.15) then return end

@@ -17,6 +17,7 @@ local Shared = ReplicatedStorage.Shared
 local Match = require(Shared.Match)
 local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
+local Inventory = require(Shared.Inventory)
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
@@ -36,6 +37,12 @@ local MAX_CATCHUP = 8
 local MatchService = {}
 MatchService.__index = MatchService
 
+-- (userId's player) -> the loadout they wear (Inventory). Set by the server entry point to the Locker;
+-- nil (tests, Studio without one) means fighters wear nothing.
+MatchService.cosmeticsFor = nil :: ((Player) -> any)?
+-- (bot slot) -> what a bot wears; set only in Studio, for playtesting the cosmetics.
+MatchService.botCosmetics = nil :: ((number) -> any)?
+
 function MatchService.new(audience: any?, generation: number?): any
 	local self = setmetatable({}, MatchService)
 	self.match = nil :: any
@@ -49,6 +56,7 @@ function MatchService.new(audience: any?, generation: number?): any
 	self.onFinished = nil :: ((any, any) -> ())?
 	self.sources = {} :: { [number]: string }   -- userId -> input source key
 	self.userIds = {} :: { [string]: number }  -- and back, so the roster can name a rig's owner
+	self.cosmetics = {} :: { [string]: any }   -- source -> the loadout it wears (Inventory)
 	return self
 end
 
@@ -93,6 +101,11 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 			self.userIds[source] = entry.player.UserId
 		end
 		self.input:register(source)
+		-- what the fighter wears: the player's equipped loadout (the server's, never the client's), or
+		-- the entry's own for a bot. Cleaned against the catalogue either way.
+		local wears = if entry.player and MatchService.cosmeticsFor then MatchService.cosmeticsFor(entry.player)
+			else entry.cosmetics or (if not entry.player and MatchService.botCosmetics then MatchService.botCosmetics(i) else nil)
+		self.cosmetics[source] = Inventory.cleanLoadout(wears)
 		local armed = if o.weaponDrops then Loadout.buildArmed(entry.avatar, entry.kit or { entry.weapon, entry.weapon }) else nil
 		table.insert(fighters, {
 			char = if armed then armed.char else Loadout.build(entry.avatar, entry.weapon),
@@ -211,6 +224,7 @@ function MatchService.roster(self: any): { any }
 			kit = if f.kit then { f.kit[1].weapon.id, f.kit[2].weapon.id } else nil,
 			isBot = f.isBot, source = f.source,
 			userId = self.userIds[f.source],
+			cosmetics = self.cosmetics[f.source],
 			height = f.h, radius = f.r,
 		})
 	end
@@ -226,6 +240,7 @@ function MatchService.stop(self: any)
 	self.finished = false
 	self.sources = {}
 	self.userIds = {}
+	self.cosmetics = {}
 	self.inputEpochs = {}
 	self.input = RemoteInput.new()
 end

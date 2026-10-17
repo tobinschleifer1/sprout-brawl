@@ -256,13 +256,18 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local hx = r * 0.55 + math.cos(armAng) * h * 0.30 * ext
 	local hy = SHO - HIP + math.sin(armAng) * h * 0.30 * ext
 	local gx, gy = Posture.torsoPoint(ch, h, hx, hy)
-	local wpal = char.weaponPalette or pal
+	-- What the fighter wears (Inventory loadout, set on the char by the client; Roblox only): a weapon
+	-- skin draws the weapon's own grid in its colours, and colours the trail and glow too.
+	local worn = char.cosmetics
+	local skin = if worn and wid then worn.skins[wid] else nil
+	local wpal = Weapons2D.skinPalette(skin) or char.weaponPalette or pal
 	local scuff: any = nil
 
 	-- A pair held one in each hand (DualWield): each hand draws one unit, and the second weapon
 	-- goes where Posture put the hand that holds it - behind the body in the rear hand.
 	local dual = if posture then posture.dual else nil
 	local unitId = if dual and wid then wid .. ":one" else wid
+	if unitId and skin then unitId ..= "@" .. skin end
 	local function drawOff()
 		local off = dual and dual.off
 		if not off or off.empty or not wid then return end
@@ -308,8 +313,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				-- the art's rows run down from the shaft to the sole: flipped so the shaft climbs the shin
 				Canvas2D.scale(c, Fighter2D.BOOT_SCALE, -Fighter2D.BOOT_SCALE)
 				-- one sprite a boot (the weapon-in-hand path), not a Frame per rectangle: ~95 each
-				local sp = Weapons2D.sprite(wid)
-				Canvas2D.sprite(c, "weapon|" .. wid, sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 2 then 0.85 else 1)
+				local sp = Weapons2D.sprite(unitId :: string)
+				Canvas2D.sprite(c, "weapon|" .. (unitId :: string), sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 2 then 0.85 else 1)
 				Canvas2D.restore(c)
 			end
 		end, if dual and dual.off and dual.off.hand == "back" then drawOff else nil)
@@ -360,7 +365,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 			Canvas2D.save(c)
 			Canvas2D.translate(c, tx, ty)
 			Canvas2D.rotate(c, -ch.lean)
-			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale)
+			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale, worn and worn.trail)
 			Canvas2D.restore(c)
 		end
 		Canvas2D.save(c)

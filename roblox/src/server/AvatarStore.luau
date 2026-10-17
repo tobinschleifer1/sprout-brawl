@@ -16,6 +16,7 @@
 -- players would have to go through TextService filtering first; other players see DisplayName.
 
 local AvatarKit = require(game:GetService("ReplicatedStorage").Shared.AvatarKit)
+local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 
 local AvatarStore = {}
 AvatarStore.__index = AvatarStore
@@ -83,7 +84,10 @@ function AvatarStore.sanitize(raw: any): any
 			if type(id) == "string" and #id <= 40 and not table.find(rewards, id) and #rewards < 32 then table.insert(rewards, id) end
 		end
 	end
-	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb, receipts = receipts, rewards = rewards }
+	-- Cosmetics owned and worn (Inventory cleans them against the catalogue).
+	local inventory = Inventory.sanitize(src.inventory)
+	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb, receipts = receipts, rewards = rewards,
+		inventory = inventory }
 end
 
 function AvatarStore.new(dataStore: any, clock: (() -> number)?): any

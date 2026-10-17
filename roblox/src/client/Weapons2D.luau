@@ -17,6 +17,7 @@ local Canvas2D = require(script.Parent.Canvas2D)
 local WeaponPose = require(script.Parent.WeaponPose)
 -- the generated art plus the Roblox-only weapons' (Shared/Weapons.luau)
 local Art = require(game:GetService("ReplicatedStorage").Shared.Weapons).ART
+local CosmeticArt = require(game:GetService("ReplicatedStorage").Shared.CosmeticArt)
 
 local Weapons2D = {}
 
@@ -78,19 +79,37 @@ end
 -- The weapon's drawn extent in its own frame (outline included), in studs. `awake` measures its
 -- awakened form (Art.awakened), which is the same weapon with light added round it.
 local boundsCache: { [string]: { number } } = {}
--- `<id>:one` is one of a pair (Roblox only, DualWield): its single-unit art where the pair's art
--- shows two (Daggers, Chakram), and the weapon's own art where that is already one unit.
+-- A drawn weapon's id names its art: `<weapon>`, `<weapon>:one` for one of a pair (Roblox only,
+-- DualWield), and either with `@<skin>` for a weapon skin a player wears (Cosmetics; CosmeticArt).
+-- A skin is the weapon's own grid in new colours, so where it lacks a form (a pair's single unit
+-- for a weapon that is not paired) the unskinned form is used.
+local function parse(weaponId: string): (string, boolean, string?)
+	local named, skin = string.match(weaponId, "^([^@]+)@(.+)$")
+	local name: string = named or weaponId
+	local base = string.match(name, "^(.-):one$")
+	return base or name, base ~= nil, skin
+end
 local function artOf(weaponId: string, awake: boolean?): { any }?
-	local base = string.match(weaponId, "^(.-):one$")
-	if base then
+	local base, one, skin = parse(weaponId)
+	local worn = skin and CosmeticArt[skin]
+	if worn and worn.weapon == base then
+		local form = if one then (if awake then worn.singleAwakened else worn.single) else nil
+		if form then return form end
+		if not one or not (Art.single and Art.single[base]) then return if awake then worn.awakened else worn.sprites end
+	end
+	if one then
 		local single = if awake then Art.singleAwakened else Art.single
 		if single and single[base] then return single[base] end
-		weaponId = base
 	end
-	return if awake then Art.awakened[weaponId] else Art.sprites[weaponId]
+	return if awake then Art.awakened[base] else Art.sprites[base]
 end
 function Weapons2D.baseOf(weaponId: string): string
-	return string.match(weaponId, "^(.-):one$") or weaponId
+	return (parse(weaponId))
+end
+-- The palette a worn skin colours its trail and glow with, or nil.
+function Weapons2D.skinPalette(skin: string?): any
+	local worn = skin and CosmeticArt[skin]
+	return worn and worn.palette
 end
 function Weapons2D.bounds(weaponId: string, awake: boolean?): { number }?
 	local key = if awake then "+" .. weaponId else weaponId
@@ -202,11 +221,23 @@ end
 -- The swing smear, drawn around the shoulder in the fighter's local frame. Fourteen steps of an
 -- arc, widening and brightening toward the blade's current angle, so the streak reads as trailing
 -- the weapon rather than leading it.
-function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any, scale: number?)
+-- The swing trails players can wear (Cosmetics, type swing_trail; Roblox only): the colours the
+-- arc's segments take in turn, from its tail to its tip.
+Weapons2D.TRAILS = {
+	trail_shadow = { "#2A2438", "#4A3F66" },
+	trail_ember = { "#F2621B", "#FFB93F" },
+	trail_frost = { "#9FE8FF", "#E6FBFF" },
+	trail_glitch = { "#FF3CD8", "#3CFFE8", "#FFFFFF" },
+	trail_rainbow = { "#FF3A3A", "#FF9A3C", "#FFE03C", "#5FD068", "#2FA8FF", "#8A3FE0" },
+	trail_gold = { "#E8A61C", "#FFE07A" },
+} :: { [string]: { string } }
+
+function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any, scale: number?, worn: string?)
 	if not trail or not weaponId then
 		return
 	end
-	local r = (REACH[weaponId] or 2.4) * (scale or 1)
+	local colours = worn and Weapons2D.TRAILS[worn]
+	local r = (REACH[Weapons2D.baseOf(weaponId)] or 2.4) * (scale or 1)
 	local steps = 14
 	local a0, a1 = trail.from, trail.to
 	local glow = Canvas2D.hex(palette.glow, Canvas2D.hex(palette.accent, WHITE))
@@ -216,7 +247,7 @@ function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any
 		local rad = r * (0.55 + 0.45 * u)
 		local thick = (if trail.heavy then 0.9 else 0.55) * (0.4 + 0.6 * u)
 		local alpha = trail.alpha * (0.10 + 0.75 * u * u)
-		local colour = if u > 0.82 then WHITE else glow
+		local colour = if u > 0.82 then WHITE elseif colours then Canvas2D.hex(colours[i % #colours + 1], glow) else glow
 		-- One segment of the arc, as a rectangle tangent to it. A Frame cannot be an arc, but
 		-- fourteen short tangents around a circle is what an arc looks like at this size anyway.
 		Canvas2D.save(c)

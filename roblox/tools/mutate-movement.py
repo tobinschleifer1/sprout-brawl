@@ -116,6 +116,26 @@ loot = [
     ('odds rounded too far', 'shared/Loot', 'decimals = k + 4', 'decimals = k + 3', '0.03571%'),
     ('an item hidden', 'shared/Loot', 'for _, id in ids do\n\t\t\t\ttable.insert(out', 'for i, id in ids do\n\t\t\t\tif i == 1 then continue end\n\t\t\t\ttable.insert(out', 'sum to'),
 ]
+cosmetics = [
+    ('skins ignored', 'Weapons2D', 'if worn and worn.weapon == base then', 'if false then', "the skin's colours"),
+    ('skin on any weapon', 'Weapons2D', 'if worn and worn.weapon == base then', 'if worn then', "another weapon"),
+    ('pair unit unskinned', 'Weapons2D', 'local form = if one then (if awake then worn.singleAwakened else worn.single) else nil', 'local form = nil', 'one skinned dagger'),
+    ('trail ignores skin', 'Fighter2D', 'local wpal = Weapons2D.skinPalette(skin) or char.weaponPalette or pal', 'local wpal = char.weaponPalette or pal', 'glow and trail'),
+    ('unit id unskinned', 'Fighter2D', 'if unitId and skin then unitId ..= "@" .. skin end', '', 'a skinned sword drew'),
+    ('worn trail dropped', 'Fighter2D', 'wpose.trail, wpose.scale, worn and worn.trail)', 'wpose.trail, wpose.scale)', 'worn trail is not drawn'),
+    ('trail colours ignored', 'Weapons2D', 'elseif colours then Canvas2D.hex(colours[i % #colours + 1], glow) else glow', 'else glow', "worn trail's colour"),
+    ('hit style ignored', 'FxPlayer', 'local style = worn and FxPlayer.HIT_STYLES[worn]', 'local style = nil', "own hit"),
+    ('hit ramp ignored', 'FxPlayer', 'if it and it.ramp then glow = it.ramp end', '', 'did not recolour'),
+    ('ko effects ignored', 'FxPlayer', 'if not style then return false end\n\t\tstyle(P, e.x or 0, e.y or 0)', 'if true then return false end\n\t\tstyle(P, e.x or 0, e.y or 0)', 'draws no KO'),
+    ('ko off the line', 'FxPlayer', 'style(P, e.x or 0, e.y or 0)', 'style(P, (e.x or 0) + 20, e.y or 0)', 'away from the blast line'),
+    ('unowned worn', 'shared/Inventory', 'if not owned[id] then equipped.skins[weapon] = nil end', '', 'an unowned item is worn'),
+    ('skin on wrong weapon', 'shared/Inventory', 'if it and it.weapon == weapon then out.skins[weapon] = id end', 'if it then out.skins[weapon] = id end', 'another weapon'),
+    ('equip unowned', 'shared/Inventory', 'if not owns(id) then return false, "not owned" end', '', 'unowned item was equipped'),
+    ('live owns all', 'server/Locker', 'if self.studio then return Cosmetics.get(id) ~= nil end', 'if true then return Cosmetics.get(id) ~= nil end', 'live server owns everything'),
+    ('studio saves', 'server/Locker', 'if ok and not self.studio then', 'if ok then', 'session-only'),
+    ('no showcase', 'server/Locker', 'return Inventory.cleanLoadout(Locker.SHOWCASE)', 'return out', 'showcase'),
+    ('bots alike', 'server/Locker', 'hit = BOT_HITS[(i - 1) % #BOT_HITS + 1]', 'hit = BOT_HITS[1]', 'same effects'),
+]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
     ('wrong accessory priority', 'Secondary', 'if neck == "summitMantle" or neck == "scarf" then', 'if false then', 'catalogue tail missing or priority wrong'),
@@ -141,7 +161,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -160,4 +180,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(secondary)} independent mutations rejected; sources restored.')

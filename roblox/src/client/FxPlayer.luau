@@ -11,6 +11,7 @@
 -- is what colours an explosion in the caster's weapon glow, and it keeps the shared simulation's
 -- event shapes - which the JavaScript and its replay tests own - untouched.
 local FxArt = require(script.Parent.FxArt)
+local Cosmetics = require(game:GetService("ReplicatedStorage").Shared.Cosmetics)
 
 local FxPlayer = {}
 
@@ -124,6 +125,32 @@ local ONE = { seed = 0 }
 FxPlayer.PERFECT = "#FFD24A"
 FxPlayer.GLOW_TIME = 0.1
 
+-- The hit effects players can wear (Cosmetics, type hit_effect; Roblox only). One with a `ramp`
+-- recolours the weapon's own hit drawing (the class below) into that ramp; these draw their own.
+FxPlayer.HIT_STYLES = {
+	hit_comicpow = function(P: any, x: number, y: number, size: number, dir: number, dur: number, heavy: boolean)
+		add(P, "star", x, y, size * 1.6, dur + 0.06, "gold", ONE)
+		add(P, "pop", x, y, size * 1.1, dur, "red", { rot = dir, seed = 0 })
+		if heavy then add(P, "burst", x, y, size * 1.4, dur + 0.08, "gold", ONE) end
+	end,
+	hit_supernova = function(P: any, x: number, y: number, size: number, dir: number, dur: number, heavy: boolean)
+		add(P, "star", x, y, size * 1.4, dur + 0.04, "gold", ONE)
+		add(P, "ring", x, y, size * 1.6, dur, "gold", ONE)
+		if heavy then
+			for k = 0, 4 do
+				local a = k / 5 * math.pi * 2 + dir
+				add(P, "star", x + math.cos(a) * size, y + math.sin(a) * size, size * 0.6, dur, "gold", { seed = 0, delay = 0.03 + k * 0.01 })
+			end
+		end
+	end,
+	hit_eventhorizon = function(P: any, x: number, y: number, size: number, dir: number, dur: number, heavy: boolean)
+		add(P, "cyclone", x, y, size * 1.5, dur + 0.1, "void", ONE)
+		add(P, "ring", x, y, size * 2.2, dur + 0.06, "void", { seed = 0, delay = 0.04 })
+		add(P, "spark", x, y, size * 0.8, 0.16, "star", ONE)
+		if heavy then flash(P, 0.14, "#8A3FE0") end
+	end,
+} :: { [string]: (any, number, number, number, number, number, boolean) -> () }
+
 function FxPlayer.hit(P: any, e: any, states: { any }, chars: { any }): boolean
 	local s = stateOf(states, e.attacker)
 	local char = if s then chars[s.index + 1] else nil
@@ -136,7 +163,19 @@ function FxPlayer.hit(P: any, e: any, states: { any }, chars: { any }): boolean
 	local a = math.rad(e.angle or 45)
 	local dir = math.atan2(math.sin(a), math.cos(a) * (e.facing or 1))
 	local dur = if e.heavy then 0.24 else 0.18
-	if class == "slash" then
+	-- a worn hit effect: its own drawing, or the weapon's drawing in its ramp
+	local worn = char.cosmetics and char.cosmetics.hit
+	local style = worn and FxPlayer.HIT_STYLES[worn]
+	if style then
+		style(P, e.x, e.y, size, dir, dur, e.heavy == true)
+		class = "worn"
+	elseif worn then
+		local it = Cosmetics.get(worn)
+		if it and it.ramp then glow = it.ramp end
+	end
+	if class == "worn" then
+		-- (drawn above)
+	elseif class == "slash" then
 		add(P, "crescent", e.x, e.y, size * 1.5, dur, glow, { rot = dir + math.pi / 2, seed = 0 })
 		add(P, "spark", e.x, e.y, size * 0.6, 0.16, glow, ONE)
 		if e.heavy then add(P, "xslash", e.x, e.y, size * 1.2, dur, glow, ONE) end
@@ -186,10 +225,66 @@ local function radialBolts(P: any, x: number, y: number, n: number, length: numb
 	end
 end
 
+-- The KO effects players can wear (Cosmetics, type ko_effect; Roblox only): drawn at the blast line
+-- for the stock the wearer takes, in place of the plain KO burst.
+local function scatter(P: any, x: number, y: number, n: number, r: number, size: number, ramp: string?, kind: string?)
+	for k = 0, n - 1 do
+		local a = k / n * math.pi * 2 + 0.4
+		add(P, kind or "spark", x + math.cos(a) * r, y + math.sin(a) * r, size, 0.3, ramp, { rot = a, seed = 0, delay = 0.02 + k * 0.012 })
+	end
+end
+FxPlayer.KO_STYLES = {
+	ko_balloonpop = function(P: any, x: number, y: number)
+		add(P, "pop", x, y, 5, 0.3, "#FF6A8A", ONE)
+		scatter(P, x, y, 8, 2.6, 1.2, "#FFE07A")
+	end,
+	ko_ghostrise = function(P: any, x: number, y: number)
+		add(P, "pillar", x, y, 4, 0.6, "#DDE6FF", ONE)
+		add(P, "ring", x, y, 6, 0.4, "#DDE6FF", { seed = 0, sy = 0.4 })
+	end,
+	ko_firework = function(P: any, x: number, y: number)
+		add(P, "burst", x, y, 6, 0.45, "red", ONE)
+		add(P, "burst", x + 2.5, y + 1.5, 4.5, 0.45, "gold", { seed = 0, delay = 0.1 })
+		add(P, "burst", x - 2.2, y + 2.4, 4.5, 0.45, "volt", { seed = 0, delay = 0.2 })
+		add(P, "star", x, y, 3, 0.3, "gold", { seed = 0, delay = 0.28 })
+	end,
+	ko_pixelshatter = function(P: any, x: number, y: number)
+		add(P, "xslash", x, y, 6, 0.32, "#E8ECF2", ONE)
+		scatter(P, x, y, 12, 3.2, 1.0, "#E8ECF2", "spark")
+		flash(P, 0.18, "#FFFFFF")
+	end,
+	ko_meteor = function(P: any, x: number, y: number)
+		add(P, "comet", x, y + 3, 7, 0.32, "fire", { rot = -math.pi / 2.6, seed = 0 })
+		add(P, "burst", x, y, 7, 0.5, "fire", { seed = 0, delay = 0.12 })
+		add(P, "ring", x, y, 10, 0.42, "smoke", { seed = 0, delay = 0.16, sy = 0.35 })
+	end,
+	ko_blackhole = function(P: any, x: number, y: number)
+		add(P, "cyclone", x, y, 7, 0.7, "void", ONE)
+		add(P, "ring", x, y, 11, 0.5, "void", { seed = 0, delay = 0.1 })
+		add(P, "star", x, y, 2.4, 0.3, "star", { seed = 0, delay = 0.45 })
+		flash(P, 0.22, "#33135C")
+	end,
+	ko_dragonsbreath = function(P: any, x: number, y: number)
+		add(P, "comet", x - 6, y + 4, 12, 0.4, "fire", { rot = -0.5, seed = 0 })
+		add(P, "pillar", x, y, 8, 0.6, "fire", { seed = 0, delay = 0.1 })
+		add(P, "burst", x, y, 10, 0.6, "fire", { seed = 0, delay = 0.18 })
+		add(P, "ring", x, y, 14, 0.5, "gold", { seed = 0, delay = 0.22 })
+		flash(P, 0.3, "#F2621B")
+	end,
+} :: { [string]: (any, number, number) -> () }
+
 -- Returns true when this event was drawn here, so the caller can leave out the plain impact rings
 -- Effects would draw over it (see FightScene.spawn).
 function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolean
 	local t = e.type
+	if t == "ko" then
+		-- the stock's taker's KO effect, if they wear one; otherwise the plain burst (Effects)
+		local by = if type(e.by) == "number" and e.by >= 0 then chars[e.by + 1] else nil
+		local style = by and by.cosmetics and by.cosmetics.ko and FxPlayer.KO_STYLES[by.cosmetics.ko]
+		if not style then return false end
+		style(P, e.x or 0, e.y or 0)
+		return true
+	end
 	if t == "ultimate" then
 		local s = stateOf(states, e.fighter)
 		local char = if e.fighter ~= nil then chars[e.fighter + 1] else nil

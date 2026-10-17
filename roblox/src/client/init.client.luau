@@ -20,6 +20,7 @@ local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
+local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 local Loadout = require(Shared.Loadout)
 local Stages = require(Shared.Data.Stages)
 local Stage = require(Shared.Stage)
@@ -420,11 +421,21 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	kits = {}
 	localIndex = nil
 	for i, entry in roster do
+		-- what this fighter wears (the server's word, cleaned again here): set on copies, since a
+		-- built character can be shared with every other fighter of the same look and weapon
+		local wears = Inventory.cleanLoadout(entry.cosmetics)
+		local function dressed(char: any): any
+			local copy = table.clone(char)
+			copy.cosmetics = wears
+			return copy
+		end
 		if entry.kit then
-			kits[i] = Loadout.buildArmed(entry.avatar, entry.kit)
+			local armed = Loadout.buildArmed(entry.avatar, entry.kit)
+			kits[i] = { kit = { dressed(armed.kit[1]), dressed(armed.kit[2]) }, fists = dressed(armed.fists), char = nil }
+			kits[i].char = kits[i].fists
 			chars[i] = kits[i].fists                  -- everyone starts on fists
 		else
-			chars[i] = Loadout.build(entry.avatar, entry.weapon)
+			chars[i] = dressed(Loadout.build(entry.avatar, entry.weapon))
 		end
 		if entry.userId and entry.userId == Players.LocalPlayer.UserId then
 			localIndex = entry.index

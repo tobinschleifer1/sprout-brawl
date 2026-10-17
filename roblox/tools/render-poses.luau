@@ -31,6 +31,12 @@ for id in string.gmatch(process.args[3] or "LightNeutral1,LightNeutral2,LightNeu
 local avatar = process.args[4] or "knight"
 for _, p in KIT.presets do if p.id == avatar then avatar = p.code end end
 local char = Loadout.build(avatar, weapon)
+-- RENDER_WEAR=<skin id>[,<trail id>] dresses the fighter in a weapon skin (and a swing trail)
+if process.env.RENDER_WEAR then
+	local skin, trail = string.match(process.env.RENDER_WEAR, "^([^,]+),?(.*)$")
+	char = table.clone(char)
+	char.cosmetics = Loader.load("Inventory").cleanLoadout({ skins = { [weapon] = skin }, trail = if trail ~= "" then trail else nil })
+end
 Fighter2D.effects = nil
 
 local frames = {}

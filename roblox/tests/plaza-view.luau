@@ -129,6 +129,60 @@ local function canvas(w: number, h: number): any
 	return setmetatable({ used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 },
 		gui = { AbsoluteSize = { X = w, Y = h } }, finish = function(self) self.drawn = self.used; self.used = 0 end }, { __index = Canvas })
 end
+-- The lobby has depth as well as X. A distance-driven fight gait fed only X freezes both legs
+-- while walking north/south; the mirror's fixed X used to freeze its stride on every walk.
+do
+	local Draw = Loader.loadFrom("src/client/", "Fighter2D")
+	local Channels = Loader.loadFrom("src/client/", "Channels")
+	local Posture = Loader.loadFrom("src/client/", "Posture")
+	local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
+	local realDraw = Draw.draw
+	local poses = {}
+	Draw.draw = function(c, st, char, t, top)
+		local ch = Channels.For(st, char, nil, t)
+		local p = Posture.For(ch, st, char, WeaponPose.For(st, char, nil, t), nil, t)
+		poses[char] = { x = st.x, foot = p.legs[1].pose.ex, bob = p.bob, speed = math.abs(st.vx) }
+		return realDraw(c, st, char, t, top)
+	end
+	local c = canvas(1280, 720)
+	local function changed(before, after, why)
+		assert(before and after and math.abs(after.foot - before.foot) > 0.01, why .. " feet did not stride")
+		assert(before.bob ~= nil and after.bob ~= nil, why .. " run is not grounded")
+		assert(math.abs(after.bob - before.bob) > 1e-5, why .. " bounce did not follow stride")
+	end
+	hub.model:setScene(PLAZA.market, { x = 10, z = 4 })
+	hub.input.frame.x, hub.input.frame.y = 0, 1
+	hub:step(1/60, false); hub:draw(c, 1/60)
+	local before = poses[hub.char]
+	for _ = 1, 12 do hub:step(1/60, false); hub:draw(c, 1/60) end
+	local after = poses[hub.char]
+	assert(after.x == before.x and hub.model.p.z > 4.5 and after.speed > 0.5, "depth walk lost its pose speed")
+	changed(before, after, "depth walk")
+
+	local wardrobe
+	for _, st in PLAZA.market.stations do if st.kind == "Wardrobe" then wardrobe = st end end
+	hub:drawWardrobe(c, wardrobe, 0)
+	before = poses[hub.char]
+	for _ = 1, 12 do hub:step(1/60, false); hub:drawWardrobe(c, wardrobe, 0) end
+	after = poses[hub.char]
+	assert(after.x == before.x, "mirror left its fixed display position")
+	changed(before, after, "mirror")
+	hub.input.frame.y = 0
+
+	-- Remote peers use their interpolated depth travel, not a wall clock or their fixed X.
+	hub:setPeers({ { userId = 42, name = "Walker", avatar = "Noir", weapon = "Sword", x = 10, z = 4, y = 0, facing = 1, moving = true } }, 1)
+	local peer = hub.peers[42]
+	peer.x, peer.z, peer.y = 10, 4, 0
+	hub:draw(c, 1/60)
+	before = poses[peer.char]
+	peer.target.z = 8
+	for _ = 1, 4 do hub:draw(c, 1/60) end
+	after = poses[peer.char]
+	assert(after.x == before.x, "peer test must walk only in depth")
+	changed(before, after, "peer depth walk")
+	Draw.draw = realDraw
+	hub:setPeers({}, 1)
+end
 local peak, visits = 0, 0
 for _, size in { { 390, 844 }, { 1280, 720 }, { 1920, 1080 } } do
 	for _, st in PLAZA.market.stations do

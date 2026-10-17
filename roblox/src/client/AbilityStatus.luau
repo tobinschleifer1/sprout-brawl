@@ -5,12 +5,16 @@ local Status = {}
 -- The ultimate's part alone: CHARGING n/20, ACTIVE, or READY and what is in the way of it. The
 -- fight HUD shows it once it begins with READY - the only time there is something to do.
 function Status.ultimate(state: any, char: any): string
+	local move = char.moves.Ultimate
+	if not move then return "UNARMED — pick up a weapon" end
 	local charge = math.min(Config.ULTIMATE.hitsRequired, math.floor(state.ultCharge or 0))
 	local ultimate = `CHARGING {charge}/{Config.ULTIMATE.hitsRequired}`
 	if state.moveId == "Ultimate" then ultimate = "ACTIVE"
 	elseif charge >= Config.ULTIMATE.hitsRequired then
 		ultimate = "READY — press O"
-		if char.moves.Ultimate.grounded and not state.onGround then ultimate = "READY — land first"
+		if move.rings and char.mechanic and char.mechanic.id == "Return" and state.rings ~= nil and state.rings < move.rings then
+			ultimate = "READY — catch a ring first"
+		elseif move.grounded and not state.onGround then ultimate = "READY — land first"
 		elseif state.state == "shield" then ultimate = "READY — release shield first"
 		elseif state.state ~= "idle" and state.state ~= "run" and state.state ~= "air" then ultimate = "READY — finish current action" end
 	end
@@ -61,6 +65,7 @@ function Status.event(event: any): string?
 	if event.type == "ultimate" then return "ULTIMATE ACTIVATED" end
 	if event.type == "ultdenied" then
 		return if event.reason == "grounded" then "This ultimate needs solid ground — land, then press O."
+			elseif event.reason == "unarmed" then "Pick up a weapon to use your ultimate."
 			else "Ultimate is not charged yet — land hits to fill YOUR meter."
 	end
 	return nil

@@ -97,6 +97,41 @@ do
 	if not dry or f.mech.rings ~= 0 then fail("a third throw with empty hands was not refused") end
 end
 
+-- An ultimate refused for empty hands must not spend its meter or freeze either fighter.
+-- Exercise the real input path: startMove alone cannot catch effects applied before it runs.
+do
+	local Input, Snapshot = Loader.load("Input"), Loader.load("Snapshot")
+	local Predictor = Loader.loadFrom("src/client/", "Predictor")
+	local Stage = Loader.load("Stage")
+	for _, held in { 0, 1, 2 } do
+		local match, f, foe = setup()
+		f.ultCharge, f.mech.rings = 20, held
+		local pred = Predictor.new(f.char, 0, Stage.new(stageData, 1))
+		pred:reconcile(Snapshot.decode(Snapshot.encode(f)), 0)
+		local input = Input.emptyFrame()
+		input.ult = true
+		f:applyInput(input)
+		f:step({ stage = match.stage, fighters = match.fighters, combat = match.combat })
+		pred:push(input)
+		if held == 0 then
+			assert(f.ultCharge == 20 and pred:state().ultCharge == 20, "empty-handed ultimate spent its meter")
+			assert(f.state == "idle" and pred:state().state == "idle", "empty-handed ultimate started an action")
+			assert(f.ultActive == 0 and f.hitlag == 0 and foe.hitlag == 0 and f.invincible == 0,
+				"empty-handed ultimate granted activation effects")
+			local denied = 0
+			for _, event in f.events do
+				assert(event.type ~= "ultimate", "refused ultimate announced a cinematic")
+				if event.type == "dryfire" and event.rings == 1 then denied += 1 end
+			end
+			assert(denied == 1 and f.buffer.ult == 0, "refused ultimate did not consume and explain the press once")
+		else
+			assert(f.moveId == "Ultimate" and f.ultCharge == 0 and pred:state().moveId == "Ultimate",
+				"ultimate with a ring in hand did not activate")
+			assert(f.mech.rings == held, "ultimate spent its ring before ignition")
+		end
+	end
+end
+
 -- 4. Ground Saw rolls on the floor and turns at the ledge.
 do
 	local match, f = setup()
@@ -220,6 +255,39 @@ do
 		seen = #m.events
 	end
 	if dry > 0 then fail(`a Chakram bot with one ring in hand tried {dry} Halos`) end
+end
+
+-- Empty hands only prevent throws. An airborne up-heavy is the free recovery hop; replacing it
+-- with light makes a bot swing an aerial while falling past the ledge, even with recovery unused.
+do
+	local Ai = Loader.load("Ai")
+	local recovered, cases, hops = 0, 0, 0
+	for _, side in { -1, 1 } do
+		for seed = 1, 8 do
+			local match = Match.new({ mode = "Training", stage = stageData, seed = seed, items = false,
+				fighters = { { char = Loadout.build("Classic", "Chakram"), isBot = true, botLevel = "hard", team = 0 },
+					{ char = Loadout.build("Noir", "Sword"), isBot = true, botLevel = "dummy", team = 1 } } })
+			match.state = "fight"
+			local f, foe = match.fighters[1], match.fighters[2]
+			local main = match.stage.main
+			local edge = if side < 0 then main.x1 else main.x2
+			f:reset(edge + side * (9 + seed * 0.4), main.top - 8 - seed * 0.8, { state = "air", invincible = 0 })
+			f.jumpsLeft, f.vx, f.vy, f.mech.rings = 0, side * 12, -12, 0
+			foe:reset(0, main.top, { state = "idle", invincible = 0 })
+			foe.onGround, foe.platform = true, main
+			local input = Ai.computeBotInput(f, match)
+			if input.heavy and input.y > 0 and not input.light then hops += 1 end
+			for _ = 1, 240 do
+				match:step()
+				if f.state == "ledge" or (f.onGround and f.alive) then recovered += 1; break end
+				if not f.alive then break end
+			end
+			cases += 1
+		end
+	end
+	print(`Chakram empty-handed recovery: {hops}/{cases} hops requested, {recovered}/{cases} returned`)
+	assert(hops == cases, "empty-handed bot replaced its recovery hop with an aerial")
+	assert(recovered >= 12, "empty-handed Chakram bots failed to return to the ledge")
 end
 
 -- 9. Its own poses: the Chakram is neither the defaults nor a borrowed Grimoire. Every move below

@@ -55,6 +55,42 @@ for _, wid in blades do
 end
 assert(trailed > 100 and settled > 100, `only {trailed} trailing and {settled} settled frames checked`)
 
+-- The second of a pair trails its own hand the same way: behind it while it moves, exactly posed
+-- once it has held still.
+local DualWield = Loader.loadFrom("src/client/", "DualWield")
+local offTrailed, offSettled = 0, 0
+do
+	local char = Loadout.build("Classic", "Daggers")
+	for id in char.moves do
+		if id == "Ultimate" then continue end
+		local move = Fighter.moveOf(char, id)
+		for mf = 3, move.total do
+			local s = attack(char, id, mf)
+			local t = s.frameCount / 60
+			local wp = WeaponPose.For(s, char, move, t)
+			local now = DualWield.For(s, char, move, wp, 0, 0)
+			local was = attack(char, id, mf - 3)
+			local before = DualWield.For(was, char, move, WeaponPose.For(was, char, move, (s.frameCount - 3) / 60), 0, 0)
+			local lag = Fighter2D.offLag(s, char, move, t, wp, now.off)
+			assert(math.abs(lag) <= 0.3 + 1e-12, `Daggers {id} {mf}: the second dagger trails {lag}, past its limit`)
+			local turn = wrap(before.off.angle - now.off.angle)
+			if math.abs(turn) > 0.05 and math.abs(turn) <= 1.2 then
+				assert(lag * turn > 0, `Daggers {id} {mf}: the second dagger turned {-turn} and led its hand by {lag}`)
+				offTrailed += 1
+			elseif math.abs(turn) < 1e-9 then
+				assert(math.abs(lag) < 1e-9, `Daggers {id} {mf}: the second dagger's hand is still and it is moving`)
+				offSettled += 1
+			end
+		end
+	end
+	assert(offTrailed > 10 and offSettled > 10, `only {offTrailed} trailing and {offSettled} settled second-dagger frames`)
+	-- and only a listed (bladed) pair trails: the Gauntlets' fists do not
+	local g = Loadout.build("Classic", "Gauntlets")
+	local s = attack(g, "LightNeutral1", 2) -- (mid-turn, into the chamber: a blade here would trail)
+	local wp = WeaponPose.For(s, g, Fighter.moveOf(g, "LightNeutral1"), s.frameCount / 60)
+	assert(Fighter2D.offLag(s, g, Fighter.moveOf(g, "LightNeutral1"), s.frameCount / 60, wp, DualWield.For(s, g, Fighter.moveOf(g, "LightNeutral1"), wp, 0, 0).off) == 0, "the second gauntlet trails")
+end
+
 -- An ultimate's cinematic holds its move frame: nothing lags. Neither does a weapon not listed.
 do
 	local s, move = attack(char, "Ultimate", 30)
@@ -107,4 +143,4 @@ do
 	assert(math.abs(seen[1] - wp.angle) < 1e-12, "without overlap the blade is not drawn as posed")
 	assert(at[2] == seen[2] and at[3] == seen[3], "the overlap moved the grip")
 end
-print(string.format("PASS overlap: " .. table.concat(blades, ", ") .. ": the blade trails the hand on %d frames and is exactly posed on %d still ones; cuts, ultimates and unlisted weapons untouched; it dips against the run's bounce (%d/%d); drawn about the same grip", trailed, settled, up, down))
+print(string.format("PASS overlap: " .. table.concat(blades, ", ") .. ": the blade trails the hand on %d frames and is exactly posed on %d still ones; cuts, ultimates and unlisted weapons untouched; it dips against the run's bounce (%d/%d); drawn about the same grip; the second dagger trails on %d frames and settles on %d", trailed, settled, up, down, offTrailed, offSettled))

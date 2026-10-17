@@ -110,6 +110,7 @@ FxPlayer.CLASS = {
 	Hammer = "blunt", Gauntlets = "blunt", Flail = "blunt", Shield = "blunt",
 	Pike = "pierce", Longbow = "pierce", Blasters = "pierce",
 	Grimoire = "magic",
+	RocketBoots = "kick", -- (Roblox only)
 }
 
 -- Every landed hit, in the attacker's weapon colour and style, sized by its damage and aimed along
@@ -145,6 +146,14 @@ function FxPlayer.hit(P: any, e: any, states: { any }, chars: { any }): boolean
 	elseif class == "magic" then
 		add(P, "star", e.x, e.y, size * 1.3, dur, glow, ONE)
 		add(P, "pop", e.x, e.y, size, dur, "star", ONE)
+	elseif class == "kick" then
+		-- a boot landing: a pop of exhaust fire, a shock ring in the boots' glow, and the jet's
+		-- streak driven through along the blow; a heavy kick adds a second, wider ring of fire.
+		-- (A "burst" explosion read better but built 440 Frames the first time: tests/perf-budget.)
+		add(P, "pop", e.x, e.y, size * 1.2, dur + 0.06, "fire", { rot = dir, seed = 0 })
+		add(P, "ring", e.x, e.y, size * 1.5, dur, glow, ONE)
+		add(P, "lance", e.x - math.cos(dir) * size, e.y - math.sin(dir) * size, size * 2.0, 0.14, "fire", { rot = dir, sy = 0.5, seed = 0 })
+		if e.heavy then add(P, "ring", e.x, e.y, size * 2.4, dur + 0.04, "fire", { seed = 0, delay = 0.04 }) end
 	else
 		add(P, "pop", e.x, e.y, size * 1.15, dur, glow, { rot = (P.seed % 8) * 0.39, seed = 0 })
 		if e.heavy then add(P, "ring", e.x, e.y, size * 1.8, dur, glow, ONE) end

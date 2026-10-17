@@ -15,6 +15,8 @@ local Secondary = require(script.Parent.Secondary)
 local KitBody = require(script.Parent.KitBody)
 local Expressions = require(script.Parent.Expressions)
 local Movement = require(script.Parent.Movement)
+local DualWield = require(script.Parent.DualWield)
+local KickFx = require(script.Parent.KickFx)
 local KIT_PARTS = PostureArt.parts
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
@@ -48,16 +50,15 @@ local LAG, MAX_LAG, SNAP = 3, 0.3, 1.2
 local function wrap(a: number): number
 	return (a + math.pi) % (2 * math.pi) - math.pi
 end
-function Fighter2D.bladeLag(s: any, char: any, move: any, t: number, wpose: any): number
-	local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]
-	-- an ultimate's cinematic holds its move frame while time runs on: nothing is moving to lag
-	if not k or wpose.hide or (move and move.id == "Ultimate") then return 0 end
+local function past(s: any): any
 	local was = table.clone(s)
 	was.moveFrame = math.max(0, (s.moveFrame or 0) - LAG)
 	was.stateFrame = math.max(0, (s.stateFrame or 0) - LAG)
 	was.frameCount = (s.frameCount or 0) - LAG
 	was.x = s.x - (s.vx or 0) * LAG / 60
-	local turn = wrap(WeaponPose.For(was, char, move, t - LAG / 60).angle - wpose.angle)
+	return was
+end
+local function lagOf(k: number, s: any, char: any, was: any, turn: number): number
 	-- More than SNAP in LAG frames is a cut between poses, not a swing; which way round the blade
 	-- went is unknowable, so nothing trails it.
 	local lag = if math.abs(turn) > SNAP then 0 else k * turn
@@ -66,6 +67,23 @@ function Fighter2D.bladeLag(s: any, char: any, move: any, t: number, wpose: any)
 		lag -= k * 0.9 * (Movement.bob(s, char) - Movement.bob(was, char))
 	end
 	return math.clamp(lag, -MAX_LAG, MAX_LAG)
+end
+function Fighter2D.bladeLag(s: any, char: any, move: any, t: number, wpose: any): number
+	local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]
+	-- an ultimate's cinematic holds its move frame while time runs on: nothing is moving to lag
+	if not k or wpose.hide or (move and move.id == "Ultimate") then return 0 end
+	local was = past(s)
+	return lagOf(k, s, char, was, wrap(WeaponPose.For(was, char, move, t - LAG / 60).angle - wpose.angle))
+end
+-- The same for the second of a pair (DualWield): it trails where ITS hand was LAG frames ago.
+function Fighter2D.offLag(s: any, char: any, move: any, t: number, wpose: any, off: any): number
+	local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]
+	if not k or not off or off.empty or wpose.hide or (move and move.id == "Ultimate") then return 0 end
+	local was = past(s)
+	local before = DualWield.For(was, char, move, WeaponPose.For(was, char, move, t - LAG / 60), 0, 0)
+	-- (the past is rebuilt from the same move, so the same hand holds it then as now)
+	if not before or not before.off then return 0 end
+	return lagOf(k, s, char, was, wrap(before.off.angle - off.angle))
 end
 local TEAMS = require(game:GetService("ReplicatedStorage").Shared.Data.Teams)
 local TEAM_GLOW, TEAM_MARKER = TEAMS.glow, TEAMS.marker
@@ -250,6 +268,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		if not off or off.empty or not wid then return end
 		local pose = table.clone(wpose)
 		pose.angle, pose.ox, pose.oy, pose.charge, pose.trail, pose.lash = off.angle, 0, 0, 0, nil, nil
+		pose.angle += Fighter2D.offLag(s, char, move, t, wpose, off)
 		pose.offhand = true -- (the second of the pair: the move's hitboxes are on the other one)
 		Canvas2D.save(c)
 		Canvas2D.translate(c, posture.offX, posture.offY)
@@ -276,6 +295,12 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		KitBody.draw(c, h, PW, ch, p, half, kitPiece, function(i, L)
 			-- Rocket Boots are worn (Roblox only): one boot on each foot, turned with its shin,
 			-- instead of a weapon in the hand. The boot's art is anchored at the ankle.
+			-- a striking kick throws its blast ahead and its exhaust behind (KickFx), under the boot
+			local kick = posture and posture.kick
+			if kick and kick.active[i] then
+				local d = kick.dirs[i]
+				KickFx.draw(c, L.ex, L.ey, d[1], d[2], kick.reach[i], kick.ignite)
+			end
 			if wid == "RocketBoots" and not wpose.hide then
 				Canvas2D.save(c)
 				Canvas2D.translate(c, L.ex, L.ey)

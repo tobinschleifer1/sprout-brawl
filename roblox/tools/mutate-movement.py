@@ -57,14 +57,16 @@ posture = [
     ('lit outline', 'PostureArt', 'if hex == Compose.OUTLINE or type(hex) ~= "string" then', 'if type(hex) ~= "string" then', 'outline or far shade changed'),
 ]
 overlap = [
+    ('second dagger leads', 'Fighter2D', 'return lagOf(k, s, char, was, wrap(before.off.angle - off.angle))', 'return lagOf(k, s, char, was, wrap(off.angle - before.off.angle))', 'led its hand'),
     ('blade leads', 'Fighter2D', 'then 0 else k * turn', 'then 0 else -k * turn', 'the blade led it'),
     ('cut drags', 'Fighter2D', 'if math.abs(turn) > SNAP then 0', 'if false then 0', 'a cut between poses'),
     ('unclamped', 'Fighter2D', 'return math.clamp(lag, -MAX_LAG, MAX_LAG)', 'return lag * 2', 'past its limit'),
     ('never settles', 'Fighter2D', 'then 0 else k * turn', 'then 0 else k * turn - 0.02', 'still moving'),
     ('bounce carries the tip', 'Fighter2D', 'lag -= k * 0.9 *', 'lag += k * 0.9 *', 'and the blade tip'),
     ('drawn as posed', 'Fighter2D', 'drawn.angle += lag', 'drawn.angle += 0', 'the blade is drawn at'),
-    ('ultimate lags', 'Fighter2D', 'or (move and move.id == "Ultimate")', 'or false', 'frozen frame lags'),
-    ('every weapon lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]', 'local k = 0.4', 'is not listed, and lags'),
+    ('ultimate lags', 'Fighter2D', 'if not k or wpose.hide or (move and move.id == "Ultimate") then return 0 end', 'if not k or wpose.hide then return 0 end', 'frozen frame lags'),
+    ('every weapon lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]\n\t-- an ultimate', 'local k = 0.4\n\t-- an ultimate', 'is not listed, and lags'),
+    ('every pair lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]\n\tif not k or not off', 'local k = 0.4\n\tif not k or not off', 'the second gauntlet trails'),
 ]
 dual = [
     ('daggers in one hand', 'DualWield', 'DualWield.PAIRED = { Daggers = true,', 'DualWield.PAIRED = { Daggers = false,', 'one in each hand'),
@@ -79,6 +81,27 @@ dual = [
     ('rings ignored', 'DualWield', 'units = math.clamp(s.rings or 2, 0, 2)', 'units = 2', 'ring'),
     ('rear weapon never drawn', 'Fighter2D', 'end, if dual and dual.off and dual.off.hand == "back" then drawOff else nil)', 'end, nil)', 'one in each hand'),
     ('singles split', 'Fighter2D', 'local unitId = if dual and wid then wid .. ":one" else wid', 'local unitId = if wid then wid .. ":one" else wid', 'is drawn as a pair'),
+]
+kicks = [
+    ('punching boots', 'Posture', 'local kick = Kicks.For(s, char, move, ch.bob)', 'local kick = nil', 'the boots are not kicking'),
+    ('late strike', 'Kicks', 'elseif fa <= b then', 'elseif fa <= b and fa > a then', 'late: its box is live'),
+    ('link frames ignored', 'Kicks', 'return (s.moveFrame or 0) + (move.startup - eff)', 'return (s.moveFrame or 0)', 'the leg and its box disagree'),
+    ('kick off its line', 'Kicks', 'return hx + dx / d * reach, hy + dy / d * reach', 'return hx + dx / d * reach, hy + dy / d * reach * 0.5', 'does not strike along'),
+    ('stretched kick', 'Kicks', 'local reach = math.min(L * 0.995, d)', 'local reach = math.min(L * 1.2, d)', 'long, not'),
+    ('standing foot slides', 'Kicks', '-bob }, { r * 0.30 + WIDTH, -bob } }', '-bob }, { r * 0.30 + WIDTH * (1 - commit), -bob } }', 'standing foot slid'),
+    ('no chamber', 'Kicks', 'return hx + ux * 0.30 * L, hy - L * 0.45 + math.max(0, uy) * L * 0.30', 'return hx + ux * 0.5 * L, hy - L * 0.85', 'chambered'),
+    ('no axe lift', 'Kicks', 'if style.axe then return hx + 0.25 * L, hy + 0.85 * L end', '', 'raised overhead'),
+    ('never sets down', 'Kicks', 'return lerp(cx, sx, k), lerp(cy, sy, k), ux, uy, false', 'return cx, cy, ux, uy, false', 'never sets down'),
+    ('punching hands', 'Posture', 'if Kicks.guards(char, s) then', 'if false then', 'punches'),
+    ('no lean', 'Kicks', 'lean = (style.lean or 0) * commit', 'lean = 0', 'lean the torso back'),
+    ('no drop', 'Kicks', '(style.drop or 0) * L * commit', '0', 'drop the hips'),
+    ('no ignition', 'Kicks', 'ignite = (move.fuelCost or 0) > 0 and fa >= a and fa <= a + 1', 'ignite = false', 'not doubled'),
+    ('ignition never ends', 'Kicks', 'ignite = (move.fuelCost or 0) > 0 and fa >= a and fa <= a + 1', 'ignite = (move.fuelCost or 0) > 0', 'stays doubled'),
+    ('short blast', 'Kicks', 'out.reach[i] = math.max(0, (target[1] - x) * ux + (target[2] - y) * uy + far)', 'out.reach[i] = 0.3', 'short of its box'),
+    ('plain hits', 'FxPlayer', 'RocketBoots = "kick", -- (Roblox only)', '', 'burst in fire'),
+    ('one-legged split', 'Kicks', 'kicking[2] = { target[1] - half, target[2] }', 'kicking[2] = nil', 'both feet'),
+    ('one-legged redline', 'Kicks', 'local REDLINE: { any } = { 1, 2, "both" }', 'local REDLINE: { any } = { 1, 1, "both" }', 'reverse kick'),
+    ('strike outlasts its box', 'Kicks', 'elseif fa <= b then', 'elseif fa <= b + 1 then', 'with no live box'),
 ]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
@@ -105,7 +128,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         path = Path(f'src/client/{module}.luau')
@@ -123,4 +146,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(secondary)} independent mutations rejected; sources restored.')

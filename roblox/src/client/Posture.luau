@@ -6,6 +6,7 @@ local Rig = require(script.Parent.Rig)
 local Channels = require(script.Parent.Channels)
 local Movement = require(script.Parent.Movement)
 local DualWield = require(script.Parent.DualWield)
+local Kicks = require(script.Parent.Kicks)
 local Posture = {}
 
 local function point(x: number, y: number, rot: number, sx: number, sy: number): (number, number)
@@ -36,6 +37,9 @@ end
 function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: number): any
 	local h, r = char.height, char.radius
 	local motion = Movement.For(ch, s, char)
+	-- Rocket Boots kick (Kicks): the legs strike, the hips drop for a sweep
+	local kick = Kicks.For(s, char, move, ch.bob)
+	if kick then motion.feet, motion.hipY = kick.feet, -kick.drop end
 	local hip, trunk = h * 0.34 + motion.hipY, h * 0.36
 	local idle = s.state == "idle"
 	local running = s.state == "run"
@@ -50,8 +54,9 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local chestSwing = math.sin(phase - 0.6) * speed
 	local hipX = r * (0.07 * stride + 0.035 * breath - 0.06 * drive) + motion.hipX
 	local hipRot = 0.055 * stride + 0.055 * drive
-	local waistRot = -ch.lean * 0.45 + hipRot * 0.4
-	local chestRot = -ch.lean - 0.11 * drive - 0.075 * chestSwing + motion.chest
+	local waistRot = -ch.lean * 0.45 + hipRot * 0.4 + (if kick then kick.lean * 0.5 else 0)
+	local lean = if kick then kick.lean else 0 -- a high kick tilts the torso back, away from it
+	local chestRot = -ch.lean - 0.11 * drive - 0.075 * chestSwing + motion.chest + lean
 	local chestSX = ch.sx * (1 - 0.055 * math.abs(drive) - 0.035 * math.abs(chestSwing))
 	local chestSY = ch.sy * (1 + 0.014 * breath)
 	local waistX, waistY = point(0, trunk * 7 / 18, waistRot, ch.sx, ch.sy)
@@ -99,12 +104,23 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		end
 	end
 	local neckX, neckY = chestPoint(0, chestH + h * 0.08)
+	if Kicks.guards(char, s) then
+		-- the boots leave the hands empty: the front fist stays up by the chin, and through a kick
+		-- the rear arm swings back against it
+		fx, fy, frontBend = frontX + math.cos(1.15) * h * 0.15, frontY + math.sin(1.15) * h * 0.15, math.rad(75)
+		if kick then
+			local a = math.atan2(-kick.aim[2] * 0.5 - 0.5, -kick.aim[1])
+			bx = bx + (backX + math.cos(a) * h * 0.27 - bx) * kick.commit
+			by = by + (backY + math.sin(a) * h * 0.27 - by) * kick.commit
+		end
+	end
 	local p = {
 		hipX = hipX, hipY = hip, hipRot = hipRot,
+		kick = kick,
 		waistX = waistX, waistY = waistY, waistRot = waistRot,
 		chestRot = chestRot, chestSX = chestSX, chestSY = chestSY,
 		headX = neckX, headY = neckY,
-		headRot = -ch.lean * 0.55 - ch.head * 0.4 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head,
+		headRot = -ch.lean * 0.55 - ch.head * 0.4 + lean * 0.6 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head,
 		rigRotZ = motion.rigRotZ, yOff = motion.yOff, bob = motion.bob,
 		frontX = frontX, frontY = frontY, backX = backX, backY = backY,
 		front = Posture.limb(frontX, frontY, fx, fy, frontBend, 1),
@@ -124,6 +140,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		local rx, ry = point(dx, 0, hipRot, 1, 1)
 		rx += hipX; ry += hip
 		if foot and foot.lane then rx = dx end
+		if foot and foot.rootY then rx, ry = foot.rootX, foot.rootY end -- a kick aims from this hip
 		local crouch = math.clamp(-ch.bob / (h * 0.09), 0, 1)
 		local bend = math.rad(if foot then (foot.bend or 0) elseif idle then 9 else 10 + 65 * tuck + 32 * crouch)
 		if foot and foot.len then

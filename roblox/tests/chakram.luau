@@ -97,6 +97,41 @@ do
 	if not dry or f.mech.rings ~= 0 then fail("a third throw with empty hands was not refused") end
 end
 
+-- An ultimate refused for empty hands must not spend its meter or freeze either fighter.
+-- Exercise the real input path: startMove alone cannot catch effects applied before it runs.
+do
+	local Input, Snapshot = Loader.load("Input"), Loader.load("Snapshot")
+	local Predictor = Loader.loadFrom("src/client/", "Predictor")
+	local Stage = Loader.load("Stage")
+	for _, held in { 0, 1, 2 } do
+		local match, f, foe = setup()
+		f.ultCharge, f.mech.rings = 20, held
+		local pred = Predictor.new(f.char, 0, Stage.new(stageData, 1))
+		pred:reconcile(Snapshot.decode(Snapshot.encode(f)), 0)
+		local input = Input.emptyFrame()
+		input.ult = true
+		f:applyInput(input)
+		f:step({ stage = match.stage, fighters = match.fighters, combat = match.combat })
+		pred:push(input)
+		if held == 0 then
+			assert(f.ultCharge == 20 and pred:state().ultCharge == 20, "empty-handed ultimate spent its meter")
+			assert(f.state == "idle" and pred:state().state == "idle", "empty-handed ultimate started an action")
+			assert(f.ultActive == 0 and f.hitlag == 0 and foe.hitlag == 0 and f.invincible == 0,
+				"empty-handed ultimate granted activation effects")
+			local denied = 0
+			for _, event in f.events do
+				assert(event.type ~= "ultimate", "refused ultimate announced a cinematic")
+				if event.type == "dryfire" and event.rings == 1 then denied += 1 end
+			end
+			assert(denied == 1 and f.buffer.ult == 0, "refused ultimate did not consume and explain the press once")
+		else
+			assert(f.moveId == "Ultimate" and f.ultCharge == 0 and pred:state().moveId == "Ultimate",
+				"ultimate with a ring in hand did not activate")
+			assert(f.mech.rings == held, "ultimate spent its ring before ignition")
+		end
+	end
+end
+
 -- 4. Ground Saw rolls on the floor and turns at the ledge.
 do
 	local match, f = setup()

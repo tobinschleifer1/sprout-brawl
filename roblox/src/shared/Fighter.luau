@@ -781,6 +781,14 @@ function methods._tryUltimate(self, ctx): boolean
 		methods.emit(self, { type = "ultdenied", reason = "grounded" })
 		return false
 	end
+	-- Eclipse Ring (Roblox only) needs a ring before committing ANY activation effects.
+	-- startMove also checks throws, but by then the meter, freeze and invincibility are spent.
+	local rings = self.char.moves.Ultimate.rings
+	if rings and self.mech.id == "Return" and (self.mech.rings or 0) < rings then
+		self.buffer.ult = 0
+		methods.emit(self, { type = "dryfire", rings = rings })
+		return false
+	end
 	self.buffer.ult = 0
 	self.ultCharge = 0
 	self.ultActive = 1

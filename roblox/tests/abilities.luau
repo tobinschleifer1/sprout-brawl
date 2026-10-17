@@ -84,6 +84,21 @@ do
 	assert(not Status.describe({rings=-1,ultCharge=0,onGround=true,state="idle"},sword):find("RINGS",1,true),"no rings for a sword")
 	assert(Status.event({type="dryfire",rings=2}):find("both",1,true) and Status.event({type="dryfire",rings=1}):find("No ring",1,true),"a refused throw says why")
 	assert(Status.event({type="dryfire"})==nil,"a spine weapon's dry fire is not a ring message")
+	assert(Status.ultimate({rings=0,ultCharge=20,onGround=true,state="idle"},chak):find("catch a ring",1,true),
+		"full meter with empty hands must explain the ultimate's ring requirement")
+	for _, rings in {1,2} do
+		assert(Status.ultimate({rings=rings,ultCharge=20,onGround=true,state="idle"},chak)=="READY — press O",
+			"one ring is enough for the ultimate")
+	end
+end
+
+-- Weapon drops preserve the full ultimate meter while the fighter is unarmed. The HUD still
+-- updates each frame, and there is no Ultimate move whose grounded flag it can read.
+do
+	local fists = Loadout.build("Classic", "Fists")
+	assert(Status.ultimate({ultCharge=20,onGround=true,state="idle"},fists):find("pick up a weapon",1,true),
+		"unarmed full meter must explain how to use it")
+	assert(Status.event({type="ultdenied",reason="unarmed"}):find("weapon",1,true), "unarmed denial blamed charge")
 end
 -- Rocket Boots' fuel (Roblox only): the tank, which signatures it no longer pays for, nothing for
 -- any other weapon, and a refused signature explained.

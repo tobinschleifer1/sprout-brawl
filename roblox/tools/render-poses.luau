@@ -22,7 +22,9 @@ local Recorder = require("./recorder")
 local Rbx = require("@lune/roblox")
 local shapes = Recorder.install(Canvas)
 
-local W, H = 260, 220
+-- RENDER_SCALE=<px per stud> draws larger, for looking closely (the frame grows to match)
+local SCALE = tonumber(process.env.RENDER_SCALE) or 26
+local W, H = math.floor(260 * SCALE / 26), math.floor(220 * SCALE / 26)
 local out, weapon = process.args[1], process.args[2]
 local moves = {}
 for id in string.gmatch(process.args[3] or "LightNeutral1,LightNeutral2,LightNeutral3,Finisher", "[^,]+") do table.insert(moves, id) end
@@ -37,7 +39,7 @@ local function draw(f: any, label: string)
 	local c = Recorder.canvas(Canvas, W, H)
 	Canvas.screen(c)
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromHex("#22303f"), 1)
-	Canvas.world(c, 1.5, 3.2, 26, 0, 0)
+	Canvas.world(c, 1.5, 3.2, SCALE, 0, 0)
 	Canvas.rect(c, -6, -1, 14, 1, Rbx.Color3.fromHex("#4a5a46"), 1)     -- the floor
 	local s = Snapshot.decode(Snapshot.encode(f))
 	Fighter2D.draw(c, s, char, 0, 0)

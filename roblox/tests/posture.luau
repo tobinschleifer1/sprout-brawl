@@ -121,9 +121,11 @@ Canvas.sprite = function(cv, key, list, x0, y1, pw, ph, cols, rows)
 	table.insert(sprites, sp)
 end
 local weaponDraw = Weapons.draw
-Weapons.draw = function(cv, ...)
-	grip = { cv.m.e, cv.m.f }
-	return weaponDraw(cv, ...)
+local offGrip
+Weapons.draw = function(cv, wid, pal, pose, ...)
+	-- the second of a pair (DualWield) is the other hand's; THE weapon carries the move
+	if pose and pose.offhand then offGrip = { cv.m.e, cv.m.f } else grip = { cv.m.e, cv.m.f } end
+	return weaponDraw(cv, wid, pal, pose, ...)
 end
 local function canvas(scale)
 	return { m = { a = scale, b = 0, c = 0, d = -scale, e = 300, f = 260 }, stack = {}, alpha = 1, alphaStack = {} }
@@ -135,13 +137,14 @@ end
 local draws = 0
 local function check(s, ch, t)
 	local p = posture(s, ch, t)
-	assert(bend(p.backX, p.backY, p.back) <= 24.01, "back arm folds more than 24 degrees")
+	-- a free rear arm stays relaxed; one holding the second of a pair works (tests/dual-wield)
+	assert(p.dual or bend(p.backX, p.backY, p.back) <= 24.01, "back arm folds more than 24 degrees")
 	local art = Art.sprites(ch.avatar.code)
 	for _, scale in { 8, 26 } do
 		local half = scale == 8
 		for _, facing in { -1, 1 } do
 			s.facing = facing
-			table.clear(sprites); grip = nil
+			table.clear(sprites); grip = nil; offGrip = nil
 			local cv = canvas(scale)
 			Draw.draw(cv, s, ch, t)
 			assert(#cv.stack == 0, "posture leaves a transform on the canvas")
@@ -171,8 +174,16 @@ local function check(s, ch, t)
 			local nearLeg, farLeg = by[if half then "legN" else "shinN"], by[if half then "legF" else "thighF"]
 			assert(nearLeg and farLeg and nearLeg.order > farLeg.order, "the near leg is not drawn over the far one")
 			if grip then
-				local ex, ey = pivot(by[if half then "armN" else "forearmN"], half, true)
+				-- a pair's back-hand strike puts the move's weapon in the rear hand, the other in the front
+				local main, other = "N", "F"
+				if p.dual and p.dual.striker == "back" then main, other = "F", "N" end
+				local ex, ey = pivot(by[if half then "arm" .. main else "forearm" .. main], half, true)
 				near(ex, grip[1], "hand/grip x"); near(ey, grip[2], "hand/grip y")
+				assert((offGrip ~= nil) == (p.dual ~= nil and p.dual.off ~= nil and not p.dual.off.empty), "the second weapon of a pair is missing, or drawn for a single weapon")
+				if offGrip then
+					local ox, oy = pivot(by[if half then "arm" .. other else "forearm" .. other], half, true)
+					near(ox, offGrip[1], "other hand/second weapon x"); near(oy, offGrip[2], "other hand/second weapon y")
+				end
 				-- Compare against the ORIGINAL authored anchor independently of Posture. Moving both
 				-- the hand and weapon together must not make a misplaced grip pass this test.
 				local move = Fighter.moveOf(ch, s.moveId)

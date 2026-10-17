@@ -42,7 +42,8 @@ Fighter2D.glows = nil :: any
 -- where the hand was LAG frames ago, so it drags into a swing and settles after the hand stops,
 -- and dips as the body rises in a run. It turns about the grip: the hand never leaves it, and the
 -- hitboxes are untouched. By weapon id; a weapon not listed is drawn exactly as posed.
-Fighter2D.OVERLAP = { Sword = 0.4 } :: { [string]: number }
+-- Heavier and longer heads trail further; the daggers' short blades barely.
+Fighter2D.OVERLAP = { Sword = 0.4, Scythe = 0.5, Axe = 0.45, Pike = 0.35, Daggers = 0.25 } :: { [string]: number }
 local LAG, MAX_LAG, SNAP = 3, 0.3, 1.2
 local function wrap(a: number): number
 	return (a + math.pi) % (2 * math.pi) - math.pi
@@ -240,6 +241,22 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local wpal = char.weaponPalette or pal
 	local scuff: any = nil
 
+	-- A pair held one in each hand (DualWield): each hand draws one unit, and the second weapon
+	-- goes where Posture put the hand that holds it - behind the body in the rear hand.
+	local dual = if posture then posture.dual else nil
+	local unitId = if dual and wid then wid .. ":one" else wid
+	local function drawOff()
+		local off = dual and dual.off
+		if not off or off.empty or not wid then return end
+		local pose = table.clone(wpose)
+		pose.angle, pose.ox, pose.oy, pose.charge, pose.trail, pose.lash = off.angle, 0, 0, 0, nil, nil
+		pose.offhand = true -- (the second of the pair: the move's hitboxes are on the other one)
+		Canvas2D.save(c)
+		Canvas2D.translate(c, posture.offX, posture.offY)
+		Canvas2D.rotate(c, -ch.lean)
+		Weapons2D.draw(c, unitId :: string, wpal, pose)
+		Canvas2D.restore(c)
+	end
 	-- a gait carries its own bounce, in step with the feet (Movement.bob)
 	local bob = if posture and posture.bob ~= nil then posture.bob else ch.bob
 	Canvas2D.save(c)
@@ -270,7 +287,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				Canvas2D.sprite(c, "weapon|" .. wid, sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 2 then 0.85 else 1)
 				Canvas2D.restore(c)
 			end
-		end)
+		end, if dual and dual.off and dual.off.hand == "back" then drawOff else nil)
 	else
 		for _, leg in { { ch.legL, -r * 0.30, 0.74 }, { ch.legR, r * 0.30, 1 } } do
 			Canvas2D.save(c)
@@ -329,13 +346,15 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		if lag ~= 0 then
 			local drawn: any = table.clone(wpose)
 			drawn.angle += lag
-			Weapons2D.draw(c, wid, wpal, drawn)
+			Weapons2D.draw(c, unitId, wpal, drawn)
 		else
-			Weapons2D.draw(c, wid, wpal, wpose)
+			Weapons2D.draw(c, unitId, wpal, wpose)
 		end
 		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
 		Canvas2D.restore(c)
 	end
+	-- the front hand's second weapon, while the rear hand strikes, is the nearest thing drawn
+	if dual and dual.off and dual.off.hand == "front" then drawOff() end
 	Canvas2D.restore(c)   -- bob
 	Canvas2D.restore(c)   -- fighter
 	if scuff then

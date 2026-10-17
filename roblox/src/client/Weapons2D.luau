@@ -78,8 +78,19 @@ end
 -- The weapon's drawn extent in its own frame (outline included), in studs. `awake` measures its
 -- awakened form (Art.awakened), which is the same weapon with light added round it.
 local boundsCache: { [string]: { number } } = {}
+-- `<id>:one` is one of a pair (Roblox only, DualWield): its single-unit art where the pair's art
+-- shows two (Daggers, Chakram), and the weapon's own art where that is already one unit.
 local function artOf(weaponId: string, awake: boolean?): { any }?
+	local base = string.match(weaponId, "^(.-):one$")
+	if base then
+		local single = if awake then Art.singleAwakened else Art.single
+		if single and single[base] then return single[base] end
+		weaponId = base
+	end
 	return if awake then Art.awakened[weaponId] else Art.sprites[weaponId]
+end
+function Weapons2D.baseOf(weaponId: string): string
+	return string.match(weaponId, "^(.-):one$") or weaponId
 end
 function Weapons2D.bounds(weaponId: string, awake: boolean?): { number }?
 	local key = if awake then "+" .. weaponId else weaponId
@@ -155,7 +166,7 @@ function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	if not weaponId then
 		return
 	end
-	local rects = Art.sprites[weaponId]
+	local rects = artOf(weaponId)
 	if not rects or pose.hide then
 		return
 	end
@@ -170,7 +181,7 @@ function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	end
 	-- In its ultimate the weapon is drawn awakened - its outline burning in its own glow - when
 	-- that art exists; the everyday weapon otherwise.
-	local awake = Weapons2D.awake(pose) and Art.awakened ~= nil and Art.awakened[weaponId] ~= nil
+	local awake = Weapons2D.awake(pose) and Art.awakened ~= nil and artOf(weaponId, true) ~= nil
 	local sp = Weapons2D.sprite(weaponId, awake)
 	Canvas2D.sprite(c, (if awake then "weapon+|" else "weapon|") .. weaponId, sp.rects, sp.x0, sp.y1, CELL, CELL, sp.cols, sp.rows)
 
@@ -183,7 +194,7 @@ function Weapons2D.draw(c: any, weaponId: string?, palette: any, pose: any)
 	end
 	if pose.charge > 0 then                          -- charging glows along the weapon
 		local glow = Canvas2D.hex(palette.glow, WHITE)
-		Canvas2D.rect(c, 0, -0.1, REACH[weaponId] or 2, 0.2, glow, 0.25 + pose.charge * 0.5)
+		Canvas2D.rect(c, 0, -0.1, REACH[Weapons2D.baseOf(weaponId)] or 2, 0.2, glow, 0.25 + pose.charge * 0.5)
 	end
 	Canvas2D.restore(c)
 end

@@ -21,32 +21,39 @@ local function attack(c, id, mf)
 end
 local function wrap(a) return (a + math.pi) % (2 * math.pi) - math.pi end
 
--- Through every Sword move: wherever the hand turned in the last frames, the blade is behind it;
--- once the hand has held still for those frames, the blade is exactly where it is posed.
+-- Through every move of every bladed weapon: wherever the hand turned in the last frames, the
+-- blade is behind it; once the hand has held still for those frames, it is exactly where it is posed.
 local trailed, settled = 0, 0
-for id in char.moves do
-	if id == "Ultimate" then continue end
-	local move = Fighter.moveOf(char, id)
-	for mf = 3, move.total do
-		local s = attack(char, id, mf)
-		local t = s.frameCount / 60
-		local wp = WeaponPose.For(s, char, move, t)
-		local was = attack(char, id, mf - 3)
-		local turn = wrap(wp.angle - WeaponPose.For(was, char, move, (s.frameCount - 3) / 60).angle)
-		local lag = Fighter2D.bladeLag(s, char, move, t, wp)
-		assert(math.abs(lag) <= 0.3 + 1e-12, `{id} {mf}: the blade trails {lag} rad, past its limit`)
-		if math.abs(turn) > 1.2 then
-			assert(lag == 0, `{id} {mf}: a cut between poses ({turn} rad) dragged the blade`)
-		elseif math.abs(turn) > 0.05 then
-			assert(lag * turn < 0, `{id} {mf}: the hand turned {turn} and the blade led it by {lag}`)
-			trailed += 1
-		elseif math.abs(turn) < 1e-9 then
-			assert(math.abs(lag) < 1e-9, `{id} {mf}: the hand is still and the blade is still moving ({lag})`)
-			settled += 1
+local blades = {}
+for wid in Fighter2D.OVERLAP do table.insert(blades, wid) end
+table.sort(blades)
+assert(#blades >= 5, "the bladed weapons are not all listed for overlap")
+for _, wid in blades do
+	local char = Loadout.build("Classic", wid)
+	for id in char.moves do
+		if id == "Ultimate" then continue end
+		local move = Fighter.moveOf(char, id)
+		for mf = 3, move.total do
+			local s = attack(char, id, mf)
+			local t = s.frameCount / 60
+			local wp = WeaponPose.For(s, char, move, t)
+			local was = attack(char, id, mf - 3)
+			local turn = wrap(wp.angle - WeaponPose.For(was, char, move, (s.frameCount - 3) / 60).angle)
+			local lag = Fighter2D.bladeLag(s, char, move, t, wp)
+			assert(math.abs(lag) <= 0.3 + 1e-12, `{wid} {id} {mf}: the blade trails {lag} rad, past its limit`)
+			if math.abs(turn) > 1.2 then
+				assert(lag == 0, `{wid} {id} {mf}: a cut between poses ({turn} rad) dragged the blade`)
+			elseif math.abs(turn) > 0.05 then
+				assert(lag * turn < 0, `{wid} {id} {mf}: the hand turned {turn} and the blade led it by {lag}`)
+				trailed += 1
+			elseif math.abs(turn) < 1e-9 then
+				assert(math.abs(lag) < 1e-9, `{wid} {id} {mf}: the hand is still and the blade is still moving ({lag})`)
+				settled += 1
+			end
 		end
 	end
 end
-assert(trailed > 20 and settled > 20, `only {trailed} trailing and {settled} settled frames checked`)
+assert(trailed > 100 and settled > 100, `only {trailed} trailing and {settled} settled frames checked`)
 
 -- An ultimate's cinematic holds its move frame: nothing lags. Neither does a weapon not listed.
 do
@@ -100,4 +107,4 @@ do
 	assert(math.abs(seen[1] - wp.angle) < 1e-12, "without overlap the blade is not drawn as posed")
 	assert(at[2] == seen[2] and at[3] == seen[3], "the overlap moved the grip")
 end
-print(string.format("PASS overlap: the Sword's blade trails the hand on %d frames and is exactly posed on %d still ones; cuts, ultimates and unlisted weapons untouched; it dips against the run's bounce (%d/%d); drawn about the same grip", trailed, settled, up, down))
+print(string.format("PASS overlap: " .. table.concat(blades, ", ") .. ": the blade trails the hand on %d frames and is exactly posed on %d still ones; cuts, ultimates and unlisted weapons untouched; it dips against the run's bounce (%d/%d); drawn about the same grip", trailed, settled, up, down))

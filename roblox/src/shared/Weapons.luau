@@ -22,6 +22,8 @@ local function merged(a: { [string]: any }, b: { [string]: any }): { [string]: a
 	for k, v in b do out[k] = v end
 	return out
 end
-local ART = { sprites = merged(GeneratedArt.sprites, RobloxArt.sprites), awakened = merged(GeneratedArt.awakened, RobloxArt.awakened) }
+local ART = { sprites = merged(GeneratedArt.sprites, RobloxArt.sprites), awakened = merged(GeneratedArt.awakened, RobloxArt.awakened),
+	-- one of a pair, for weapons held one in each hand (client DualWield); keyed by weapon id
+	single = RobloxArt.single, singleAwakened = RobloxArt.singleAwakened }
 
 return { LIST = LIST, BY_ID = BY_ID, DEFAULT_ID = Generated.DEFAULT_ID, FISTS = Generated.FISTS, ROBLOX_ONLY = ROBLOX_ONLY, ART = ART }

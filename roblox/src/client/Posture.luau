@@ -5,6 +5,7 @@
 local Rig = require(script.Parent.Rig)
 local Channels = require(script.Parent.Channels)
 local Movement = require(script.Parent.Movement)
+local DualWield = require(script.Parent.DualWield)
 local Posture = {}
 
 local function point(x: number, y: number, rot: number, sx: number, sy: number): (number, number)
@@ -63,10 +64,14 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local armed = char.weapon ~= nil
 	local armAng = if armed then wpose.angle else ch.armR.z - math.pi / 2 + ch.armR.x
 	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
-	local gx, gy = Posture.torsoPoint(ch, h, r * 0.55 + math.cos(armAng) * h * 0.30 * ext,
-		trunk + math.sin(armAng) * h * 0.30 * ext)
-	local frontX, frontY = chestPoint(r * 0.55, chestH)
-	local backX, backY = chestPoint(-r * 0.65, chestH - h * 0.009)
+	local hx, hy = r * 0.55 + math.cos(armAng) * h * 0.30 * ext, trunk + math.sin(armAng) * h * 0.30 * ext
+	local gx, gy = Posture.torsoPoint(ch, h, hx, hy)
+	-- A weapon that comes in pairs is held one in each hand (DualWield): a back-hand strike twists
+	-- the rear shoulder forward, and the hand that is not striking holds the other one.
+	local dual = if armed then DualWield.For(s, char, move, wpose, hx, hy) else nil
+	local twist = if dual then dual.twist else 0
+	local frontX, frontY = chestPoint(r * 0.55 + DualWield.TWIST.front * r * twist, chestH)
+	local backX, backY = chestPoint(-r * 0.65 + DualWield.TWIST.back * r * twist, chestH - h * 0.009)
 	-- A small scapular rise as the hand goes overhead. No scale is inherited by either arm.
 	frontY += h * 0.012 * math.sin(armAng)
 	backY -= h * 0.006 * math.sin(armAng)
@@ -81,6 +86,18 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local backAng = -math.pi / 2 + backSwing - ch.lean * 0.35
 	local backBend = math.rad(8 + math.min(16, math.abs(backSwing) * 14))
 	local bx, by = backX + math.cos(backAng) * h * motion.armLength, backY + math.sin(backAng) * h * motion.armLength
+	local fx, fy = gx, gy
+	local offX, offY
+	if dual and dual.off then
+		offX, offY = Posture.torsoPoint(ch, h, dual.off.x, dual.off.y)
+		if dual.off.hand == "back" then
+			bx, by, backBend = offX, offY, math.rad(dual.off.bend)
+		else
+			-- the rear hand strikes: it takes the move's grip, the front hand guards with the other
+			bx, by, backBend = gx, gy, frontBend
+			fx, fy, frontBend = offX, offY, math.rad(dual.off.bend)
+		end
+	end
 	local neckX, neckY = chestPoint(0, chestH + h * 0.08)
 	local p = {
 		hipX = hipX, hipY = hip, hipRot = hipRot,
@@ -90,7 +107,8 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		headRot = -ch.lean * 0.55 - ch.head * 0.4 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head,
 		rigRotZ = motion.rigRotZ, yOff = motion.yOff, bob = motion.bob,
 		frontX = frontX, frontY = frontY, backX = backX, backY = backY,
-		front = Posture.limb(frontX, frontY, gx, gy, frontBend, 1),
+		front = Posture.limb(frontX, frontY, fx, fy, frontBend, 1),
+		dual = dual, offX = offX, offY = offY,
 		back = Posture.limb(backX, backY, bx, by, backBend, 1),
 		legs = {},
 	}

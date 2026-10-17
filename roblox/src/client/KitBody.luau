@@ -6,7 +6,7 @@ local Rig = require(script.Parent.Rig)
 local KIT_PARTS = require(script.Parent.PostureArt).parts
 local KitBody = {}
 function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: boolean,
-	kitPiece: (string, number, boolean?) -> (), foot: ((number, Rig.Limb) -> ())?)
+	kitPiece: (string, number, boolean?) -> (), foot: ((number, Rig.Limb) -> ())?, backHand: (() -> ())?)
 	-- Endpoints are already in the fighter's frame. Width never inherits a torso squash or the
 	-- length stretch of a segment: every arm/leg keeps the same number of PW-wide columns.
 	local function seg(x0: number, y0: number, x1: number, y1: number, id: string, far: boolean)
@@ -41,6 +41,8 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 	kitPiece("pelvis", h * 0.10 / KIT_PARTS.pelvis.span)
 	Canvas2D.restore(c)
 	limb(p.backX, p.backY, p.back, "upperarm", "forearm", true)
+	-- what the rear hand holds sits behind the body with it (DualWield's second weapon)
+	if backHand then backHand() end
 
 	Canvas2D.save(c)
 	Canvas2D.translate(c, p.hipX, p.hipY)

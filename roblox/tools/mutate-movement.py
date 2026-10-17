@@ -50,6 +50,8 @@ movement = [
     ('channels written', 'Movement', 'local m: any =', 'ch.bob = 0\n\tlocal m: any =', 'readonly table'),
 ]
 posture = [
+    ('second weapon off its hand', 'Posture', 'bx, by, backBend = offX, offY, math.rad(dual.off.bend)', 'bx, by, backBend = offX + 0.1, offY, math.rad(dual.off.bend)', 'other hand/second weapon x'),
+    ('back strike from the wrong hand', 'Posture', 'bx, by, backBend = gx, gy, frontBend', 'bx, by, backBend = offX, offY, frontBend', 'hand/grip x'),
     ('far leg on top', 'KitBody', 'for _, i in { 2, 1 } do', 'for _, i in { 1, 2 } do', 'near leg is not drawn over'),
     ('unlit near leg', 'PostureArt', 'PostureArt.NEAR_LIGHT = 0.14', 'PostureArt.NEAR_LIGHT = 0', 'is not lit'),
     ('lit outline', 'PostureArt', 'if hex == Compose.OUTLINE or type(hex) ~= "string" then', 'if type(hex) ~= "string" then', 'outline or far shade changed'),
@@ -63,6 +65,20 @@ overlap = [
     ('drawn as posed', 'Fighter2D', 'drawn.angle += lag', 'drawn.angle += 0', 'the blade is drawn at'),
     ('ultimate lags', 'Fighter2D', 'or (move and move.id == "Ultimate")', 'or false', 'frozen frame lags'),
     ('every weapon lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]', 'local k = 0.4', 'is not listed, and lags'),
+]
+dual = [
+    ('daggers in one hand', 'DualWield', 'DualWield.PAIRED = { Daggers = true,', 'DualWield.PAIRED = { Daggers = false,', 'one in each hand'),
+    ('pair picture per hand', 'Weapons2D', 'if single and single[base] then return single[base] end', '', "draws the pair's picture"),
+    ('jab, jab, jab', 'DualWield', 'LightNeutral1 = "front", LightNeutral2 = "back"', 'LightNeutral1 = "front", LightNeutral2 = "front"', 'front, back, both'),
+    ('table ignored', 'DualWield', 'local striker = if attacking then (STRIKE[move.id] or "front") else "front"', 'local striker = "front"', 'struck with front, not the'),
+    ('no chamber', 'DualWield', 'arm = lerp(g.arm, c.arm, k)', 'arm = g.arm', 'did not chamber'),
+    ('no twist', 'Posture', '-r * 0.65 + DualWield.TWIST.back * r * twist', '-r * 0.65', 'did not twist'),
+    ('twist on every strike', 'DualWield', 'local twist = if striker == "back" then k else 0', 'local twist = k', 'the torso twisted for a'),
+    ('twist never eases', 'DualWield', '* (1 - smooth((mf - (total - 6)) / 6))', '', 'does not ease out'),
+    ('both hands apart', 'DualWield', 'x = lerp(gx, hx + BOTH.dx * r, k)', 'x = gx', 'holds the second weapon'),
+    ('rings ignored', 'DualWield', 'units = math.clamp(s.rings or 2, 0, 2)', 'units = 2', 'ring'),
+    ('rear weapon never drawn', 'Fighter2D', 'end, if dual and dual.off and dual.off.hand == "back" then drawOff else nil)', 'end, nil)', 'one in each hand'),
+    ('singles split', 'Fighter2D', 'local unitId = if dual and wid then wid .. ":one" else wid', 'local unitId = if wid then wid .. ":one" else wid', 'is drawn as a pair'),
 ]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
@@ -89,7 +105,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         path = Path(f'src/client/{module}.luau')
@@ -107,4 +123,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(secondary)} independent mutations rejected; sources restored.')

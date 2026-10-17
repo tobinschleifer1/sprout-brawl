@@ -61,6 +61,11 @@ Nothing above has been seen running in **Roblox Studio**. Every check so far is 
   rings (`9dd574a`).
 - **Task 4 done, no tuning needed.** Hard bots, 8 matches a pairing (112 matches each): Chakram 47%,
   Rocket Boots 41%, Sword 53%.
+- **2026-10-17:** Claude merged a new run cycle and blade overlap (`c9b7f33`), and is now building
+  two-handed weapons (Daggers, Blasters, Gauntlets, Chakram held one in each hand). Until that
+  merges, do not edit `src/client/Fighter2D.luau`, `Posture.luau`, `KitBody.luau`, `Weapons2D.luau`,
+  `PostureArt.luau` or `tools/gen-roblox-art.mjs`: write what you find there under "Questions for the
+  owner" instead, and fix everything else.
 - **Next for GPT:** the rest of task 6, the full review of `feature/character-rig` against `main`.
   Task 7, the PR text, is being written by Claude.
 

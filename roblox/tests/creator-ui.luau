@@ -356,4 +356,13 @@ do
 	ed:selectGroup("body")
 	assert(ed.groupButtons.body.BackgroundColor3 == Ui.GOLD and ed.groupButtons.hair.BackgroundColor3 ~= Ui.GOLD, "the gold tab did not follow the choice")
 end
+-- A grid whose tiles run past what it shows says so; one that shows them all does not.
+do
+	ed:layout(Rbx.Vector2.new(812, 375))
+	ed:selectGroup("face")
+	assert(ed.moreChip.Visible, `a phone's face grid hides tiles ({ed.tileCount} in {ed.gridCols} columns) without saying so`)
+	ed:layout(Rbx.Vector2.new(1280, 720))
+	ed:selectGroup("body")
+	assert(not ed.moreChip.Visible, `the desktop body grid shows all {ed.tileCount} tiles but says there are more`)
+end
 print("PASS creator: tiles show your character per option and redraw only on change; options, colours, presets, undo/redo; locked Randomise; keyboard; save / save-as-new / delete; unsaved work guarded; saving-off said; real fighter preview in five poses; phone, tablet and desktop layouts")

@@ -219,11 +219,15 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
 			-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
 		Ui.corner(root, 0)
-		Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
+		-- (your own card's gold edge stays bold whatever the theme does to borders: it is how you
+		-- find yourself among six)
+		local edge = Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
+		if yours then edge.Thickness = math.max(edge.Thickness, 2) end
 		Ui.rim(root, if yours then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
 		local band = Ui.band(root, colour, 20)
 
-		local name = display(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
+		-- (in the label face: small Fredoka capitals run together - RIVAL read as RVAL)
+		local name = label(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
 			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 23),

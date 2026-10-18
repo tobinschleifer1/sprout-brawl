@@ -106,6 +106,9 @@ assert(string.find(root:FindFirstChild("PodiumTitle").Text, "P1 WINS", 1, true),
 
 view:draw(10)
 assert(#drawn == 4, `{#drawn} figures drawn, want 4`)
+-- what happens next, counted down from the server's hold (View.HOLD seconds from the first draw)
+local nextUp = root:FindFirstChild("NextUp")
+assert(nextUp and string.find(nextUp.Text, tostring(View.HOLD), 1, true), `the next-step pill reads "{nextUp and nextUp.Text}"`)
 -- The sky's bands, then View.PILLAR_RECTS rectangles a pillar - its body first, its cap at CAP_AT
 -- - at the layout's geometry, the winner's cap gold.
 local GOLD = Loader.loadFrom("src/client/", "Ui").GOLD
@@ -142,6 +145,7 @@ local bubble = root:FindFirstChild("GGBubble")
 assert(bubble.Visible and bubble.Text == "GG!", "saying GG puts no bubble up")
 assert(math.abs(bubble.Position.X.Offset + bubble.Size.X.Offset / 2 - slots[1].cx) < 1, "the GG bubble is not over the winner")
 view:draw(13)
+assert(string.find(nextUp.Text, tostring(View.HOLD - 3), 1, true), `three seconds on, the pill reads "{nextUp.Text}"`)
 assert(not bubble.Visible, "the GG bubble outstays its two seconds")
 
 -- Teams: green (0) beat orange (1). Both winners share first and both celebrate.

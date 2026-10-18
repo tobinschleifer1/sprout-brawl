@@ -339,11 +339,11 @@ function SelectScreen.build(self: any, L: any)
 		corner(ring, 10)
 		local edge = stroke(ring, team, 2)
 		local band = Ui.band(card, team, 24 * s)
-		local who = text(band, "", math.floor(14 * s), WHITE, DISPLAY)
+		local who = text(band, "", math.floor(14 * s), WHITE, Ui.LABEL)           -- (small Fredoka capitals run together)
 		who.Name = "Who"
 		place(who, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		who.TextXAlignment = Enum.TextXAlignment.Left
-		local status = text(band, "", math.floor(13 * s), WHITE, DISPLAY)
+		local status = text(band, "", math.floor(13 * s), WHITE, Ui.LABEL)
 		status.Name = "State"
 		place(status, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		status.TextXAlignment = Enum.TextXAlignment.Right

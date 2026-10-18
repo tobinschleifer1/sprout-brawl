@@ -56,6 +56,10 @@ local function text(parent: Instance, x: number, y: number, w: number, h: number
 	return t
 end
 
+-- How long the server shows the podium before the room moves on (init.server.luau's
+-- onFinished: task.wait(6), for rooms and cabinets alike).
+PodiumView.HOLD = 6
+
 -- See PosedFighter: shared with the character studio's preview.
 PodiumView.posed = PosedFighter.posed
 
@@ -95,6 +99,13 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	gg.Size = UDim2.fromOffset(150, 40)
 	gg.Position = UDim2.fromOffset(W / 2 - 75, 12)
 	self.gg = gg
+	-- What happens next: the server holds the podium PodiumView.HOLD seconds, then the room goes
+	-- back to its setup (or the arcade to its cabinet), so the pill counts that down.
+	local after = Ui.make("TextLabel", root, { Name = "NextUp", Text = "", Font = Ui.LABEL, TextSize = Ui.px(14),
+		TextColor3 = Ui.WHITE, BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.15, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(W / 2 + 85, 12), Size = UDim2.fromOffset(200, 40) })
+	Ui.corner(after, 0)
+	self.nextUp = after
 	-- The bubble a GG puts over a figure, while it lasts (placed in draw).
 	-- (ink letters on white, so no outline: on ink letters it only thickens them into a blot)
 	local bubble = Ui.make("TextLabel", root, { Name = "GGBubble", Text = "GG!", Font = Ui.DISPLAY, TextSize = Ui.px(22),
@@ -161,6 +172,7 @@ function PodiumView.draw(self: any, clock: number)
 	self.clock = clock
 	self.t0 = self.t0 or clock
 	local t = clock - self.t0
+	self.nextUp.Text = `NEXT MATCH SETUP IN {math.max(0, math.ceil(PodiumView.HOLD - t))}`
 	local sf = math.floor(t * 60)
 	local c = self.canvas
 	-- the sky: dusk in pixel bands, as the select screen's

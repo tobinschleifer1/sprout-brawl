@@ -115,7 +115,7 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 	p.AnchorPoint, p.Position, p.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.new(1, -32, 1, -64)
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize, limit.Parent = Vector2.new(720, 520), p
-	title.TextColor3, title.Size = AMBER, UDim2.new(1, -140, 1, 0)
+	title.TextColor3, title.Size = Ui.WHITE, UDim2.new(1, -140, 1, 0)      -- (white on the blue bar, as the studio's)
 	local close = Ui.button(p, "CLOSE", Ui.RED, function() self:close() end, { size = 13 })
 	close.Name = "Close"
 	close.AnchorPoint, close.Position, close.Size = Vector2.new(1, 0), UDim2.new(1, -10, 0, 6), UDim2.fromOffset(96, 32)

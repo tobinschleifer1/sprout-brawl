@@ -200,7 +200,8 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	-- Top bar: title, your characters, undo / redo / randomise / close.
 	local top = Ui.band(panel, HEADER, 56, "Top")
 	self.top = top
-	local title = Ui.text(top, "CHARACTER STUDIO", 18, AMBER, Ui.DISPLAY)
+	-- (white on the blue bar: gold on it is barely there)
+	local title = Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
 	title.Name = "Title"
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
@@ -312,6 +313,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	grid.BackgroundTransparency = 0
 	grid.BorderSizePixel = 0
 	grid.ScrollBarThickness = 6
+	grid.ScrollBarImageColor3, grid.ScrollBarImageTransparency = Ui.KEY, 0.2   -- (visible, so it says there is more)
 	grid.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	grid.CanvasSize = UDim2.new()
 	grid.Parent = editor
@@ -320,6 +322,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local pad = Instance.new("UIPadding")
 	pad.PaddingTop, pad.PaddingLeft, pad.PaddingRight, pad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = grid
+	-- "more below": a chip on the grid's lower edge while its tiles run past what it shows
+	local more = Ui.make("TextLabel", editor, { Name = "More", Text = "SCROLL FOR MORE  ▼", Font = Ui.LABEL, TextSize = Ui.px(11),
+		TextColor3 = Ui.INK, BackgroundColor3 = AMBER, BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 1), ZIndex = 5, Visible = false })
+	Ui.corner(more, 0)
+	self.moreChip = more
 	local gridLayout = Instance.new("UIGridLayout")
 	gridLayout.CellPadding = UDim2.fromOffset(8, 8)
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -443,6 +450,10 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	-- never taller than the grid shows, so a short (phone) grid still shows each tile's name
 	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
 	self.gridLayout.CellSize = UDim2.fromOffset(tile, tileH)
+	self.gridCols, self.gridTileH, self.gridShownH = cols, tileH, math.max(80, gridH)
+	self.moreChip.Position = UDim2.fromOffset(ew - 14, gridTop + math.max(80, gridH) - 8)
+	self.moreChip.Size = UDim2.fromOffset(Ui.textWidth(self.moreChip.Text, 11, Ui.LABEL) + 20, 22)
+	self:updateMore()
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
 	-- Footer.
 	self.footer.Position, self.footer.Size = UDim2.new(0, 0, 1, -footH), UDim2.new(1, 0, 0, footH)
@@ -879,6 +890,8 @@ function AvatarEditor.rebuildTiles(self: any)
 				table.insert(entries, { kind = "Option_", id = o.id, name = if locked then `LOCKED · {o.name}` else o.name, locked = locked })
 			end
 		end
+		self.tileCount = #entries
+		self:updateMore()
 		for i, e in entries do
 			local b = tile(self.grid, e.kind .. e.id, function()
 				if e.kind == "Preset_" then self:applyPreset(e.id) else self:pick(self.category, e.id) end
@@ -907,6 +920,13 @@ function AvatarEditor.tileCode(self: any, id: string): string
 	local s = clone(self.spec)
 	s.parts[self.category] = id
 	return AvatarKit.encode(s)
+end
+
+-- Do the grid's tiles run past what it shows? Then the chip says so.
+function AvatarEditor.updateMore(self: any)
+	if not (self.moreChip and self.gridCols and self.tileCount) then return end
+	local rows = math.ceil(self.tileCount / self.gridCols)
+	self.moreChip.Visible = rows * (self.gridTileH + 8) + 8 > self.gridShownH + 1
 end
 
 function AvatarEditor.renderTiles(self: any)

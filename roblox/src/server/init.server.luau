@@ -18,6 +18,8 @@ local PLAZA = Plaza.DATA
 local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
 local MatchService = require(script.MatchService)
 local Locker = require(script.Locker)
+local Mint = require(script.Mint)
+local Economy = require(script.Economy)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
 local arcade = Cabinets.new()
@@ -32,6 +34,17 @@ local avatars = AvatarStore.new(if okStore then dataStore else nil)
 local locker = Locker.new({ store = avatars, studio = RunService:IsStudio() })
 MatchService.cosmeticsFor = function(player: Player) return locker:loadout(player.UserId) end
 if RunService:IsStudio() then MatchService.botCosmetics = Locker.botLoadout end
+-- Serials and copies in existence (Mint), and earning things (Economy): drops, crates, crafting.
+local okMint, mintStore = pcall(function()
+	return game:GetService("DataStoreService"):GetDataStore("BlockfallMint1")
+end)
+local mint = Mint.new(if okMint then mintStore else nil)
+local economy = Economy.new({ store = avatars, mint = mint })
+local function sendEconomy(player: Player, event: any?)
+	local view = economy:view(player.UserId)
+	view.event = event
+	Net.remote("EconomyView"):FireClient(player, view)
+end
 avatars.wait = function(n: number) task.wait(n) end
 local climbs = ClimbProgress.new(avatars, #PARKOUR.course.checkpoints)
 -- The climb's leaderboards, shared by every server and re-read every two hours (ClimbBoards). No
@@ -104,6 +117,7 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
 	sendAvatars(player)
 	Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
+	sendEconomy(player)
 	local climbView = climbs:view(player.UserId)
 	Net.remote("ClimbView"):FireClient(player, climbView)
 	Net.remote("ClimbBoards"):FireClient(player, boards:view())
@@ -153,6 +167,20 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 	rooms:advance(room)            -- everyone ready, everyone voted: the room moves on (Rooms.PICK_TIME)
 	publish(room)
 	launchRoom(room)
+end)
+-- a finished match counts toward the player's drop meter; a drop arrives with its results
+MatchService.onPlayerResult = function(userId: number, results: any, row: any)
+	local player = loaded[userId]
+	if not player then return end
+	local out = economy:matchFinished(userId, results, row)
+	sendEconomy(player, { match = out })
+	if out.drop and out.drop.kind == "item" then Net.remote("LockerView"):FireClient(player, locker:view(userId)) end
+end
+Net.remote("Economy").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or not admitted(player, "economy", 0.25) then return end
+	local ok, res = economy:apply(player.UserId, msg)
+	sendEconomy(player, if ok then { done = type(msg) == "table" and msg.action, result = res } else { error = res })
+	if ok then Net.remote("LockerView"):FireClient(player, locker:view(player.UserId)) end
 end)
 Net.remote("Locker").OnServerEvent:Connect(function(player: Player, msg: any)
 	if not loaded[player.UserId] or not admitted(player, "locker", 0.15) then return end
@@ -439,7 +467,7 @@ Net.remote("Members").OnServerEvent:Connect(function(player: Player)
 	table.sort(list, function(a, b) return a.name < b.name end)
 	Net.remote("Members"):FireClient(player, list)
 end)
-local elapsed, saveClock, cabinetClock, boardsClock = 0, 0, 0, 30
+local elapsed, saveClock, cabinetClock, boardsClock, mintClock = 0, 0, 0, 30, 0
 RunService.Heartbeat:Connect(function(dt: number)
 	elapsed += dt
 	saveClock += dt
@@ -454,6 +482,12 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if saveClock >= 1 then
 		saveClock = 0
 		task.spawn(function() avatars:tick() end)
+	end
+	mintClock += dt
+	if mintClock >= 120 then
+		-- serial counts out to every server, and the counts players are looking at read back in
+		mintClock = 0
+		task.spawn(function() mint:flush(); mint:refreshWanted(20) end)
 	end
 	if elapsed < 0.1 then return end
 	elapsed = 0
@@ -529,5 +563,6 @@ Players.PlayerRemoving:Connect(function(player: Player)
 end)
 -- A server shutting down writes every unsaved character first.
 game:BindToClose(function()
+	mint:flush()
 	avatars:flushAll()
 end)

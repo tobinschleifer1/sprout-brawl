@@ -229,6 +229,37 @@ Each on its own branch, merged when `check.sh` passes, ending with a Studio play
   Not yet used by the game.
 - The design board (an Artifact) with every design, the odds tables and the screen mockups.
 
+## Prices: volume over margin (2026-10-18)
+
+The owner wants many small purchases rather than few large ones. Every price below is lower than the
+first draft, and bundles get steadily cheaper per unit. Prices are always shown plainly in Robux
+before purchase: no premium currency that disguises Robux, no fake "was" prices, no countdown
+pressure. Many players are children, and Roblox requires clear prices and odds.
+
+| What | Price | Per unit |
+|---|---|---|
+| Forge Key | 25 R$ | 25 |
+| 5 Forge Keys | 110 R$ | 22 |
+| 12 Forge Keys | 240 R$ | 20 |
+| 30 Forge Keys | 540 R$ | 18 |
+| Clothing piece (GPT's tiers) | 3 / 5 / 8 R$ | accent / standard / statement |
+| Clothing pack | 22-26 R$ | about 25% off its pieces |
+| Featured shop item | 29 / 49 / 99 / 199 R$ | by rarity |
+| VIP | 199 R$ | |
+| Character Studio+ | 149 R$ | |
+| Wardrobe | 79 R$ | |
+| Season Pass (8-week season) | 149 R$ | |
+| Emote Pack | 99 R$ | |
+
+These replace the price tables earlier in this document. The estimated value's key price `K` becomes
+the best per-key rate, 18 R$: values scale with it, and the ladder's shape does not change.
+
+**Seasons are 8 weeks.** A season brings a new crate series and a new season track.
+
+**Duplicates are kept** (changed from the first draft, now that trading is in): a second copy is a
+tradeable instance with its own serial, and the Locker has Salvage to turn any copy into its rarity's
+Sparks. The odds never change per player either way.
+
 ## Decided (2026-10-18)
 
 1. **Keys are sold for Robux**, under the policy rules above.
@@ -238,8 +269,8 @@ Each on its own branch, merged when `check.sh` passes, ending with a Studio play
 5. **Clothing sells one piece at a time** as well as in packs, and players can **draw their own**.
 6. **Estimated value** is worked out below; it is not built yet.
 
-Still open: season length and Series 1's start date; VIP's contents (whether +20% Sparks is too
-strong); phase 6's answers.
+Still open: Series 1's start date; VIP's contents (whether +20% Sparks is too strong); phase 6's
+answers. Decided 2026-10-18: GPT's clothing prices, 8-week seasons, volume pricing (above).
 
 ## Clothing, one piece at a time
 
@@ -384,8 +415,10 @@ more, that a retired series rises, and that a ring of wash trades does not move 
 1. Foundations (done: catalogue, loot, tests).
 2. **Wearing things** (in progress): weapon skins, hit and KO effects and swing trails drawn in matches;
    the inventory and equipped loadout in the saved record; ownership validated; perf measured.
-3. Earning things: drop meter, crates, guarantees, duplicates, Workshop, results banner; **instances
-   with serials** from the start, so nothing needs migrating twice.
+3. **Earning things (done 2026-10-18):** instances with serials (`Inventory` v2, `Mint`), the drop meter
+   with its rules, crates and keys (earned keys first; items from paid keys marked paid), guarantees,
+   crafting, salvaging, and the line under the results (`DropBanner`). Remotes `Economy` /
+   `EconomyView`. The crate-opening screen and the Workshop screen are phase 4.
 4. Screens: Locker (rarity, serial, copies in existence), crate opening, Workshop, Odds & Details.
 5. Robux: keys (sold), the featured shop, passes, single clothing pieces and packs.
 6. Clothing and `k2`: GPT's pieces joined to the kit; Pixel Studio.

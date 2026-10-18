@@ -21,6 +21,7 @@ local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
+local DropBanner = require(script.DropBanner)
 local Loadout = require(Shared.Loadout)
 local Stages = require(Shared.Data.Stages)
 local Stage = require(Shared.Stage)
@@ -552,6 +553,12 @@ end)
 
 -- The final scoreboard, once and reliably. The snapshot stream stops with the match, so without
 -- this the client would sit on the last frame with no idea the match had ended.
+-- What the match earned: the drop meter and any drop, under the results (DropBanner).
+Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
+	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
+		DropBanner.show(hud.gui, view.event.match)
+	end
+end)
 Net.remote("Results").OnClientEvent:Connect(function(res: any)
 	acceptingSnapshots = false
 	fighterWarmup = nil

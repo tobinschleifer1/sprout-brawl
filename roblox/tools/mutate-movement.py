@@ -128,7 +128,7 @@ cosmetics = [
     ('hit ramp ignored', 'FxPlayer', 'if it and it.ramp then glow = it.ramp end', '', 'did not recolour'),
     ('ko effects ignored', 'FxPlayer', 'if not style then return false end\n\t\tstyle(P, e.x or 0, e.y or 0)', 'if true then return false end\n\t\tstyle(P, e.x or 0, e.y or 0)', 'draws no KO'),
     ('ko off the line', 'FxPlayer', 'style(P, e.x or 0, e.y or 0)', 'style(P, (e.x or 0) + 20, e.y or 0)', 'away from the blast line'),
-    ('unowned worn', 'shared/Inventory', 'if not owned[id] then equipped.skins[weapon] = nil end', '', 'an unowned item is worn'),
+    ('unowned worn', 'shared/Inventory', 'if not inv.owned[id] then equipped.skins[weapon] = nil end', '', 'an unowned item is worn'),
     ('skin on wrong weapon', 'shared/Inventory', 'if it and it.weapon == weapon then out.skins[weapon] = id end', 'if it then out.skins[weapon] = id end', 'another weapon'),
     ('equip unowned', 'shared/Inventory', 'if not owns(id) then return false, "not owned" end', '', 'unowned item was equipped'),
     ('live owns all', 'server/Locker', 'if self.studio then return Cosmetics.get(id) ~= nil end', 'if true then return Cosmetics.get(id) ~= nil end', 'live server owns everything'),
@@ -136,6 +136,27 @@ cosmetics = [
     ('no showcase', 'server/Locker', 'return Inventory.cleanLoadout(Locker.SHOWCASE)', 'return out', 'showcase'),
     ('three-shell firework', 'FxPlayer', 'add(P, "star", x - 1.5, y + 2, 3, 0.3, "gold", { seed = 0, delay = 0.24 })', 'add(P, "burst", x - 2.2, y + 2.4, 4.5, 0.45, "volt", { seed = 0, delay = 0.2 })\n\t\tadd(P, "star", x - 1.5, y + 2, 3, 0.3, "gold", { seed = 0, delay = 0.24 })', 'ko_firework builds'),
     ('bots alike', 'server/Locker', 'hit = BOT_HITS[(i - 1) % #BOT_HITS + 1]', 'hit = BOT_HITS[1]', 'same effects'),
+]
+economy = [
+    ('drop a match early', 'server/Economy', 'if inv.meter <= 0 then', 'if inv.meter <= 1 then', 'still to go'),
+    ('uncounted matches count', 'server/Economy', 'if not Economy.qualifies(results, row) then return { counted = false, left = inv.meter } end', '', 'uncounted match'),
+    ('hitless matches count', 'server/Economy', 'return (row.damage or 0) > 0 or (row.taken or 0) > 0', 'return true', 'without a hit'),
+    ('no hourly cap', 'server/Economy', 'if inv.earn.count >= Economy.HOURLY_CAP then', 'if false then', 'thirteenth'),
+    ('paid key first', 'server/Economy', 'paid = k.earned < 1', 'paid = k.paid >= 1', 'paid key was spent'),
+    ('paid not marked', 'server/Economy', 'local uid, why = self:grant(userId, id, paid, "crate")', 'local uid, why = self:grant(userId, id, false, "crate")', 'not marked paid'),
+    ('spent before the serial', 'server/Economy', 'if not uid then return false, why end\n\t-- only now', 'if not uid then inv.crates[crateId] -= 1; return false, why end\n\t-- only now', 'spent the crate or key'),
+    ('guarantee not saved', 'server/Economy', 'inv.pity[crateId] = nextPity', '', 'guarantee'),
+    ('free crafting', 'server/Economy', 'inv.sparks -= cost', '', 'did not cost'),
+    ('salvage keeps it in existence', 'server/Economy', 'self.mint:destroy(inst.i)', '', 'still exists'),
+    ('dropped item lost', 'server/Economy', '-- the vault could not be reached: the drop is a crate instead, never lost\n\t\tinv.crates[d.crate] = math.min(Inventory.MAX_COUNT, inv.crates[d.crate] + 1)', '-- lost', 'lost when the vault'),
+    ('serials reused', 'server/Mint', '\t\t\tfirst = reserved + 1\n', '\t\t\tfirst = math.max(1, reserved - 5)\n', 'handed out twice'),
+    ('no blocks', 'server/Mint', 'local size = Mint.FIRST_BLOCK', 'local size = 1', 'not reserving in blocks'),
+    ('blocks never grow', 'server/Mint', 'size = math.min(Mint.MAX_BLOCK, b.size * 2)', 'size = b.size', 'did not grow'),
+    ('stored owned trusted', 'shared/Inventory', '\treindex(inv)\n\tlocal equipped', '\treindex(inv)\n\tif type(src.owned) == "table" then for k, v in src.owned do if v == true then inv.owned[k] = true end end end\n\tlocal equipped', 'stored owned index was trusted'),
+    ('no migration', 'shared/Inventory', 'elseif type(src.owned) == "table" then', 'elseif false then', 'did not migrate'),
+    ('worn after removal', 'shared/Inventory', 'if not inv.owned[inst.i] then', 'if false then', 'left it worn'),
+    ('uid collision', 'shared/Inventory', 'if num and num >= seq then seq = num + 1 end', '', 'collide'),
+    ('banner without serial', 'DropBanner', 'local serial = if type(d.serial) == "number" and d.serial > 0 then `  #{d.serial}` else ""', 'local serial = ""', 'Starforged'),
 ]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
@@ -162,7 +183,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -181,4 +202,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(secondary)} independent mutations rejected; sources restored.')

@@ -40,6 +40,8 @@ MatchService.__index = MatchService
 -- (userId's player) -> the loadout they wear (Inventory). Set by the server entry point to the Locker;
 -- nil (tests, Studio without one) means fighters wear nothing.
 MatchService.cosmeticsFor = nil :: ((Player) -> any)?
+-- (userId, results, their row) when a match ends: the drop meter (Economy). Set by the entry point.
+MatchService.onPlayerResult = nil :: ((number, any, any) -> ())?
 -- (bot slot) -> what a bot wears; set only in Studio, for playtesting the cosmetics.
 MatchService.botCosmetics = nil :: ((number) -> any)?
 
@@ -255,7 +257,16 @@ function MatchService.finish(self: any)
 		self.conn:Disconnect()
 		self.conn = nil
 	end
-	self:send("Results", self:results())
+	local results = self:results()
+	self:send("Results", results)
+	-- each player's result, for the drop meter (Economy): spawned, as it reads and writes records
+	if MatchService.onPlayerResult then
+		for _, row in results.rows do
+			local f = m.fighters[row.index + 1]
+			local userId = f and self.userIds[f.source]
+			if userId then task.spawn(MatchService.onPlayerResult, userId, results, row) end
+		end
+	end
 	if self.onFinished then
 		-- Spawned, because whatever restarts the match must not run inside the tick that ended it.
 		task.spawn(self.onFinished, self, m)

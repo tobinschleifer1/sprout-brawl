@@ -63,7 +63,7 @@ end
 -- Display words with the kit's ink outline; returns the label and the outline, which fades with it.
 local function display(parent: Instance, size: UDim2, pos: UDim2, text: string, px: number, colour: Color3): (TextLabel, any)
 	local t = label(parent, size, pos, text, px, colour)
-	t.Font = Ui.DISPLAY
+	t.Font, t.TextSize = Ui.DISPLAY, Ui.px(px, Ui.DISPLAY)
 	return t, Ui.outline(t, if px >= 40 then 4 elseif px >= 20 then 3 else 2)
 end
 

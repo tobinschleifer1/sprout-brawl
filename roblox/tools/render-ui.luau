@@ -32,6 +32,8 @@ local variant = process.args[5]
 local new, made = Recorder.gui(W, H)
 local enumNames = setmetatable({}, { __index = function(_, k) return setmetatable({}, { __index = function(_, v) return k .. "." .. v end }) end })
 Loader.gui = { Instance = { new = new }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = enumNames }
+-- a style theme to draw in (Ui.THEMES), picked before any screen module loads and reads its fonts
+Loader.loadFrom("src/client/", "Ui").useTheme(process.env.UI_THEME)
 -- frames' own canvases draw nowhere (see above)
 local frameCanvas = nil      -- a screen-wide frame's canvas (the podium's) is the screen's own
 Canvas.inFrame = function()

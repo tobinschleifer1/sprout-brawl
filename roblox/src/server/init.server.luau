@@ -29,7 +29,7 @@ local cabinetServices: { [number]: any } = {}
 local okStore, dataStore = pcall(function()
 	return game:GetService("DataStoreService"):GetDataStore("BlockfallCharacters1")
 end)
-local avatars = AvatarStore.new(if okStore then dataStore else nil)
+local avatars = AvatarStore.new(if okStore then dataStore else nil, nil, { sessionOnly = RunService:IsStudio() })
 -- Cosmetics owned and worn (Locker); every match reads what a player wears from here.
 local locker = Locker.new({ store = avatars, studio = RunService:IsStudio() })
 MatchService.cosmeticsFor = function(player: Player) return locker:loadout(player.UserId) end
@@ -38,9 +38,16 @@ if RunService:IsStudio() then MatchService.botCosmetics = Locker.botLoadout end
 local okMint, mintStore = pcall(function()
 	return game:GetService("DataStoreService"):GetDataStore("BlockfallMint1")
 end)
-local mint = Mint.new(if okMint then mintStore else nil)
-local economy = Economy.new({ store = avatars, mint = mint })
+local mint = Mint.new(if okMint then mintStore else nil, nil, RunService:IsStudio())
+local economy = Economy.new({ store = avatars, mint = mint, paidAllowed = function(userId: number): boolean
+	local player = Players:GetPlayerByUserId(userId)
+	if not player then return false end
+	local policy = game:GetService("PolicyService"):GetPolicyInfoForPlayerAsync(player)
+	return type(policy) == "table" and policy.ArePaidRandomItemsRestricted == false
+end })
+local loaded: any = {}
 local function sendEconomy(player: Player, event: any?)
+	if loaded[player.UserId] ~= player then return end
 	local view = economy:view(player.UserId)
 	view.event = event
 	Net.remote("EconomyView"):FireClient(player, view)
@@ -59,7 +66,6 @@ local services: any = {}
 local launchRoom: (any) -> ()      -- defined beside RoomAction; the tick uses it too
 local poses: any = {}
 local limits: any = {}
-local loaded: any = {}
 local generation = 0
 local function admitted(player: Player, lane: string, interval: number): boolean
 	local id, now = player.UserId, os.clock()
@@ -107,11 +113,14 @@ local function sendAvatars(player: Player, why: string?)
 	view.error = why
 	Net.remote("AvatarView"):FireClient(player, view)
 end
+local helloBusy: { [Player]: boolean } = setmetatable({}, { __mode = "k" }) :: any
 Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
-	if not admitted(player, "hello", 1) then return end
+	if departed[player] or helloBusy[player] or not admitted(player, "hello", 1) then return end
+	helloBusy[player] = true
 	-- Their saved character before anything shows them: the hub, the room and the roster all read
 	-- the profile's avatar. load() yields on the DataStore and is cached after the first time.
 	rooms:profile(player.UserId).avatar = avatars:active(player.UserId)
+	helloBusy[player] = nil
 	if departed[player] then return end      -- left while the DataStore was answering
 	loaded[player.UserId] = player
 	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
@@ -172,18 +181,22 @@ end)
 MatchService.onPlayerResult = function(userId: number, results: any, row: any)
 	local player = loaded[userId]
 	if not player then return end
+	while avatars.busy[userId] and loaded[userId] == player do task.wait() end
+	if loaded[userId] ~= player then return end
 	local out = economy:matchFinished(userId, results, row)
+	if loaded[userId] ~= player then return end
 	sendEconomy(player, { match = out })
 	if out.drop and out.drop.kind == "item" then Net.remote("LockerView"):FireClient(player, locker:view(userId)) end
 end
 Net.remote("Economy").OnServerEvent:Connect(function(player: Player, msg: any)
-	if not loaded[player.UserId] or not admitted(player, "economy", 0.25) then return end
+	if loaded[player.UserId] ~= player or not admitted(player, "economy", 0.25) then return end
 	local ok, res = economy:apply(player.UserId, msg)
+	if loaded[player.UserId] ~= player then return end
 	sendEconomy(player, if ok then { done = type(msg) == "table" and msg.action, result = res } else { error = res })
 	if ok then Net.remote("LockerView"):FireClient(player, locker:view(player.UserId)) end
 end)
 Net.remote("Locker").OnServerEvent:Connect(function(player: Player, msg: any)
-	if not loaded[player.UserId] or not admitted(player, "locker", 0.15) then return end
+	if loaded[player.UserId] ~= player or not admitted(player, "locker", 0.15) then return end
 	local _, why = locker:apply(player.UserId, msg)
 	local view = locker:view(player.UserId)
 	view.error = why

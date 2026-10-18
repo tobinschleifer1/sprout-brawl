@@ -10,7 +10,7 @@
 --     equipped  one item per slot, and a weapon skin per weapon
 --     sparks, crates { scrap, forge }, keys { forge = { earned, paid } }, pity { scrap, forge }
 --               (openings since the last guaranteed-tier item), meter (qualifying matches until the
---               next drop), earn { hour, count } (qualifying matches counted this hour), seq (the
+--               next drop), earn { hour, count, times } (legacy hour bucket and rolling timestamps), seq (the
 --               next uid)
 --   the LOADOUT, what a fighter carries into a match: only what is equipped, as plain ids.
 -- Both are rebuilt through the catalogue whenever they are read - a record came from a DataStore,
@@ -40,9 +40,14 @@ local function item(id: any, wantType: string?): any
 	if not it or (wantType and it.type ~= wantType) then return nil end
 	return it
 end
+-- Identifiers and dates are not balances. Never collapse large serials onto MAX_COUNT.
+Inventory.MAX_INTEGER = 9007199254740991
+local function integer(v: any, limit: number): number
+	if type(v) ~= "number" or v ~= v or math.abs(v) == math.huge then return 0 end
+	return math.clamp(math.floor(v), 0, limit)
+end
 local function count(v: any): number
-	if type(v) ~= "number" or v ~= v then return 0 end
-	return math.clamp(math.floor(v), 0, Inventory.MAX_COUNT)
+	return integer(v, Inventory.MAX_COUNT)
 end
 
 -- A loadout as it may arrive: every entry checked against the catalogue and its slot.
@@ -73,16 +78,16 @@ function Inventory.sanitize(raw: any): any
 	local src = if type(raw) == "table" then raw else {}
 	local items: { [string]: Instance } = {}
 	local n = 0
-	local seq = count(src.seq)
+	local seq = integer(src.seq, Inventory.MAX_INTEGER - 1)
 	if type(src.items) == "table" then
 		for uid, inst in src.items do
 			if n >= Inventory.MAX_OWNED then break end
-			if type(uid) == "string" and #uid <= 16 and type(inst) == "table" and item(inst.i) then
-				items[uid] = { i = inst.i, s = count(inst.s), p = inst.p == true, t = count(inst.t),
+			if type(uid) == "string" and #uid <= 17 and type(inst) == "table" and item(inst.i) then
+				items[uid] = { i = inst.i, s = integer(inst.s, Inventory.MAX_INTEGER), p = inst.p ~= false, t = integer(inst.t, Inventory.MAX_INTEGER),
 					src = if type(inst.src) == "string" and Inventory.SOURCES[inst.src] then inst.src else "grant" }
 				n += 1
 				local num = tonumber(string.match(uid, "^u(%d+)$"))
-				if num and num >= seq then seq = num + 1 end
+				if num and num >= seq and num < Inventory.MAX_INTEGER then seq = num + 1 end
 			end
 		end
 	elseif type(src.owned) == "table" then
@@ -100,6 +105,15 @@ function Inventory.sanitize(raw: any): any
 		return out
 	end
 	local keySrc = if type(src.keys) == "table" and type(src.keys.forge) == "table" then src.keys.forge else {}
+	local times = nil
+	if type(src.earn) == "table" and type(src.earn.times) == "table" then
+		times = {}
+		for _, t in src.earn.times do
+			if type(t) == "number" and t >= 0 and t % 1 == 0 and t <= Inventory.MAX_INTEGER then table.insert(times, t) end
+		end
+		table.sort(times, function(a, b) return a > b end)
+		while #times > 12 do table.remove(times) end
+	end
 	local inv: any = {
 		v = Inventory.VERSION, items = items, seq = seq, owned = {},
 		sparks = count(src.sparks),
@@ -107,7 +121,7 @@ function Inventory.sanitize(raw: any): any
 		keys = { forge = { earned = count(keySrc.earned), paid = count(keySrc.paid) } },
 		pity = pair(src.pity, Inventory.CRATES),
 		meter = if type(src.meter) == "number" and src.meter >= 1 and src.meter <= 5 then math.floor(src.meter) else nil,
-		earn = { hour = count(type(src.earn) == "table" and src.earn.hour), count = count(type(src.earn) == "table" and src.earn.count) },
+		earn = { times = times, hour = integer(type(src.earn) == "table" and src.earn.hour, Inventory.MAX_INTEGER), count = count(type(src.earn) == "table" and src.earn.count) },
 	}
 	reindex(inv)
 	local equipped = Inventory.cleanLoadout(src.equipped)
@@ -137,7 +151,7 @@ function Inventory.add(inv: any, id: string, serial: number, paid: boolean, src:
 	if not item(id) then return nil end
 	local n = 0
 	for _ in inv.items do n += 1 end
-	if n >= Inventory.MAX_OWNED then return nil end
+	if n >= Inventory.MAX_OWNED or inv.seq >= Inventory.MAX_INTEGER then return nil end
 	local uid = "u" .. inv.seq
 	inv.seq += 1
 	inv.items[uid] = { i = id, s = serial, p = paid, t = now, src = src }

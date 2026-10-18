@@ -455,6 +455,23 @@ more; the number stays honest).
 tables, and tests that the expected value of an opening equals the key price, that scarcer is worth
 more, that a retired series rises, and that a ring of wash trades does not move the market value.
 
+## Before keys go on sale (from GPT's exploit review, 2026-10-18)
+
+`docs/briefs/economy-review.md` found and fixed double spends, reroll-by-failed-save, stale servers
+overwriting each other, unchecked paid keys, paid items laundered through salvage, capped serials and
+miscounted match time. It also left these, which phase 5 must close before a key is sold:
+
+1. **Paid progress toward a guarantee.** The guarantee count is shared by earned and paid openings, so
+   39 paid openings can make an earned key's opening the guaranteed one, and its item counts as earned.
+   Keep separate earned and paid guarantee counts (or carry provenance on the count).
+2. **Receipts remembered forever.** Only the latest 50 receipt ids are kept; a 51st purchase lets an old
+   receipt be granted again if Roblox redelivers it. Keep durable, per-purchase receipt records and
+   grant through one transaction.
+3. **Bot and idle matches.** Taking one hit in a 45-second match against bots qualifies. The hourly cap
+   bounds it; decide whether CPU matches should count at all.
+4. **Deploying the save change.** Records are now written with a revision check (`UpdateAsync`), and an
+   older server still running `SetAsync` ignores it: shut down old servers when this ships.
+
 ## Phases, revised
 
 1. Foundations (done: catalogue, loot, tests).

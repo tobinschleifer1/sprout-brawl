@@ -533,7 +533,7 @@ function LockerScreen.openCrate(self: any, crateId: string)
 	o.title.Text = `Opening a {Loot.CRATES[crateId].name}...`
 	o.result.Text, o.detail.Text, o.collect.Visible = "", "", false
 	o.frame.Visible = true
-	self.opts.sendEconomy({ action = "open", crate = crateId })
+	self.opts.sendEconomy({ action = "open", crate = crateId, pity = m.pity })
 end
 
 -- The server's answer to an opening: the reel spins onto it.

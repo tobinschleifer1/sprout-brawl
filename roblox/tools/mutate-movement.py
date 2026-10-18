@@ -139,23 +139,26 @@ cosmetics = [
 ]
 economy = [
     ('drop a match early', 'server/Economy', 'if inv.meter <= 0 then', 'if inv.meter <= 1 then', 'still to go'),
-    ('uncounted matches count', 'server/Economy', 'if not Economy.qualifies(results, row) then return { counted = false, left = inv.meter } end', '', 'uncounted match'),
+    ('Training counts', 'server/Economy', '\tif results.mode == "Training" then return false end\n', '', 'Training counted'),
+    ('short matches count', 'server/Economy', 'frames < Economy.QUALIFY_SECONDS * 60 then return false end', 'frames < 0 then return false end', 'match counted'),
     ('hitless matches count', 'server/Economy', 'return (row.damage or 0) > 0 or (row.taken or 0) > 0', 'return true', 'without a hit'),
-    ('no hourly cap', 'server/Economy', 'if inv.earn.count >= Economy.HOURLY_CAP then', 'if false then', 'thirteenth'),
+    ('no hourly cap', 'server/Economy', 'if #times >= Economy.HOURLY_CAP then return { counted = false, capped = true, left = inv.meter } end', '', 'thirteenth'),
     ('paid key first', 'server/Economy', 'paid = k.earned < 1', 'paid = k.paid >= 1', 'paid key was spent'),
-    ('paid not marked', 'server/Economy', 'local uid, why = self:grant(userId, id, paid, "crate")', 'local uid, why = self:grant(userId, id, false, "crate")', 'not marked paid'),
-    ('spent before the serial', 'server/Economy', 'if not uid then return false, why end\n\t-- only now', 'if not uid then inv.crates[crateId] -= 1; return false, why end\n\t-- only now', 'spent the crate or key'),
+    ('paid not marked', 'server/Economy', 'local uid, why = self:_grant(inv, id, paid, "crate")', 'local uid, why = self:_grant(inv, id, false, "crate")', 'not marked paid'),
+    # ('spent before the serial' retired 2026-10-18: requests now run on a private copy of the inventory
+    # that a failure discards (AvatarStore.inventoryTransaction), so a spend before the failure cannot
+    # leak; tests/economy-security breaks the transaction itself.)
     ('guarantee not saved', 'server/Economy', 'inv.pity[crateId] = nextPity', '', 'guarantee'),
     ('free crafting', 'server/Economy', 'inv.sparks -= cost', '', 'did not cost'),
-    ('salvage keeps it in existence', 'server/Economy', 'self.mint:destroy(inst.i)', '', 'still exists'),
+    ('salvage keeps it in existence', 'server/Economy', 'if ok then self.mint:destroy(result.id) end', '', 'still exists'),
     ('dropped item lost', 'server/Economy', '-- the vault could not be reached: the drop is a crate instead, never lost\n\t\tinv.crates[d.crate] = math.min(Inventory.MAX_COUNT, inv.crates[d.crate] + 1)', '-- lost', 'lost when the vault'),
-    ('serials reused', 'server/Mint', '\t\t\tfirst = reserved + 1\n', '\t\t\tfirst = math.max(1, reserved - 5)\n', 'handed out twice'),
+    ('serials reused', 'server/Mint', 'return result.reserved - reserve + 1', 'return math.max(1, result.reserved - reserve - 5)', 'handed out twice'),
     ('no blocks', 'server/Mint', 'local size = Mint.FIRST_BLOCK', 'local size = 1', 'not reserving in blocks'),
     ('blocks never grow', 'server/Mint', 'size = math.min(Mint.MAX_BLOCK, b.size * 2)', 'size = b.size', 'did not grow'),
     ('stored owned trusted', 'shared/Inventory', '\treindex(inv)\n\tlocal equipped', '\treindex(inv)\n\tif type(src.owned) == "table" then for k, v in src.owned do if v == true then inv.owned[k] = true end end end\n\tlocal equipped', 'stored owned index was trusted'),
     ('no migration', 'shared/Inventory', 'elseif type(src.owned) == "table" then', 'elseif false then', 'did not migrate'),
     ('worn after removal', 'shared/Inventory', 'if not inv.owned[inst.i] then', 'if false then', 'left it worn'),
-    ('uid collision', 'shared/Inventory', 'if num and num >= seq then seq = num + 1 end', '', 'collide'),
+    ('uid collision', 'shared/Inventory', 'if num and num >= seq and num < Inventory.MAX_INTEGER then seq = num + 1 end', '', 'collide'),
     ('banner without serial', 'DropBanner', 'local serial = if type(d.serial) == "number" and d.serial > 0 then `  #{d.serial}` else ""', 'local serial = ""', 'Starforged'),
 ]
 lockerui = [

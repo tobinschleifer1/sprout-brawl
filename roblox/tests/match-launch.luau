@@ -48,6 +48,7 @@ for _, stage in Loader.load("Data/Stages").LIST do
 		assert(#messages.Match == 1 and #messages.Match[1].fighters == count, "startup must describe every fighter")
 		assert(messages.Match[1].stage == stage.id)
 		for _ = 1, 300 do service:tick(1/60) end
+		assert(service.fightFrames and service.fightFrames.p17 == 90, "drop qualification must exclude the 210 countdown frames")
 		assert(#messages.Snapshot == 300, "snapshot cadence must be exactly 60Hz, independent of roster size")
 		-- Decoded in order, as a client does (keyframes and deltas, SnapshotCodec): every one decodes
 		-- to a complete state of the current match, the first needing no base.
@@ -134,6 +135,30 @@ do
 	assert(drops > 0, "no drop ever reached the client's scene")
 	assert(armed > 0, "no fighter was ever armed on the wire: the bots never took a drop")
 	cases += 1
+end
+-- Participation stops at elimination and during pauses, and is what the result row carries.
+do
+	service:start({ { player = player, avatar = "Classic", weapon = "Sword" },
+		{ avatar = "Classic", weapon = "Sword" }, { avatar = "Classic", weapon = "Sword" } }, { stocks = 5, seed = 9 })
+	for _ = 1, 270 do service:tick(1/60) end
+	local m = service.match
+	local f = m.fighters[1]
+	assert(service.fightFrames.p17 == 60)
+	f.stocks = 1
+	Loader.load("Match").knockOut(m, f)
+	assert(f.eliminatedAt, "test did not actually eliminate its player")
+	for _ = 1, 15 do service:tick(1/60) end
+	assert(service.fightFrames.p17 == 60, "time after elimination qualified for drops")
+	local botFrames = service.fightFrames.bot2
+	m.paused = true
+	for _ = 1, 15 do service:tick(1/60) end
+	assert(service.fightFrames.bot2 == botFrames, "paused time qualified for drops")
+	Loader.load("Match").finish(m)
+	local found = false
+	for _, row in service:results().rows do
+		if row.index == 0 then found = true; assert(row.fightFrames == 60, "results did not carry the player's fight time") end
+	end
+	assert(found)
 end
 service:stop()
 assert(not service:rejoin(player), "no stale rejoin after match teardown")

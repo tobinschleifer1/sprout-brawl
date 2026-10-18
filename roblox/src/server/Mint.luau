@@ -9,7 +9,7 @@
 -- skipped: unique, not contiguous. Copies made and destroyed are counted locally and added to the
 -- item's record with the next reservation or `flush`, so "copies in existence" lags by a flush.
 --
--- With no DataStore (Studio without API access) everything is counted in memory for the session.
+-- Explicit sessionOnly mode permits local serials for Studio/tests. Live missing storage denies grants.
 -- A failed reservation returns nil: the caller must not consume what was being opened.
 local Mint = {}
 Mint.__index = Mint
@@ -17,9 +17,9 @@ Mint.__index = Mint
 Mint.FIRST_BLOCK, Mint.MAX_BLOCK, Mint.FAST = 10, 80, 60
 
 -- store: a DataStore (or nil); now: () -> number (os.clock on a server)
-function Mint.new(store: any, now: (() -> number)?): any
+function Mint.new(store: any, now: (() -> number)?, sessionOnly: boolean?): any
 	return setmetatable({
-		store = store, now = now or os.clock,
+		store = store, now = now or os.clock, sessionOnly = sessionOnly == true, busy = {},
 		blocks = {},        -- item -> { next, last, size, at }
 		pending = {},       -- item -> { minted, destroyed } not yet written
 		known = {},         -- item -> { minted, destroyed } as last read or written
@@ -32,45 +32,43 @@ end
 
 -- Write this server's counts for `id` (and reserve `reserve` more serials) in one UpdateAsync.
 -- Returns the first reserved serial (when reserving), or nil on failure.
+local MAX_INTEGER = 9007199254740991
+local function valid(n: any): boolean
+	return type(n) == "number" and n >= 0 and n <= MAX_INTEGER and n % 1 == 0
+end
+
 function Mint._write(self: any, id: string, reserve: number): number?
+	if self.busy[id] or (not self.store and not self.sessionOnly) then return nil end
+	self.busy[id] = true
 	local p = self.pending[id] or { minted = 0, destroyed = 0 }
-	if not self.store then
-		local k = self.known[id] or { reserved = 0, minted = 0, destroyed = 0 }
-		local first = k.reserved + 1
-		k.reserved += reserve
-		k.minted += p.minted
-		k.destroyed += p.destroyed
-		self.known[id] = k
-		self.pending[id] = { minted = 0, destroyed = 0 }
-		return first
+	self.pending[id] = p
+	-- Freeze the delta: UpdateAsync may rerun its callback and more local events may arrive.
+	local made, destroyed = p.minted, p.destroyed
+	local function update(old: any): any
+		if old ~= nil and type(old) ~= "table" then return nil end
+		local rec = old or {}
+		local reserved, minted, gone = rec.reserved or 0, rec.minted or 0, rec.destroyed or 0
+		if not valid(reserved) or not valid(minted) or not valid(gone)
+			or reserved > MAX_INTEGER - reserve or minted > MAX_INTEGER - made or gone > MAX_INTEGER - destroyed then return nil end
+		return { reserved = reserved + reserve, minted = minted + made, destroyed = gone + destroyed }
 	end
-	local first: number? = nil
-	local ok = pcall(function()
-		self.store:UpdateAsync(key(id), function(old: any)
-			local rec = if type(old) == "table" then old else {}
-			local reserved = if type(rec.reserved) == "number" then rec.reserved else 0
-			first = reserved + 1
-			return {
-				reserved = reserved + reserve,
-				minted = (if type(rec.minted) == "number" then rec.minted else 0) + p.minted,
-				destroyed = (if type(rec.destroyed) == "number" then rec.destroyed else 0) + p.destroyed,
-			}
-		end)
+	local ok, result = pcall(function()
+		if self.store then return self.store:UpdateAsync(key(id), update) end
+		return update(self.known[id])
 	end)
-	if not ok or not first then return nil end
-	local k = self.known[id] or { reserved = 0, minted = 0, destroyed = 0 }
-	k.reserved = (first :: number) - 1 + reserve
-	k.minted += p.minted
-	k.destroyed += p.destroyed
-	self.known[id] = k
-	self.pending[id] = { minted = 0, destroyed = 0 }
-	return first
+	self.busy[id] = nil
+	if not ok or type(result) ~= "table" then return nil end
+	self.known[id] = result
+	p.minted -= made
+	p.destroyed -= destroyed
+	return result.reserved - reserve + 1
 end
 
 -- The next serial for `id`, or nil if one could not be reserved.
 function Mint.serial(self: any, id: string): number?
 	local b = self.blocks[id]
 	if not b or b.next > b.last then
+		if self.busy[id] then return nil end
 		local size = Mint.FIRST_BLOCK
 		if b and self.now() - b.at < Mint.FAST then size = math.min(Mint.MAX_BLOCK, b.size * 2) end
 		local first = self:_write(id, size)
@@ -114,7 +112,10 @@ end
 function Mint.refresh(self: any, ids: { string })
 	if not self.store then return end
 	for _, id in ids do
+		if self.busy[id] then continue end
+		self.busy[id] = true
 		local ok, rec = pcall(function() return self.store:GetAsync(key(id)) end)
+		self.busy[id] = nil
 		if ok and type(rec) == "table" then
 			local k = self.known[id] or { reserved = 0, minted = 0, destroyed = 0 }
 			k.minted = if type(rec.minted) == "number" then rec.minted else k.minted

@@ -54,6 +54,7 @@ function MatchService.new(audience: any?, generation: number?): any
 	self.finished = false
 	self.generation = generation or 0
 	self.audience = audience
+	self.fightFrames = {}
 	self.inputEpochs = {} :: { [number]: number }
 	self.onFinished = nil :: ((any, any) -> ())?
 	self.sources = {} :: { [number]: string }   -- userId -> input source key
@@ -243,6 +244,7 @@ function MatchService.stop(self: any)
 	self.sources = {}
 	self.userIds = {}
 	self.cosmetics = {}
+	self.fightFrames = {}
 	self.inputEpochs = {}
 	self.input = RemoteInput.new()
 end
@@ -290,6 +292,7 @@ function MatchService.results(self: any): any
 			end)(),
 			kos = row.kos, assists = row.assists, falls = row.falls, sds = row.sds,
 			damage = row.damage, taken = row.taken, percent = row.percent,
+			fightFrames = self.fightFrames[m.fighters[row.index + 1].source] or 0,
 			stocks = row.stocks, score = row.score,
 		})
 	end
@@ -311,6 +314,11 @@ function MatchService.tick(self: any, dt: number)
 	while self.accum >= FRAME and steps < MAX_CATCHUP do
 		self.accum -= FRAME
 		steps += 1
+		if not m.paused and (m.state == "fight" or m.state == "suddendeath") then
+			for _, f in m.fighters do
+				if not f.eliminatedAt then self.fightFrames[f.source] = (self.fightFrames[f.source] or 0) + 1 end
+			end
+		end
 		Match.step(m)
 	end
 	if steps > 0 then self:measure((os.clock() - t0) / steps) end

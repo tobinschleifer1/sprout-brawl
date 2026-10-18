@@ -18,11 +18,14 @@ local function fakeStore(failGets: number?, failSets: number?): any
 			if failGets and gets <= failGets then error("throttled") end
 			return data[key]
 		end,
-		SetAsync = function(_, key: string, value: any)
+		UpdateAsync = function(_, key: string, transform: any)
+			local value = transform(data[key])
+			if value == nil then return nil end
 			if failSets and failSets > 0 then failSets -= 1; error("throttled") end
 			writes += 1
 			-- A DataStore stores a copy, not the table.
-			data[key] = { v = value.v, active = value.active, slots = table.clone(value.slots) }
+			data[key] = { v = value.v, active = value.active, slots = table.clone(value.slots), _revision = value._revision }
+			return data[key]
 		end,
 	}
 end

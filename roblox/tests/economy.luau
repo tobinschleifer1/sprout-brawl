@@ -13,10 +13,9 @@ local function rng(seed)
 	local s = seed
 	return function() s = (s * 16807) % 2147483647; return (s - 1) / 2147483646 end
 end
+local AvatarStore = Loader.loadFrom("src/server/", "AvatarStore")
 local function records()
-	local recs = {}
-	return { recs = recs, dirty = {}, clock = function() return 1 end,
-		load = function(self, id) recs[id] = recs[id] or { inventory = Inventory.sanitize(nil) }; return recs[id] end }
+	return AvatarStore.new(nil, function() return 1 end, { sessionOnly = true })
 end
 -- a DataStore whose UpdateAsync is atomic, and which can be made to fail
 local function datastore()
@@ -95,26 +94,26 @@ do
 	ds.fail = true
 	local c = Mint.new(ds, now)
 	assert(c:serial("hit_sakura") == nil, "a failed reservation handed out a serial")
-	local offline = Mint.new(nil, now)
+	local offline = Mint.new(nil, now, true)
 	assert(offline:serial("hit_sakura") == 1 and offline:serial("hit_sakura") == 2 and offline:copies("hit_sakura") == 2, "Studio's in-memory serials are off")
 end
 
 -- 3. Which matches count.
 do
 	local ok = { mode = "StockFFA", frames = 60 * 60 }
-	assert(Economy.qualifies(ok, { damage = 10, taken = 0 }) and Economy.qualifies(ok, { damage = 0, taken = 4 }), "a real match did not count")
-	assert(not Economy.qualifies(ok, { damage = 0, taken = 0 }), "a match without a hit counted")
-	assert(not Economy.qualifies({ mode = "StockFFA", frames = 44 * 60 }, { damage = 10 }), "a 44-second match counted")
-	assert(not Economy.qualifies({ mode = "Training", frames = 99999 }, { damage = 10 }), "Training counted")
+	assert(Economy.qualifies(ok, { damage = 10, taken = 0, fightFrames = 3600 }) and Economy.qualifies(ok, { damage = 0, taken = 4, fightFrames = 3600 }), "a real match did not count")
+	assert(not Economy.qualifies(ok, { damage = 0, taken = 0, fightFrames = 3600 }), "a match without a hit counted")
+	assert(not Economy.qualifies({ mode = "StockFFA", frames = 44 * 60 }, { damage = 10, fightFrames = 44 * 60 }), "a 44-second match counted")
+	assert(not Economy.qualifies({ mode = "Training", frames = 99999 }, { damage = 10, fightFrames = 99999 }), "Training counted")
 end
 
 -- 4. The drop meter: a drop exactly when it runs out, every 2 to 5 counted matches, never from an
 -- uncounted one; drops follow their table.
 local real = { mode = "StockFFA", frames = 3600 }
-local row = { damage = 20, taken = 10 }
+local row = { damage = 20, taken = 10, fightFrames = 3600 }
 do
 	local t = 0
-	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now), rand = rng(3), time = function() return t end })
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now, true), rand = rng(3), time = function() return t end })
 	local gap, gaps, kinds, drops = 0, {}, {}, 0
 	for _ = 1, 3000 do
 		t += 400                                  -- nine counted matches an hour: never capped
@@ -144,7 +143,7 @@ end
 -- 5. The hourly cap: twelve counted matches an hour, the thirteenth not, the next hour again.
 do
 	local t = 3600 * 100
-	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now), rand = rng(9), time = function() return t end })
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now, true), rand = rng(9), time = function() return t end })
 	for i = 1, Economy.HOURLY_CAP do assert(econ:matchFinished(1, real, row).counted, `match {i} of the hour did not count`) end
 	local over = econ:matchFinished(1, real, row)
 	assert(not over.counted and over.capped, "a thirteenth match in an hour counted")
@@ -155,7 +154,7 @@ end
 -- 6. Opening crates: a Scrap Crate opens free; a Forge Crate takes a key, an earned one first; an
 -- item from a paid key is paid; nothing is spent on a refusal; the guarantee is saved and fires.
 do
-	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now), rand = rng(21), time = function() return 7 end })
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now, true), paidAllowed = function() return true end, rand = rng(21), time = function() return 7 end })
 	local inv = econ:inventory(1)
 	assert(not econ:open(1, "scrap") and not econ:open(1, "nope"), "a crate opened from nothing")
 	inv.crates.scrap = 1
@@ -166,7 +165,7 @@ do
 	inv.keys.forge.earned, inv.keys.forge.paid = 1, 1
 	local ok1, r1 = econ:open(1, "forge")
 	assert(ok1 and not r1.paid and inv.keys.forge.earned == 0 and inv.keys.forge.paid == 1, "the paid key was spent before the earned one")
-	local ok2, r2 = econ:open(1, "forge")
+	local ok2, r2 = econ:open(1, "forge", inv.pity.forge)
 	assert(ok2 and r2.paid and inv.items[r2.uid].p == true and inv.keys.forge.paid == 0, "an item from a paid key is not marked paid")
 	local g = Loot.CRATES.forge.guarantee
 	inv.crates.forge, inv.keys.forge.earned, inv.pity.forge = 1, 1, g.at - 1
@@ -196,7 +195,7 @@ end
 
 -- 8. Crafting and salvaging.
 do
-	local mint = Mint.new(nil, now)
+	local mint = Mint.new(nil, now, true)
 	local econ = Economy.new({ store = records(), mint = mint, rand = rng(8), time = function() return 7 end })
 	local inv = econ:inventory(1)
 	local cost = Loot.craftCost("sword_starforged")

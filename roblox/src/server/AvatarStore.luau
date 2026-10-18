@@ -90,8 +90,10 @@ function AvatarStore.sanitize(raw: any): any
 		inventory = inventory }
 end
 
-function AvatarStore.new(dataStore: any, clock: (() -> number)?): any
+function AvatarStore.new(dataStore: any, clock: (() -> number)?, opts: any?): any
 	return setmetatable({
+		sessionOnly = opts and opts.sessionOnly == true,
+		busy = {}, closing = {}, revisions = {},
 		store = dataStore,         -- nil: saving is off (no DataStore service at all)
 		clock = clock or os.clock,
 		records = {},              -- userId -> record
@@ -113,6 +115,9 @@ function AvatarStore.load(self: any, userId: number): any
 	if self.records[userId] then
 		return self.records[userId]
 	end
+	-- Install one placeholder before yielding. Other readers cannot start a competing load.
+	local placeholder = AvatarStore.sanitize(nil)
+	self.records[userId] = placeholder
 	local raw, ok, err = nil, false, "no DataStore"
 	if self.store then
 		for attempt = 1, RETRIES do
@@ -127,7 +132,12 @@ function AvatarStore.load(self: any, userId: number): any
 			end
 		end
 	end
-	self.records[userId] = AvatarStore.sanitize(raw)
+	if self.records[userId] ~= placeholder then return placeholder end -- released during the read
+	local clean = AvatarStore.sanitize(raw)
+	for k, v in clean do placeholder[k] = v end
+	self.revisions[userId] = if type(raw) == "table" then raw._revision or 0 else 0
+	local revision = self.revisions[userId]
+	if type(revision) ~= "number" or revision < 0 or revision % 1 ~= 0 or revision >= Inventory.MAX_INTEGER then ok = false end
 	if ok then
 		self.loaded[userId] = true
 		self.notes[userId] = nil
@@ -222,45 +232,116 @@ function AvatarStore.grant(self: any, userId: number, id: string): boolean
 	return true
 end
 
-function AvatarStore.flush(self: any, userId: number): boolean
-	if not self.dirty[userId] then
+-- A detached snapshot is essential: Roblox serializes at the call, while local writers can run
+-- during the yield. Equality after the write preserves edits made by those writers.
+local function copy(v: any): any
+	if type(v) ~= "table" then return v end
+	local out = {}
+	for k, x in v do out[k] = copy(x) end
+	return out
+end
+local function equal(a: any, b: any): boolean
+	if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+	for k, v in a do if not equal(v, b[k]) then return false end end
+	for k in b do if a[k] == nil then return false end end
+	return true
+end
+
+-- Optimistic fencing: every write must replace exactly the version this server read. This is
+-- sufficient for single-record economy commits; multi-record trading still needs its own protocol.
+function AvatarStore._write(self: any, userId: number, snapshot: any): boolean
+	local revision = self.revisions[userId]
+	local value = copy(snapshot)
+	value._revision = revision + 1
+	local ok, result = pcall(function()
+		return self.store:UpdateAsync(key(userId), function(old: any)
+			local current = if type(old) == "table" then old._revision or 0 else 0
+			if current ~= revision then return nil end
+			return value
+		end)
+	end)
+	if ok and result ~= nil then
+		self.revisions[userId] = revision + 1
 		return true
 	end
-	if not (self.store and self.loaded[userId]) then
-		return false
-	end
+	-- A cancelled compare-and-swap means this session is stale. Never retry its snapshot over
+	-- the winner. A transport failure is retryable for wardrobe saves, but economy fails closed.
+	if ok then self.loaded[userId] = nil end
+	warn(`[Blockfall] record {userId} save failed or conflicted; no economy result acknowledged`)
+	return false
+end
+
+function AvatarStore.flush(self: any, userId: number): boolean
+	if self.busy[userId] or not (self.store and self.loaded[userId]) then return false end
+	if not self.dirty[userId] then return true end
+	self.busy[userId] = true
 	local rec = self.records[userId]
-	local ok, err = pcall(function()
-		self.store:SetAsync(key(userId), rec)
-	end)
-	if ok then
-		self.dirty[userId] = nil
-	else
-		warn(`[Blockfall] characters for {userId} were not saved ({err}); will retry`)
-	end
+	local snapshot = copy(rec)
+	local ok = self:_write(userId, snapshot)
+	if ok and equal(rec, snapshot) then self.dirty[userId] = nil end
+	self.busy[userId] = nil
 	return ok
 end
 
--- Called on a timer: writes every record that has been dirty for SAVE_DELAY seconds.
+-- Run on a private inventory and commit the entire debit/reward/pity/meter in one write BEFORE
+-- exposing it. The lock covers mint/policy/save yields, and blocks wardrobe flush and Locker edits.
+function AvatarStore.inventoryTransaction(self: any, userId: number, fn: (any) -> (boolean, any)): (boolean, any)
+	local rec = self:load(userId)
+	if self.busy[userId] or self.closing[userId] then return false, "your record is busy; try again" end
+	-- Studio (sessionOnly) with no record read - no DataStore, or API access off - spends for the
+	-- session only and never writes; a live server refuses to spend without a durable record.
+	local session = self.sessionOnly and not self.loaded[userId]
+	if not self.loaded[userId] and not self.sessionOnly then
+		return false, "saving is unavailable; rejoin before spending"
+	end
+	self.busy[userId] = true
+	local inv = copy(rec.inventory)
+	local ran, ok, result = pcall(fn, inv)
+	if not ran then ok, result = false, "the request failed; try again" end
+	if self.closing[userId] or self.records[userId] ~= rec then ok, result = false, "session ended" end
+	if ok then
+		local snapshot = copy(rec)
+		snapshot.inventory = inv
+		if self.store and not session and not self:_write(userId, snapshot) then
+			-- An error may be an acknowledged-by-storage write whose reply was lost. Do not reveal
+			-- the roll, retry a different roll, or permit a later wardrobe flush to overwrite it.
+			self.loaded[userId] = nil
+			ok, result = false, "saving is unavailable; rejoin to check your locker"
+		else
+			local old = rec.inventory
+			table.clear(old)
+			for k, v in inv do old[k] = v end
+			if equal(rec, snapshot) then self.dirty[userId] = nil end
+		end
+	end
+	self.busy[userId] = nil
+	if self.closing[userId] then self:release(userId) end
+	return ok, result
+end
+
+-- Called on a timer; single-flight flush prevents heartbeat jobs reordering saves.
 function AvatarStore.tick(self: any)
 	local now = self.clock()
 	for userId, since in self.dirty do
-		if now - since >= AvatarStore.SAVE_DELAY then
-			self:flush(userId)
-		end
+		if now - since >= AvatarStore.SAVE_DELAY then self:flush(userId) end
 	end
+	for userId in self.closing do self:release(userId) end
 end
 
--- A player leaving: write what they changed, then forget them.
 function AvatarStore.release(self: any, userId: number)
-	self:flush(userId)
+	self.closing[userId] = true
+	if self.busy[userId] then return end
+	if self.loaded[userId] and self.dirty[userId] then
+		local saved = self:flush(userId)
+		-- flush may yield: an edit arriving meanwhile still needs its own write.
+		if self.loaded[userId] and (not saved or self.dirty[userId]) then return end
+	end
 	self.records[userId], self.loaded[userId], self.dirty[userId], self.notes[userId] = nil, nil, nil, nil
+	self.closing[userId], self.revisions[userId] = nil, nil
 end
 
 function AvatarStore.flushAll(self: any)
-	for userId in self.dirty do
-		self:flush(userId)
-	end
+	for userId in self.records do self:release(userId) end
 end
 
 return AvatarStore

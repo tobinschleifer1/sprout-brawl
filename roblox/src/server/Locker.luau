@@ -67,6 +67,7 @@ end
 -- weapon = ... }. Returns ok and why not; saves on success.
 function Locker.apply(self: any, userId: number, msg: any): (boolean, string?)
 	if type(msg) ~= "table" then return false, "bad request" end
+	if self.store.busy and (self.store.busy[userId] or self.store.closing[userId]) then return false, "your record is busy; try again" end
 	local inv = self:inventory(userId)
 	local ok, why
 	if msg.action == "equip" and type(msg.id) == "string" then

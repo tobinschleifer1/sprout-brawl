@@ -32,7 +32,7 @@ SkipProducts.IDS = saved
 local data: { [string]: any } = {}
 local failing = false
 local ds = { GetAsync = function(_, k) return data[k] end,
-	SetAsync = function(_, k, v) if failing then error("throttled") end data[k] = v end }
+	UpdateAsync = function(_, k, fn) if failing then error("throttled") end local v = fn(data[k]); if v then data[k] = v end; return v end }
 local store = AvatarStore.new(ds, function() return 0 end)
 local here: { [number]: any } = { [1] = { UserId = 1 }, [2] = { UserId = 2 } }
 local p = Purchases.new({ store = store, player = function(userId) return here[userId] end })

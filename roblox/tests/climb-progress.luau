@@ -7,7 +7,7 @@ local PARKOUR = Loader.load("Data/Parkour")
 local N = #PARKOUR.course.checkpoints
 
 local data = {}
-local ds = { GetAsync = function(_, k) return data[k] end, SetAsync = function(_, k, v) data[k] = v end }
+local ds = { GetAsync = function(_, k) return data[k] end, UpdateAsync = function(_, k, fn) local v = fn(data[k]); if v then data[k] = v end; return v end }
 local now = 0
 local store = AvatarStore.new(ds, function() return now end)
 local climb = ClimbProgress.new(store, N)

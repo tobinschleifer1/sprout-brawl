@@ -235,7 +235,23 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
+shopui = [
+    ('countdown in hours only', 'ShopScreen', 'return `{m // 60}h {m % 60}m`', 'return `{m // 60}h`', 'countdown reads wrong'),
+    ('per-key price truncated', 'ShopScreen', 'math.floor(bundle.price / bundle.count + 0.5)', 'math.floor(bundle.price / bundle.count)', 'per-key price'),
+    ('owned featured buyable', 'ShopScreen', 'if not f.owned then self:request(key', 'if true then self:request(key', 'owned item was requested'),
+    ('credit hidden', 'ShopScreen', 'elseif f.credit then "CLAIM (PAID)"', 'elseif false then "CLAIM (PAID)"', 'credit is not offered'),
+    ('two requests at once', 'ShopScreen', 'if self.pending then return end\n\tself.pending = key', 'self.pending = key', 'while one was pending'),
+    ('prompt dropped', 'ShopScreen', 'self.opts.prompt(e.prompt.kind, e.prompt.id)', 'local _ = e.prompt.id', 'not handed to Roblox'),
+    ('odds not Loot', 'ShopScreen', 'row.label.Text, row.value.Text = r.text, r.value', 'row.label.Text, row.value.Text = r.text, r.value .. "!"', 'is not Loot'),
+    ('guaranteed odds ignored', 'ShopScreen', 'LockerScreen.oddsRows("forge", 0, guaranteed)', 'LockerScreen.oddsRows("forge", 0, false)', 'guaranteed opening'),
+    ('coming soon offered', 'ShopScreen', 'if not p.owned and p.available then self:request', 'if not p.owned then self:request', 'not on sale, or owned'),
+    ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif', 'c.buy.Text = if false then "OWNED" elseif', 'owned pass'),
+    ('keys for the restricted', 'ShopScreen', 'local keys = if shop.restricted then {} else shop.keys or {}', 'local keys = shop.keys or {}', 'should not have sent'),
+    ('odds button for the restricted', 'ShopScreen', 'self.oddsButton.Visible = not shop.restricted', 'self.oddsButton.Visible = true', 'sees Forge Keys'),
+    ('refusal silent', 'ShopScreen', 'self:say(`Could not do that: {e.error}`, Ui.RED)', 'self:say("", Ui.RED)', 'refusal was not shown'),
+]
+
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -254,4 +270,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shopui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')

@@ -114,7 +114,7 @@ Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
 	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},
-		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, isVip = nil, blocked = false, bannerAt = -10 }, Plaza2D)
+		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, onShop = nil, isVip = nil, blocked = false, bannerAt = -10 }, Plaza2D)
 	self.input = InputClient.new()
 	local gui = Instance.new("ScreenGui")
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
@@ -178,6 +178,14 @@ function Plaza2D.new(parent: Instance): any
 	locker.AnchorPoint = Vector2.new(1, 1)
 	locker.Position, locker.Size = UDim2.new(1, -16, 1, -58), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
 	self.lockerButton = locker
+	-- The Shop, stacked over the Locker.
+	local shopButton = Ui.button(gui, "SHOP", Ui.shade(Ui.GREEN, -0.3), function()
+		if self.active and not self.blocked and self.onShop then self.onShop() end
+	end)
+	shopButton.Name = "ShopButton"
+	shopButton.AnchorPoint = Vector2.new(1, 1)
+	shopButton.Position, shopButton.Size = UDim2.new(1, -16, 1, -106), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
+	self.shopButton = shopButton
 	-- Alone at a cabinet: take on the CPU (also C).
 	local cpu = Ui.keyButton(gui, "C", "VS CPU", Ui.PURPLE, function()
 		if self.active and not self.blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
@@ -301,6 +309,7 @@ function Plaza2D.setRoom(self: any, room: any)
 	end
 	self.characterButton.Visible = nextRoom == nil
 	self.lockerButton.Visible = nextRoom == nil
+	self.shopButton.Visible = nextRoom == nil
 	self.gui:SetAttribute("Scene", self.model.data.id)
 	self.gui:SetAttribute("RoomId", nextId)
 	if nextRoom then

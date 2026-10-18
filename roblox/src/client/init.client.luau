@@ -23,6 +23,7 @@ local Snapshot = require(Shared.Snapshot)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 local DropBanner = require(script.DropBanner)
 local LockerScreen = require(script.LockerScreen)
+local ShopScreen = require(script.ShopScreen)
 local ItemArt = require(script.ItemArt)
 local Loadout = require(Shared.Loadout)
 local Stages = require(Shared.Data.Stages)
@@ -199,6 +200,25 @@ local function openLocker()
 	if hub.active and not hub.room and not roomOverlay() then locker:toggle() end
 end
 hub.onLocker = openLocker
+-- The Shop (ShopScreen): its prompts go to Roblox's own purchase window.
+local MarketplaceService = game:GetService("MarketplaceService")
+local shopScreen = ShopScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	send = function(msg: any) Net.remote("Shop"):FireServer(msg) end,
+	prompt = function(kind: string, id: number)
+		if kind == "pass" then MarketplaceService:PromptGamePassPurchase(Players.LocalPlayer, id)
+		else MarketplaceService:PromptProductPurchase(Players.LocalPlayer, id) end
+	end,
+	drawArt = function(frame: Frame, id: string, w: number, h: number) ItemArt.draw(Canvas2D.inFrame(frame), id, w, h) end,
+})
+MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId: number, _: number, bought: boolean)
+	if userId == Players.LocalPlayer.UserId and not bought then shopScreen:cancelled() end
+end)
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, _: number, bought: boolean)
+	if player == Players.LocalPlayer and not bought then shopScreen:cancelled() end
+end)
+hub.onShop = function()
+	if hub.active and not hub.room and not roomOverlay() then shopScreen:toggle() end
+end
 -- VIP: a gold name over a player in the plaza, and a gold [VIP] tag on their chat lines. Both read
 -- the VIP attribute the server sets on that player (from the pass); nothing here decides it.
 local function isVip(userId: number): boolean
@@ -594,6 +614,7 @@ end)
 -- What the match earned: the drop meter and any drop, under the results (DropBanner).
 Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
 	locker:setEconomy(view)
+	shopScreen:setEconomy(view)
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
 		DropBanner.show(hud.gui, view.event.match)
 	end

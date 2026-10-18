@@ -3,7 +3,7 @@
 -- stand-in Instances (Recorder.gui), with anything it draws on the game canvas recorded - written as
 -- JSON for tools/gui-svg.mjs, so a screen can be looked at without Studio.
 --
---   lune run tools/render-ui <out.json> <plaza|studio|hud|results|records|notice|people|climb> [width] [height] [variant]
+--   lune run tools/render-ui <out.json> <plaza|studio|hud|results|records|notice|people|climb|locker|shop> [width] [height] [variant]
 --     plaza   variant: "x,z" where you stand (beside a station shows its prompt; the default shows
 --             the tip), or "stamps" to open the stamp panel
 --     studio  variant: a tab - presets, body, face, hair, outfit, extras
@@ -22,6 +22,7 @@ local Loader = require("../tests/loader")
 local Recorder = require("./recorder")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local Input = Loader.load("Input")
+local Products = Loader.load("Products")
 local shapes = Recorder.install(Canvas)
 
 local screen = process.args[2] or "plaza"
@@ -216,6 +217,27 @@ elseif screen == "locker" then
 		v.event = { done = "open", result = { id = "pike_eventide", rarity = "Mythic", uid = "u8", serial = 32, copies = 32 } }
 		s:setEconomy(v)
 	end
+	c:screen()
+	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
+elseif screen == "shop" then
+	-- variant: shop (default), odds, restricted
+	local S = load("ShopScreen")
+	local s = S.new(playerGui, { send = function() end, prompt = function() end })
+	s:open()
+	local restricted = variant == "restricted"
+	local keys = {}
+	if not restricted then
+		for _, b in Products.KEYS do table.insert(keys, { bundle = b.bundle, count = b.count, price = b.price }) end
+	end
+	local passes = {}
+	for _, p in Products.PASSES do
+		table.insert(passes, { id = p.id, name = p.name, price = p.price, owned = p.id == "wardrobe", available = p.available, perks = p.perks })
+	end
+	s:setEconomy({ shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes,
+		featured = { { id = "hammer_cobblestone", price = 29, owned = false }, { id = "sword_frostbite", price = 49, owned = true },
+			{ id = "daggers_venomfang", price = 99, owned = false, credit = true }, { id = "sword_starforged", price = 199, owned = false } } } })
+	-- the Recorder draws in creation order, not ZIndex: hide what the odds panel (ZIndex 10) covers
+	if variant == "odds" then s:showOdds(false); s.body.Visible = false end
 	c:screen()
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
 else

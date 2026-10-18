@@ -121,6 +121,25 @@ end
 -- tools/gui-svg.mjs. Ordered as Roblox draws them: by their ScreenGui's DisplayOrder, then made.
 local BOXES = { Frame = true, TextLabel = true, TextButton = true, TextBox = true, ScrollingFrame = true }
 function Recorder.nodes(made: { any }, W: number, H: number): { any }
+	-- a box's height: its Size, or with AutomaticSize Y and a UIGridLayout, as tall as its cells
+	local function height(o: any, pw: number, ph: number): number
+		local sz = o.Size or Rbx.UDim2.new(1, 0, 1, 0)
+		local h = ph * sz.Y.Scale + sz.Y.Offset
+		if not string.find(tostring(o.AutomaticSize or ""), "Y") then return h end
+		for _, g in o._children or {} do
+			if g.ClassName == "UIGridLayout" and not g.destroyed then
+				local cs, gap = g.CellSize or Rbx.UDim2.fromOffset(100, 100), g.CellPadding or Rbx.UDim2.fromOffset(4, 4)
+				local w = pw * sz.X.Scale + sz.X.Offset
+				local cw, ch = w * cs.X.Scale + cs.X.Offset, cs.Y.Offset
+				local n = 0
+				for _, c in o._children do if BOXES[c.ClassName] and not c.destroyed and c.Visible ~= false then n += 1 end end
+				local cols = math.max(1, math.floor((w + gap.X.Offset) / (cw + gap.X.Offset)))
+				local rows = math.ceil(n / cols)
+				return math.max(h, rows * ch + math.max(0, rows - 1) * gap.Y.Offset)
+			end
+		end
+		return h
+	end
 	local function rect(o: any): (number, number, number, number)
 		local p = o.Parent
 		local px, py, pw, ph = 0, 0, W, H
@@ -157,9 +176,10 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 			local padPx = layout.Padding and layout.Padding.Offset or 0
 			for k = 1, at - 1 do
 				local sz2 = sibs[k].Size or Rbx.UDim2.new()
-				if horizontal then x += pw * sz2.X.Scale + sz2.X.Offset + padPx else y += ph * sz2.Y.Scale + sz2.Y.Offset + padPx end
+				if horizontal then x += pw * sz2.X.Scale + sz2.X.Offset + padPx
+				elseif sibs[k].Visible ~= false then y += height(sibs[k], pw, ph) + padPx end
 			end
-			return px + x, py + y, pw * sz.X.Scale + sz.X.Offset, ph * sz.Y.Scale + sz.Y.Offset
+			return px + x, py + y, pw * sz.X.Scale + sz.X.Offset, height(o, pw, ph)
 		end
 		local w, h = pw * sz.X.Scale + sz.X.Offset, ph * sz.Y.Scale + sz.Y.Offset
 		for _, ch in o._children do

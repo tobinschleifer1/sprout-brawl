@@ -197,11 +197,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.panel = panel
 
 	-- Top bar: title, your characters, undo / redo / randomise / close.
-	local top = frame(panel, "Top", HEADER, 0)
-	top.Size = UDim2.new(1, 0, 0, 56)
-	local square = frame(top, "Ledge", Ui.shade(HEADER, -0.45), 0)
-	square.Position, square.Size = UDim2.new(0, 0, 1, -3), UDim2.new(1, 0, 0, 3)
-	frame(top, "Shine", Ui.shade(HEADER, 0.35), 0).Size = UDim2.new(1, 0, 0, 3)
+	local top = Ui.band(panel, HEADER, 56, "Top")
 	self.top = top
 	local title = Ui.text(top, "CHARACTER STUDIO", 18, AMBER, Ui.DISPLAY)
 	title.Name = "Title"

@@ -299,7 +299,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
 		corner(row, 0)
 		-- its frame drawn inside it, so the scrolling list cannot clip one side of it away
-		Ui.rim(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2, 0)
+		local _, edge = Ui.rim(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2, 0)
+		edge.Thickness = 2              -- (whatever the theme does with rims: this one says who is you)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
 		if type(m.avatar) == "string" and string.sub(m.avatar, 1, 2) == "k1" then
@@ -318,7 +319,7 @@ function LobbySocial.setMembers(self: any, list: any)
 		end
 	end
 	-- the window fits its rows (up to the room the screen gives it; the list scrolls past that)
-	self.peoplePanel.Size = UDim2.fromOffset(340, math.clamp(36 + #list * 50 + 10, 140, 380))
+	self.peoplePanel.Size = UDim2.fromOffset(340, math.clamp(36 + #list * 54 + 14, 140, 380))
 end
 
 return LobbySocial

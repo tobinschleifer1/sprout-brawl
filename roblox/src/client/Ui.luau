@@ -25,9 +25,9 @@ local Ui = {}
 -- One face. DISPLAY, LABEL and BODY are kept as names so a screen still says what its words are
 -- for, but they are the same pixel font: a second, smooth font beside it is what made the old UI
 -- read as a different game from its sprites.
-Ui.DISPLAY = Enum.Font.Arcade
-Ui.LABEL = Enum.Font.Arcade
-Ui.BODY = Enum.Font.Arcade
+Ui.DISPLAY = Enum.Font.FredokaOne
+Ui.LABEL = Enum.Font.BuilderSansExtraBold
+Ui.BODY = Enum.Font.BuilderSansBold
 
 -- Style themes, so directions can be compared on the real screens before one is chosen. A theme
 -- must be picked (Ui.useTheme) before any screen module loads: they read the fonts at load.
@@ -51,8 +51,8 @@ Ui.THEMES = {
 		outlineK = 0.4, rim = false, bevel = "none", scale = 1.05, advance = 0.56 },
 }
 Ui.ARCADE_SCALE = 1.25
-local theme = Ui.THEMES.pixel
-Ui.theme = "pixel"
+local theme = Ui.THEMES.clean
+Ui.theme = "clean"
 
 -- Endesga 32
 Ui.INK = Color3.fromRGB(24, 20, 37)
@@ -75,8 +75,8 @@ Ui.KEY = Color3.fromRGB(234, 238, 246)
 -- letters into a little over half of TextSize (16 draws 9 px letters), so sizes chosen for the old
 -- smooth fonts would come out small; this keeps the words about as big as they were. Measured in
 -- Studio with TextService:GetTextBoundsAsync: 0.5625 px of width per TextSize per letter.
-Ui.SCALE = 1.25
-Ui.ADVANCE = 0.5625
+Ui.SCALE = 1.05
+Ui.ADVANCE = 0.56
 -- `font` is the face the size is for (the LABEL face if not said): Arcade is scaled by
 -- ARCADE_SCALE whatever the theme, the smooth faces by the theme's own scale.
 function Ui.px(size: number, font: any?): number
@@ -85,9 +85,9 @@ function Ui.px(size: number, font: any?): number
 end
 
 function Ui.useTheme(name: string?)
-	local t = Ui.THEMES[name or "pixel"]
+	local t = Ui.THEMES[name or "clean"]
 	if not t then return end
-	theme, Ui.theme = t, name or "pixel"
+	theme, Ui.theme = t, name or "clean"
 	Ui.DISPLAY, Ui.LABEL, Ui.BODY = t.display, t.label, t.body
 	Ui.SCALE, Ui.ADVANCE = t.scale, t.advance
 end
@@ -281,6 +281,24 @@ function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size
 	return row, total
 end
 
+-- A coloured header bar `h` tall across the top of a card, in the theme's shape: rounded on top
+-- with a rounded card (square where it meets the card's body), and in the pixel themes a light
+-- shine along its top and a dark ledge along its foot. Returns the bar.
+function Ui.band(parent: Instance, colour: Color3, h: number, name: string?): any
+	local b = Ui.make("Frame", parent, { Name = name or "Band", BackgroundColor3 = colour, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, h) })
+	if theme.radius > 0 then
+		Ui.corner(b, 0)
+		Ui.make("Frame", b, { Name = "Square", BackgroundColor3 = colour, BorderSizePixel = 0,
+			Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, 0, 0.5, 0) })
+	end
+	if theme.bevel == "strip" then
+		Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, 0.35), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
+		Ui.make("Frame", b, { Name = "Ledge", BackgroundColor3 = Ui.shade(colour, -0.45), BorderSizePixel = 0,
+			Position = UDim2.new(0, 0, 1, -2), Size = UDim2.new(1, 0, 0, 2) })
+	end
+	return b
+end
+
 -- A pixel window: square, an ink border and a lighter rim inside it. With `band`, a coloured title
 -- bar `bandH` tall across its top with `title` in it, a darker ledge along its lower edge;
 -- returns the card, the band and the title.
@@ -291,18 +309,8 @@ function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?
 	Ui.rim(p, Ui.PANEL2, 2, 0)
 	if not band then return p, nil, nil end
 	local h = bandH or 34
-	local b = Ui.make("Frame", p, { Name = "Band", BackgroundColor3 = band, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, h), ZIndex = 2 })
-	if theme.radius > 0 then
-		-- rounded on top with the card, square where it meets the card's body
-		Ui.corner(b, 0)
-		Ui.make("Frame", b, { Name = "Square", BackgroundColor3 = band, BorderSizePixel = 0,
-			Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, 0, 0.5, 0) })
-	end
-	local bshine = Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(band, 0.35), BorderSizePixel = 0,
-		Size = UDim2.new(1, 0, 0, 3) })
-	if theme.radius > 0 or theme.bevel == "none" then bshine.BackgroundTransparency = 1 end
-	Ui.make("Frame", b, { Name = "Ledge", BackgroundColor3 = Ui.shade(band, -0.45), BorderSizePixel = 0,
-		Position = UDim2.new(0, 0, 1, -3), Size = UDim2.new(1, 0, 0, 3) })
+	local b = Ui.band(p, band, h)
+	b.ZIndex = 2
 	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY)
 	if math.floor(h * 0.48) < 16 then Ui.outline(t, 2) end
 	t.Name = "Title"

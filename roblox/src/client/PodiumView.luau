@@ -128,9 +128,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		Ui.rim(card, if first then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
 		local rh = s.rowH
 		local bandH = rh * 1.3
-		local band = frame(card, 0, 0, s.card.w, bandH, if first then GOLD else colour, 1)
-		band.Name = "Band"
-		frame(band, 0, bandH - 3, s.card.w, 3, Ui.shade(if first then GOLD else colour, -0.45), 1).Name = "Ledge"
+		Ui.band(card, if first then GOLD else colour, bandH)
 		local pad = s.card.w * 0.06
 		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, string.upper(Podium.ordinal(self.places[i])), rh * 0.8, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"

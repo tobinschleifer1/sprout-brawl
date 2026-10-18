@@ -26,6 +26,7 @@ local function signal(): any
 end
 local function new(class: string): any
 	local props: any = { ClassName = class, Activated = signal(), Name = class, _children = {} }
+	props.FindFirstChild = function(_, name) for _, ch in props._children do if ch.Name == name then return ch end end return nil end
 	local self: any
 	self = setmetatable({}, { __index = props, __newindex = function(_, k, v)
 		props[k] = v
@@ -117,8 +118,9 @@ do
 	if math.abs(x(k1) + total / 2) > 0.5 or math.abs(right(w2) - total / 2) > 0.5 then fail(`a hint row spans {x(k1)}..{right(w2)}, not centred on {total}`) end
 	if k2.Size.X.Offset <= k1.Size.X.Offset then fail("a long key's cap is no wider than a letter's") end
 end
--- pixel art: nothing is rounded; a window has its ink border and a lighter rim inside it; sizes
--- asked of the pixel face come out bigger, never smaller
+-- the pixel theme: nothing is rounded; a window has its ink border and a lighter rim inside it;
+-- sizes asked of the pixel face come out bigger, never smaller
+Ui.useTheme("pixel")
 do
 	local function radius(o: any): number
 		local c = child(o, "UICorner")
@@ -144,8 +146,31 @@ do
 	if Ui.text(new("Frame"), "x", 22).TextSize ~= Ui.px(22) then fail("text is not drawn at px of its size") end
 end
 
+-- the clean theme (the game's): rounded boxes, no inner rim, flat buttons, smooth faces; a header
+-- bar is rounded on top and square where it meets its card
+Ui.useTheme("clean")
+do
+	local T = Ui.THEMES.clean
+	if string.find(tostring(Ui.DISPLAY), "Arcade") or string.find(tostring(Ui.LABEL), "Arcade") then fail("the clean theme kept the pixel face") end
+	local b = Ui.button(new("Frame"), "GO", Ui.BLUE)
+	local c = child(b, "UICorner")
+	if not c or c.CornerRadius.Offset ~= T.radius or T.radius <= 0 then fail("a clean button is not rounded") end
+	if child(b, "Shine").BackgroundTransparency ~= 1 or child(b, "Lip").BackgroundTransparency ~= 1 then fail("a clean button has a bevel") end
+	local p = Ui.panel(new("Frame"), "Card", Ui.GREEN, "P1")
+	local rim = child(p, "Rim")
+	local rimStroke = nil
+	for _, ch in rim._children do if ch.ClassName == "UIStroke" then rimStroke = ch end end
+	if not rimStroke or rimStroke.Thickness ~= 0 then fail("a clean window draws an inner rim") end
+	local band = Ui.band(new("Frame"), Ui.RED, 30)
+	if not child(band, "UICorner") or not child(band, "Square") or child(band, "Ledge") then fail("a clean header bar is not rounded on top and flat") end
+	Ui.paintBand(band, Ui.GREEN)
+	if child(band, "Square").BackgroundColor3 ~= Ui.GREEN then fail("paintBand left the bar's square half in the old colour") end
+	-- a smooth face is scaled by the theme's own scale; the pixel face always by ARCADE_SCALE
+	if Ui.px(20) ~= math.floor(20 * T.scale + 0.5) or Ui.px(20, "Font.Arcade") ~= math.floor(20 * Ui.ARCADE_SCALE + 0.5) then fail("px does not scale by face") end
+end
+
 -- widths grow with the words; no top bar outside Roblox
 if Ui.textWidth("ABCDEFGHIJ", 10) ~= 2 * Ui.textWidth("ABCDE", 10) or Ui.textWidth("ABCDE", 20) ~= 2 * Ui.textWidth("ABCDE", 10) then fail("text widths do not scale") end
 if Ui.topInset() ~= 0 then fail("a top inset outside Roblox") end
 
-print("PASS ui kit: square pixel windows with rims, shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")
+print("PASS ui kit: clean theme (rounded, flat, smooth faces, rounded header bars), pixel theme (square windows with rims), shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")

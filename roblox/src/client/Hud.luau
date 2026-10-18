@@ -207,10 +207,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		Ui.corner(root, 0)
 		Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
 		Ui.rim(root, if yours then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
-		local band = Ui.make("Frame", root, { Name = "Band", BackgroundColor3 = colour, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20) })
-		Ui.make("Frame", band, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, 0.35), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
-		Ui.make("Frame", band, { Name = "Ledge", BackgroundColor3 = Ui.shade(colour, -0.45), BorderSizePixel = 0,
-			Position = UDim2.new(0, 0, 1, -2), Size = UDim2.new(1, 0, 0, 2) })
+		local band = Ui.band(root, colour, 20)
 
 		local name = display(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
 			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))

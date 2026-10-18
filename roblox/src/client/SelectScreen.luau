@@ -61,7 +61,10 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local roster = {}
 	for i = 1, #Weapons.LIST do
 		local row, col = (i - 1) // perRow, (i - 1) % perRow
-		roster[i] = { id = Weapons.LIST[i].id, x = W / 2 - rosterW / 2 + col * (cell + gap) + cell / 2,
+		-- (each row centred, the short last one too)
+		local inRow = math.min(perRow, #Weapons.LIST - row * perRow)
+		local rowW = inRow * cell + (inRow - 1) * gap
+		roster[i] = { id = Weapons.LIST[i].id, x = W / 2 - rowW / 2 + col * (cell + gap) + cell / 2,
 			y = rosterTop + row * (cell + gap + math.floor(14 * s)) + cell / 2 }
 	end
 	local rows = math.ceil(#Weapons.LIST / perRow)
@@ -313,8 +316,8 @@ function SelectScreen.build(self: any, L: any)
 		place(b, r.x - L.cell / 2, r.y - L.cell / 2, L.cell, L.cell)
 		corner(b, math.floor(L.cell / 2))
 		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
-		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 10 * s, WHITE)
-		Ui.outline(name, 2)
+		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 11 * s, WHITE)
+		Ui.outline(name, 1)
 		name.Name = "Name" .. r.id
 		place(name, r.x - L.cell, r.y + L.cell / 2 + 5, L.cell * 2, 14 * s)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
@@ -482,7 +485,7 @@ function SelectScreen.buildVotes(self: any, L: any)
 		title.Name = "Title"
 		place(title, 6 * s, 0, r.w - 12 * s, 44 * s)
 		title.TextWrapped = true
-		local hint = text(card, if preset then preset.hint else "The room's rules as they are now.", 11 * s, Ui.KEY)
+		local hint = text(card, if preset then preset.hint else "The room's rules as they are now.", 13 * s, Ui.KEY, Ui.BODY)
 		hint.Name = "Hint"
 		hint.TextWrapped = true
 		place(hint, 12 * s, 50 * s, r.w - 24 * s, 52 * s)
@@ -584,7 +587,7 @@ function SelectScreen.render(self: any)
 			tag.BackgroundColor3 = colour
 			corner(tag, 6)
 			local r = L.roster[idx]
-			place(tag, r.x - L.cell / 2 + (n - 1) * 30 * L.s - 4, r.y - L.cell / 2 - 6, 30 * L.s, 15 * L.s)
+			place(tag, r.x - L.cell / 2 + (n - 1) * 30 * L.s + 4, r.y - L.cell / 2 + 4, 30 * L.s, 15 * L.s)
 			table.insert(self.tags, tag)
 		end
 	end
@@ -706,7 +709,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 			chip.BackgroundTransparency = 0
 			chip.BackgroundColor3 = if voted then GREEN else (if slot.bot then Color3.fromRGB(52, 64, 88) else PANEL)
 			corner(chip, 8)
-			stroke(chip, HudColors.TEAM[((slot.team or 0) % 2) + 1], 2)
+			stroke(chip, Ui.INK, 2)               -- (the fill says voted; the team shows on the pick page)
 			place(chip, L.W / 2 - (n * (w + 8)) / 2 + (i - 1) * (w + 8), L.stripY - 4 * s, w, 34 * s)
 			table.insert(self.chips, chip)
 		end

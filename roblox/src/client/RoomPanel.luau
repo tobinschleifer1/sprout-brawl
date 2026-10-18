@@ -103,7 +103,7 @@ function RoomPanel.buildNotice(self: any)
 		local dot = Ui.make("Frame", dots, { Name = "Block" .. k, BackgroundColor3 = if k == 1 then Ui.GOLD else Ui.PANEL2, BorderSizePixel = 0,
 			Position = UDim2.fromOffset((k - 1) * 14, 0), Size = UDim2.fromOffset(10, 10) })
 		if not Ui.flat() then continue end
-		Ui.make("UICorner", dot, { CornerRadius = UDim.new(0.5, 0) })      -- round dots in a smooth theme
+		Ui.make("UICorner", dot, { CornerRadius = UDim.new(0, 5) })        -- round dots in a smooth theme
 	end
 	self.notice = { card = card, band = band, title = title, message = message, ok = ok, cap = cap, dots = dots }
 end

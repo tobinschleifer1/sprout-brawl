@@ -138,10 +138,10 @@ function Plaza2D.new(parent: Instance): any
 	directions.TextXAlignment = Enum.TextXAlignment.Left
 	self.directions = directions
 	-- The district you walked into, large, for a moment.
-	local banner = Ui.text(gui, "", 44, Ui.CYAN, Ui.DISPLAY)
+	local banner = Ui.text(gui, "", 40, Ui.GOLD, Ui.DISPLAY, true)
 	banner.Name = "District"
 	banner.AnchorPoint = Vector2.new(0.5, 0)
-	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, 70), UDim2.fromOffset(700, 52)
+	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, 86), UDim2.fromOffset(700, 52)
 	banner.TextTransparency = 1
 	self.banner = banner
 	self.bannerOutline = Ui.outline(banner, 4)

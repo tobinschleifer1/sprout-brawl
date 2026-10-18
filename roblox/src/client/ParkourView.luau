@@ -116,7 +116,7 @@ function ParkourView.new(parent: Instance, opts: any): any
 	local banner = text(gui, "Banner", "", 30, AMBER)
 	self.bannerOutline = display(banner, 4)
 	banner.AnchorPoint, banner.TextXAlignment = Vector2.new(0.5, 0), Enum.TextXAlignment.Center
-	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, TOP + 110), UDim2.fromOffset(760, 84)
+	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, TOP + 160), UDim2.fromOffset(760, 84)
 	banner.TextTransparency, banner.TextWrapped = 1, true
 	self.banner = banner
 	-- how to climb, as key caps along the bottom (clear of the button column at the right)

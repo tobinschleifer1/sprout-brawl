@@ -215,15 +215,16 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.chipBar = chips
 	local tools = frame(top, "Tools")
 	tools.AnchorPoint = Vector2.new(1, 0)
-	tools.Position, tools.Size = UDim2.new(1, -12, 0, 8), UDim2.fromOffset(256, 40)
-	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, Color3.fromRGB(52, 64, 88))
-	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 40)
-	local redo = button(tools, "Redo", "REDO", function() self:redo() end, Color3.fromRGB(52, 64, 88))
-	redo.Position, redo.Size = UDim2.fromOffset(62, 0), UDim2.fromOffset(58, 40)
+	-- (inset in the bar, with room between them)
+	tools.Position, tools.Size = UDim2.new(1, -14, 0, 11), UDim2.fromOffset(268, 34)
+	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, PANEL2)
+	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 34)
+	local redo = button(tools, "Redo", "REDO", function() self:redo() end, PANEL2)
+	redo.Position, redo.Size = UDim2.fromOffset(66, 0), UDim2.fromOffset(58, 34)
 	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Ui.PURPLE)
-	rand.Position, rand.Size = UDim2.fromOffset(124, 0), UDim2.fromOffset(80, 40)
-	local close = button(tools, "Close", "X", function() self:close() end, Color3.fromRGB(176, 60, 60))
-	close.Position, close.Size = UDim2.fromOffset(208, 0), UDim2.fromOffset(48, 40)
+	rand.Position, rand.Size = UDim2.fromOffset(132, 0), UDim2.fromOffset(80, 34)
+	local close = button(tools, "Close", "X", function() self:close() end, Ui.RED)
+	close.Position, close.Size = UDim2.fromOffset(220, 0), UDim2.fromOffset(48, 34)
 	self.undoButton, self.redoButton = undo, redo
 
 	-- Preview: the real fighter, posed, with its controls.
@@ -393,17 +394,23 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	end
 	self.preview.Position, self.preview.Size = UDim2.fromOffset(12, bodyY), UDim2.fromOffset(pw, ph)
 	-- Inside the preview: name on top, the stage, poses and view controls under it.
-	local controlsH = if wide then 96 else 44
+	-- a short wide screen (a phone on its side) keeps the preview: no pose row, no count line
+	local short = wide and H < 500
+	local controlsH = if wide and not short then 96 else 44
 	self.nameBox.Position, self.nameBox.Size = UDim2.fromOffset(10, 10), UDim2.fromOffset(pw - 20, 34)
-	self.countLabel.Visible = wide
+	self.countLabel.Visible = wide and not short
 	self.countLabel.Position, self.countLabel.Size = UDim2.new(0, 10, 1, -22), UDim2.fromOffset(pw - 20, 16)
 	-- (monospaced: sized so the line fits the panel it is in)
 	self.countLabel.TextSize = math.min(Ui.px(9), math.floor((pw - 20) / (#self.countLabel.Text * Ui.ADVANCE)))
-	local stageTop, stageH = 50, ph - 50 - controlsH - (if wide then 24 else 6)
+	local stageTop, stageH = 50, ph - 50 - controlsH - (if wide and not short then 24 else 6)
 	self.stage.Position, self.stage.Size = UDim2.fromOffset(0, stageTop), UDim2.fromOffset(pw, stageH)
 	self.stagePx = Vector2.new(pw, stageH)
 	local cy = stageTop + stageH + 4
-	if wide then
+	self.poseBar.Visible = not short
+	if short then
+		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset((pw - 26) / 2, 36)
+		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(16 + (pw - 26) / 2, cy), UDim2.fromOffset((pw - 26) / 2, 36)
+	elseif wide then
 		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(pw - 20, 40)
 		self.poseGrid.CellSize = UDim2.fromOffset(math.floor((pw - 20 - 16) / 5), 40)
 		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy + 46), UDim2.fromOffset((pw - 26) / 2, 36)
@@ -941,7 +948,7 @@ function AvatarEditor.rebuildColours(self: any)
 		for i, hex in c.list do
 			local b = tile(sw, `Swatch_{slot}_{i - 1}`, function() self:paint(slot, i - 1) end, Canvas2D.hex(hex, INK))
 			b.LayoutOrder = i
-			local pick = stroke(b, TEXT, 2)
+			local pick = stroke(b, AMBER, 3)          -- (one 'chosen' colour everywhere: gold)
 			pick.Enabled = false
 			self.swatches[`{slot}_{i - 1}`] = pick
 		end
@@ -1010,11 +1017,11 @@ function AvatarEditor.refresh(self: any)
 		Ui.paint(b, if id == self.group then AMBER else PANEL2, TEXT)
 	end
 	for id, b in self.catButtons or {} do
-		Ui.paint(b, if id == self.category then Ui.BLUE else PANEL2, TEXT)
+		Ui.paint(b, if id == self.category then AMBER else PANEL2, TEXT)
 		b.Text = string.upper(AvatarKit.category(id).name) .. (if self.locks[id] then " *" else "")
 	end
 	for id, b in self.poseButtons do
-		Ui.paint(b, if id == self.pose then Ui.BLUE else PANEL2, TEXT)
+		Ui.paint(b, if id == self.pose then AMBER else PANEL2, TEXT)
 	end
 	self.lockButton.Text = if self.locks[self.category] then "LOCKED" else "LOCK"
 	Ui.paint(self.lockButton, if self.locks[self.category] then AMBER else PANEL2, TEXT)

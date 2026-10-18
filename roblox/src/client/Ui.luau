@@ -47,7 +47,7 @@ Ui.THEMES = {
 		outlineK = 0.5, rim = true, bevel = "inset", scale = 1.1, advance = 0.5625 },
 	cartoon = { display = F.LuckiestGuy, label = F.GothamBlack, body = F.GothamBold, radius = 10, borderK = 1, outlineK = 0.75,
 		rim = false, bevel = "inset", scale = 1.0, advance = 0.62 },
-	clean = { display = F.FredokaOne, label = F.BuilderSansExtraBold, body = F.BuilderSansBold, radius = 8, borderK = 0.5,
+	clean = { display = F.FredokaOne, label = F.BuilderSansExtraBold, body = F.BuilderSansBold, radius = 8, borderK = 0.34,
 		outlineK = 0.4, rim = false, bevel = "none", scale = 1.05, advance = 0.62 },
 }
 Ui.ARCADE_SCALE = 1.25
@@ -172,7 +172,9 @@ function Ui.text(parent: Instance?, value: string, size: number, colour: Color3?
 		TextColor3 = colour or Ui.WHITE, Font = face, TextXAlignment = Enum.TextXAlignment.Center,
 		BorderSizePixel = 0 })
 	-- the pixel face outlines everything big enough not to fill in; a smooth theme its display words
-	if not bare and size >= 16 and (theme.label == Enum.Font.Arcade or face == Ui.DISPLAY) then Ui.outline(t, if size >= 28 then 3 else 2) end
+	-- (a flat theme only outlines big words, the ones drawn over the world; small ones sit on cards)
+	local min = if theme.bevel == "none" then 28 else 16
+	if not bare and size >= min and (theme.label == Enum.Font.Arcade or face == Ui.DISPLAY) then Ui.outline(t, if size >= 28 then 3 else 2) end
 	return t
 end
 
@@ -267,14 +269,21 @@ end
 -- How wide `value` is in the pixel face asked for at `size` (so drawn at Ui.px(size)), for sizing
 -- what holds it without waiting a frame for TextBounds. The face is monospaced, so this is near
 -- exact; the 4% covers px rounding the size up by up to half a pixel.
-function Ui.textWidth(value: string, size: number): number
-	return math.ceil((utf8.len(value) or #value) * size * Ui.SCALE * Ui.ADVANCE * 1.04 - 1e-9)
+-- Width per letter per TextSize of each face (TextService:GetTextBoundsAsync in Studio, upper
+-- and mixed case); `font` is the face it is drawn in (the theme's widest, if not said).
+local ADV = { [tostring(Enum.Font.Arcade)] = 0.5625, [tostring(Enum.Font.FredokaOne)] = 0.55,
+	[tostring(Enum.Font.BuilderSansExtraBold)] = 0.53, [tostring(Enum.Font.BuilderSansBold)] = 0.51,
+	[tostring(Enum.Font.LuckiestGuy)] = 0.62, [tostring(Enum.Font.GothamBlack)] = 0.62, [tostring(Enum.Font.GothamBold)] = 0.6 }
+function Ui.textWidth(value: string, size: number, font: any?): number
+	local adv = if font then ADV[tostring(font)] or Ui.ADVANCE else Ui.ADVANCE
+	local k = if (font or Ui.LABEL) == Enum.Font.Arcade then Ui.ARCADE_SCALE else Ui.SCALE
+	return math.ceil((utf8.len(value) or #value) * size * k * adv * 1.04 - 1e-9)
 end
 
 -- The width a key-cap-and-word chip needs with a cap `size` px tall: the cap, and the whole chip.
 function Ui.chipWidth(key: string, word: string, size: number): (number, number)
-	local capW = math.max(size + 6, Ui.textWidth(Ui.keyLabel(key), math.floor(size * 0.5)) + 12)
-	return capW, capW + 8 + Ui.textWidth(word, math.floor(size * 0.5)) + 4
+	local capW = math.max(size + 6, Ui.textWidth(Ui.keyLabel(key), math.floor(size * 0.5), Ui.DISPLAY) + 14)
+	return capW, capW + 8 + Ui.textWidth(word, math.floor(size * 0.5), Ui.DISPLAY) + 4
 end
 
 -- A centred row of key caps with what each does: [WASD] WALK  [SPACE] HOP  [E] USE. `items` are

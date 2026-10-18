@@ -118,7 +118,7 @@ function Hud.new(parent: Instance): any
 	local hold = label(card, UDim2.new(0, 160, 0, 30), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
 	hold.TextXAlignment = Enum.TextXAlignment.Right
 	hold.ZIndex = 3
-	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, GOLD)
+	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, Ui.WHITE)
 	self.guide.Name = "ComboGuide"
 	self.guide.TextWrapped = true
 	-- a list: each route's name in white, its chain in gold, the how-to dimmed
@@ -178,7 +178,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local name, chain = string.match(line, "^([^:]+):%s*(.*)$")
 		if name and chain then
 			local route, how = string.match(chain, "^(.-)%s*(%b())$")
-			table.insert(lines, `<font color="#FFFFFF">{string.upper(name)}</font>   {route or chain}` .. (if how then `  <font color="#A8B5CC">{how}</font>` else ""))
+			table.insert(lines, `<font color="#FEE761">{string.upper(name)}</font>   {route or chain}` .. (if how then `  <font color="#A8B5CC">{how}</font>` else ""))
 		else
 			table.insert(lines, line)
 		end
@@ -390,6 +390,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	self.timerPill.Visible = self.timer.Text ~= ""
 	-- key caps teach a keyboard: not on a touch screen, and not on a screen too narrow to spare them
 	self.hints.Visible = self.gui.AbsoluteSize.X >= 900 and not Hud.touchOnly()
+	-- (the ultimate's pill closes up under the clock when the key row is not there)
+	self.abilityPill.Position = UDim2.new(0.5, 0, 0, if self.hints.Visible then 94 else 58)
 	self.timerPill.Size = UDim2.fromOffset(math.max(124, Ui.textWidth(self.timer.Text, 30) + 40), 42)
 
 	local banner = DisasterShapes.banner(self.disasterView)

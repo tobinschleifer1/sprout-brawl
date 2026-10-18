@@ -116,6 +116,9 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	-- band, so the words need not shrink with it
 	local rt = math.huge
 	for _, s in self.slots do rt = math.min(rt, s.rowH) end
+	-- and one row pitch: the most every card has room for below its name
+	local pitch = rt * 1.12
+	for _, s in self.slots do pitch = math.min(pitch, (s.card.h - rt * 2.1 - rt * 0.35) / #Podium.STATS) end
 	for i, row in rows do
 		local s = self.slots[i]
 		local colour = if res.teams then HudColors.TEAM[(row.team % 2) + 1] else HudColors.PLAYER[(row.index % 8) + 1]
@@ -133,20 +136,20 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, string.upper(Podium.ordinal(self.places[i])), rt * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"
 		place.Font = Ui.DISPLAY
-		Ui.outline(place, math.max(2, math.floor(rh * 0.08)))
+		if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
+		if Ui.light(if first then GOLD else colour) > 0.62 then place.TextColor3 = Ui.INK end
 		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
-		Ui.outline(name, 2)
+		if not Ui.flat() then Ui.outline(name, 2) end
 		for k, stat in Podium.STATS do
-			-- the rows share out the card below its name, so a tall card is not left half empty
-			local pitch = math.max(rh, (s.card.h - rh * 2.1 - rh * 0.3) / #Podium.STATS)
+			-- one row pitch on every card, from the same baseline, so the four compare row by row
 			local y = rh * 2.1 + (k - 1) * pitch
 			text(card, pad, y, s.card.w * 0.6, rh, string.upper(stat[1]), rt * 0.56, STAT).Name = `Label{k}`
 			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rt * 0.72, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
 			v.Font = Ui.DISPLAY
-			Ui.outline(v, 2)
+			if not Ui.flat() then Ui.outline(v, 2) end
 		end
 		self.cards[i] = card
 	end

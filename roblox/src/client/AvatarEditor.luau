@@ -41,7 +41,7 @@ local TEXT = Ui.WHITE
 local DIM = Ui.DIM
 local AMBER = Ui.GOLD
 local GOOD = Ui.GREEN
-local HEADER = Color3.fromRGB(26, 44, 82)        -- the studio's top band
+local HEADER = Ui.BLUE                           -- the studio's top band
 
 AvatarEditor.MAX_UNDO = 60
 local POSES = { { "idle", "Stand" }, { "run", "Run" }, { "air", "Jump" }, { "attack", "Attack" }, { "victory", "Cheer" } }
@@ -49,9 +49,7 @@ AvatarEditor.POSES = POSES
 
 -- ------------------------------------------------------------------ helpers ----
 local function corner(parent: Instance, px: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, px)
-	c.Parent = parent
+	Ui.corner(parent, px)
 end
 
 local function frame(parent: Instance, name: string, colour: Color3?, alpha: number?): Frame
@@ -69,7 +67,7 @@ local function label(parent: Instance, name: string, text: string, size: number,
 	t.Name = name
 	t.BackgroundTransparency = 1
 	t.Font = Ui.LABEL
-	t.TextSize = size
+	t.TextSize = Ui.px(size)
 	t.TextColor3 = colour or TEXT
 	t.Text = text
 	t.TextXAlignment = Enum.TextXAlignment.Left
@@ -80,12 +78,12 @@ end
 
 -- A worded control: the kit's bevelled button.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, text, colour or PANEL2, onClick, { size = 16 })
+	local b = Ui.button(parent, text, colour or PANEL2, onClick, { size = 12 })
 	b.Name = name
 	return b
 end
 
--- A picture tile (an option, a colour, a saved character): a rounded block with a darker lip and
+-- A picture tile (an option, a colour, a saved character): a square block with a darker lip and
 -- no border of its own, so the picked ring (stroke "Pick") is the only outline it wears.
 local function tile(parent: Instance, name: string, onClick: () -> (), colour: Color3): TextButton
 	local b = Instance.new("TextButton")
@@ -100,9 +98,8 @@ local function tile(parent: Instance, name: string, onClick: () -> (), colour: C
 	lip.Name = "Lip"
 	lip.BorderSizePixel = 0
 	lip.BackgroundColor3 = Ui.shade(colour, -0.4)
-	lip.Position, lip.Size = UDim2.new(0, 3, 1, -5), UDim2.new(1, -6, 0, 3)
+	lip.Position, lip.Size = UDim2.new(0, 0, 1, -3), UDim2.new(1, 0, 0, 3)
 	lip.Parent = b
-	corner(lip, 2)
 	b.Activated:Connect(onClick)
 	return b
 end
@@ -191,8 +188,9 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position = UDim2.fromScale(0.5, 0.5)
 	panel.Size = UDim2.new(1, -24, 1, -24)
-	corner(panel, 14)
+	corner(panel, 0)
 	Ui.stroke(panel, INK, 3)
+	Ui.rim(panel, PANEL2, 2, 0)
 	local cap = Instance.new("UISizeConstraint")
 	cap.MaxSize = Vector2.new(1440, 900)
 	cap.Parent = panel
@@ -201,11 +199,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	-- Top bar: title, your characters, undo / redo / randomise / close.
 	local top = frame(panel, "Top", HEADER, 0)
 	top.Size = UDim2.new(1, 0, 0, 56)
-	corner(top, 14)
-	local square = frame(top, "Square", HEADER, 0)
-	square.Position, square.Size = UDim2.new(0, 0, 1, -14), UDim2.new(1, 0, 0, 14)
+	local square = frame(top, "Ledge", Ui.shade(HEADER, -0.45), 0)
+	square.Position, square.Size = UDim2.new(0, 0, 1, -3), UDim2.new(1, 0, 0, 3)
+	frame(top, "Shine", Ui.shade(HEADER, 0.35), 0).Size = UDim2.new(1, 0, 0, 3)
 	self.top = top
-	local title = Ui.text(top, "CHARACTER STUDIO", 24, AMBER, Ui.DISPLAY)
+	local title = Ui.text(top, "CHARACTER STUDIO", 18, AMBER, Ui.DISPLAY)
 	title.Name = "Title"
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
@@ -260,7 +258,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	nameBox.BackgroundColor3 = PANEL2
 	nameBox.BorderSizePixel = 0
 	nameBox.Font = Ui.DISPLAY
-	nameBox.TextSize = 20
+	nameBox.TextSize = Ui.px(14)
 	nameBox.TextColor3 = TEXT
 	nameBox.PlaceholderText = "Name your fighter"
 	nameBox.PlaceholderColor3 = DIM
@@ -844,7 +842,7 @@ function AvatarEditor.rebuildCategories(self: any)
 	for i, c in cats do
 		local b = button(self.catBar, "Cat_" .. c.id, string.upper(c.name), function() self:selectCategory(c.id) end)
 		b.LayoutOrder = i
-		b.TextSize = 15
+		b.TextSize = Ui.px(11)
 		b.Size = UDim2.new(1 / math.max(1, #cats), -6, 1, 0)
 		self.catButtons[c.id] = b
 	end
@@ -981,7 +979,7 @@ function AvatarEditor.rebuildChips(self: any)
 	if count < (self.max or 8) then
 		local add = button(self.chipBar, "SlotNew", "+", function() self:newSlot() end, Ui.BLUE)
 		add.LayoutOrder = count + 1
-		add.TextSize = 22
+		add.TextSize = Ui.px(18)
 		add.Size = UDim2.fromOffset(44, 44)
 	end
 end

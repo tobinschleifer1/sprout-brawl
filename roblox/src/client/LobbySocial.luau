@@ -37,28 +37,26 @@ local AMBER = Color3.fromRGB(232, 162, 74)
 
 -- The button bar: { panel, key, word, colour }.
 local SPECS: { { any } } = {
-	{ "Stamps", "T", "STAMP", Color3.fromRGB(214, 84, 120) },
-	{ "Say", "Y", "SAY", Color3.fromRGB(46, 120, 190) },
-	{ "People", "P", "PEOPLE", Color3.fromRGB(214, 132, 36) },
-	{ "Map", "M", "MAP", Color3.fromRGB(58, 150, 82) },
+	{ "Stamps", "T", "STAMP", Color3.fromRGB(181, 80, 136) },
+	{ "Say", "Y", "SAY", Color3.fromRGB(0, 153, 219) },
+	{ "People", "P", "PEOPLE", Color3.fromRGB(247, 118, 34) },
+	{ "Map", "M", "MAP", Color3.fromRGB(62, 137, 72) },
 }
 
 local function corner(parent: Instance, px: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, px)
-	c.Parent = parent
+	Ui.corner(parent, px)
 end
 
 -- A list button inside a panel: the kit's bevelled block, in body text so a line of words fits.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 14, small = true, textColour = TEXT })
+	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true, textColour = TEXT })
 	b.Name = name
 	return b
 end
 
 local function label(parent: Instance, name: string, text: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, size
+	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, Ui.px(size)
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment, t.TextWrapped = 1, colour or TEXT, Enum.TextXAlignment.Left, true
 	t.Parent = parent
 	return t
@@ -99,7 +97,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	bar.Parent = gui
 	-- each button is its key on a cap and its word, in its own colour; its panel's band matches
 	for i, sp in SPECS do
-		local b = Ui.keyButton(bar, sp[2], sp[3], sp[4], function() self:toggle(sp[1]) end, 42, { size = 17 })
+		local b = Ui.keyButton(bar, sp[2], sp[3], sp[4], function() self:toggle(sp[1]) end, 42, { size = 12 })
 		b.Name = "Open" .. sp[1]
 		b.Position, b.Size = UDim2.fromOffset((i - 1) * 124, 0), UDim2.fromOffset(116, 42)
 	end
@@ -128,7 +126,9 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	for i, m in PLAZA.messages do
 		local key = if i <= 9 then tostring(i) elseif i == 10 then "0" else ""
 		local b = button(say, "Say_" .. i, (if key ~= "" then key .. "  " else "") .. m, function() self:say(i) end, PANEL2)
-		b.TextSize, b.TextXAlignment = 13, Enum.TextXAlignment.Left
+		b.TextSize, b.TextXAlignment = Ui.px(10), Enum.TextXAlignment.Left
+		b.TextTruncate = Enum.TextTruncate.AtEnd
+		Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 4) })
 		b.Position, b.Size = UDim2.fromOffset(10 + ((i - 1) % 2) * 142, 36 + math.floor((i - 1) / 2) * 34), UDim2.fromOffset(136, 30)
 	end
 	self.sayPanel = say

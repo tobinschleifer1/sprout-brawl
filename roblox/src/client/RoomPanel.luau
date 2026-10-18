@@ -28,13 +28,13 @@ end
 local function label(parent: Instance, value: string, height: number): TextLabel
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency, t.TextColor3, t.Font = 1, WHITE, Ui.LABEL
-	t.Text, t.TextSize, t.TextWrapped = value, 14, true
+	t.Text, t.TextSize, t.TextWrapped = value, Ui.px(12), true
 	t.Size, t.Parent = UDim2.new(1, 0, 0, height), parent
 	return t
 end
 -- The kit's bevelled button; a chosen one is gold.
 local function button(parent: Instance, value: string, callback: () -> (), selected: boolean?): TextButton
-	local b = Ui.button(parent, value, if selected then GOLD else STEEL, callback, { size = 15 })
+	local b = Ui.button(parent, value, if selected then GOLD else STEEL, callback, { size = 12 })
 	b.Name = value
 	b.Size, b.TextWrapped = UDim2.new(1, 0, 0, 42), true
 	return b
@@ -49,17 +49,18 @@ function RoomPanel.new(parent: Instance): any
 	panel.Name, panel.AnchorPoint = "Room", Vector2.new(0.5, 0.5)
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.5), UDim2.new(1, -24, 1, -96)
 	panel.BackgroundColor3, panel.BackgroundTransparency, panel.Parent = Ui.PANEL, 0.02, gui
-	Ui.corner(panel, 14)
+	Ui.corner(panel, 0)
 	Ui.stroke(panel, INK, 3)
+	Ui.rim(panel, Ui.PANEL2, 2, 0)
 	self.panel = panel
 	local cap = Instance.new("UISizeConstraint")
 	cap.MaxSize, cap.Parent = Vector2.new(680, 680), panel
 	self.title = label(panel, "MATCH ROOM", 44)
-	self.title.Font, self.title.TextSize, self.title.TextColor3 = Ui.DISPLAY, 22, GOLD
-	Ui.outline(self.title, 2)
+	self.title.Font, self.title.TextSize, self.title.TextColor3 = Ui.DISPLAY, Ui.px(20), GOLD
+	Ui.outline(self.title, 3)
 	self.status = label(panel, "", 44)
 	self.status.Position = UDim2.fromOffset(0, 44)
-	self.status.TextSize = 12
+	self.status.TextSize = Ui.px(11)
 	local body = Instance.new("ScrollingFrame")
 	body.Name, body.BackgroundTransparency, body.BorderSizePixel = "Choices", 1, 0
 	body.Position, body.Size = UDim2.fromOffset(12,92), UDim2.new(1,-24,1,-158)
@@ -205,7 +206,7 @@ function RoomPanel.render(self: any)
 			if choice == "vote" and votes[stage.id] then
 				local badge = label(b, `{votes[stage.id]} vote` .. (if votes[stage.id] == 1 then "" else "s"), 18)
 				badge.Name, badge.Position, badge.Size = "Votes", UDim2.fromOffset(6, 6), UDim2.fromOffset(64, 18)
-				badge.BackgroundTransparency, badge.BackgroundColor3, badge.TextSize = 0.1, INK, 12
+				badge.BackgroundTransparency, badge.BackgroundColor3, badge.TextSize = 0.1, INK, Ui.px(10)
 			end
 			table.insert(self.previews, { canvas = Canvas.inFrame(frame), stage = if stage.id ~= "Random" then stage else nil,
 				random = stage.id == "Random", frame = frame })

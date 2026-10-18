@@ -39,7 +39,7 @@ SelectScreen.__index = SelectScreen
 local DISPLAY = Ui.DISPLAY
 local INK, PANEL, EDGE, WHITE, DIM = Ui.INK, Ui.PANEL, Ui.EDGE, Ui.WHITE, Ui.DIM
 local GOLD, GREEN, RED = Ui.GOLD, Ui.GREEN, Ui.RED
-local SLATE = Color3.fromRGB(40, 54, 80)          -- an unchosen chip, an unlit stat block
+local SLATE = Color3.fromRGB(58, 68, 102)         -- an unchosen chip, an unlit stat block
 local STAT_NAMES = { damage = "DMG", defense = "DEF", dexterity = "DEX", speed = "SPD" }
 local DIFFICULTIES = { "easy", "normal", "hard" }
 
@@ -179,9 +179,9 @@ function SelectScreen.new(parent: Instance): any
 	self.vs.Name = "VS"
 
 	-- the bottom row
-	self.leave = button(root, "LEAVE", Color3.fromRGB(120, 46, 52), function() self:send("leave") end)
+	self.leave = button(root, "LEAVE", Ui.RED, function() self:send("leave") end)
 	self.leave.Name = "Leave"
-	self.hideButton = button(root, "HIDE", Color3.fromRGB(52, 64, 88), function() self:minimise() end)
+	self.hideButton = button(root, "HIDE", Ui.PANEL2, function() self:minimise() end)
 	self.hideButton.Name = "Hide"
 	self.ready = button(self.pickPage, "READY", GREEN, function() self:send("ready") end)
 	self.ready.Name = "Ready"
@@ -198,7 +198,7 @@ function SelectScreen.new(parent: Instance): any
 	self.status.Name = "Status"
 
 	-- minimised: one button back in, over the plaza
-	self.reopen = button(gui, "ROOM ▲", Color3.fromRGB(46, 104, 178), function() self:show() end)
+	self.reopen = button(gui, "ROOM ▲", Ui.BLUE, function() self:show() end)
 	self.reopen.Name = "Reopen"
 	self.reopen.Visible = false
 	self.reopen.Size = UDim2.fromOffset(150, 40)
@@ -286,23 +286,25 @@ function SelectScreen.build(self: any, L: any)
 	self.cells, self.cards, self.tags, self.mapCards, self.ruleCards, self.chips = {}, {}, {}, {}, {}, {}
 	local s = L.s
 	-- below Roblox's top bar where it has one: its menu and chat buttons sit at the top left
-	place(self.title, 24 * s, math.max(12 * s, Ui.topInset() + 4), 420 * s, 36 * s)
-	self.title.TextSize = math.floor(26 * s)
+	place(self.title, 24 * s, math.max(12 * s, Ui.topInset() + 4), L.W / 2 - 300 * s - 36 * s, 36 * s)
+	self.title.TextSize = Ui.px(20 * s)
+	self.title.TextScaled = false
+	self.title.TextTruncate = Enum.TextTruncate.AtEnd
 	place(self.bar, L.W / 2 - 300 * s, 14 * s, 600 * s, 38 * s)
 	place(self.rules, 14 * s, 0, 572 * s, 38 * s)
-	self.rules.TextSize = math.floor(15 * s)
-	for _, b in { self.leave, self.hideButton, self.ready } do b.TextSize = math.floor(18 * s) end
+	self.rules.TextSize = Ui.px(15 * s)
+	for _, b in { self.leave, self.hideButton, self.ready } do b.TextSize = Ui.px(18 * s) end
 	place(self.leave, 24 * s, L.buttonsY, 110 * s, 44 * s)
 	place(self.hideButton, 144 * s, L.buttonsY, 96 * s, 44 * s)
 	place(self.ready, L.W / 2 - 110 * s, L.buttonsY, 220 * s, 48 * s)
-	self.ready.TextSize = math.floor(26 * s)
+	self.ready.TextSize = Ui.px(26 * s)
 	place(self.voteTitle, L.W / 2 - 360 * s, 80 * s, 720 * s, 36 * s)
-	self.voteTitle.TextSize = math.floor(30 * s)
+	self.voteTitle.TextSize = Ui.px(30 * s)
 	place(self.clock, L.W - 92 * s, 66 * s, 60 * s, 60 * s)
-	self.clock.TextSize = math.floor(30 * s)
+	self.clock.TextSize = Ui.px(30 * s)
 	place(self.status, L.W / 2 - 400 * s, 56 * s, 800 * s, 18 * s)
-	self.status.TextSize = math.floor(14 * s)
-	if L.vsX then place(self.vs, L.vsX - 40 * s, L.pedestals[1].cardY + 20 * s, 80 * s, 50 * s); self.vs.TextSize = math.floor(44 * s) end
+	self.status.TextSize = Ui.px(14 * s)
+	if L.vsX then place(self.vs, L.vsX - 40 * s, L.pedestals[1].cardY + 20 * s, 80 * s, 50 * s); self.vs.TextSize = Ui.px(36 * s) end
 	self.vs.Visible = L.vsX ~= nil
 
 	-- the roster: a ring per weapon over the canvas's portrait, the weapon's name under it
@@ -311,7 +313,8 @@ function SelectScreen.build(self: any, L: any)
 		place(b, r.x - L.cell / 2, r.y - L.cell / 2, L.cell, L.cell)
 		corner(b, math.floor(L.cell / 2))
 		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
-		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), math.floor(11 * s), DIM)
+		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 9 * s, Ui.KEY)
+		Ui.outline(name, 2)
 		name.Name = "Name" .. r.id
 		place(name, r.x - L.cell, r.y + L.cell / 2 + 1, L.cell * 2, 14 * s)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
@@ -326,7 +329,7 @@ function SelectScreen.build(self: any, L: any)
 		-- a header band in the team's colour with the player's name outlined in it
 		local card = make("Frame", self.pickPage, { Name = "Card" .. p.slot, BackgroundColor3 = PANEL, BackgroundTransparency = 0, BorderSizePixel = 0 })
 		place(card, p.x, p.cardY, p.cardW, p.cardH)
-		corner(card, 12)
+		corner(card, 0)
 		stroke(card, INK, 3)
 		local ring = make("Frame", card, { Name = "Ring", BackgroundTransparency = 1, BorderSizePixel = 0 })
 		place(ring, 2, 2, p.cardW - 4, p.cardH - 4)
@@ -335,8 +338,8 @@ function SelectScreen.build(self: any, L: any)
 		local band = make("Frame", card, { Name = "Band", BackgroundColor3 = team, BorderSizePixel = 0 })
 		place(band, 0, 0, p.cardW, 24 * s)
 		corner(band, 12)
-		local square = make("Frame", band, { Name = "Square", BackgroundColor3 = team, BorderSizePixel = 0 })
-		place(square, 0, 12 * s, p.cardW, 12 * s)
+		local square = make("Frame", band, { Name = "Ledge", BackgroundColor3 = Ui.shade(team, -0.45), BorderSizePixel = 0 })
+		place(square, 0, 24 * s - 3, p.cardW, 3)
 		local who = text(band, "", math.floor(14 * s), WHITE, DISPLAY)
 		who.Name = "Who"
 		place(who, 10 * s, 0, p.cardW - 20 * s, 24 * s)
@@ -381,11 +384,11 @@ function SelectScreen.build(self: any, L: any)
 		place(open, 0, 26 * s, p.cardW, p.cardH - 26 * s)
 		local openText = text(open, "OPEN SLOT", math.floor(18 * s), DIM, DISPLAY)
 		place(openText, 0, 4 * s, p.cardW, 24 * s)
-		local addBot = button(open, "+ ADD BOT", Color3.fromRGB(46, 104, 178), function()
+		local addBot = button(open, "+ ADD BOT", Ui.BLUE, function()
 			self:send("bot", self.difficulty, p.slot)
 		end)
 		addBot.Name = "AddBot"
-		addBot.TextSize = math.floor(18 * s)
+		addBot.TextSize = Ui.px(18 * s)
 		place(addBot, p.cardW * 0.12, 36 * s, p.cardW * 0.76, 38 * s)
 		local chips = {}
 		for k, d in DIFFICULTIES do
@@ -394,7 +397,7 @@ function SelectScreen.build(self: any, L: any)
 				self:render()
 			end, true)
 			chip.Name = "Difficulty" .. d
-			chip.TextSize = math.floor(12 * s)
+			chip.TextSize = Ui.px(12 * s)
 			local cw = (p.cardW * 0.76 - 8 * s) / 3
 			place(chip, p.cardW * 0.12 + (k - 1) * (cw + 4 * s), 82 * s, cw, 26 * s)
 			chips[d] = chip
@@ -415,9 +418,9 @@ function SelectScreen.build(self: any, L: any)
 		no.Name = "No"
 		place(no, p.cardW * 0.52, 50 * s, p.cardW * 0.38, 34 * s)
 		-- a bot's own card: who it is, and the vote to take it out
-		local remove = button(card, "REMOVE BOT", Color3.fromRGB(120, 46, 52), function() self:send("bot", false, p.slot) end)
+		local remove = button(card, "REMOVE BOT", Ui.RED, function() self:send("bot", false, p.slot) end)
 		remove.Name = "RemoveBot"
-		remove.TextSize = math.floor(12 * s)
+		remove.TextSize = Ui.px(12 * s)
 		place(remove, p.cardW - 98 * s, 26 * s, 90 * s, 22 * s)
 		-- an empty pedestal's "?" where a fighter would stand
 		local unknown = text(self.pickPage, "?", math.floor(p.fighterH * 0.5), Color3.fromRGB(190, 210, 240), DISPLAY)
@@ -601,7 +604,7 @@ function SelectScreen.render(self: any)
 			local w2 = slot.weapon2 and Weapons.BY_ID[slot.weapon2]
 			local name = string.upper(w.name) .. (if w2 then " + " .. string.upper(w2.name) else "")
 			card.weapon.Text = name
-			card.weapon.TextSize = math.floor(math.min(22 * self.L.s, (card.p.cardW - 16 * self.L.s) / (#name * 0.62)))
+			card.weapon.TextSize = math.floor(math.min(Ui.px(22 * self.L.s), (card.p.cardW - 16 * self.L.s) / (#name * Ui.ADVANCE)))
 			card.kind.Text = `{string.upper(w.archetype or "")}  {string.rep("★", w.difficulty or 1)}{string.rep("☆", 3 - (w.difficulty or 1))}`
 			local stats = WeaponStats.of(w.id)
 			for key, segs in card.bars do
@@ -829,8 +832,12 @@ function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 		for _, slot in room.slots do if slot.userId == self.userId and slot.avatar then avatar = slot.avatar end end
 	end
 	for i, r in L.roster do
-		Canvas2D.circle(c, r.x, r.y, L.cell / 2, Color3.fromRGB(22, 40, 74), 1)
-		Canvas2D.circle(c, r.x, r.y - L.cell * 0.08, L.cell * 0.4, Color3.fromRGB(38, 70, 120), 1)
+		-- a square pixel tile behind each portrait: a dark well, lighter toward the top, with a
+		-- floor stripe the fighter stands on
+		local h = L.cell / 2
+		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell, Color3.fromRGB(38, 43, 68), 1)
+		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell * 0.55, Color3.fromRGB(58, 68, 102), 1)
+		Canvas2D.rect(c, r.x - h, r.y + h * 0.66, L.cell, L.cell * 0.17, Color3.fromRGB(24, 20, 37), 1)
 		local s, char = standIn(self, "roster" .. i, avatar, r.id, 1, "idle", true)
 		drawStanding(c, s, char, r.x, r.y + L.cell * 0.42, L.cell * 0.82, 0)
 		c:screen()

@@ -1,38 +1,60 @@
 --!strict
--- Blockfall's UI kit: the cartoon pixel look every screen is built from, so the plaza, the
--- character studio, the select screen and the fight all read as one game.
+-- Blockfall's UI kit: the retro pixel look every screen is built from, so the plaza, the
+-- character studio, the select screen and the fight all read as one game - the one the sprites
+-- are drawn in.
 --
---   text     display words (LuckiestGuy) wear a heavy ink outline, the way the genre's UI does;
---            body words are GothamBlack, without one, so small text stays legible
---   button   a chunky bevelled block: an ink border, a light shine strip along the top and a
---            darker pixel lip along the bottom - pressable at a glance
---   keycap   a pale key with the key's letter on it, for every "press E" in the game
---   panel    a navy card with an ink border and, optionally, a coloured band across the top with
---            its title in it (the select screen's player cards)
---   pill     a dark rounded strip for a line of status
+--   type     one pixel face for everything (Press Start 2P, Roblox's Font.Arcade). Roblox draws it
+--            at a little over half its TextSize per letter, so `px` scales the size every builder
+--            is asked for; text 16 px or bigger wears an ink outline, smaller text stays bare so
+--            it does not fill in
+--   colour   the Endesga 32 palette (lospec.com/palette-list/endesga-32): a small fixed set, so
+--            every panel, button and bar shares one light and one set of shadows
+--   window   square corners, an ink border and a lighter rim just inside it - the double frame of
+--            a 16-bit game's text box
+--   button   a square block: ink border, a light pixel strip along its top and a dark lip along
+--            its bottom, so it reads as raised and pressable
+--   keycap   a pale square key with the key's letter on it, for every "press E" in the game
+--   panel    a window; optionally with a coloured title bar across its top (the select screen's
+--            player cards), its lower edge a darker ledge
+--   pill     a dark square strip with a rim, for a line of status
 --
 -- `paint` recolours a button (shine and lip with it), for tabs and toggles. Pure helpers -
--- `shade`, `keyLabel` - are tested in tests/ui-kit.luau with the builders.
+-- `shade`, `keyLabel`, `px` - are tested in tests/ui-kit.luau with the builders.
 local Ui = {}
 
-Ui.DISPLAY = Enum.Font.LuckiestGuy
-Ui.LABEL = Enum.Font.GothamBlack
-Ui.BODY = Enum.Font.GothamBold
+-- One face. DISPLAY, LABEL and BODY are kept as names so a screen still says what its words are
+-- for, but they are the same pixel font: a second, smooth font beside it is what made the old UI
+-- read as a different game from its sprites.
+Ui.DISPLAY = Enum.Font.Arcade
+Ui.LABEL = Enum.Font.Arcade
+Ui.BODY = Enum.Font.Arcade
 
-Ui.INK = Color3.fromRGB(11, 16, 32)
-Ui.PANEL = Color3.fromRGB(16, 24, 42)
-Ui.PANEL2 = Color3.fromRGB(30, 42, 68)
-Ui.EDGE = Color3.fromRGB(64, 98, 150)
-Ui.WHITE = Color3.fromRGB(240, 244, 252)
-Ui.DIM = Color3.fromRGB(150, 168, 196)
-Ui.GOLD = Color3.fromRGB(255, 210, 74)
-Ui.GREEN = Color3.fromRGB(92, 224, 122)
-Ui.RED = Color3.fromRGB(232, 92, 84)
-Ui.BLUE = Color3.fromRGB(46, 104, 178)
-Ui.CYAN = Color3.fromRGB(110, 200, 255)
-Ui.PINK = Color3.fromRGB(240, 120, 150)
-Ui.PURPLE = Color3.fromRGB(112, 82, 186)
-Ui.KEY = Color3.fromRGB(232, 238, 250)
+-- Endesga 32
+Ui.INK = Color3.fromRGB(24, 20, 37)
+Ui.PANEL = Color3.fromRGB(38, 43, 68)
+Ui.PANEL2 = Color3.fromRGB(58, 68, 102)
+Ui.EDGE = Color3.fromRGB(90, 105, 136)
+Ui.WHITE = Color3.fromRGB(255, 255, 255)
+Ui.DIM = Color3.fromRGB(139, 155, 180)
+Ui.GOLD = Color3.fromRGB(254, 231, 97)
+Ui.ORANGE = Color3.fromRGB(247, 118, 34)
+Ui.GREEN = Color3.fromRGB(99, 199, 77)
+Ui.RED = Color3.fromRGB(228, 59, 68)
+Ui.BLUE = Color3.fromRGB(0, 153, 219)
+Ui.CYAN = Color3.fromRGB(44, 232, 245)
+Ui.PINK = Color3.fromRGB(246, 117, 122)
+Ui.PURPLE = Color3.fromRGB(181, 80, 136)
+Ui.KEY = Color3.fromRGB(234, 238, 246)
+
+-- How much bigger a size asked of the pixel face is drawn. Roblox fits Press Start 2P's square
+-- letters into a little over half of TextSize (16 draws 9 px letters), so sizes chosen for the old
+-- smooth fonts would come out small; this keeps the words about as big as they were. Measured in
+-- Studio with TextService:GetTextBoundsAsync: 0.5625 px of width per TextSize per letter.
+Ui.SCALE = 1.25
+Ui.ADVANCE = 0.5625
+function Ui.px(size: number): number
+	return math.floor(size * Ui.SCALE + 0.5)
+end
 
 -- `c` moved toward white (k > 0) or black (k < 0) by |k|.
 function Ui.shade(c: Color3, k: number): Color3
@@ -64,42 +86,59 @@ function Ui.make(class: string, parent: Instance?, props: any?): any
 	if parent then o.Parent = parent end
 	return o
 end
-function Ui.corner(parent: Instance, r: number): any
-	return Ui.make("UICorner", parent, { CornerRadius = UDim.new(0, r) })
+-- Pixel art has no round corners: every caller's radius is kept (so a screen still says which of
+-- its boxes are cards) but drawn square.
+function Ui.corner(parent: Instance, _r: number): any
+	return Ui.make("UICorner", parent, { CornerRadius = UDim.new(0, 0) })
 end
 function Ui.stroke(parent: Instance, colour: Color3, thick: number): any
-	return Ui.make("UIStroke", parent, { Color = colour, Thickness = thick, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+	return Ui.make("UIStroke", parent, { Color = colour, Thickness = thick, ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		LineJoinMode = Enum.LineJoinMode.Miter })
 end
 -- the ink outline on a text's letters (not its box)
 function Ui.outline(t: Instance, thick: number?): any
-	return Ui.make("UIStroke", t, { Color = Ui.INK, Thickness = thick or 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual })
+	return Ui.make("UIStroke", t, { Color = Ui.INK, Thickness = thick or 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		LineJoinMode = Enum.LineJoinMode.Miter })
+end
+-- A lighter rim just inside a box's ink border: the second line of a pixel window's frame. Its
+-- own stroke is drawn outside it, so it sits `inset` px in and is `thick` px wide. Returns the rim
+-- and its stroke (to recolour).
+function Ui.rim(parent: Instance, colour: Color3, thick: number?, inset: number?): (any, any)
+	local t, i = thick or 2, (inset or 0) + (thick or 2)
+	local r = Ui.make("Frame", parent, { Name = "Rim", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(i, i), Size = UDim2.new(1, -2 * i, 1, -2 * i) })
+	return r, Ui.stroke(r, colour, t)
 end
 
+-- `size` is the size asked for; the pixel face is drawn at Ui.px(size).
 function Ui.text(parent: Instance?, value: string, size: number, colour: Color3?, font: any?): any
-	local t = Ui.make("TextLabel", parent, { BackgroundTransparency = 1, Text = value, TextSize = size,
+	local px = Ui.px(size)
+	local t = Ui.make("TextLabel", parent, { BackgroundTransparency = 1, Text = value, TextSize = px,
 		TextColor3 = colour or Ui.WHITE, Font = font or Ui.LABEL, TextXAlignment = Enum.TextXAlignment.Center,
 		BorderSizePixel = 0 })
-	if (font or Ui.LABEL) == Ui.DISPLAY then Ui.outline(t, math.max(1.5, size / 12)) end
+	if size >= 16 then Ui.outline(t, if size >= 28 then 3 else 2) end
 	return t
 end
+
+-- How far a button's shine and lip move from its face colour.
+Ui.SHINE, Ui.LIP = 0.38, -0.42
 
 -- A button's shine and lip, so `paint` can recolour them with it.
 local parts: { [any]: any } = setmetatable({}, { __mode = "k" }) :: any
 
--- opts: small (no outline on the letters - it fills small ones in), textColour, font, radius
+-- opts: small (no outline on the letters - it fills small ones in), textColour, font, size
 function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: (() -> ())?, opts: any?): any
 	local o = opts or {}
-	local b = Ui.make("TextButton", parent, { Text = value, Font = o.font or Ui.DISPLAY, TextSize = o.size or 18,
+	local b = Ui.make("TextButton", parent, { Text = value, Font = o.font or Ui.DISPLAY, TextSize = Ui.px(o.size or 16),
 		TextColor3 = o.textColour or Ui.WHITE, BackgroundColor3 = colour, AutoButtonColor = true, BorderSizePixel = 0 })
-	Ui.corner(b, o.radius or 8)
-	Ui.stroke(b, Ui.INK, 2)
-	if not o.small then Ui.outline(b, 1.5) end
-	local shine = Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, 0.32), BackgroundTransparency = 0.1,
-		BorderSizePixel = 0, Position = UDim2.fromOffset(6, 3), Size = UDim2.new(1, -12, 0, 3) })
-	Ui.corner(shine, 2)
-	local lip = Ui.make("Frame", b, { Name = "Lip", BackgroundColor3 = Ui.shade(colour, -0.38), BorderSizePixel = 0,
-		Position = UDim2.new(0, 3, 1, -6), Size = UDim2.new(1, -6, 0, 4) })
-	Ui.corner(lip, 3)
+	Ui.corner(b, 0)
+	Ui.stroke(b, Ui.INK, 3)
+	if not o.small then Ui.outline(b, 2) end
+	-- a pixel bevel: a light strip along the top, a dark one along the bottom, both full width
+	local shine = Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, Ui.SHINE),
+		BorderSizePixel = 0, Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 3) })
+	local lip = Ui.make("Frame", b, { Name = "Lip", BackgroundColor3 = Ui.shade(colour, Ui.LIP), BorderSizePixel = 0,
+		Position = UDim2.new(0, 0, 1, -4), Size = UDim2.new(1, 0, 0, 4) })
 	parts[b] = { shine = shine, lip = lip }
 	if onClick then b.Activated:Connect(onClick) end
 	return b
@@ -111,20 +150,21 @@ function Ui.paint(b: any, colour: Color3, textColour: Color3?)
 	if textColour then b.TextColor3 = textColour end
 	local p = parts[b]
 	if p then
-		p.shine.BackgroundColor3 = Ui.shade(colour, 0.32)
-		p.lip.BackgroundColor3 = Ui.shade(colour, -0.38)
+		p.shine.BackgroundColor3 = Ui.shade(colour, Ui.SHINE)
+		p.lip.BackgroundColor3 = Ui.shade(colour, Ui.LIP)
 	end
 end
 
--- A pale key with its letter. The caller sizes and places it.
+-- A pale square key with its letter. The caller sizes and places it.
 function Ui.keycap(parent: Instance?, key: string, size: number?): any
-	local k = Ui.make("TextLabel", parent, { Name = "Key", Text = Ui.keyLabel(key), Font = Ui.DISPLAY, TextSize = size or 16,
+	local k = Ui.make("TextLabel", parent, { Name = "Key", Text = Ui.keyLabel(key), Font = Ui.DISPLAY, TextSize = Ui.px(size or 14),
 		TextColor3 = Ui.INK, BackgroundColor3 = Ui.KEY, BorderSizePixel = 0 })
-	Ui.corner(k, 5)
+	Ui.corner(k, 0)
 	Ui.stroke(k, Ui.INK, 2)
-	local lip = Ui.make("Frame", k, { Name = "Lip", BackgroundColor3 = Ui.shade(Ui.KEY, -0.32), BorderSizePixel = 0,
-		Position = UDim2.new(0, 2, 1, -4), Size = UDim2.new(1, -4, 0, 3) })
-	Ui.corner(lip, 2)
+	Ui.make("Frame", k, { Name = "Shine", BackgroundColor3 = Ui.WHITE, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 2) })
+	Ui.make("Frame", k, { Name = "Lip", BackgroundColor3 = Color3.fromRGB(139, 155, 180), BorderSizePixel = 0,
+		Position = UDim2.new(0, 0, 1, -3), Size = UDim2.new(1, 0, 0, 3) })
 	return k
 end
 
@@ -133,25 +173,27 @@ end
 function Ui.keyButton(parent: Instance?, key: string, value: string, colour: Color3, onClick: (() -> ())?, h: number?, opts: any?): (any, any)
 	local height = h or 40
 	local b = Ui.button(parent, value, colour, onClick, opts)
-	local capH = math.floor(height * 0.6)
-	local cap = Ui.keycap(b, key, math.floor(capH * 0.62))
-	local capW = math.max(capH, #Ui.keyLabel(key) * math.floor(capH * 0.5) + 8)
-	cap.Position, cap.Size = UDim2.new(0, 7, 0.5, -capH / 2 - 1), UDim2.fromOffset(capW, capH)
+	local capH = math.floor(height * 0.56)
+	local capSize = math.floor(capH * 0.5)
+	local cap = Ui.keycap(b, key, capSize)
+	local capW = math.max(capH, Ui.textWidth(Ui.keyLabel(key), capSize) + 10)
+	cap.Position, cap.Size = UDim2.new(0, 8, 0.5, -capH / 2 - 1), UDim2.fromOffset(capW, capH)
 	cap.ZIndex = 2
-	Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, capW + 10), PaddingRight = UDim.new(0, 6) })
+	Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, capW + 12), PaddingRight = UDim.new(0, 6) })
 	return b, cap
 end
 
--- About how wide `value` is in display letters `px` tall (LuckiestGuy runs a little over half its
--- height per letter), for sizing what holds it without waiting a frame for TextBounds.
-function Ui.textWidth(value: string, px: number): number
-	return math.floor(#value * px * 0.58 + 0.5)
+-- How wide `value` is in the pixel face asked for at `size` (so drawn at Ui.px(size)), for sizing
+-- what holds it without waiting a frame for TextBounds. The face is monospaced, so this is near
+-- exact; the 4% covers px rounding the size up by up to half a pixel.
+function Ui.textWidth(value: string, size: number): number
+	return math.ceil((utf8.len(value) or #value) * size * Ui.SCALE * Ui.ADVANCE * 1.04 - 1e-9)
 end
 
 -- The width a key-cap-and-word chip needs with a cap `size` px tall: the cap, and the whole chip.
 function Ui.chipWidth(key: string, word: string, size: number): (number, number)
-	local capW = math.max(size + 8, Ui.textWidth(Ui.keyLabel(key), math.floor(size * 0.6)) + 12)
-	return capW, capW + 6 + Ui.textWidth(word, math.floor(size * 0.62)) + 4
+	local capW = math.max(size + 6, Ui.textWidth(Ui.keyLabel(key), math.floor(size * 0.5)) + 12)
+	return capW, capW + 6 + Ui.textWidth(word, math.floor(size * 0.5)) + 4
 end
 
 -- A centred row of key caps with what each does: [WASD] WALK  [SPACE] HOP  [E] USE. `items` are
@@ -168,44 +210,50 @@ function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size
 	local x = -total / 2
 	for i, item in items do
 		local capW = Ui.chipWidth(item[1], item[2], size)
-		local cap = Ui.keycap(row, item[1], math.floor(size * 0.6))
+		local cap = Ui.keycap(row, item[1], math.floor(size * 0.5))
 		cap.Name = "Key" .. i
 		cap.Position, cap.Size = UDim2.new(0.5, x, 0.5, -size / 2), UDim2.fromOffset(capW, size)
-		local word = Ui.text(row, item[2], math.floor(size * 0.62), colour or Ui.WHITE, Ui.DISPLAY)
+		local word = Ui.text(row, item[2], math.floor(size * 0.5), colour or Ui.WHITE, Ui.DISPLAY)
 		word.Name = "Word" .. i
 		word.TextXAlignment = Enum.TextXAlignment.Left
+		-- small words still need to stand off whatever the row is drawn over
+		if size * 0.5 < 16 then Ui.outline(word, 2) end
 		word.Position, word.Size = UDim2.new(0.5, x + capW + 6, 0.5, -size / 2), UDim2.fromOffset(widths[i] - capW - 6, size)
 		x += widths[i] + 18
 	end
 	return row, total
 end
 
--- A navy card with an ink border. With `band`, a coloured band `bandH` tall across its top with
--- `title` in it; returns the card, the band and the title.
+-- A pixel window: square, an ink border and a lighter rim inside it. With `band`, a coloured title
+-- bar `bandH` tall across its top with `title` in it, a darker ledge along its lower edge;
+-- returns the card, the band and the title.
 function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?, bandH: number?): (any, any, any)
 	local p = Ui.make("Frame", parent, { Name = name, BackgroundColor3 = Ui.PANEL, BorderSizePixel = 0 })
-	Ui.corner(p, 12)
+	Ui.corner(p, 0)
 	Ui.stroke(p, Ui.INK, 3)
+	Ui.rim(p, Ui.PANEL2, 2, 0)
 	if not band then return p, nil, nil end
 	local h = bandH or 34
-	local b = Ui.make("Frame", p, { Name = "Band", BackgroundColor3 = band, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, h) })
-	Ui.corner(b, 12)
-	-- squares off the band's lower corners, so it reads as a header, not a pill
-	Ui.make("Frame", b, { Name = "Square", BackgroundColor3 = band, BorderSizePixel = 0,
-		Position = UDim2.new(0, 0, 1, -12), Size = UDim2.new(1, 0, 0, 12) })
-	local t = Ui.text(b, title or "", math.floor(h * 0.56), Ui.WHITE, Ui.DISPLAY)
+	local b = Ui.make("Frame", p, { Name = "Band", BackgroundColor3 = band, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, h), ZIndex = 2 })
+	Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(band, 0.35), BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 3) })
+	Ui.make("Frame", b, { Name = "Ledge", BackgroundColor3 = Ui.shade(band, -0.45), BorderSizePixel = 0,
+		Position = UDim2.new(0, 0, 1, -3), Size = UDim2.new(1, 0, 0, 3) })
+	local t = Ui.text(b, title or "", math.floor(h * 0.42), Ui.WHITE, Ui.DISPLAY)
+	if math.floor(h * 0.42) < 16 then Ui.outline(t, 2) end
 	t.Name = "Title"
-	t.Position, t.Size = UDim2.fromOffset(12, 0), UDim2.new(1, -24, 1, 0)
+	t.Position, t.Size = UDim2.fromOffset(10, 0), UDim2.new(1, -20, 1, 0)
 	t.TextXAlignment = Enum.TextXAlignment.Left
 	t.ZIndex = 2
 	return p, b, t
 end
 
--- A dark rounded strip for a line of status.
+-- A dark square strip with a rim, for a line of status.
 function Ui.pill(parent: Instance?, name: string, edge: Color3?): any
-	local p = Ui.make("Frame", parent, { Name = name, BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.12, BorderSizePixel = 0 })
-	Ui.corner(p, 999)
-	Ui.stroke(p, edge or Ui.EDGE, 2)
+	local p = Ui.make("Frame", parent, { Name = name, BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.08, BorderSizePixel = 0 })
+	Ui.corner(p, 0)
+	Ui.stroke(p, Ui.INK, 3)
+	Ui.rim(p, edge or Ui.EDGE, 2, 0)
 	return p
 end
 

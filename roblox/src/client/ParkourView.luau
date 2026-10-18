@@ -49,7 +49,7 @@ end
 -- The HUD is the shared cartoon kit's (Ui): body words in GothamBlack, display words outlined.
 local function text(parent: Instance, name: string, value: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, size
+	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, Ui.px(size)
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment = 1, colour or TEXT, Enum.TextXAlignment.Left
 	t.TextStrokeTransparency = 0.6
 	t.Parent = parent
@@ -63,7 +63,7 @@ local function display(t: TextLabel, thick: number): any
 end
 
 local function button(parent: Instance, name: string, value: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, value, colour or Ui.PANEL2, onClick, { size = 15 })
+	local b = Ui.button(parent, value, colour or Ui.PANEL2, onClick, { size = 12 })
 	b.Name = name
 	return b
 end

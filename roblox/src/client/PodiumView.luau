@@ -47,7 +47,7 @@ local function text(parent: Instance, x: number, y: number, w: number, h: number
 	t.Position = UDim2.fromOffset(x, y)
 	t.Size = UDim2.fromOffset(w, h)
 	t.Text = s
-	t.TextSize = math.max(8, math.floor(size + 0.5))
+	t.TextSize = math.max(10, Ui.px(size))
 	t.Font = FONT
 	t.TextColor3 = colour
 	t.TextXAlignment = align or Enum.TextXAlignment.Left
@@ -85,9 +85,9 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	title.Name = "PodiumTitle"
 	title.Font = Ui.DISPLAY
 	title.TextTruncate = Enum.TextTruncate.None
-	Ui.outline(title, math.max(2, H * 0.006))
+	Ui.outline(title, math.max(3, math.floor(H * 0.006)))
 
-	local gg = Ui.button(root, "SAY GG!", Color3.fromRGB(52, 160, 84), function()
+	local gg = Ui.button(root, "SAY GG!", Ui.GREEN, function()
 		self.ggUntil = (self.clock or 0) + 2
 		if onGG then onGG() end
 	end)
@@ -97,9 +97,9 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	self.gg = gg
 	-- The bubble a GG puts over a figure, while it lasts (placed in draw).
 	-- (ink letters on white, so no outline: on ink letters it only thickens them into a blot)
-	local bubble = Ui.make("TextLabel", root, { Name = "GGBubble", Text = "GG!", Font = Ui.DISPLAY, TextSize = 22,
+	local bubble = Ui.make("TextLabel", root, { Name = "GGBubble", Text = "GG!", Font = Ui.DISPLAY, TextSize = Ui.px(22),
 		TextColor3 = Ui.INK, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, BorderSizePixel = 0 })
-	Ui.corner(bubble, 12)
+	Ui.corner(bubble, 0)
 	Ui.stroke(bubble, Ui.INK, 3)
 	bubble.Visible = false
 	self.bubble = bubble
@@ -112,30 +112,30 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		-- an ink-bordered card (gold for the winners), its place outlined in a band of its colour
 		local card = frame(root, s.card.x, s.card.y, s.card.w, s.card.h, CARD, 0.96)
 		card.Name = `Card{i}`
-		Ui.corner(card, 10)
+		Ui.corner(card, 0)
 		Ui.stroke(card, if first then GOLD else Ui.INK, 3)
+		Ui.rim(card, if first then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
 		local rh = s.rowH
 		local bandH = rh * 1.3
 		local band = frame(card, 0, 0, s.card.w, bandH, if first then GOLD else colour, 1)
 		band.Name = "Band"
-		Ui.corner(band, 10)
-		frame(band, 0, bandH / 2, s.card.w, bandH / 2, if first then GOLD else colour, 1).Name = "Square"
+		frame(band, 0, bandH - 3, s.card.w, 3, Ui.shade(if first then GOLD else colour, -0.45), 1).Name = "Ledge"
 		local pad = s.card.w * 0.06
 		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, Podium.ordinal(self.places[i]), rh * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"
 		place.Font = Ui.DISPLAY
-		Ui.outline(place, math.max(1.5, rh * 0.08))
+		Ui.outline(place, math.max(2, math.floor(rh * 0.08)))
 		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.62, colour)
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
-		Ui.outline(name, 1.5)
+		Ui.outline(name, 2)
 		for k, stat in Podium.STATS do
 			local y = rh * (2.1 + (k - 1))
 			text(card, pad, y, s.card.w * 0.6, rh, stat[1], rh * 0.48, STAT).Name = `Label{k}`
 			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rh * 0.6, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
 			v.Font = Ui.DISPLAY
-			Ui.outline(v, 1.2)
+			Ui.outline(v, 2)
 		end
 		self.cards[i] = card
 	end
@@ -188,7 +188,7 @@ function PodiumView.draw(self: any, clock: number)
 		local s = self.slots[self.localPlace or 1]
 		self.bubble.Position = UDim2.fromOffset(s.cx - s.figureH * 0.32, s.top - s.figureH * 1.4)
 		self.bubble.Size = UDim2.fromOffset(s.figureH * 0.64, s.figureH * 0.26)
-		self.bubble.TextSize = math.floor(s.figureH * 0.16)
+		self.bubble.TextSize = Ui.px(s.figureH * 0.16)
 	end
 	Canvas2D.finish(c)
 end

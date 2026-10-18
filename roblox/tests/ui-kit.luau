@@ -78,7 +78,7 @@ do
 	local red = Color3.fromRGB(232, 92, 84)
 	Ui.paint(b, red, Ui.INK)
 	if b.BackgroundColor3 ~= red or b.TextColor3 ~= Ui.INK then fail("paint did not recolour the face and text") end
-	if not near(shine.BackgroundColor3.R, Ui.shade(red, 0.32).R) or not near(lip.BackgroundColor3.G, Ui.shade(red, -0.38).G) then
+	if not near(shine.BackgroundColor3.R, Ui.shade(red, Ui.SHINE).R) or not near(lip.BackgroundColor3.G, Ui.shade(red, Ui.LIP).G) then
 		fail("paint left the shine or lip in the old colour")
 	end
 	local small = Ui.button(new("Frame"), "x", face, nil, { small = true })
@@ -117,8 +117,35 @@ do
 	if math.abs(x(k1) + total / 2) > 0.5 or math.abs(right(w2) - total / 2) > 0.5 then fail(`a hint row spans {x(k1)}..{right(w2)}, not centred on {total}`) end
 	if k2.Size.X.Offset <= k1.Size.X.Offset then fail("a long key's cap is no wider than a letter's") end
 end
+-- pixel art: nothing is rounded; a window has its ink border and a lighter rim inside it; sizes
+-- asked of the pixel face come out bigger, never smaller
+do
+	local function radius(o: any): number
+		local c = child(o, "UICorner")
+		return if c then c.CornerRadius.Offset + c.CornerRadius.Scale * 1000 else 0
+	end
+	local b = Ui.button(new("Frame"), "GO", Ui.BLUE)
+	local p = Ui.panel(new("Frame"), "Card", Ui.GREEN, "P1")
+	local pill = Ui.pill(new("Frame"), "Pill")
+	local k = Ui.keycap(new("Frame"), "e")
+	for _, o in { b, p, pill, k, Ui.corner(new("Frame"), 12).Parent or b } do
+		if radius(o) ~= 0 then fail("a box is rounded") end
+	end
+	for _, o in { p, pill } do
+		local rim = child(o, "Rim")
+		if not rim or rim.BackgroundTransparency ~= 1 or strokes(rim, "Border") ~= 1 then fail("a window has no see-through rim inside its border") end
+		if rim.Position.X.Offset < 1 or rim.Size.X.Offset > -2 then fail("a window's rim is not inside it") end
+	end
+	local shine = child(b, "Shine")
+	if shine.Size.X.Scale ~= 1 or shine.Size.X.Offset ~= 0 then fail("a button's shine is not a full-width pixel strip") end
+	for _, n in { 8, 14, 22, 40 } do
+		if Ui.px(n) < n or Ui.px(n) ~= math.floor(Ui.px(n)) then fail(`px({n}) is {Ui.px(n)}`) end
+	end
+	if Ui.text(new("Frame"), "x", 22).TextSize ~= Ui.px(22) then fail("text is not drawn at px of its size") end
+end
+
 -- widths grow with the words; no top bar outside Roblox
 if Ui.textWidth("ABCDEFGHIJ", 10) ~= 2 * Ui.textWidth("ABCDE", 10) or Ui.textWidth("ABCDE", 20) ~= 2 * Ui.textWidth("ABCDE", 10) then fail("text widths do not scale") end
 if Ui.topInset() ~= 0 then fail("a top inset outside Roblox") end
 
-print("PASS ui kit: shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")
+print("PASS ui kit: square pixel windows with rims, shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")

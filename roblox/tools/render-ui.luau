@@ -194,6 +194,30 @@ elseif screen == "climb" then
 		skip = function() end, price = function() return 7 end, records = function() end, restart = function() end })
 	v:start(code, 1)
 	for _ = 1, 10 do table.clear(shapes); v:step(1 / 60); v:draw(c, 1 / 60) end
+elseif screen == "locker" then
+	-- variant: locker (default), crates, workshop, odds, opening
+	local L = load("LockerScreen")
+	local s = L.new(playerGui, { sendLocker = function() end, sendEconomy = function() end, now = os.clock, rand = function() return 0.4 end })
+	s:open()
+	s:setLocker({ owned = { "sword_starforged", "hit_sakura", "ko_dragonsbreath", "trail_ember", "daggers_neontwins", "pike_eventide" },
+		wearing = { skins = { Sword = "sword_starforged" }, hit = "hit_sakura" } })
+	local econ = { sparks = 2340, crates = { scrap = 3, forge = 1 }, keys = { forge = 2 }, meter = 2, guarantees = { scrap = 18, forge = 33 },
+		items = { { uid = "u1", id = "sword_starforged", serial = 57, copies = 1240 }, { uid = "u2", id = "hit_sakura", serial = 312, copies = 8800 },
+			{ uid = "u3", id = "ko_dragonsbreath", serial = 4, copies = 96 }, { uid = "u4", id = "trail_ember", serial = 1021, copies = 9100 },
+			{ uid = "u5", id = "daggers_neontwins", serial = 77, copies = 5400 }, { uid = "u6", id = "daggers_neontwins", serial = 901, copies = 5400 },
+			{ uid = "u7", id = "pike_eventide", serial = 2, copies = 31 } } }
+	s:setEconomy(econ)
+	if variant == "crates" or variant == "odds" or variant == "opening" then s:show("crates") end
+	if variant == "workshop" then s:show("workshop") end
+	if variant == "odds" then s:showOdds("forge", false) end
+	if variant == "opening" then
+		s:openCrate("forge")
+		local v = table.clone(econ)
+		v.event = { done = "open", result = { id = "pike_eventide", rarity = "Mythic", uid = "u8", serial = 32, copies = 32 } }
+		s:setEconomy(v)
+	end
+	c:screen()
+	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
 else
 	error("unknown screen " .. screen)
 end

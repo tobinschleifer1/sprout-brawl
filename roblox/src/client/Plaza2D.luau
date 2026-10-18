@@ -114,7 +114,7 @@ Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
 	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},
-		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, blocked = false, bannerAt = -10 }, Plaza2D)
+		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, blocked = false, bannerAt = -10 }, Plaza2D)
 	self.input = InputClient.new()
 	local gui = Instance.new("ScreenGui")
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
@@ -170,6 +170,14 @@ function Plaza2D.new(parent: Instance): any
 	character.AnchorPoint = Vector2.new(1, 1)
 	character.Position, character.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
 	self.characterButton = character
+	-- The Locker (also L): cosmetics, crates and the Workshop, stacked over CHARACTER.
+	local locker = Ui.keyButton(gui, "L", "LOCKER", Ui.shade(Ui.GOLD, -0.35), function()
+		if self.active and not self.blocked and self.onLocker then self.onLocker() end
+	end, 42)
+	locker.Name = "LockerButton"
+	locker.AnchorPoint = Vector2.new(1, 1)
+	locker.Position, locker.Size = UDim2.new(1, -16, 1, -58), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
+	self.lockerButton = locker
 	-- Alone at a cabinet: take on the CPU (also C).
 	local cpu = Ui.keyButton(gui, "C", "VS CPU", Ui.PURPLE, function()
 		if self.active and not self.blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
@@ -292,6 +300,7 @@ function Plaza2D.setRoom(self: any, room: any)
 		self.district = nil
 	end
 	self.characterButton.Visible = nextRoom == nil
+	self.lockerButton.Visible = nextRoom == nil
 	self.gui:SetAttribute("Scene", self.model.data.id)
 	self.gui:SetAttribute("RoomId", nextId)
 	if nextRoom then
@@ -407,6 +416,10 @@ function Plaza2D.step(self: any, dt: number, blocked: boolean)
 	local cDown = alone and not UIS:GetFocusedTextBox() and UIS:IsKeyDown(Enum.KeyCode.C)
 	if cDown and not self.cHeld and not blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
 	self.cHeld = cDown
+	-- L opens and closes the Locker (the Locker itself is not one of the panels that block the lobby)
+	local lDown = not UIS:GetFocusedTextBox() and UIS:IsKeyDown(Enum.KeyCode.L)
+	if lDown and not self.lHeld and self.onLocker then self.onLocker() end
+	self.lHeld = lDown
 	local down = not UIS:GetFocusedTextBox() and (UIS:IsKeyDown(Enum.KeyCode.E)
 		or UIS:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonX))
 	if down and not self.held then self:interact() end

@@ -272,6 +272,51 @@ Sparks. The odds never change per player either way.
 Still open: Series 1's start date; VIP's contents (whether +20% Sparks is too strong); phase 6's
 answers. Decided 2026-10-18: GPT's clothing prices, 8-week seasons, volume pricing (above).
 
+## VIP: what it could include (for the owner to pick, 2026-10-18)
+
+VIP is the one pass a player should feel every session. Rules: nothing that changes a fight, and
+nothing random (a pass that grants crates or keys would itself be a paid random item, and blocked for
+restricted players).
+
+**Recommended core (199 R$):**
+1. **Status you can see:** a gold name plate in the plaza, a VIP title, a gold [VIP] chat tag.
+2. **+10% Sparks** from everything (down from the first draft's +20%: Sparks are the free route to
+   every item, and +10% speeds it without making it a Robux race).
+3. **A VIP cosmetic every season,** fixed and not random: a gold swing trail in Series 1, a different
+   piece each 8-week season, kept forever.
+4. **A VIP spawn effect,** a gold sparkle when you respawn. Everyone in the match sees it, which also
+   advertises VIP.
+5. **Doubled daily first-win Sparks.**
+6. **Five saved cosmetic loadouts** in the Locker (switch between whole outfits with one press).
+
+**Optional extras:**
+7. A **VIP lounge** in the plaza: a rooftop terrace only VIPs can enter, with its own mirror.
+8. **Room host perks:** VIPs can host rooms with extra rule options (item frequency, stage hazards
+   off, a longer timer).
+9. **Early access:** the featured shop's new items 24 hours before everyone else.
+10. **A VIP emote and victory pose** (after phase 6).
+
+**Not in VIP, on purpose:** extra drops, crates or keys (paid random items), shorter drop meters,
+better odds, anything that changes damage, speed or timing.
+
+## Phase 6: the questions still open
+
+Phase 6 is emotes, the KO departure and victory poses. Its questions, from the character plan:
+
+1. **How are emotes chosen?** Four emote slots; how a player picks one mid-lobby or mid-match:
+   (a) the taunt key plays one of the four at random; (b) taunt plus a direction picks one of the
+   four (recommended: fast, no menu); (c) a radial menu while the key is held.
+2. **What does a KO look like for the fighter going out?** (a) one classic exit for everyone (they
+   fly off with a twinkle); (b) a "KO departure" item each player owns and wears for their OWN exit
+   (spin away, shatter, rocket off), separate from the KO effect, which belongs to whoever took the
+   stock (recommended: it is a second sellable item type and reads clearly); (c) both, with (a) as
+   the free default.
+3. **Victory poses on the podium: by player or by weapon?** (a) one pose per character; (b) each weapon
+   has its own pose; (c) the player picks a pose per weapon (recommended: the most expressive, and
+   still one choice per weapon).
+4. **Are emotes and poses items?** Recommended: four free ones for everyone, the rest in crates, the
+   shop and VIP, like every other cosmetic.
+
 ## Clothing, one piece at a time
 
 New clothing (tops, bottoms, headwear, hair, back pieces, gloves, shoes, face accessories) comes in
@@ -419,7 +464,11 @@ more, that a retired series rises, and that a ring of wash trades does not move 
    with its rules, crates and keys (earned keys first; items from paid keys marked paid), guarantees,
    crafting, salvaging, and the line under the results (`DropBanner`). Remotes `Economy` /
    `EconomyView`. The crate-opening screen and the Workshop screen are phase 4.
-4. Screens: Locker (rarity, serial, copies in existence), crate opening, Workshop, Odds & Details.
+4. **Screens (done 2026-10-18):** the Locker (`LockerScreen`, a LOCKER button and L in the plaza):
+   item cards with rarity, lowest serial, copies owned and in existence, WEAR / TAKE OFF, SALVAGE
+   (press twice); CRATES with keys, the guarantee countdown, OPEN and ODDS & DETAILS; the crate
+   reel landing on the server's roll; the Workshop (CRAFT, press twice). Thumbnails through the
+   game's own renderers (`ItemArt`).
 5. Robux: keys (sold), the featured shop, passes, single clothing pieces and packs.
 6. Clothing and `k2`: GPT's pieces joined to the kit; Pixel Studio.
 7. Trading: session locking first, then the Trading Post; estimated value.

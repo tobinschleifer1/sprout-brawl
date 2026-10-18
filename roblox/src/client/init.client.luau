@@ -22,6 +22,8 @@ local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 local DropBanner = require(script.DropBanner)
+local LockerScreen = require(script.LockerScreen)
+local ItemArt = require(script.ItemArt)
 local Loadout = require(Shared.Loadout)
 local Stages = require(Shared.Data.Stages)
 local Stage = require(Shared.Stage)
@@ -178,6 +180,26 @@ local function openStudio()
 	if hub.active and not hub.room and not roomOverlay() then editor:open() end
 end
 hub.onCharacter = openStudio
+-- The Locker: what you own and wear, crates and keys, the Workshop (LockerScreen). It decides
+-- nothing; the server's LockerView and EconomyView fill it.
+local TweenService = game:GetService("TweenService")
+local locker = LockerScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	sendLocker = function(msg: any) Net.remote("Locker"):FireServer(msg) end,
+	sendEconomy = function(msg: any) Net.remote("Economy"):FireServer(msg) end,
+	drawArt = function(frame: Frame, id: string, w: number, h: number)
+		ItemArt.draw(Canvas2D.inFrame(frame), id, w, h)
+	end,
+	tween = function(obj: Instance, seconds: number, props: any, done: () -> ())
+		local tw = TweenService:Create(obj, TweenInfo.new(seconds, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props)
+		tw.Completed:Connect(function() done() end)
+		tw:Play()
+	end,
+})
+local function openLocker()
+	if hub.active and not hub.room and not roomOverlay() then locker:toggle() end
+end
+hub.onLocker = openLocker
+Net.remote("LockerView").OnClientEvent:Connect(function(view: any) locker:setLocker(view) end)
 -- Stamps, quick messages, who is here, and warps (LobbySocial); the lobby draws what it hears.
 local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	localId = Players.LocalPlayer.UserId,
@@ -555,6 +577,7 @@ end)
 -- this the client would sit on the last frame with no idea the match had ended.
 -- What the match earned: the drop meter and any drop, under the results (DropBanner).
 Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
+	locker:setEconomy(view)
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
 		DropBanner.show(hud.gui, view.event.match)
 	end

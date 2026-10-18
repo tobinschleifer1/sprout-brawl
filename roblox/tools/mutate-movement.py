@@ -158,6 +158,25 @@ economy = [
     ('uid collision', 'shared/Inventory', 'if num and num >= seq then seq = num + 1 end', '', 'collide'),
     ('banner without serial', 'DropBanner', 'local serial = if type(d.serial) == "number" and d.serial > 0 then `  #{d.serial}` else ""', 'local serial = ""', 'Starforged'),
 ]
+lockerui = [
+    ('cards in any order', 'LockerScreen', 'table.sort(out, byRarityThenName)\n\treturn out\nend\n\n-- The crate cards.', 'return out\nend\n\n-- The crate cards.', 'rarest is not first'),
+    ('highest serial shown', 'LockerScreen', 'return (a.serial or 0) < (b.serial or 0)', 'return (a.serial or 0) > (b.serial or 0)', 'serial'),
+    ('worn ignored', 'LockerScreen', 'worn = worn(locker and locker.wearing, it),', 'worn = false,', 'worn'),
+    ('keyless forge offered', 'LockerScreen', 'canOpen = have > 0 and (c.key == nil or keys > 0),', 'canOpen = have > 0,', 'needs a key'),
+    ('odds not Loot', 'LockerScreen', 'value = Loot.format(o.percent), rarity = rarity, id = o.id', 'value = Loot.format(o.percent * 1.01), rarity = rarity, id = o.id', 'not listed at its odds'),
+    ('guaranteed view ignored', 'LockerScreen', 'local list = Loot.odds(crateId, if guaranteed then c.guarantee.at - 1 else pity)', 'local list = Loot.odds(crateId, pity)', 'odds lines for'),
+    ('reel misses', 'LockerScreen', 'out[i] = if i == LockerScreen.REEL.win then resultId else', 'out[i] = if false then resultId else', 'does not stop on the result'),
+    ('one-press spending', 'LockerScreen', 'if self.confirm and self.confirm.key == key and t - self.confirm.at <= LockerScreen.CONFIRM_SECONDS then', 'if true then', 'one press salvaged'),
+    ('confirmation never expires', 'LockerScreen', 'self.confirm.key == key and t - self.confirm.at <= LockerScreen.CONFIRM_SECONDS then', 'self.confirm.key == key then', 'long after'),
+    ('salvage the lowest serial', 'LockerScreen', 'for i = #list, 1, -1 do table.insert(u, list[i].uid) end', 'for i = 1, #list do table.insert(u, list[i].uid) end', 'salvage order'),
+    ('skin taken off by slot', 'LockerScreen', 'if m.type == "weapon_skin" then msg.weapon = m.weapon else msg.slot = Inventory.SLOTS[m.type] end', 'msg.slot = Inventory.SLOTS[m.type]', 'off its weapon'),
+    ('double opening', 'LockerScreen', 'if self.pending then return end\n\tlocal m', 'local m', 'while one was pending'),
+    ('keyless opening sent', 'LockerScreen', 'if m.key and m.keys < 1 then', 'if false then', 'keyless Forge Crate'),
+    ('result unnamed', 'LockerScreen', 'o.result.Text = `{it.rarity}: {it.name}`', 'o.result.Text = it.name', 'land on the result'),
+    ('refusal stays open', 'LockerScreen', 'if self.pending then self:closeOpening() end', '', 'stayed open'),
+    ('unaffordable crafting', 'LockerScreen', 'if not m.affordable then self:say', 'if false then self:say', 'unaffordable craft'),
+    ('no serial in result', 'LockerScreen', 'local serial = if res.serial and res.serial > 0 then `#{res.serial}` else ""', 'local serial = ""', 'lacks its serial'),
+]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
     ('wrong accessory priority', 'Secondary', 'if neck == "summitMantle" or neck == "scarf" then', 'if false then', 'catalogue tail missing or priority wrong'),
@@ -183,7 +202,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -202,4 +221,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(secondary)} independent mutations rejected; sources restored.')

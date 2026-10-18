@@ -72,7 +72,7 @@ for _, it in Cosmetics.LIST do
 		skins += 1
 	end
 end
-for id in CosmeticArt do assert(Cosmetics.get(id), `art for {id}, which is in no catalogue`) end
+for id in CosmeticArt do assert(id == "props" or Cosmetics.get(id), `art for {id}, which is in no catalogue`) end
 
 -- 2. What a drawn id names: the skin's art, its one-of-a-pair where the pair has one, the weapon's
 -- own where the skin is unknown or for another weapon.

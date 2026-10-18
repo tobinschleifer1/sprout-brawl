@@ -80,6 +80,7 @@ if screen == "plaza" then
 	social:setEnabled(true)
 	if variant == "stamps" then social:toggle("Stamps") end
 	local hub = Plaza2D.new(playerGui)
+	hub.social = social          -- as the client wires them (init.client.luau)
 	local cfg = Loader.load("MatchConfig").default()
 	for _, p in KIT.presets do if p.id == "knight" then cfg.slots[1].avatarId = p.code end end
 	hub:show(cfg)

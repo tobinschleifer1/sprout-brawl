@@ -91,10 +91,10 @@ function RoomPanel.buildNotice(self: any)
 	local message = Ui.text(card, "", 15, WHITE)
 	message.Name = "Message"
 	message.TextWrapped = true
-	message.Position, message.Size = UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 58)
+	message.Position, message.Size = UDim2.fromOffset(16, 46), UDim2.new(1, -32, 0, 58)
 	local ok = Ui.button(card, "OK", Ui.BLUE, function() self:hide() end)
 	ok.Name = "Ok"
-	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(120, 38)
+	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -16), UDim2.fromOffset(120, 38)
 	-- a wait has no OK, so its card is only as tall as its message, with a row of pixel blocks
 	-- stepping along under it to say something is happening
 	local dots = Ui.make("Frame", card, { Name = "Working", BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -113,7 +113,7 @@ function RoomPanel.say(self: any, message: string, waiting: boolean)
 	n.message.Text = message
 	n.ok.Visible = not waiting
 	n.dots.Visible = waiting
-	local h = if waiting then 124 else 150
+	local h = if waiting then 130 else 166
 	n.card.Size, n.cap.MaxSize = UDim2.new(1, -48, 0, h), Vector2.new(460, h)
 	-- the lit block steps along while the wait lasts (one loop, stopped when the card goes)
 	if waiting and not n.stepping and type(task) == "table" then

@@ -102,9 +102,9 @@ Plaza2D.shownMap = shownMap
 function Plaza2D.placeTop(self: any, inset: number)
 	if self.inset == inset then return end
 	self.inset = inset
-	self.title.Position = UDim2.fromOffset(18, inset + 6)
-	self.directions.Position = UDim2.fromOffset(18, inset + 38)
-	self.plate.Position = UDim2.fromOffset(8, inset)
+	self.title.Position = UDim2.fromOffset(18, inset + 12)
+	self.directions.Position = UDim2.fromOffset(18, inset + 44)
+	self.plate.Position = UDim2.fromOffset(8, inset + 6)
 end
 
 -- The bottom row's right end: the CHARACTER button, and LobbySocial's button bar to its left
@@ -883,6 +883,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		elseif near then `{if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
 		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade and the climb are east, the tailor is west."
 	self.prompt.Active = action
+	self.prompt.Visible = not (self.social and self.social.anyOpen and self.social:anyOpen())
 	-- the card fits its words, so a short line is not a long bar and a long one does not leave a
 	-- word alone on a second line
 	self.prompt.Size = UDim2.new(0, math.min(math.max(gw - 32, 200), Ui.textWidth(self.prompt.Text, if action then 20 else 13)

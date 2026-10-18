@@ -101,10 +101,21 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		TextColor3 = Ui.INK, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, BorderSizePixel = 0 })
 	Ui.corner(bubble, 0)
 	Ui.stroke(bubble, Ui.INK, 3)
+	-- a stepped pixel tail under it, pointing down at the speaker
+	for k, sz in { { 0, 12 }, { 1, 6 } } do
+		Ui.make("Frame", bubble, { Name = "Tail" .. k, BackgroundColor3 = Ui.INK, BorderSizePixel = 0,
+			Position = UDim2.new(0.3, sz[1] * 3, 1, sz[1] * 6), Size = UDim2.fromOffset(sz[2] + 4, 7) })
+		Ui.make("Frame", bubble, { Name = "TailFill" .. k, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+			Position = UDim2.new(0.3, sz[1] * 3 + 2, 1, sz[1] * 6 - 1), Size = UDim2.fromOffset(sz[2], 6) })
+	end
 	bubble.Visible = false
 	self.bubble = bubble
 
 	self.cards = {}
+	-- one text size on every card (the smallest card's): the place shows in the pillar and the
+	-- band, so the words need not shrink with it
+	local rt = math.huge
+	for _, s in self.slots do rt = math.min(rt, s.rowH) end
 	for i, row in rows do
 		local s = self.slots[i]
 		local colour = if res.teams then HudColors.TEAM[(row.team % 2) + 1] else HudColors.PLAYER[(row.index % 8) + 1]
@@ -125,14 +136,14 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		place.Name = "Place"
 		place.Font = Ui.DISPLAY
 		Ui.outline(place, math.max(2, math.floor(rh * 0.08)))
-		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.62, Ui.shade(colour, 0.45))
+		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.62, Ui.shade(colour, 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
 		Ui.outline(name, 2)
 		for k, stat in Podium.STATS do
 			local y = rh * (2.1 + (k - 1))
-			text(card, pad, y, s.card.w * 0.6, rh, stat[1], rh * 0.48, STAT).Name = `Label{k}`
-			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rh * 0.6, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
+			text(card, pad, y, s.card.w * 0.6, rh, string.upper(stat[1]), rt * 0.46, STAT).Name = `Label{k}`
+			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rt * 0.6, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
 			v.Font = Ui.DISPLAY
 			Ui.outline(v, 2)

@@ -111,14 +111,14 @@ function Hud.new(parent: Instance): any
 	-- card through the countdown, then tucked away until COMBO_KEY is held.
 	local card = Ui.panel(gui, "ComboCard", Ui.ORANGE, "YOUR COMBOS", 30)
 	card.AnchorPoint = Vector2.new(0.5, 0)
-	card.Position, card.Size = UDim2.new(0.5, 0, 0, 132), UDim2.new(1, -32, 0, 88)
-	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(820, 88) })
+	card.Position, card.Size = UDim2.new(0.5, 0, 0, 132), UDim2.new(1, -32, 0, 104)
+	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(640, 104) })
 	card.Visible = false
 	self.guideCard = card
 	local hold = label(card, UDim2.new(0, 160, 0, 30), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
 	hold.TextXAlignment = Enum.TextXAlignment.Right
 	hold.ZIndex = 3
-	self.guide = label(card, UDim2.new(1, -24, 0, 50), UDim2.fromOffset(12, 32), "", 12, GOLD)
+	self.guide = label(card, UDim2.new(1, -24, 0, 66), UDim2.fromOffset(12, 34), "", 12, GOLD)
 	self.guide.Name = "ComboGuide"
 	self.guide.TextWrapped = true
 	self.guide.TextXAlignment = Enum.TextXAlignment.Center
@@ -142,7 +142,7 @@ function Hud.new(parent: Instance): any
 	self.stageName.TextTransparency = 1
 
 	-- The countdown, GO, KO and GAME: big cartoon words with a heavy outline.
-	self.callout, self.calloutOutline = display(gui, UDim2.fromOffset(800, 150), UDim2.new(0.5, -400, 0.3, 0), "", 72, Color3.new(1, 1, 1))
+	self.callout, self.calloutOutline = display(gui, UDim2.fromOffset(800, 150), UDim2.new(0.5, -400, 0.36, 0), "", 72, Color3.new(1, 1, 1))
 	self.calloutOutline.Thickness = 6
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
 	self.callout.TextTransparency = 1
@@ -215,8 +215,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local name = display(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
 			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
-		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 22),
-			string.upper(chars[i] and chars[i].name or entry.weapon), 10, DIM)
+		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 23),
+			string.upper(chars[i] and chars[i].name or entry.weapon), 11, DIM)
+		weapon.TextTruncate = Enum.TextTruncate.AtEnd
 		local pct = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", if compact then 22 else 30, Color3.new(1, 1, 1))
 		-- Stocks as pixel blocks in the player's colour, right-aligned, capped at eight.
 		local pips = {}
@@ -340,6 +341,13 @@ function Hud.ultBanner(self: any, B: any, ult: any)
 	self.ultCaster.TextTransparency = 1 - B.alpha * 0.85
 end
 
+-- A touch screen with no keyboard (a phone, a tablet): no key caps to show.
+function Hud.touchOnly(): boolean
+	if not UIS then return false end
+	local ok, touch = pcall(function() return UIS.TouchEnabled and not UIS.KeyboardEnabled end)
+	return ok and touch == true
+end
+
 -- Is COMBO_KEY held (and not into a chat box)?
 function Hud.comboHeld(_self: any): boolean
 	if not UIS then return false end
@@ -365,6 +373,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		self.timer.Text = ""
 	end
 	self.timerPill.Visible = self.timer.Text ~= ""
+	-- key caps teach a keyboard: not on a touch screen, and not on a screen too narrow to spare them
+	self.hints.Visible = self.gui.AbsoluteSize.X >= 900 and not Hud.touchOnly()
 	self.timerPill.Size = UDim2.fromOffset(math.max(124, Ui.textWidth(self.timer.Text, 30) + 40), 42)
 
 	local banner = DisasterShapes.banner(self.disasterView)
@@ -412,7 +422,7 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	-- the combo card: through the countdown, and while its key is held
 	self.guideCard.Visible = self.guide.Text ~= "" and ((snap ~= nil and snap.state == "countdown") or self:comboHeld())
 	-- (a disaster's banner steps down under the card while it shows)
-	self.disaster.Position = UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 228 else 132)
+	self.disaster.Position = UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 244 else 132)
 
 	local byIndex: { [number]: any } = {}
 	for _, st in states do

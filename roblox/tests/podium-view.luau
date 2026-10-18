@@ -96,7 +96,7 @@ for i, row in ffa.rows do
 	assert(c:FindFirstChild("Place").Text == string.upper(Podium.ordinal(i)), `card {i} says {c:FindFirstChild("Place").Text}`)
 	assert(string.find(c:FindFirstChild("Name").Text, row.name, 1, true), `card {i} names the wrong fighter`)
 	for k, stat in Podium.STATS do
-		assert(c:FindFirstChild(`Label{k}`).Text == stat[1], `card {i} row {k} label`)
+		assert(c:FindFirstChild(`Label{k}`).Text == string.upper(stat[1]), `card {i} row {k} label`)
 		local v = c:FindFirstChild(`Value{k}`).Text
 		assert(v == tostring(Podium.statValue(row, stat[2])), `card {i} {stat[1]} shows {v}`)
 		checked += 1

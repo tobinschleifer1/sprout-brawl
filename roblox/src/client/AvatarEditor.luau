@@ -335,8 +335,9 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.footer = footer
 	local status = label(footer, "Status", "", 13, DIM)
 	self.status = status
-	local hint = label(footer, "Hint", "Arrows: option / part    Q E: tab    R: random    Ctrl+Z / Y: undo / redo", 11, DIM)
-	self.hint = hint
+	-- the keys as caps, the way the plaza and the fight teach theirs
+	local hint, hintW = Ui.hintRow(footer, "Hint", { { "ARROWS", "PICK" }, { "Q E", "TAB" }, { "R", "RANDOM" }, { "CTRL Z", "UNDO" } }, 22, Ui.KEY)
+	self.hint, self.hintW = hint, hintW
 	local delete = button(footer, "Delete", "DELETE", function() self:confirm("Delete this character?", function() self:delete() end) end, Color3.fromRGB(150, 52, 58))
 	local saveNew = button(footer, "SaveNew", "SAVE AS NEW", function() self:save(true) end, Ui.BLUE)
 	local save = button(footer, "Save", "SAVE & WEAR", function() self:save(false) end, Color3.fromRGB(52, 160, 84))
@@ -399,6 +400,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.nameBox.Position, self.nameBox.Size = UDim2.fromOffset(10, 10), UDim2.fromOffset(pw - 20, 34)
 	self.countLabel.Visible = wide
 	self.countLabel.Position, self.countLabel.Size = UDim2.new(0, 10, 1, -22), UDim2.fromOffset(pw - 20, 16)
+	-- (monospaced: sized so the line fits the panel it is in)
+	self.countLabel.TextSize = math.min(Ui.px(9), math.floor((pw - 20) / (#self.countLabel.Text * Ui.ADVANCE)))
 	local stageTop, stageH = 50, ph - 50 - controlsH - (if wide then 24 else 6)
 	self.stage.Position, self.stage.Size = UDim2.fromOffset(0, stageTop), UDim2.fromOffset(pw, stageH)
 	self.stagePx = Vector2.new(pw, stageH)
@@ -443,8 +446,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.deleteButton.Position, self.deleteButton.Size = UDim2.new(1, -28 - saveW * 2 - 90, 0, 8), UDim2.fromOffset(90, 40)
 	local statusW = math.max(80, W - 60 - saveW * 2 - 90 - 24)
 	self.status.Position, self.status.Size = UDim2.fromOffset(16, 4), UDim2.fromOffset(statusW, 24)
-	self.hint.Visible = W >= 900
-	self.hint.Position, self.hint.Size = UDim2.fromOffset(16, 28), UDim2.fromOffset(statusW, 20)
+	self.hint.Visible = W >= 900 and self.hintW <= statusW
+	self.hint.Position, self.hint.Size = UDim2.fromOffset(16, 24), UDim2.fromOffset(self.hintW, 24)
 	self:rebuildTiles()
 	self:rebuildColours()
 end
@@ -877,7 +880,7 @@ function AvatarEditor.rebuildTiles(self: any)
 			b.LayoutOrder = i
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
-			local name = label(b, "Label", e.name, 11, DIM)
+			local name = label(b, "Label", string.upper(e.name), 10, Ui.KEY)
 			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
@@ -908,7 +911,7 @@ function AvatarEditor.renderTiles(self: any)
 		local code = self:tileCode(id)
 		local picked = if t.kind == "Preset_" then code == mine else self.spec.parts[self.category] == id
 		t.pick.Enabled = picked
-		t.label.TextColor3 = if picked then AMBER else DIM
+		t.label.TextColor3 = if picked then AMBER else Ui.KEY
 		local key = `{code}|{view}|{px.X}x{px.Y}`
 		if t.drawn ~= key then
 			KitPortrait.draw(t.canvas, code, view, px.X, px.Y)

@@ -193,7 +193,7 @@ end
 -- The width a key-cap-and-word chip needs with a cap `size` px tall: the cap, and the whole chip.
 function Ui.chipWidth(key: string, word: string, size: number): (number, number)
 	local capW = math.max(size + 6, Ui.textWidth(Ui.keyLabel(key), math.floor(size * 0.5)) + 12)
-	return capW, capW + 6 + Ui.textWidth(word, math.floor(size * 0.5)) + 4
+	return capW, capW + 8 + Ui.textWidth(word, math.floor(size * 0.5)) + 4
 end
 
 -- A centred row of key caps with what each does: [WASD] WALK  [SPACE] HOP  [E] USE. `items` are
@@ -218,7 +218,7 @@ function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size
 		word.TextXAlignment = Enum.TextXAlignment.Left
 		-- small words still need to stand off whatever the row is drawn over
 		if size * 0.5 < 16 then Ui.outline(word, 2) end
-		word.Position, word.Size = UDim2.new(0.5, x + capW + 6, 0.5, -size / 2), UDim2.fromOffset(widths[i] - capW - 6, size)
+		word.Position, word.Size = UDim2.new(0.5, x + capW + 8, 0.5, -size / 2), UDim2.fromOffset(widths[i] - capW - 8, size)
 		x += widths[i] + 18
 	end
 	return row, total

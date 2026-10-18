@@ -85,7 +85,7 @@ function ParkourView.new(parent: Instance, opts: any): any
 	-- the run's readout in one window (made first, so it sits behind the words placed over it)
 	local plate = Ui.panel(gui, "Readout")
 	plate.BackgroundTransparency = 0
-	plate.Position, plate.Size = UDim2.fromOffset(8, TOP - 6), UDim2.fromOffset(450, 140)
+	plate.Position, plate.Size = UDim2.fromOffset(8, TOP - 6), UDim2.fromOffset(490, 146)
 	self.readout = plate
 	local title = text(gui, "Title", "SKYLINE CLIMB", 22, AMBER)
 	display(title, 2)
@@ -103,10 +103,10 @@ function ParkourView.new(parent: Instance, opts: any): any
 	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(180, 34)
 	self.timerLabel.TextXAlignment = Enum.TextXAlignment.Center
 	display(self.timerLabel, 2)
-	self.fallsLabel = text(gui, "Falls", "", 10, DIM)
+	self.fallsLabel = text(gui, "Falls", "", 11, DIM)
 	self.fallsLabel.Position, self.fallsLabel.Size = UDim2.fromOffset(16, TOP + 90), UDim2.fromOffset(500, 18)
-	self.bestLabel = text(gui, "Best", "", 10, DIM)
-	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 108), UDim2.fromOffset(500, 18)
+	self.bestLabel = text(gui, "Best", "", 11, DIM)
+	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 112), UDim2.fromOffset(500, 18)
 	-- the lines under the title sit on a bright sky: an ink outline, not the soft stroke, keeps them
 	for _, t in { self.checkpointLabel, self.fallsLabel, self.bestLabel } do
 		t.TextStrokeTransparency = 1

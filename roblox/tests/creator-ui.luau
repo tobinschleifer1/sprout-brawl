@@ -320,7 +320,7 @@ do
 	ed:selectGroup("extras")
 	ed:selectCategory("headwear")
 	local tile = assert(ed.tiles.skylineCrown, "the Skyline Crown has a tile")
-	assert(tile.label.Text == "LOCKED · Skyline Crown", `it is shown locked: {tile.label.Text}`)
+	assert(tile.label.Text == "LOCKED · SKYLINE CROWN", `it is shown locked: {tile.label.Text}`)
 	local before = ed:code()
 	click(root, "Option_skylineCrown")
 	assert(ed:code() == before and string.find(ed.status.Text, "Crown Perch", 1, true) and string.find(ed.status.Text, "level 19", 1, true),
@@ -344,7 +344,7 @@ do
 	-- Earned: unlocked, labelled plainly, and wearable.
 	ed:selectCategory("headwear")
 	ed:setView({ slots = { { name = "Kage 3", code = NINJA } }, active = 1, saving = true, max = 8, unlocked = { "skylineCrown" } })
-	assert(ed.tiles.skylineCrown.label.Text == "Skyline Crown", "earned while looking at it, it loses its lock")
+	assert(ed.tiles.skylineCrown.label.Text == "SKYLINE CROWN", "earned while looking at it, it loses its lock")
 	click(root, "Option_skylineCrown")
 	assert(ed.spec.parts.headwear == "skylineCrown", "and can be worn")
 end

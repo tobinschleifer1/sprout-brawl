@@ -155,14 +155,14 @@ function LobbySocial.new(parent: Instance, opts: any): any
 
 	-- The log, bottom left.
 	-- (a window like the rest, see-through enough to keep the roofs behind it in view)
-	local log = Ui.panel(gui, "Log", Ui.PANEL2, "CHAT", 22)
+	local log = Ui.panel(gui, "Log", Ui.PANEL2, "CHAT", 30)
 	log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3
-	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 34)
+	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 42)
 	self.logFrame = log
 	self.logLines = {}
 	for i = 1, LobbySocial.LOG_LINES do
 		local l = label(log, "Line" .. i, "", 13)
-		l.Position, l.Size = UDim2.fromOffset(10, 28 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
+		l.Position, l.Size = UDim2.fromOffset(10, 36 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
 		l.TextTruncate = Enum.TextTruncate.AtEnd
 		self.logLines[i] = l
 	end
@@ -187,6 +187,12 @@ end
 
 function LobbySocial.closeAll(self: any)
 	for _, p in self.panels do p.Visible = false end
+end
+
+-- Is a panel up? (The plaza's prompt steps aside under one: they share the bottom right.)
+function LobbySocial.anyOpen(self: any): boolean
+	for _, p in self.panels do if p.Visible then return true end end
+	return false
 end
 
 function LobbySocial.toggle(self: any, name: string)
@@ -292,7 +298,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		row.Name, row.BackgroundColor3, row.BorderSizePixel, row.LayoutOrder = "Member_" .. tostring(m.userId), Ui.PANEL2, 0, i
 		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
 		corner(row, 0)
-		Ui.stroke(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2)
+		-- its frame drawn inside it, so the scrolling list cannot clip one side of it away
+		Ui.rim(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2, 0)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
 		if type(m.avatar) == "string" and string.sub(m.avatar, 1, 2) == "k1" then

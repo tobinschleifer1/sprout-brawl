@@ -313,10 +313,10 @@ function SelectScreen.build(self: any, L: any)
 		place(b, r.x - L.cell / 2, r.y - L.cell / 2, L.cell, L.cell)
 		corner(b, math.floor(L.cell / 2))
 		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
-		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 9 * s, Ui.KEY)
+		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 10 * s, WHITE)
 		Ui.outline(name, 2)
 		name.Name = "Name" .. r.id
-		place(name, r.x - L.cell, r.y + L.cell / 2 + 1, L.cell * 2, 14 * s)
+		place(name, r.x - L.cell, r.y + L.cell / 2 + 5, L.cell * 2, 14 * s)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
 		self.cells[i] = { button = b, ring = ring, name = name, id = r.id }
 		table.insert(self.tags, name)
@@ -477,14 +477,16 @@ function SelectScreen.buildVotes(self: any, L: any)
 		local panel = make("Frame", card, { Name = "Panel", BackgroundColor3 = PANEL, BorderSizePixel = 0 })
 		place(panel, 0, 0, r.w, r.panelH)
 		corner(panel, 12)
-		local band = make("Frame", card, { Name = "Band", BackgroundColor3 = if preset then Color3.fromRGB(46, 104, 178) else Color3.fromRGB(70, 82, 104), BorderSizePixel = 0 })
+		local bandColour = if preset then Ui.BLUE else Ui.PANEL2
+		local band = make("Frame", card, { Name = "Band", BackgroundColor3 = bandColour, BorderSizePixel = 0 })
 		place(band, 0, 0, r.w, 44 * s)
-		corner(band, 12)
+		local ledge = make("Frame", band, { Name = "Ledge", BackgroundColor3 = Ui.shade(bandColour, -0.45), BorderSizePixel = 0 })
+		place(ledge, 0, 44 * s - 3, r.w, 3)
 		local title = text(band, if preset then string.upper(preset.name) else "KEEP CURRENT", math.floor(20 * s), WHITE, DISPLAY)
 		title.Name = "Title"
 		place(title, 6 * s, 0, r.w - 12 * s, 44 * s)
 		title.TextWrapped = true
-		local hint = text(card, if preset then preset.hint else "The room's rules as they are now.", math.floor(12 * s), DIM)
+		local hint = text(card, if preset then preset.hint else "The room's rules as they are now.", 11 * s, Ui.KEY)
 		hint.Name = "Hint"
 		hint.TextWrapped = true
 		place(hint, 12 * s, 50 * s, r.w - 24 * s, 52 * s)

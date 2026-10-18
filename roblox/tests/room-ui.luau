@@ -191,7 +191,7 @@ do
 	assert(n.message.Text == "Loading arena and fighters…" and not n.ok.Visible and n.title.Text == "GET READY", "the waiting notice reads wrong")
 	assert(n.band.BackgroundColor3 == BLUE, "waiting is not shown in blue")
 	panel:show("That match could not be run: no arena")
-	assert(n.ok.Visible and n.title.Text == "HOLD ON" and n.band.BackgroundColor3 ~= BLUE, "a problem is not shown as one")
+	assert(n.ok.Visible and n.title.Text == "MATCH DIDN'T START" and n.band.BackgroundColor3 ~= BLUE, "a problem is not shown as one")
 	n.ok.Activated:Fire()
 	assert(not panel.gui.Enabled, "OK did not close the notice")
 	panel:openStation("Players")
@@ -204,7 +204,7 @@ local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
 	-- The results podium has its own test (podium-view); this one is about the match HUD.
 	require=function(name) if name=="PodiumView" then return {} end if name=="Callouts" then return Loader.load("Data/Callouts") end if name=="Weapons" then return Loader.load("Data/Weapons") end return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
-	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes,TextTruncate=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
+	Enum={Font=codes,TextXAlignment=codes,TextYAlignment=codes,ZIndexBehavior=codes,TextTruncate=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local hud=Hud.new(instance("PlayerGui"))
 local roster,chars={},{}

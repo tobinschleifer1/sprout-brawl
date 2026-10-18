@@ -92,23 +92,25 @@ function RoomPanel.buildNotice(self: any)
 	message.Name = "Message"
 	message.TextWrapped = true
 	message.Position, message.Size = UDim2.fromOffset(16, 46), UDim2.new(1, -32, 0, 58)
-	local ok = Ui.button(card, "OK", Ui.BLUE, function() self:hide() end)
+	local ok = Ui.button(card, "BACK TO LOBBY", Ui.BLUE, function() self:hide() end)
 	ok.Name = "Ok"
-	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -16), UDim2.fromOffset(120, 38)
+	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -16), UDim2.fromOffset(180, 38)
 	-- a wait has no OK, so its card is only as tall as its message, with a row of pixel blocks
 	-- stepping along under it to say something is happening
 	local dots = Ui.make("Frame", card, { Name = "Working", BackgroundTransparency = 1, BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -14), Size = UDim2.fromOffset(5 * 14 - 4, 10) })
 	for k = 1, 5 do
-		Ui.make("Frame", dots, { Name = "Block" .. k, BackgroundColor3 = if k == 1 then Ui.GOLD else Ui.PANEL2, BorderSizePixel = 0,
+		local dot = Ui.make("Frame", dots, { Name = "Block" .. k, BackgroundColor3 = if k == 1 then Ui.GOLD else Ui.PANEL2, BorderSizePixel = 0,
 			Position = UDim2.fromOffset((k - 1) * 14, 0), Size = UDim2.fromOffset(10, 10) })
+		if not Ui.flat() then continue end
+		Ui.make("UICorner", dot, { CornerRadius = UDim.new(0.5, 0) })      -- round dots in a smooth theme
 	end
 	self.notice = { card = card, band = band, title = title, message = message, ok = ok, cap = cap, dots = dots }
 end
 -- `waiting`: a fight is on its way (no button); otherwise a problem to acknowledge.
 function RoomPanel.say(self: any, message: string, waiting: boolean)
 	local n = self.notice
-	n.title.Text = if waiting then "GET READY" else "HOLD ON"
+	n.title.Text = if waiting then "GET READY" else "MATCH DIDN'T START"
 	Ui.paintBand(n.band, if waiting then Ui.BLUE else Ui.RED)
 	n.message.Text = message
 	n.ok.Visible = not waiting
@@ -120,7 +122,7 @@ function RoomPanel.say(self: any, message: string, waiting: boolean)
 		n.stepping = true
 		local k = 1
 		local function step()
-			if not (n.dots.Visible and n.card.Visible and self.gui.Enabled) then n.stepping = false return end
+			if not (n.dots.Visible and n.card.Visible and self.gui.Enabled) then n.stepping = false; return end
 			k = k % 5 + 1
 			for _, b in n.dots:GetChildren() do b.BackgroundColor3 = if b.Name == "Block" .. k then Ui.GOLD else Ui.PANEL2 end
 			task.delay(0.18, step)

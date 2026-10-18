@@ -73,20 +73,20 @@ local function column(parent: Instance, name: string, title: string, x: number):
 	for i = 1, ClimbRecords.ROWS do
 		local row = Instance.new("Frame")
 		row.Name, row.BackgroundTransparency, row.LayoutOrder, row.Visible = `Row{i}`, 1, i, false
-		row.Size, row.Parent = UDim2.new(1, -6, 0, 22), list
+		row.Size, row.Parent = UDim2.new(1, -6, 0, 28), list
 		-- the rank on a badge: gold, silver and bronze for the top three
-		local rank = text(row, "Rank", tostring(i), 11, DIM, Enum.TextXAlignment.Center)
+		local rank = text(row, "Rank", tostring(i), 13, DIM, Enum.TextXAlignment.Center)
 		rank.Font = Ui.DISPLAY
-		rank.Position, rank.Size = UDim2.fromOffset(4, 1), UDim2.fromOffset(22, 20)
+		rank.Position, rank.Size = UDim2.fromOffset(4, 2), UDim2.fromOffset(26, 24)
 		Ui.corner(rank, 10)
 		if MEDALS[i] then
 			rank.BackgroundTransparency, rank.BackgroundColor3, rank.TextColor3 = 0, MEDALS[i], Ui.INK
 			Ui.stroke(rank, Ui.INK, 2)
 		end
-		local who = text(row, "Name", "", 11, TEXT)
-		who.Position, who.Size = UDim2.fromOffset(34, 0), UDim2.new(1, -150, 0, 22)
-		local value = text(row, "Value", "", 11, CYAN, Enum.TextXAlignment.Right)
-		value.Position, value.Size = UDim2.new(1, -112, 0, 0), UDim2.fromOffset(108, 22)
+		local who = text(row, "Name", "", 14, TEXT)
+		who.Position, who.Size = UDim2.fromOffset(38, 0), UDim2.new(1, -170, 0, 28)
+		local value = text(row, "Value", "", 14, CYAN, Enum.TextXAlignment.Right)
+		value.Position, value.Size = UDim2.new(1, -132, 0, 0), UDim2.fromOffset(128, 28)
 		rows[i] = { frame = row, rank = rank, name = who, value = value }
 	end
 	local empty = text(f, "Empty", "", 13, DIM, Enum.TextXAlignment.Center)
@@ -124,7 +124,7 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 
 	self.fastest = column(p, "Fastest", "FASTEST CLIMBS", 0)
 	self.highest = column(p, "Highest", "HIGHEST CLIMBERS", 0.5)
-	local status = text(p, "Status", "", 11, DIM)
+	local status = text(p, "Status", "", 12, Color3.fromRGB(192, 203, 220))
 	status.AnchorPoint, status.Position, status.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -34), UDim2.new(1, -32, 0, 20)
 	self.status = status
 	local mine = text(p, "Mine", "", 12, YOU)
@@ -143,7 +143,7 @@ local function fill(col: any, rows: { any }?, localId: number, value: (any) -> s
 			local you = row.userId == localId
 			r.rank.Text = tostring(row.rank)
 			r.name.Text = if you then `{row.name}  (you)` else tostring(row.name)
-			r.name.TextColor3 = if you then YOU elseif row.rank <= 3 then AMBER else TEXT
+			r.name.TextColor3 = if you then YOU else TEXT        -- (the medal badge marks the top three)
 			r.value.Text = value(row)
 		end
 	end

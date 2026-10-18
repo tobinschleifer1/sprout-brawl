@@ -48,7 +48,7 @@ Ui.THEMES = {
 	cartoon = { display = F.LuckiestGuy, label = F.GothamBlack, body = F.GothamBold, radius = 10, borderK = 1, outlineK = 0.75,
 		rim = false, bevel = "inset", scale = 1.0, advance = 0.62 },
 	clean = { display = F.FredokaOne, label = F.BuilderSansExtraBold, body = F.BuilderSansBold, radius = 8, borderK = 0.5,
-		outlineK = 0.4, rim = false, bevel = "none", scale = 1.05, advance = 0.56 },
+		outlineK = 0.4, rim = false, bevel = "none", scale = 1.05, advance = 0.62 },
 }
 Ui.ARCADE_SCALE = 1.25
 local theme = Ui.THEMES.clean
@@ -76,12 +76,26 @@ Ui.KEY = Color3.fromRGB(234, 238, 246)
 -- smooth fonts would come out small; this keeps the words about as big as they were. Measured in
 -- Studio with TextService:GetTextBoundsAsync: 0.5625 px of width per TextSize per letter.
 Ui.SCALE = 1.05
-Ui.ADVANCE = 0.56
+Ui.ADVANCE = 0.62
 -- `font` is the face the size is for (the LABEL face if not said): Arcade is scaled by
 -- ARCADE_SCALE whatever the theme, the smooth faces by the theme's own scale.
 function Ui.px(size: number, font: any?): number
 	local k = if (font or Ui.LABEL) == Enum.Font.Arcade then Ui.ARCADE_SCALE else Ui.SCALE
 	return math.floor(size * k + 0.5)
+end
+
+-- Is the theme flat (no bevels, no outlines on solid surfaces)?
+function Ui.flat(): boolean
+	return theme.bevel == "none"
+end
+-- A meter block, a stat block, a stock pip: softened to match a rounded theme.
+function Ui.pip(f: Instance): Instance
+	if theme.radius > 0 then Ui.make("UICorner", f, { CornerRadius = UDim.new(0, 2) }) end
+	return f
+end
+-- How light a colour is (0 black .. 1 white), for picking ink or white text on it.
+function Ui.light(c: Color3): number
+	return 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
 end
 
 function Ui.useTheme(name: string?)
@@ -151,13 +165,14 @@ function Ui.rim(parent: Instance, colour: Color3, thick: number?, inset: number?
 end
 
 -- `size` is the size asked for; the pixel face is drawn at Ui.px(size).
-function Ui.text(parent: Instance?, value: string, size: number, colour: Color3?, font: any?): any
+-- `bare`: no outline whatever the size (words on a solid bar or card in a flat theme).
+function Ui.text(parent: Instance?, value: string, size: number, colour: Color3?, font: any?, bare: boolean?): any
 	local face = font or Ui.LABEL
 	local t = Ui.make("TextLabel", parent, { BackgroundTransparency = 1, Text = value, TextSize = Ui.px(size, face),
 		TextColor3 = colour or Ui.WHITE, Font = face, TextXAlignment = Enum.TextXAlignment.Center,
 		BorderSizePixel = 0 })
 	-- the pixel face outlines everything big enough not to fill in; a smooth theme its display words
-	if size >= 16 and (theme.label == Enum.Font.Arcade or face == Ui.DISPLAY) then Ui.outline(t, if size >= 28 then 3 else 2) end
+	if not bare and size >= 16 and (theme.label == Enum.Font.Arcade or face == Ui.DISPLAY) then Ui.outline(t, if size >= 28 then 3 else 2) end
 	return t
 end
 
@@ -175,7 +190,7 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 		TextColor3 = o.textColour or Ui.WHITE, BackgroundColor3 = colour, AutoButtonColor = true, BorderSizePixel = 0 })
 	Ui.corner(b, 0)
 	Ui.stroke(b, Ui.INK, 3)
-	if not o.small then Ui.outline(b, 2) end
+	local outline = if o.small or theme.bevel == "none" then nil else Ui.outline(b, 2)
 	-- the bevel: full-width pixel strips (pixel themes), a rounded shine and lip set in from the
 	-- edges (rounded themes), or nothing (flat)
 	local inset = theme.bevel == "inset"
@@ -191,19 +206,27 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 	elseif theme.bevel == "none" then
 		shine.BackgroundTransparency, lip.BackgroundTransparency = 1, 1
 	end
-	parts[b] = { shine = shine, lip = lip }
+	parts[b] = { shine = shine, lip = lip, outline = outline }
+	if not o.textColour and Ui.light(colour) > 0.62 then
+		b.TextColor3 = Ui.INK
+		if outline then outline.Thickness = 0 end
+	end
 	if onClick then b.Activated:Connect(onClick) end
 	return b
 end
 
 -- Recolour a button, its shine and lip with it.
+-- On a light face (gold, a pale key) the words go ink with no outline, whatever was asked: white
+-- on yellow is unreadable.
 function Ui.paint(b: any, colour: Color3, textColour: Color3?)
 	b.BackgroundColor3 = colour
-	if textColour then b.TextColor3 = textColour end
+	local lightFace = Ui.light(colour) > 0.62
+	if lightFace then b.TextColor3 = Ui.INK elseif textColour then b.TextColor3 = textColour end
 	local p = parts[b]
 	if p then
 		p.shine.BackgroundColor3 = Ui.shade(colour, Ui.SHINE)
 		p.lip.BackgroundColor3 = Ui.shade(colour, Ui.LIP)
+		if p.outline then p.outline.Thickness = if lightFace then 0 else math.floor(2 * theme.outlineK + 0.5) end
 	end
 end
 
@@ -222,6 +245,7 @@ function Ui.keycap(parent: Instance?, key: string, size: number?): any
 		shine.BackgroundTransparency = 1
 		Ui.make("UICorner", lip, { CornerRadius = UDim.new(0, 2) })
 	end
+	if theme.bevel == "none" then lip.BackgroundTransparency = 1 end
 	return k
 end
 
@@ -256,13 +280,19 @@ end
 -- A centred row of key caps with what each does: [WASD] WALK  [SPACE] HOP  [E] USE. `items` are
 -- { key, word } pairs; `size` is the cap's height. Returns the row (placed by the caller, full
 -- width of its parent by default) and its total width.
-function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size: number, colour: Color3?): (any, number)
+-- `backed`: on a translucent dark strip, for a row drawn straight over the busy world.
+function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size: number, colour: Color3?, backed: boolean?): (any, number)
 	local row = Ui.make("Frame", parent, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0 })
 	local widths, total = {}, 0
 	for i, item in items do
 		local _, w = Ui.chipWidth(item[1], item[2], size)
 		widths[i] = w
 		total += w + (if i > 1 then 18 else 0)
+	end
+	if backed then
+		local back = Ui.make("Frame", row, { Name = "Back", BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.35, BorderSizePixel = 0,
+			Position = UDim2.new(0.5, -total / 2 - 10, 0.5, -size / 2 - 5), Size = UDim2.fromOffset(total + 20, size + 10) })
+		Ui.corner(back, 0)
 	end
 	local x = -total / 2
 	for i, item in items do
@@ -273,8 +303,8 @@ function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size
 		local word = Ui.text(row, item[2], math.floor(size * 0.5), colour or Ui.WHITE, Ui.DISPLAY)
 		word.Name = "Word" .. i
 		word.TextXAlignment = Enum.TextXAlignment.Left
-		-- small words still need to stand off whatever the row is drawn over
-		if size * 0.5 < 16 then Ui.outline(word, 2) end
+		-- small words still need to stand off whatever the row is drawn over (unless it has a strip)
+		if size * 0.5 < 16 and not backed then Ui.outline(word, 2) end
 		word.Position, word.Size = UDim2.new(0.5, x + capW + 8, 0.5, -size / 2), UDim2.fromOffset(widths[i] - capW - 8, size)
 		x += widths[i] + 18
 	end
@@ -311,8 +341,8 @@ function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?
 	local h = bandH or 34
 	local b = Ui.band(p, band, h)
 	b.ZIndex = 2
-	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY)
-	if math.floor(h * 0.48) < 16 then Ui.outline(t, 2) end
+	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY, theme.bevel == "none")
+	if math.floor(h * 0.48) < 16 and theme.bevel ~= "none" then Ui.outline(t, 2) end
 	t.Name = "Title"
 	t.Position, t.Size = UDim2.fromOffset(10, 0), UDim2.new(1, -20, 1, 0)
 	t.TextXAlignment = Enum.TextXAlignment.Left

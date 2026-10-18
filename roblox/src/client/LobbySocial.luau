@@ -309,7 +309,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
 		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
-		local where = label(row, "Where", tostring(m.where or ""), 10, if m.place == "fight" then PINK elseif m.place == "room" then AMBER else DIM)
+		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then Color3.fromRGB(255, 150, 150)
+			elseif m.place == "room" then AMBER else Color3.fromRGB(192, 203, 220))
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
 		if m.place == "market" and m.userId ~= self.localId and m.x then
 			local go = button(row, "WarpTo", "WARP", function()

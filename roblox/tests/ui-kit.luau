@@ -37,6 +37,8 @@ end
 local codes = setmetatable({}, { __index = function(_, k) return setmetatable({}, { __index = function(_, v) return k .. "." .. v end }) end })
 Loader.gui = { Instance = { new = new }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = codes }
 local Ui = Loader.loadFrom("src/client/", "Ui")
+-- the bevelled kit's checks below are the pixel theme's; the clean theme (the game's) has its own
+Ui.useTheme("pixel")
 
 local function child(o: any, name: string): any
 	for _, ch in o._children do if ch.Name == name then return ch end end
@@ -165,6 +167,15 @@ do
 	if not child(band, "UICorner") or not child(band, "Square") or child(band, "Ledge") then fail("a clean header bar is not rounded on top and flat") end
 	Ui.paintBand(band, Ui.GREEN)
 	if child(band, "Square").BackgroundColor3 ~= Ui.GREEN then fail("paintBand left the bar's square half in the old colour") end
+	if child(b, "UIStroke") and #b._children > 0 then
+		for _, ch in b._children do if ch.ClassName == "UIStroke" and ch.ApplyStrokeMode == "ApplyStrokeMode.Contextual" then fail("a clean button outlines its letters") end end
+	end
+	-- white on a light face is unreadable: gold takes ink letters, a dark face keeps what was asked
+	Ui.paint(b, Ui.GOLD, Ui.WHITE)
+	if b.TextColor3 ~= Ui.INK then fail("a gold button kept white letters") end
+	Ui.paint(b, Ui.PANEL2, Ui.WHITE)
+	if b.TextColor3 ~= Ui.WHITE then fail("a dark button did not take the letters asked for") end
+	if child(Ui.keycap(new("Frame"), "e"), "Lip").BackgroundTransparency ~= 1 then fail("a clean keycap has a bevel lip") end
 	-- a smooth face is scaled by the theme's own scale; the pixel face always by ARCADE_SCALE
 	if Ui.px(20) ~= math.floor(20 * T.scale + 0.5) or Ui.px(20, "Font.Arcade") ~= math.floor(20 * Ui.ARCADE_SCALE + 0.5) then fail("px does not scale by face") end
 end

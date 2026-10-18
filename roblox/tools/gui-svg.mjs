@@ -64,7 +64,7 @@ for (const n of d.nodes) {
     // TextWrapped labels wrap at their width, as Roblox does (by an average glyph width)
     // (and at every newline)
     let lines = [];
-    const per = Math.max(1, Math.floor((right - left) / (n.size * (arcade ? ARCADE : n.font.endsWith('LuckiestGuy') ? 0.52 : 0.6))));
+    const per = Math.max(1, Math.floor((right - left) / (n.size * (arcade ? ARCADE : n.font.endsWith('LuckiestGuy') ? 0.52 : /BuilderSans|FredokaOne/.test(n.font) ? 0.5 : 0.6))));
     for (const para of String(n.text).split('\n')) {
       if (!n.wrap) { lines.push(para); continue; }
       let cur = '';

@@ -368,6 +368,9 @@ function SelectScreen.build(self: any, L: any)
 				place(seg, 48 * s + (n - 1) * segW, y + (rowH - segH) / 2, segW - 3, segH)
 				local hi = make("Frame", seg, { Name = "Hi", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, px) })
 				local lo = make("Frame", seg, { Name = "Lo", BorderSizePixel = 0, Position = UDim2.new(0, 0, 1, -px), Size = UDim2.new(1, 0, 0, px) })
+				-- (flat themes: a plain rounded block, no pixel shading)
+				if Ui.flat() then hi.BackgroundTransparency, lo.BackgroundTransparency = 1, 1 end
+				Ui.pip(seg)
 				segs[n] = seg
 				segs.blocks[n] = { frame = seg, hi = hi, lo = lo }
 				paintBlock(segs.blocks[n], false)

@@ -118,10 +118,14 @@ function Hud.new(parent: Instance): any
 	local hold = label(card, UDim2.new(0, 160, 0, 30), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
 	hold.TextXAlignment = Enum.TextXAlignment.Right
 	hold.ZIndex = 3
-	self.guide = label(card, UDim2.new(1, -24, 0, 66), UDim2.fromOffset(12, 34), "", 12, GOLD)
+	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, GOLD)
 	self.guide.Name = "ComboGuide"
 	self.guide.TextWrapped = true
-	self.guide.TextXAlignment = Enum.TextXAlignment.Center
+	-- a list: each route's name in white, its chain in gold, the how-to dimmed
+	self.guide.RichText = true
+	self.guide.TextXAlignment = Enum.TextXAlignment.Left
+	self.guide.TextYAlignment = Enum.TextYAlignment.Top
+	self.guide.LineHeight = 1.15
 
 	-- The ultimate's name and caster, laid along the cutscene banner the canvas paints.
 	self.ultName = label(gui, UDim2.fromOffset(10, 10), UDim2.fromOffset(0, 0), "", 20, Color3.new(1, 1, 1))
@@ -169,7 +173,17 @@ end
 -- tile size four coloured boxes are four boxes.
 function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?, teams: boolean?)
 	self.localIndex = localIndex
-	self.guide.Text = table.concat(ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil), "\n")
+	local lines = {}
+	for _, line in ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil) do
+		local name, chain = string.match(line, "^([^:]+):%s*(.*)$")
+		if name and chain then
+			local route, how = string.match(chain, "^(.-)%s*(%b())$")
+			table.insert(lines, `<font color="#FFFFFF">{string.upper(name)}</font>   {route or chain}` .. (if how then `  <font color="#A8B5CC">{how}</font>` else ""))
+		else
+			table.insert(lines, line)
+		end
+	end
+	self.guide.Text = table.concat(lines, "\n")
 	if teams ~= nil then self.teamsOn = teams end
 	for _, t in self.tiles do
 		t.root:Destroy()
@@ -222,7 +236,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 			local pip = Ui.make("Frame", root, { Name = "Stock" .. k, BackgroundColor3 = colour, BorderSizePixel = 0,
 				Position = UDim2.fromOffset(W - 8 - k * 13, 26), Size = UDim2.fromOffset(10, 10), Visible = false })
 			Ui.stroke(pip, Ui.INK, 2)
-			Ui.make("Frame", pip, { Name = "Hi", BackgroundColor3 = Ui.shade(colour, 0.45), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
+			local hi = Ui.make("Frame", pip, { Name = "Hi", BackgroundColor3 = Ui.shade(colour, 0.45), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
+			if Ui.flat() then hi.BackgroundTransparency = 1 end
+			Ui.pip(pip)
 			pips[k] = pip
 		end
 
@@ -232,6 +248,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local meterW = if compact then W - 16 else 78
 		local ultBack = Ui.make("Frame", root, { Name = "Ultimate", BackgroundColor3 = Ui.INK, BorderSizePixel = 0,
 			Position = UDim2.new(1, -8 - meterW, 1, -16), Size = UDim2.fromOffset(meterW, 10) })
+		Ui.pip(ultBack)
 		local step = (meterW - 2) / ULT_BLOCKS
 		-- (with weapon drops a fighter starts on fists, which have none - but the meter fills on fists
 		-- and waits for a weapon, so a fighter with a kit always shows it)
@@ -240,6 +257,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		for k = 1, ULT_BLOCKS do
 			blocks[k] = Ui.make("Frame", ultBack, { BackgroundColor3 = SLATE, BorderSizePixel = 0,
 				Position = UDim2.fromOffset(1 + (k - 1) * step, 1), Size = UDim2.fromOffset(math.floor(step) - 1, 8) })
+			Ui.pip(blocks[k])
 		end
 		-- Your own card says when your shield is up.
 		local shield = nil
@@ -435,6 +453,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			if string.sub(ult, 1, 5) == "READY" then said = "ULTIMATE " .. ult end
 		end
 	end
+	-- (a touch screen has no key to press: just say it is ready)
+	if said and Hud.touchOnly() then said = string.gsub(said, "%s*—%s*press%s+%w+$", "") end
 	self.abilities.Text = if said then string.upper(said) else ""
 	self.abilityPill.Visible = said ~= nil
 	if said then self.abilityPill.Size = UDim2.fromOffset(math.clamp(Ui.textWidth(said, 15) + 44, 200, 640), 30) end

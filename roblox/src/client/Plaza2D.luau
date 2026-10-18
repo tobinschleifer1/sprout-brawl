@@ -148,7 +148,7 @@ function Plaza2D.new(parent: Instance): any
 	self.bannerOutline.Transparency = 1
 	-- How to move, as key caps along the bottom.
 	-- (centred in the room the social bar leaves at the bottom right; hidden where it does not fit)
-	local controls, controlsW = Ui.hintRow(gui, "Movement", { { "A D", "WALK" }, { "W S", "STEP IN / OUT" }, { "SPACE", "HOP" }, { "E", "USE" } }, 24)
+	local controls, controlsW = Ui.hintRow(gui, "Movement", { { "A D", "WALK" }, { "W S", "STEP IN / OUT" }, { "SPACE", "HOP" }, { "E", "USE" } }, 24, nil, true)
 	controls.Position, controls.Size = UDim2.new(0, 16, 1, -39), UDim2.new(1, -Plaza2D.SOCIAL_BAR_W - 48, 0, 26)
 	self.controls, self.controlsW = controls, controlsW
 	-- What you can do here: a card with the E key on it beside a station, or a tip when there is

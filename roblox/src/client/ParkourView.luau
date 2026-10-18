@@ -120,7 +120,7 @@ function ParkourView.new(parent: Instance, opts: any): any
 	banner.TextTransparency, banner.TextWrapped = 1, true
 	self.banner = banner
 	-- how to climb, as key caps along the bottom (clear of the button column at the right)
-	local hint = Ui.hintRow(gui, "Controls", { { "A D", "RUN" }, { "SPACE", "JUMP · AGAIN IN THE AIR" }, { "S", "DROP THROUGH" } }, 24)
+	local hint = Ui.hintRow(gui, "Controls", { { "A D", "RUN" }, { "SPACE", "JUMP · AGAIN IN THE AIR" }, { "S", "DROP THROUGH" } }, 24, nil, true)
 	hint.Position, hint.Size = UDim2.new(0, 16, 1, -40), UDim2.new(1, -312, 0, 26)
 	local leave = button(gui, "Leave", "◂ " .. string.upper(Realms.LOBBY.name), function() self:leave() end, Ui.BLUE)
 	self.leaveButton = leave

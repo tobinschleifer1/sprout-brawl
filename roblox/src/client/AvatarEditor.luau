@@ -100,6 +100,7 @@ local function tile(parent: Instance, name: string, onClick: () -> (), colour: C
 	lip.BackgroundColor3 = Ui.shade(colour, -0.4)
 	lip.Position, lip.Size = UDim2.new(0, 0, 1, -3), UDim2.new(1, 0, 0, 3)
 	lip.Parent = b
+	if Ui.flat() then lip.BackgroundTransparency = 1 end
 	b.Activated:Connect(onClick)
 	return b
 end
@@ -432,6 +433,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local cols = math.max(2, math.floor((inner + 8) / (if wide then 120 else 96)))
 	local tile = math.floor((inner - (cols - 1) * 8) / cols)
 	local tileH = tile + (if view == "body" then math.floor(tile * 0.45) else 0) + 20
+	-- never taller than the grid shows, so a short (phone) grid still shows each tile's name
+	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
 	self.gridLayout.CellSize = UDim2.fromOffset(tile, tileH)
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
 	-- Footer.

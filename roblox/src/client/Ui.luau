@@ -239,13 +239,21 @@ function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?
 		Size = UDim2.new(1, 0, 0, 3) })
 	Ui.make("Frame", b, { Name = "Ledge", BackgroundColor3 = Ui.shade(band, -0.45), BorderSizePixel = 0,
 		Position = UDim2.new(0, 0, 1, -3), Size = UDim2.new(1, 0, 0, 3) })
-	local t = Ui.text(b, title or "", math.floor(h * 0.42), Ui.WHITE, Ui.DISPLAY)
-	if math.floor(h * 0.42) < 16 then Ui.outline(t, 2) end
+	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY)
+	if math.floor(h * 0.48) < 16 then Ui.outline(t, 2) end
 	t.Name = "Title"
 	t.Position, t.Size = UDim2.fromOffset(10, 0), UDim2.new(1, -20, 1, 0)
 	t.TextXAlignment = Enum.TextXAlignment.Left
 	t.ZIndex = 2
 	return p, b, t
+end
+
+-- Recolour a panel's title bar, its shine and ledge with it.
+function Ui.paintBand(band: any, colour: Color3)
+	band.BackgroundColor3 = colour
+	local shine, ledge = band:FindFirstChild("Shine"), band:FindFirstChild("Ledge")
+	if shine then shine.BackgroundColor3 = Ui.shade(colour, 0.35) end
+	if ledge then ledge.BackgroundColor3 = Ui.shade(colour, -0.45) end
 end
 
 -- A dark square strip with a rim, for a line of status.

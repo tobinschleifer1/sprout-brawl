@@ -445,13 +445,16 @@ function SelectScreen.buildVotes(self: any, L: any)
 		corner(b, 8)
 		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
 		local stage = Stages.BY_ID[m.id]
-		local name = text(self.pages.map, if stage then string.upper(Realms.name(stage)) else "RANDOM", math.floor(13 * s), WHITE)
+		local name = text(self.pages.map, if stage then string.upper(Realms.name(stage)) else "RANDOM", 11 * s, WHITE)
 		name.Name = "MapName" .. m.id
+		-- on an ink plate, so the name reads over any sky
+		name.BackgroundTransparency, name.BackgroundColor3 = 0.1, INK
 		place(name, m.x, m.y + m.h + 2, m.w, L.nameH)
 		local count = text(b, "", math.floor(14 * s), INK, DISPLAY)
 		count.Name = "Count"
 		count.BackgroundTransparency, count.BackgroundColor3 = 0, GOLD
-		corner(count, 9)
+		corner(count, 0)
+		stroke(count, INK, 2)
 		place(count, m.w - 30 * s, 4 * s, 26 * s, 20 * s)
 		if m.id == "Random" then
 			local q = text(b, "?", math.floor(m.h * 0.6), WHITE, DISPLAY)
@@ -537,7 +540,12 @@ function SelectScreen.render(self: any)
 	-- the arena is voted on after the picks, so until that vote is done it is not known
 	local map = if phase == "pick" or phase == "map" then "MAP: VOTE"
 		else "MAP: " .. string.upper(Realms.name(Stages.BY_ID[room.stage] or { name = room.stage }))
-	self.rules.Text = `{mode}   ·   ITEMS {if room.items then "ON" else "OFF"}   ·   DISASTERS {string.upper(room.disasters or "off")}   ·   {map}`
+	self.rules.Text = `{mode} · ITEMS {if room.items then "ON" else "OFF"} · DISASTERS {string.upper(room.disasters or "off")} · {map}`
+	-- the pixel face is monospaced, so the line can be sized to fit its bar exactly
+	if self.L then
+		local s = self.L.s
+		self.rules.TextSize = math.min(Ui.px(15 * s), math.floor((572 * s - 8) / (math.max(1, utf8.len(self.rules.Text) or 1) * Ui.ADVANCE)))
+	end
 
 	if phase ~= self.shownPhase then self.shownPhase, self.phaseShownAt = phase, self.now() end
 	for name, page in self.pages do page.Visible = name == phase end
@@ -695,13 +703,13 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		for i, slot in room.slots do
 			local voted = slot.userId ~= nil and slot[field] ~= nil
 			local label = if slot.userId then `{if voted then "✓" else "…"} {string.upper(slot.name or "PLAYER")}` elseif slot.bot then "CPU" else "OPEN"
-			local chip = text(self.pages[phase], label, math.floor(12 * s), if voted then INK else WHITE)
+			local chip = text(self.pages[phase], label, 12 * s, if voted then INK else WHITE)
 			chip.Name = "Chip" .. i
 			chip.BackgroundTransparency = 0
 			chip.BackgroundColor3 = if voted then GREEN else (if slot.bot then Color3.fromRGB(52, 64, 88) else PANEL)
 			corner(chip, 8)
 			stroke(chip, HudColors.TEAM[((slot.team or 0) % 2) + 1], 2)
-			place(chip, L.W / 2 - (n * (w + 8)) / 2 + (i - 1) * (w + 8), L.stripY, w, 28 * s)
+			place(chip, L.W / 2 - (n * (w + 8)) / 2 + (i - 1) * (w + 8), L.stripY - 4 * s, w, 34 * s)
 			table.insert(self.chips, chip)
 		end
 	end
@@ -839,7 +847,7 @@ function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell * 0.55, Color3.fromRGB(58, 68, 102), 1)
 		Canvas2D.rect(c, r.x - h, r.y + h * 0.66, L.cell, L.cell * 0.17, Color3.fromRGB(24, 20, 37), 1)
 		local s, char = standIn(self, "roster" .. i, avatar, r.id, 1, "idle", true)
-		drawStanding(c, s, char, r.x, r.y + L.cell * 0.42, L.cell * 0.82, 0)
+		drawStanding(c, s, char, r.x, r.y + L.cell * 0.36, L.cell * 0.64, 0)
 		c:screen()
 	end
 	-- the pedestals and who stands on them

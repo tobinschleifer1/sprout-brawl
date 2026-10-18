@@ -47,7 +47,7 @@ local function text(parent: Instance, x: number, y: number, w: number, h: number
 	t.Position = UDim2.fromOffset(x, y)
 	t.Size = UDim2.fromOffset(w, h)
 	t.Text = s
-	t.TextSize = math.max(10, Ui.px(size))
+	t.TextSize = math.max(12, Ui.px(size))
 	t.Font = FONT
 	t.TextColor3 = colour
 	t.TextXAlignment = align or Enum.TextXAlignment.Left
@@ -81,7 +81,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	stage.Name = "PodiumStage"
 	self.canvas = Canvas2D.inFrame(stage)
 
-	local title = text(root, 0, H * 0.1, W, H * 0.09, Podium.title(rows, res.teams), H * 0.075, GOLD, Enum.TextXAlignment.Center)
+	local title = text(root, 0, H * 0.1, W, H * 0.09, string.upper(Podium.title(rows, res.teams)), H * 0.06, GOLD, Enum.TextXAlignment.Center)
 	title.Name = "PodiumTitle"
 	title.Font = Ui.DISPLAY
 	title.TextTruncate = Enum.TextTruncate.None
@@ -121,11 +121,11 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		band.Name = "Band"
 		frame(band, 0, bandH - 3, s.card.w, 3, Ui.shade(if first then GOLD else colour, -0.45), 1).Name = "Ledge"
 		local pad = s.card.w * 0.06
-		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, Podium.ordinal(self.places[i]), rh * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
+		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, string.upper(Podium.ordinal(self.places[i])), rh * 0.8, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"
 		place.Font = Ui.DISPLAY
 		Ui.outline(place, math.max(2, math.floor(rh * 0.08)))
-		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.62, colour)
+		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.62, Ui.shade(colour, 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
 		Ui.outline(name, 2)

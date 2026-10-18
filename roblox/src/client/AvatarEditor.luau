@@ -274,9 +274,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 		self:refreshFooter()
 	end)
 	self.nameBox = nameBox
-	local count = label(preview, "Count", "", 11, DIM)
+	local count = label(preview, "Count", "", 9, DIM)
 	count.TextXAlignment = Enum.TextXAlignment.Center
-	count.Text = `{AvatarEditor.commas(AvatarKit.partCombinations())} possible characters, before a single colour`
+	count.TextWrapped = false
+	count.TextTruncate = Enum.TextTruncate.AtEnd
+	count.Text = `{AvatarEditor.commas(AvatarKit.partCombinations())} LOOKS, BEFORE COLOUR`
 	self.countLabel = count
 
 	-- Editor: tabs, parts, the option grid, colours.

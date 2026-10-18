@@ -23,7 +23,19 @@ for (const s of d.shapes) {
   else out += `<ellipse cx="${s[1]}" cy="${s[2]}" rx="${s[3]}" ry="${s[4]}" fill="${s[5]}" fill-opacity="${s[6]}"/>`;
 }
 out += '</g>';
+const clips = new Map();
 for (const n of d.nodes) {
+  // a node inside a ScrollingFrame (or a ClipsDescendants box) is cut off at its edges
+  let open = '';
+  if (n.clip) {
+    const key = n.clip.map((v) => Math.round(v * 10) / 10).join(',');
+    if (!clips.has(key)) {
+      clips.set(key, `c${clips.size}`);
+      out += `<clipPath id="c${clips.size - 1}"><rect x="${n.clip[0]}" y="${n.clip[1]}" width="${n.clip[2]}" height="${n.clip[3]}"/></clipPath>`;
+    }
+    open = `<g clip-path="url(#${clips.get(key)})">`;
+    out += open;
+  }
   const r = n.radius ? Math.min(n.radius, n.w / 2, n.h / 2) : 0;
   if (n.bg || n.stroke) {
     out += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${n.bg || 'none'}" fill-opacity="${n.bg ? n.bgAlpha : 0}"/>`;
@@ -60,6 +72,7 @@ for (const n of d.nodes) {
       out += `<text x="${tx}" y="${y}" fill="${n.colour}" font-family="${font}" font-weight="${weight}" font-size="${fsz}" text-anchor="${n.align}"${stroke}>${esc(ln)}</text>`;
     });
   }
+  if (open) out += '</g>';
 }
 fs.writeFileSync(output, out + '</svg>');
 console.log(`wrote ${output} (${d.shapes.length} shapes, ${d.nodes.length} nodes)`);

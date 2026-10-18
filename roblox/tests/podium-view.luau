@@ -93,7 +93,7 @@ for i, row in ffa.rows do
 	local function px(a: number, b: number): boolean return math.abs(a - b) < 1 end
 	assert(px(c.Position.X.Offset, s.card.x) and px(c.Position.Y.Offset, s.card.y), `card {i} at {c.Position.X.Offset},{c.Position.Y.Offset}; layout {s.card.x},{s.card.y}`)
 	assert(px(c.Size.X.Offset, s.card.w) and px(c.Size.Y.Offset, s.card.h), `card {i} is not the layout's size`)
-	assert(c:FindFirstChild("Place").Text == Podium.ordinal(i), `card {i} says {c:FindFirstChild("Place").Text}`)
+	assert(c:FindFirstChild("Place").Text == string.upper(Podium.ordinal(i)), `card {i} says {c:FindFirstChild("Place").Text}`)
 	assert(string.find(c:FindFirstChild("Name").Text, row.name, 1, true), `card {i} names the wrong fighter`)
 	for k, stat in Podium.STATS do
 		assert(c:FindFirstChild(`Label{k}`).Text == stat[1], `card {i} row {k} label`)
@@ -102,7 +102,7 @@ for i, row in ffa.rows do
 		checked += 1
 	end
 end
-assert(string.find(root:FindFirstChild("PodiumTitle").Text, "P1 wins", 1, true), "the title names the winner")
+assert(string.find(root:FindFirstChild("PodiumTitle").Text, "P1 WINS", 1, true), "the title names the winner")
 
 view:draw(10)
 assert(#drawn == 4, `{#drawn} figures drawn, want 4`)
@@ -150,17 +150,17 @@ local teams = { rows = rowsFor({ 0, 2, 1, 3 }, { 0, 0, 1, 1 }), winnerTeam = 0, 
 local gui2 = instance("ScreenGui")
 local tv = View.new(gui2, teams, chars, Rbx.Vector2.new(W, H), nil)
 local root2 = gui2:FindFirstChild("Podium")
-local want = { "1st", "1st", "2nd", "2nd" }
+local want = { "1ST", "1ST", "2ND", "2ND" }
 for i = 1, 4 do
 	assert(card(root2, i):FindFirstChild("Place").Text == want[i], `team card {i} says {card(root2, i):FindFirstChild("Place").Text}`)
 end
-assert(string.find(root2:FindFirstChild("PodiumTitle").Text, "Green team wins", 1, true), "team title")
+assert(string.find(root2:FindFirstChild("PodiumTitle").Text, "GREEN TEAM WINS", 1, true), "team title")
 -- A duel run as a team match (every lobby room is) names the player.
 local duel = { rows = rowsFor({ 1, 0 }, { 1, 0 }), winnerTeam = 1, teams = true }
 local gui3 = instance("ScreenGui")
 View.new(gui3, duel, chars, Rbx.Vector2.new(W, H), nil)
 local t3 = gui3:FindFirstChild("Podium"):FindFirstChild("PodiumTitle").Text
-assert(t3 == "P1 wins", `a 1v1 as teams is titled {t3}`)
+assert(t3 == "P1 WINS", `a 1v1 as teams is titled {t3}`)
 tv:draw(3)
 for i, d in drawn do
 	assert(d.state == (if i <= 2 then "victory" else "defeat"), `team figure {i} pose {d.state}`)

@@ -104,6 +104,7 @@ function Plaza2D.placeTop(self: any, inset: number)
 	self.inset = inset
 	self.title.Position = UDim2.fromOffset(18, inset + 6)
 	self.directions.Position = UDim2.fromOffset(18, inset + 38)
+	self.plate.Position = UDim2.fromOffset(8, inset)
 end
 
 -- The bottom row's right end: the CHARACTER button, and LobbySocial's button bar to its left
@@ -121,7 +122,11 @@ function Plaza2D.new(parent: Instance): any
 	gui.DisplayOrder, gui.Enabled, gui.Parent = 12, false, parent
 	self.gui = gui
 	-- The HUD is the shared pixel kit (Ui): outlined pixel words, bevelled square buttons, key caps.
-	local title = Ui.text(gui, string.upper(Realms.LOBBY.name), 26, Ui.GOLD, Ui.DISPLAY)
+	-- the place's name and what is here, in one window (made first, so it sits behind them)
+	local plate = Ui.panel(gui, "TitlePlate")
+	plate.BackgroundTransparency = 0.12
+	self.plate = plate
+	local title = Ui.text(gui, string.upper(Realms.LOBBY.name), 22, Ui.GOLD, Ui.DISPLAY)
 	title.Name = "Title"
 	title.Size = UDim2.new(1, -220, 0, 32)
 	title.TextXAlignment = Enum.TextXAlignment.Left
@@ -152,7 +157,7 @@ function Plaza2D.new(parent: Instance): any
 		BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0.04, BorderSizePixel = 0, AutoButtonColor = false, TextWrapped = true })
 	prompt.AnchorPoint = Vector2.new(0.5, 1)
 	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, -62), UDim2.new(1, -32, 0, 50)
-	Ui.make("UISizeConstraint", prompt, { MaxSize = Vector2.new(596, 50) })
+	Ui.make("UISizeConstraint", prompt, { MaxSize = Vector2.new(720, 50) })
 	Ui.corner(prompt, 0)
 	self.promptEdge = Ui.stroke(prompt, Ui.INK, 3)
 	self.promptRim = select(2, Ui.rim(prompt, Ui.PANEL2, 2, 0))
@@ -870,12 +875,18 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	c:finish()
 	self:placeTop(Ui.topInset())
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0
+	self.plate.Size = UDim2.fromOffset(math.min(math.max(gw - 16, 200),
+		math.max(Ui.textWidth(self.title.Text, 22), Ui.textWidth(self.directions.Text, 12)) + 24), 62)
 	self.controls.Visible = gw - Plaza2D.SOCIAL_BAR_W - 64 >= self.controlsW
 	local action = not self.blocked and near ~= nil
 	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
 		elseif near then `{if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
 		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade and the climb are east, the tailor is west."
 	self.prompt.Active = action
+	-- the card fits its words, so a short line is not a long bar and a long one does not leave a
+	-- word alone on a second line
+	self.prompt.Size = UDim2.new(0, math.min(math.max(gw - 32, 200), Ui.textWidth(self.prompt.Text, if action then 20 else 13)
+		+ (if action then 64 else 16) + 24), 0, 50)
 	-- an action (the E key, gold words, a gold rim) or a tip (soft words, no key)
 	if self.promptAction ~= action then
 		self.promptAction = action

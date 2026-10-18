@@ -154,17 +154,15 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.mapPanel = map
 
 	-- The log, bottom left.
-	local log = Instance.new("Frame")
-	log.Name, log.BackgroundColor3, log.BackgroundTransparency, log.BorderSizePixel = "Log", INK, 0.35, 0
-	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 12)
-	log.Parent = gui
-	corner(log, 10)
-	Ui.stroke(log, Ui.INK, 2)
+	-- (a window like the rest, see-through enough to keep the roofs behind it in view)
+	local log = Ui.panel(gui, "Log", Ui.PANEL2, "CHAT", 22)
+	log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3
+	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 34)
 	self.logFrame = log
 	self.logLines = {}
 	for i = 1, LobbySocial.LOG_LINES do
 		local l = label(log, "Line" .. i, "", 13)
-		l.Position, l.Size = UDim2.fromOffset(10, 6 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
+		l.Position, l.Size = UDim2.fromOffset(10, 28 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
 		l.TextTruncate = Enum.TextTruncate.AtEnd
 		self.logLines[i] = l
 	end
@@ -293,17 +291,17 @@ function LobbySocial.setMembers(self: any, list: any)
 		local row = Instance.new("Frame")
 		row.Name, row.BackgroundColor3, row.BorderSizePixel, row.LayoutOrder = "Member_" .. tostring(m.userId), Ui.PANEL2, 0, i
 		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
-		corner(row, 8)
+		corner(row, 0)
 		Ui.stroke(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
 		if type(m.avatar) == "string" and string.sub(m.avatar, 1, 2) == "k1" then
 			KitPortrait.draw(Canvas2D.inFrame(face), m.avatar, "head", 44, 44)
 		end
-		local name = label(row, "Name", (if m.userId == self.localId then m.name .. "  (you)" else tostring(m.name)), 15)
+		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
 		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
-		local where = label(row, "Where", tostring(m.where or ""), 12, if m.place == "fight" then PINK elseif m.place == "room" then AMBER else DIM)
+		local where = label(row, "Where", tostring(m.where or ""), 10, if m.place == "fight" then PINK elseif m.place == "room" then AMBER else DIM)
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
 		if m.place == "market" and m.userId ~= self.localId and m.x then
 			local go = button(row, "WarpTo", "WARP", function()
@@ -312,6 +310,8 @@ function LobbySocial.setMembers(self: any, list: any)
 			go.Position, go.Size = UDim2.new(1, -78, 0, 8), UDim2.fromOffset(70, 32)
 		end
 	end
+	-- the window fits its rows (up to the room the screen gives it; the list scrolls past that)
+	self.peoplePanel.Size = UDim2.fromOffset(340, math.clamp(36 + #list * 50 + 10, 140, 380))
 end
 
 return LobbySocial

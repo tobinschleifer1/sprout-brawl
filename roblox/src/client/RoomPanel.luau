@@ -85,7 +85,7 @@ function RoomPanel.buildNotice(self: any)
 	local card, band, title = Ui.panel(self.gui, "Notice", Ui.BLUE, "", 34)
 	card.AnchorPoint, card.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
 	card.Size = UDim2.new(1, -48, 0, 150)
-	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })
+	local cap = Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })
 	card.Visible = false
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	local message = Ui.text(card, "", 15, WHITE)
@@ -95,17 +95,38 @@ function RoomPanel.buildNotice(self: any)
 	local ok = Ui.button(card, "OK", Ui.BLUE, function() self:hide() end)
 	ok.Name = "Ok"
 	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(120, 38)
-	self.notice = { card = card, band = band, title = title, message = message, ok = ok }
+	-- a wait has no OK, so its card is only as tall as its message, with a row of pixel blocks
+	-- stepping along under it to say something is happening
+	local dots = Ui.make("Frame", card, { Name = "Working", BackgroundTransparency = 1, BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -14), Size = UDim2.fromOffset(5 * 14 - 4, 10) })
+	for k = 1, 5 do
+		Ui.make("Frame", dots, { Name = "Block" .. k, BackgroundColor3 = if k == 1 then Ui.GOLD else Ui.PANEL2, BorderSizePixel = 0,
+			Position = UDim2.fromOffset((k - 1) * 14, 0), Size = UDim2.fromOffset(10, 10) })
+	end
+	self.notice = { card = card, band = band, title = title, message = message, ok = ok, cap = cap, dots = dots }
 end
 -- `waiting`: a fight is on its way (no button); otherwise a problem to acknowledge.
 function RoomPanel.say(self: any, message: string, waiting: boolean)
 	local n = self.notice
 	n.title.Text = if waiting then "GET READY" else "HOLD ON"
-	n.band.BackgroundColor3 = if waiting then Ui.BLUE else Color3.fromRGB(176, 60, 60)
-	local square = n.band:FindFirstChild("Square")
-	if square then square.BackgroundColor3 = n.band.BackgroundColor3 end
+	Ui.paintBand(n.band, if waiting then Ui.BLUE else Ui.RED)
 	n.message.Text = message
 	n.ok.Visible = not waiting
+	n.dots.Visible = waiting
+	local h = if waiting then 124 else 150
+	n.card.Size, n.cap.MaxSize = UDim2.new(1, -48, 0, h), Vector2.new(460, h)
+	-- the lit block steps along while the wait lasts (one loop, stopped when the card goes)
+	if waiting and not n.stepping and type(task) == "table" then
+		n.stepping = true
+		local k = 1
+		local function step()
+			if not (n.dots.Visible and n.card.Visible and self.gui.Enabled) then n.stepping = false return end
+			k = k % 5 + 1
+			for _, b in n.dots:GetChildren() do b.BackgroundColor3 = if b.Name == "Block" .. k then Ui.GOLD else Ui.PANEL2 end
+			task.delay(0.18, step)
+		end
+		task.delay(0.18, step)
+	end
 	n.card.Visible = true
 	self.panel.Visible = false
 	self.gui.Enabled = true

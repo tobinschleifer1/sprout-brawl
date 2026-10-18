@@ -215,6 +215,21 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 				local a = tostring(o.TextXAlignment or "")
 				node.align = if string.find(a, "Left") then "start" elseif string.find(a, "Right") then "end" else "middle"
 			end
+			-- a ScrollingFrame, or a box with ClipsDescendants, cuts off what it holds, as in Roblox
+			local cur = o.Parent
+			while cur and BOXES[cur.ClassName] do
+				if cur.ClassName == "ScrollingFrame" or cur.ClipsDescendants == true then
+					local cx, cy, cw, chh = rect(cur)
+					local c = node.clip
+					if c then
+						local x0, y0 = math.max(c[1], cx), math.max(c[2], cy)
+						node.clip = { x0, y0, math.max(0, math.min(c[1] + c[3], cx + cw) - x0), math.max(0, math.min(c[2] + c[4], cy + chh) - y0) }
+					else
+						node.clip = { cx, cy, cw, chh }
+					end
+				end
+				cur = cur.Parent
+			end
 			local r = root(o)
 			table.insert(list, { order = (r and r.DisplayOrder or 0), i = i, node = node })
 		end

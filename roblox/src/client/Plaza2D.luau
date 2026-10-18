@@ -114,7 +114,7 @@ Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
 	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},
-		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, blocked = false, bannerAt = -10 }, Plaza2D)
+		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, isVip = nil, blocked = false, bannerAt = -10 }, Plaza2D)
 	self.input = InputClient.new()
 	local gui = Instance.new("ScreenGui")
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
@@ -868,7 +868,9 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 				local st = posed(peer.char, state, math.floor(clock * 60), peer.x, peer.z, peer.y, goal.facing or 1, if goal.moving then (goal.facing or 1) * 15 else 0, peer)
 				self:drawPerson(c, peer.char, st, peer.z, clock)
 				local head = peer.y + peer.z * D + peer.char.height
-				self:placeLabel(c, "name" .. id, peer.name or "", peer.x, head + 1.6, 12, WHITE, 180)
+				-- VIP names in gold (the server's VIP attribute on that player, read through `isVip`)
+				local gold = self.isVip and self.isVip(id)
+				self:placeLabel(c, "name" .. id, (if gold then "VIP  " else "") .. (peer.name or ""), peer.x, head + 1.6, 12, if gold then Ui.GOLD else WHITE, 180)
 				self:drawOverhead(c, id, peer.x, head + 1.4)
 			end)
 		end

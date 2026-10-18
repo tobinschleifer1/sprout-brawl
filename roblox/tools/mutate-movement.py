@@ -148,7 +148,7 @@ economy = [
     # ('spent before the serial' retired 2026-10-18: requests now run on a private copy of the inventory
     # that a failure discards (AvatarStore.inventoryTransaction), so a spend before the failure cannot
     # leak; tests/economy-security breaks the transaction itself.)
-    ('guarantee not saved', 'server/Economy', 'inv.pity[crateId] = nextPity', '', 'guarantee'),
+    ('guarantee not saved', 'server/Economy', 'track[crateId] = nextPity', '', 'guarantee'),
     ('free crafting', 'server/Economy', 'inv.sparks -= cost', '', 'did not cost'),
     ('salvage keeps it in existence', 'server/Economy', 'if ok then self.mint:destroy(result.id) end', '', 'still exists'),
     ('dropped item lost', 'server/Economy', '-- the vault could not be reached: the drop is a crate instead, never lost\n\t\tinv.crates[d.crate] = math.min(Inventory.MAX_COUNT, inv.crates[d.crate] + 1)', '-- lost', 'lost when the vault'),
@@ -159,6 +159,10 @@ economy = [
     ('no migration', 'shared/Inventory', 'elseif type(src.owned) == "table" then', 'elseif false then', 'did not migrate'),
     ('worn after removal', 'shared/Inventory', 'if not inv.owned[inst.i] then', 'if false then', 'left it worn'),
     ('uid collision', 'shared/Inventory', 'if num and num >= seq and num < Inventory.MAX_INTEGER then seq = num + 1 end', '', 'collide'),
+    ('paid opening on the earned count', 'server/Economy', 'local track = if paid then inv.paidPity else inv.pity', 'local track = inv.pity', 'from a paid key'),
+    ('CPU counts whole', 'server/Economy', '(if results.cpu then Economy.CPU_STEP else 1)', '1', 'CPU match moved'),
+    ('first win every win', 'server/Economy', 'if Economy.won(results, row) and inv.firstWin ~= day then', 'if Economy.won(results, row) then', 'second win'),
+    ('VIP Sparks ignored', 'server/Economy', 'local amount = math.floor(d.amount * (if vip then 1 + Economy.VIP_SPARKS else 1))', 'local amount = d.amount', 'VIP Spark drop'),
     ('banner without serial', 'DropBanner', 'local serial = if type(d.serial) == "number" and d.serial > 0 then `  #{d.serial}` else ""', 'local serial = ""', 'Starforged'),
 ]
 lockerui = [
@@ -179,6 +183,32 @@ lockerui = [
     ('refusal stays open', 'LockerScreen', 'if self.pending then self:closeOpening() end', '', 'stayed open'),
     ('unaffordable crafting', 'LockerScreen', 'if not m.affordable then self:say', 'if false then self:say', 'unaffordable craft'),
     ('no serial in result', 'LockerScreen', 'local serial = if res.serial and res.serial > 0 then `#{res.serial}` else ""', 'local serial = ""', 'lacks its serial'),
+]
+shop = [
+    ('featured differs by server', 'server/Shop', 'local s = (day * 7919 + 104729) % 2147483647', 'local s = (day * 7919 + math.floor(os.clock() * 1000003)) % 2147483647', 'disagree'),
+    ('featured any rarity', 'server/Shop', 'if it.source == "crate" and it.rarity == rarity then', 'if it.source == "crate" then', 'crate item at its price'),
+    ('keys shown to the restricted', 'server/Shop', 'if not restricted then\n\t\tfor _, b in Products.KEYS', 'if true then\n\t\tfor _, b in Products.KEYS', 'offered Forge Keys'),
+    ('policy fails open', 'server/Shop', 'return not ok or r ~= false', 'return ok and r == true', 'failed policy'),
+    ('unpriced keys prompted', 'server/Shop', 'if b.id == 0 then return false, "Forge Keys are not on sale yet" end', '', 'id 0 was prompted'),
+    ('restricted prompted', 'server/Shop', 'if self:restricted(userId) then return false, "Forge Keys are not available for your account" end', '', 'restricted player was prompted'),
+    ('owned prompted', 'server/Shop', 'if Inventory.owns(inv, pick.id) then return false, "you already own it" end', '', 'owned item was prompted'),
+    ('coming soon prompted', 'server/Shop', 'if not p.available then return false, `{p.name} is coming soon` end', '', 'coming-soon'),
+    ('keys granted twice', 'server/Economy', 'if table.find(inv.receipts, purchaseId) then return true, { already = true } end', '', 'granted keys twice'),
+    ('bought item unpaid', 'server/Shop', 'local uid, why = self.economy:_grant(inv, intent.id, true, "shop")', 'local uid, why = self.economy:_grant(inv, intent.id, false, "shop")', 'not marked paid'),
+    ('no credit', 'server/Shop', 'inv.credits[what] = math.min(Inventory.MAX_COUNT, inv.credits[what] + 1)', '', 'credit'),
+    ('credit never spent', 'server/Shop', 'i.credits[pick.rarity] -= 1', '', 'not redeemed'),
+    ('receipt store unchecked', 'server/Purchases', 'if seen then return "granted" end', '', 'granted again'),
+    ('receipt store failure ignored', 'server/Purchases', 'if not ok then return "later" end         -- cannot tell', 'if false then return "later" end         -- cannot tell', 'without checking'),
+    ('pass asked every time', 'server/Passes', 'if mine[id] == nil then', 'if true then', 'not remembered'),
+    ('pass items twice', 'server/Shop', 'if not Inventory.owns(self.economy:inventory(userId), id) then', 'if true then', 'twice'),
+    ('pass items unpaid', 'server/Shop', 'local uid = self.economy:grant(userId, id, true, "pass")', 'local uid = self.economy:grant(userId, id, false, "pass")', 'not marked paid'),
+    ('studio owns unbuilt passes', 'server/Passes', 'if self.studio then return p.available end', 'if self.studio then return true end', 'not built'),
+    ('outfits for everyone', 'server/Locker', 'return if ok and vip == true then Inventory.MAX_PRESETS else 1', 'return Inventory.MAX_PRESETS', 'without VIP'),
+    ('outfit wears unowned', 'server/Locker', 'if wear[key] and not self:owns(userId, wear[key]) then wear[key] = nil end', '', 'no longer owned'),
+    ('spawn effects ignored', 'FxPlayer', 'if not style or not s then return false end\n\t\tstyle(P, s.x, s.y, char.height)', 'if true then return false end\n\t\tstyle(P, s.x, s.y, char.height)', 'draws nothing'),
+]
+avatarstore = [
+    ('wardrobe ignored', 'server/AvatarStore', 'return if ok and has == true then AvatarStore.STORED_SLOTS else AvatarStore.MAX_SLOTS', 'return AvatarStore.MAX_SLOTS', 'ninth character would not save'),
 ]
 secondary = [
     ('missing rear hair', 'Secondary', 'layer.z == 10', 'layer.z == 999', 'catalogue tail missing or priority wrong'),
@@ -205,7 +235,7 @@ secondary = [
     ('unbounded art cache', 'Secondary', 'if #order > Secondary.CACHE_MAX then', 'if false then', 'secondary cache is unbounded'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('secondary', secondary)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -224,4 +254,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')

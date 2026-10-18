@@ -165,7 +165,7 @@ do
 	inv.keys.forge.earned, inv.keys.forge.paid = 1, 1
 	local ok1, r1 = econ:open(1, "forge")
 	assert(ok1 and not r1.paid and inv.keys.forge.earned == 0 and inv.keys.forge.paid == 1, "the paid key was spent before the earned one")
-	local ok2, r2 = econ:open(1, "forge", inv.pity.forge)
+	local ok2, r2 = econ:open(1, "forge", inv.paidPity.forge)
 	assert(ok2 and r2.paid and inv.items[r2.uid].p == true and inv.keys.forge.paid == 0, "an item from a paid key is not marked paid")
 	local g = Loot.CRATES.forge.guarantee
 	inv.crates.forge, inv.keys.forge.earned, inv.pity.forge = 1, 1, g.at - 1
@@ -176,6 +176,69 @@ do
 	local _, r4 = econ:open(1, "scrap")
 	local min = Loot.RARITY[Loot.CRATES.scrap.guarantee.min].rank
 	assert(inv.pity.scrap == (if Loot.RARITY[r4.rarity].rank >= min then 0 else before + 1), "the guarantee count was not saved")
+end
+
+-- 6b. Paid and earned keys keep separate guarantee counts: paid openings never bring an earned
+-- key's opening closer to its guarantee, the countdown shown is the next key's, and a paid opening
+-- must quote the paid count it was shown.
+do
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now, true), paidAllowed = function() return true end, rand = rng(44), time = function() return 7 end })
+	local inv = econ:inventory(1)
+	local g = Loot.CRATES.forge.guarantee
+	inv.crates.forge, inv.keys.forge.paid = 60, 60
+	assert(econ:view(1).guarantees.forge == g.at - inv.paidPity.forge, "with only paid keys, the countdown is not the paid one")
+	for _ = 1, 20 do
+		local okp, why = econ:open(1, "forge", inv.paidPity.forge)
+		assert(okp, `a paid opening was refused: {why}`)
+	end
+	assert(inv.pity.forge == 0, "paid openings moved the earned guarantee count")
+	assert(not econ:open(1, "forge", inv.paidPity.forge - 1), "a paid opening quoting a stale count went through")
+	inv.paidPity.forge = g.at - 1
+	inv.keys.forge.earned = 1
+	assert(econ:view(1).guarantees.forge == g.at, "with an earned key next, the countdown is not the earned one")
+	local okE, rE = econ:open(1, "forge")
+	assert(okE and not rE.paid and inv.pity.forge <= 1, "an earned opening used the paid guarantee count")
+	local okP, rP = econ:open(1, "forge", inv.paidPity.forge)
+	assert(okP and rP.paid and Loot.RARITY[rP.rarity].rank >= Loot.RARITY[g.min].rank, "the paid guarantee did not fire on its own count")
+end
+
+-- 6c. CPU matches count three quarters of one; the first win of the day pays, doubled for VIP;
+-- VIP adds a tenth to Spark drops.
+do
+	local t = 0
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, now, true), rand = rng(12), time = function() return t end })
+	local inv = econ:inventory(1)
+	inv.meter = 3
+	t += 400
+	local out = econ:matchFinished(1, { mode = "StockFFA", cpu = true, rows = {} }, row)
+	assert(out.counted and inv.meter == 2.25 and out.cpu, `a CPU match moved the meter to {inv.meter}`)
+	t += 400
+	econ:matchFinished(1, real, row)
+	assert(inv.meter == 1.25, "a human match did not count a whole one")
+	assert(DropBanner.text({ counted = true, left = 1.25 }) == "Next drop in 2 games", "the banner does not round the meter up")
+	-- a drop that overshoots carries the remainder into the next meter
+	inv.meter = 0.5
+	t += 400
+	local d = econ:matchFinished(1, { mode = "StockFFA", cpu = true, rows = {} }, row)
+	assert(d.drop and inv.meter >= 1.75 and inv.meter <= 4.75 and inv.meter % 0.25 == 0, `the remainder did not carry (meter {inv.meter})`)
+	-- first win
+	local winRow = { index = 0, damage = 20, taken = 5, fightFrames = 3600 }
+	local winRes = { mode = "StockFFA", rows = { winRow } }
+	t = 86400 * 500 + 10
+	local sparks = inv.sparks
+	local w = econ:matchFinished(1, winRes, winRow)
+	assert(w.firstWin == Economy.FIRST_WIN and inv.sparks == sparks + Economy.FIRST_WIN, "the first win of the day did not pay")
+	t += 400
+	assert(econ:matchFinished(1, winRes, winRow).firstWin == nil, "a second win the same day paid the bonus")
+	t += 86400
+	local lossRes = { mode = "StockFFA", rows = { { index = 5 }, winRow } }
+	assert(econ:matchFinished(1, lossRes, winRow).firstWin == nil, "a loss paid the first-win bonus")
+	local vip = Economy.new({ store = records(), mint = Mint.new(nil, now, true), rand = rng(12), time = function() return t end, vip = function() return true end })
+	assert(vip:matchFinished(1, winRes, winRow).firstWin == Economy.FIRST_WIN * 2, "VIP did not double the first-win bonus")
+	local vinv = vip:inventory(1)
+	local got = vip:_dropInto(vinv, { kind = "sparks", amount = 50 }, true)
+	assert(got.amount == 55, `a VIP Spark drop paid {got.amount}, not 55`)
+	assert(econ:_dropInto(inv, { kind = "sparks", amount = 50 }, false).amount == 50, "a Spark drop without VIP was changed")
 end
 
 -- 7. When the vault (the Mint's store) cannot be reached nothing is spent, and a dropped item

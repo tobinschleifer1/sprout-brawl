@@ -290,6 +290,11 @@ do
 			local b, p = cost({ type = "ko", fighter = 1, by = 0, x = 10, y = 4 }, { wearing("Sword", { ko = it.id }), bare })
 			assert(b <= KO_BUILD and p <= KO_PEAK, `{it.id} builds {b} rectangles and peaks at {p} (limits {KO_BUILD} / {KO_PEAK})`)
 			fxCost += 1
+		elseif it.type == "spawn_effect" then
+			-- a respawn is held to the KO limits: both are one moment, once a stock
+			local b, p = cost({ type = "respawn", fighter = 0 }, { wearing("Sword", { spawn = it.id }), bare })
+			assert(b > 0 and b <= KO_BUILD and p <= KO_PEAK, `{it.id} builds {b} rectangles and peaks at {p} (limits {KO_BUILD} / {KO_PEAK})`)
+			fxCost += 1
 		end
 	end
 	for k, f in saved do Canvas[k] = f end

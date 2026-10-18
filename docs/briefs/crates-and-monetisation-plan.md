@@ -269,8 +269,9 @@ Sparks. The odds never change per player either way.
 5. **Clothing sells one piece at a time** as well as in packs, and players can **draw their own**.
 6. **Estimated value** is worked out below; it is not built yet.
 
-Still open: Series 1's start date; VIP's contents (whether +20% Sparks is too strong); phase 6's
-answers. Decided 2026-10-18: GPT's clothing prices, 8-week seasons, volume pricing (above).
+Still open: Series 1's start date; phase 6's answers. Decided 2026-10-18: GPT's clothing prices,
+8-week seasons, volume pricing (above), the recommended VIP core, and CPU matches counting three
+quarters of a match toward the drop meter.
 
 ## VIP: what it could include (for the owner to pick, 2026-10-18)
 
@@ -486,7 +487,14 @@ miscounted match time. It also left these, which phase 5 must close before a key
    (press twice); CRATES with keys, the guarantee countdown, OPEN and ODDS & DETAILS; the crate
    reel landing on the server's roll; the Workshop (CRAFT, press twice). Thumbnails through the
    game's own renderers (`ItemArt`).
-5. Robux: keys (sold), the featured shop, passes, single clothing pieces and packs.
+5. **Robux (server done 2026-10-18; the Shop screen is GPT's):** `Products` (every price; ids 0 until
+   created in the Creator Dashboard), `Passes`, `Shop` (the daily featured four, key bundles hidden from
+   restricted players, prompts only for what is on sale, credits for a purchase with no remembered
+   choice), every receipt remembered permanently (`BlockfallReceipts1`) and granted inside the record's
+   own write, separate paid and earned guarantee counts, CPU matches at three quarters, VIP (gold name
+   and chat tag, +10% Spark drops, the VIP Gold Rush trail and VIP Sparkle respawn, double first-win
+   Sparks, five saved outfits), the Wardrobe's 16 characters. Respawn effects now draw. Clothing goes on
+   sale with phase 6, when it can be worn.
 6. Clothing and `k2`: GPT's pieces joined to the kit; Pixel Studio.
 7. Trading: session locking first, then the Trading Post; estimated value.
 8. Coming back: levels, season track, challenges, mastery, login calendar.

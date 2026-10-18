@@ -17,10 +17,28 @@ local Economy = {}
 Economy.__index = Economy
 
 Economy.QUALIFY_SECONDS, Economy.HOURLY_CAP = 45, 12
+-- A match with CPU fighters in it counts this much toward the drop meter (the owner: "a quarter less").
+Economy.CPU_STEP = 0.75
+-- The first win of each UTC day pays these Sparks; VIP doubles it. VIP adds VIP_SPARKS to Spark drops.
+Economy.FIRST_WIN, Economy.VIP_SPARKS = 25, 0.10
 
--- opts: { store = AvatarStore, mint = Mint, rand = () -> number, time = () -> number (os.time) }
+-- opts: { store = AvatarStore, mint = Mint, rand = () -> number, time = () -> number (os.time),
+--   paidAllowed = (userId) -> boolean (PolicyService), vip = (userId) -> boolean (the VIP pass) }
 function Economy.new(opts: any): any
-	return setmetatable({ store = opts.store, mint = opts.mint, rand = opts.rand or math.random, time = opts.time or os.time, paidAllowed = opts.paidAllowed }, Economy)
+	return setmetatable({ store = opts.store, mint = opts.mint, rand = opts.rand or math.random, time = opts.time or os.time,
+		paidAllowed = opts.paidAllowed, vip = opts.vip or function() return false end }, Economy)
+end
+local function isVip(self: any, userId: number?): boolean
+	if not userId then return false end
+	local ok, v = pcall(self.vip, userId)
+	return ok and v == true
+end
+-- Did this row win? The top row of a free-for-all, or anyone on the winning team.
+function Economy.won(results: any, row: any): boolean
+	if type(results) ~= "table" or type(row) ~= "table" then return false end
+	if results.winnerTeam ~= nil then return row.team == results.winnerTeam end
+	local first = results.rows and results.rows[1]
+	return first ~= nil and first.index == row.index
 end
 
 function Economy.inventory(self: any, userId: number): any
@@ -51,7 +69,7 @@ function Economy.qualifies(results: any, row: any): boolean
 end
 
 -- A match ended. Returns what the player is told: { counted, left, capped?, drop? }.
-function Economy._matchFinished(self: any, inv: any, results: any, row: any): any
+function Economy._matchFinished(self: any, inv: any, results: any, row: any, userId: number?): any
 	if not Economy.qualifies(results, row) then return { counted = false, left = inv.meter } end
 	local now = self.time()
 	local hour = math.floor(now / 3600)
@@ -68,24 +86,35 @@ function Economy._matchFinished(self: any, inv: any, results: any, row: any): an
 	if #times >= Economy.HOURLY_CAP then return { counted = false, capped = true, left = inv.meter } end
 	table.insert(times, now)
 	inv.earn.count += 1
-	inv.meter = (inv.meter or Loot.nextMeter(self.rand)) - 1
-	local out: any = { counted = true }
+	local vip = isVip(self, userId)
+	inv.meter = (inv.meter or Loot.nextMeter(self.rand)) - (if results.cpu then Economy.CPU_STEP else 1)
+	local out: any = { counted = true, cpu = results.cpu == true }
 	if inv.meter <= 0 then
-		out.drop = self:_dropInto(inv, Loot.rollDrop(self.rand))
-		inv.meter = Loot.nextMeter(self.rand)
+		out.drop = self:_dropInto(inv, Loot.rollDrop(self.rand), vip)
+		-- what is left of a quarter step carries into the next meter
+		inv.meter = Loot.nextMeter(self.rand) + inv.meter
+	end
+	-- the first win of the day
+	local day = math.floor(now / 86400)
+	if Economy.won(results, row) and inv.firstWin ~= day then
+		inv.firstWin = day
+		local bonus = Economy.FIRST_WIN * (if vip then 2 else 1)
+		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + bonus)
+		out.firstWin = bonus
 	end
 	out.left = inv.meter
 	return out
 end
 
 -- Apply a drop; returns what it was.
-function Economy._dropInto(self: any, inv: any, d: any): any
+function Economy._dropInto(self: any, inv: any, d: any, vip: boolean?): any
 	if d.kind == "crate" then
 		inv.crates[d.crate] = math.min(Inventory.MAX_COUNT, inv.crates[d.crate] + 1)
 		return { kind = "crate", crate = d.crate }
 	elseif d.kind == "sparks" then
-		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + d.amount)
-		return { kind = "sparks", amount = d.amount }
+		local amount = math.floor(d.amount * (if vip then 1 + Economy.VIP_SPARKS else 1))
+		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + amount)
+		return { kind = "sparks", amount = amount }
 	elseif d.kind == "key" then
 		inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + 1)
 		return { kind = "key", key = d.key }
@@ -113,12 +142,14 @@ function Economy._open(self: any, inv: any, crateId: any, expectedPity: any, use
 		if k.earned < 1 and k.paid < 1 then return false, "you need a Forge Key" end
 		paid = k.earned < 1
 	end
+	-- the guarantee count that applies: paid keys progress their own, never the earned one
+	local track = if paid then inv.paidPity else inv.pity
 	if paid then
 		local ok, allowed = pcall(function() return self.paidAllowed and self.paidAllowed(userId) end)
 		if not ok or allowed ~= true then return false, "paid keys are unavailable for this player" end
-		if expectedPity ~= inv.pity[crateId] then return false, "odds changed; refresh Odds & Details before opening" end
+		if expectedPity ~= track[crateId] then return false, "odds changed; refresh Odds & Details before opening" end
 	end
-	local id, rarity, nextPity = Loot.roll(crateId, inv.pity[crateId], self.rand)
+	local id, rarity, nextPity = Loot.roll(crateId, track[crateId], self.rand)
 	local uid, why = self:_grant(inv, id, paid, "crate")
 	if not uid then return false, why end
 	-- only now is anything spent
@@ -127,7 +158,7 @@ function Economy._open(self: any, inv: any, crateId: any, expectedPity: any, use
 		local k = inv.keys[crate.key]
 		if paid then k.paid -= 1 else k.earned -= 1 end
 	end
-	inv.pity[crateId] = nextPity
+	track[crateId] = nextPity
 	return true, { id = id, rarity = rarity, uid = uid, serial = inv.items[uid].s, paid = paid, copies = self.mint:copies(id) }
 end
 
@@ -161,8 +192,12 @@ function Economy.view(self: any, userId: number): any
 		table.insert(items, { uid = uid, id = inst.i, serial = inst.s, paid = inst.p, copies = self.mint:copies(inst.i) })
 	end
 	table.sort(items, function(a, b) return a.uid < b.uid end)
+	-- the countdown for the key the next opening will use (an earned one first)
 	local guarantees = {}
-	for id, crate in Loot.CRATES do guarantees[id] = crate.guarantee.at - inv.pity[id] end
+	for id, crate in Loot.CRATES do
+		local paidNext = crate.key ~= nil and inv.keys[crate.key].earned < 1 and inv.keys[crate.key].paid > 0
+		guarantees[id] = crate.guarantee.at - (if paidNext then inv.paidPity[id] else inv.pity[id])
+	end
 	return { sparks = inv.sparks, crates = table.clone(inv.crates), keys = { forge = inv.keys.forge.earned + inv.keys.forge.paid },
 		meter = inv.meter, guarantees = guarantees, items = items }
 end
@@ -193,8 +228,22 @@ function Economy._drop(self: any, userId: number, d: any): any
 end
 function Economy.matchFinished(self: any, userId: number, results: any, row: any): any
 	if not Economy.qualifies(results, row) then return { counted = false, left = self:inventory(userId).meter } end
-	local ok, result = self.store:inventoryTransaction(userId, function(inv) return true, self:_matchFinished(inv, results, row) end)
+	local ok, result = self.store:inventoryTransaction(userId, function(inv) return true, self:_matchFinished(inv, results, row, userId) end)
 	return if ok then result else { counted = false, error = result }
+end
+
+-- A Robux purchase, applied once: `fn(inv)` runs in the record's transaction, and the purchase id is
+-- remembered inside the same write, so a redelivered receipt finds it and grants nothing twice.
+function Economy.purchase(self: any, userId: number, purchaseId: string, fn: (any) -> (boolean, any)): (boolean, any)
+	return self.store:inventoryTransaction(userId, function(inv)
+		if table.find(inv.receipts, purchaseId) then return true, { already = true } end
+		local ok, res = fn(inv)
+		if ok then
+			table.insert(inv.receipts, purchaseId)
+			while #inv.receipts > Inventory.RECEIPTS do table.remove(inv.receipts, 1) end
+		end
+		return ok, res
+	end)
 end
 
 -- The remote supplies only a short catalogue id or an owned uid, never balances or roll results.

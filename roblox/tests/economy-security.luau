@@ -134,7 +134,7 @@ test("paid-key policy fails closed and binds the disclosed pity", function()
 		inv.keys.forge.earned = 1; assert(e:open(1, "forge", 0))
 	end
 	local e = setup(nil, function() return true end); local inv = e:inventory(1)
-	inv.crates.forge, inv.keys.forge.paid, inv.pity.forge = 1, 1, 39
+	inv.crates.forge, inv.keys.forge.paid, inv.paidPity.forge = 1, 1, 39   -- (paid keys keep their own guarantee count)
 	assert(not e:open(1, "forge", 0), "paid roll used odds different from the disclosure")
 	local ok, res = e:open(1, "forge", 39); assert(ok and res.paid and inv.items[res.uid].p)
 end)

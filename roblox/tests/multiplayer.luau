@@ -15,7 +15,9 @@ local function signal(): any
 end
 local players: any = { PlayerRemoving = signal() }
 local studio = false          -- RunService:IsStudio(): a live server unless a test says otherwise
-local run: any = { Heartbeat = signal(), PostSimulation = signal(), IsStudio = function() return studio end }
+local run: any = { Heartbeat = signal(), PostSimulation = signal(), IsStudio = function() return studio end,
+	PromptGamePassPurchaseFinished = signal(), UserOwnsGamePassAsync = function() return false end,
+	GetPolicyInfoForPlayerAsync = function() return { ArePaidRandomItemsRestricted = true } end }
 local remotes, messages = {}, {}
 -- Lobby presence arrives as a position buffer plus, only when it changed, a roster. Each player
 -- keeps the last roster they were sent, as the client does, and the message is recorded decoded -
@@ -68,7 +70,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" then return Loader.loadFrom("src/server/", name) end
+	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}

@@ -73,6 +73,7 @@ if RunService:IsServer() then
 		make("RemoteEvent", "Locker")               -- client -> server, wear / take off a cosmetic
 		make("RemoteEvent", "LockerView")           -- server -> client, what you own and wear
 		make("RemoteEvent", "Economy")              -- client -> server, open a crate / craft / salvage
+		make("RemoteEvent", "Shop")                 -- client -> server, buy a featured item, keys or a pass (prompts come back in EconomyView)
 		make("RemoteEvent", "EconomyView")          -- server -> client, your Sparks, crates, keys, items, and what just happened
 		folder.Parent = ReplicatedStorage
 	end

@@ -38,9 +38,9 @@ function Locker.botLoadout(i: number): any
 		hit = BOT_HITS[(i - 1) % #BOT_HITS + 1], ko = BOT_KOS[(i - 1) % #BOT_KOS + 1], trail = BOT_TRAILS[(i - 1) % #BOT_TRAILS + 1] })
 end
 
--- opts: { store = AvatarStore, studio = boolean }
+-- opts: { store = AvatarStore, studio = boolean, vip = (userId) -> boolean }
 function Locker.new(opts: any): any
-	return setmetatable({ store = opts.store, studio = opts.studio == true }, Locker)
+	return setmetatable({ store = opts.store, studio = opts.studio == true, vip = opts.vip }, Locker)
 end
 
 function Locker.inventory(self: any, userId: number): any
@@ -75,6 +75,27 @@ function Locker.apply(self: any, userId: number, msg: any): (boolean, string?)
 	elseif msg.action == "remove" then
 		ok, why = Inventory.equip(inv, nil, function() return false end,
 			if type(msg.slot) == "string" then msg.slot else nil, if type(msg.weapon) == "string" then msg.weapon else nil)
+	elseif msg.action == "savePreset" or msg.action == "wearPreset" then
+		-- saved outfits: a whole loadout in one slot (VIP has five, everyone else one)
+		local i = msg.slot
+		local cap = self:presets(userId)
+		if type(i) ~= "number" or i % 1 ~= 0 or i < 1 or i > cap then return false, `you have {cap} outfit slot{if cap == 1 then "" else "s"}` end
+		if msg.action == "savePreset" then
+			inv.presets[i] = Inventory.cleanLoadout(inv.equipped)
+			ok = true
+		else
+			local p = inv.presets[i]
+			if not p then return false, "that outfit slot is empty" end
+			-- only what is still owned is put on; the rest of the slot is left as it is
+			local wear = Inventory.cleanLoadout(p)
+			for weapon, id in wear.skins do if not self:owns(userId, id) then wear.skins[weapon] = nil end end
+			for slot in Inventory.SLOTS do
+				local key = Inventory.SLOTS[slot]
+				if wear[key] and not self:owns(userId, wear[key]) then wear[key] = nil end
+			end
+			inv.equipped = wear
+			ok = true
+		end
 	else
 		return false, "bad request"
 	end
@@ -82,14 +103,23 @@ function Locker.apply(self: any, userId: number, msg: any): (boolean, string?)
 	return ok, why
 end
 
--- What the client is shown: owned items (everything, in Studio) and what is worn.
+-- How many saved outfits this player has: Inventory.MAX_PRESETS with VIP (`opts.vip`), else one.
+function Locker.presets(self: any, userId: number): number
+	local ok, vip = pcall(function() return self.vip and self.vip(userId) end)
+	return if ok and vip == true then Inventory.MAX_PRESETS else 1
+end
+
+-- What the client is shown: owned items (everything, in Studio), what is worn, which outfit slots
+-- are filled.
 function Locker.view(self: any, userId: number): any
 	local inv = self:inventory(userId)
 	local owned = {}
 	for _, it in Cosmetics.LIST do
 		if self:owns(userId, it.id) then table.insert(owned, it.id) end
 	end
-	return { owned = owned, wearing = self:loadout(userId), studio = self.studio }
+	local presets = {}
+	for i = 1, self:presets(userId) do presets[i] = inv.presets[i] ~= nil and inv.presets[i] ~= false end
+	return { owned = owned, wearing = self:loadout(userId), studio = self.studio, presets = presets }
 end
 
 return Locker

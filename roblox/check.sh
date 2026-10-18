@@ -175,6 +175,7 @@ lune run tests/cosmetics
 lune run tests/economy
 lune run tests/economy-security
 lune run tests/locker-ui
+lune run tests/shop
 lune run tests/secondary
 echo "== faces: expressions from the player's own face (Roblox only) =="
 lune run tests/expressions

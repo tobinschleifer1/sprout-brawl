@@ -99,7 +99,8 @@ local hostile: { any } = { nil, 5, "x", { slots = "no" }, { slots = { 1, 2 } }, 
 	{ active = -1, slots = table.create(40, { name = "<script>", code = KNIGHT }) } }
 for i = 1, 7 do
 	local rec = AvatarStore.sanitize(hostile[i])
-	assert(#rec.slots >= 1 and #rec.slots <= AvatarStore.MAX_SLOTS, `hostile record {i}: {#rec.slots} slots`)
+	-- a record keeps up to STORED_SLOTS (the Wardrobe pass's limit), never more
+	assert(#rec.slots >= 1 and #rec.slots <= AvatarStore.STORED_SLOTS, `hostile record {i}: {#rec.slots} slots`)
 	assert(rec.active >= 1 and rec.active <= #rec.slots, `hostile record {i}: active {rec.active}`)
 	for _, sl in rec.slots do
 		assert(AvatarKit.canonical(sl.code) == sl.code, `hostile record {i}: code {sl.code}`)
@@ -123,5 +124,19 @@ do
 	assert(not st:apply(77, { action = "save", slot = 2, code = AvatarKit.encode(spec) }), "the other one is still locked")
 	local clean = AvatarStore.sanitize({ rewards = { "skylineCrown", 5, "skylineCrown", string.rep("x", 60) } })
 	assert(#clean.rewards == 1 and clean.rewards[1] == "skylineCrown", "a stored list is cleaned: strings, once each, short")
+end
+-- 9. The Wardrobe pass: eight characters without it, sixteen with it; the view says which.
+do
+	local w = AvatarStore.new(nil, clock)
+	local has = false
+	w.wardrobe = function() return has end
+	for slot = 1, AvatarStore.MAX_SLOTS do assert(w:apply(77, { action = "save", slot = slot, code = KNIGHT }), `slot {slot} would not save`) end
+	assert(not w:apply(77, { action = "save", slot = AvatarStore.MAX_SLOTS + 1, code = KNIGHT }), "a ninth character saved without the Wardrobe")
+	assert(w:view(77).max == AvatarStore.MAX_SLOTS, "the view's limit is not eight without the Wardrobe")
+	has = true
+	assert(w:apply(77, { action = "save", slot = AvatarStore.MAX_SLOTS + 1, code = KNIGHT }), "a ninth character would not save with the Wardrobe")
+	assert(w:view(77).max == AvatarStore.STORED_SLOTS, "the view's limit is not sixteen with the Wardrobe")
+	w.wardrobe = function() error("marketplace down") end
+	assert(w:slotsFor(77) == AvatarStore.MAX_SLOTS, "a failed pass check raised the limit")
 end
 print("PASS character store: defaults, batched writes that read back, slot rules, retried reads and writes, a failed read never overwrites, hostile records sanitised")

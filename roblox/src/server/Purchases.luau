@@ -22,9 +22,11 @@ Purchases.__index = Purchases
 
 Purchases.KEEP = 50        -- receipts remembered per player: far more than can be in flight at once
 
--- opts: { store = AvatarStore, player = (userId) -> Player? }
+-- opts: { store = AvatarStore, player = (userId) -> Player?, receipts = DataStore? }
+-- `receipts` remembers EVERY purchase id ever granted, one key each, so a receipt Roblox redelivers
+-- after more than KEEP newer purchases is still recognised (the record keeps only the latest KEEP).
 function Purchases.new(opts: any): any
-	return setmetatable({ store = opts.store, player = opts.player, handlers = {} }, Purchases)
+	return setmetatable({ store = opts.store, player = opts.player, receipts = opts.receipts, handlers = {} }, Purchases)
 end
 
 -- `fn(player, receipt) -> boolean`: apply the purchase, true if it was. It may yield.
@@ -43,6 +45,12 @@ function Purchases.process(self: any, receipt: any): string
 	local player = self.player(receipt.PlayerId)
 	if not player then return "later" end          -- not in this server: Roblox retries when they are
 	local userId = receipt.PlayerId
+	local mark = "r:" .. tostring(receipt.PurchaseId)
+	if self.receipts then
+		local ok, seen = pcall(function() return self.receipts:GetAsync(mark) end)
+		if not ok then return "later" end         -- cannot tell whether it was granted: ask again later
+		if seen then return "granted" end
+	end
 	local rec = self.store:load(userId)
 	local receipts = if type(rec.receipts) == "table" then rec.receipts else {}
 	rec.receipts = receipts
@@ -59,6 +67,15 @@ function Purchases.process(self: any, receipt: any): string
 	end
 	if self.store.store and not self.store:flush(userId) then
 		return "later"
+	end
+	if self.receipts then
+		-- written after the grant is saved; if this write fails the record's own window still holds
+		-- the id for the next KEEP purchases, and Roblox asks again
+		pcall(function()
+			self.receipts:UpdateAsync(mark, function(old: any)
+				return old or { u = userId, p = receipt.ProductId, t = os.time() }
+			end)
+		end)
 	end
 	return "granted"
 end

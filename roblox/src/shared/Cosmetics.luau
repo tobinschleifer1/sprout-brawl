@@ -157,6 +157,9 @@ add({ id = "title_ringleader", type = "title", name = "Ringleader", rarity = "Ra
 add({ id = "title_untouchable", type = "title", name = "Untouchable", rarity = "Epic", source = "mastery" })
 add({ id = "title_legend", type = "title", name = "Legend", rarity = "Legendary", source = "season" })
 add({ id = "title_vip", type = "title", name = "VIP", rarity = "Epic", source = "pass" })
+-- VIP's Series 1 cosmetic, and its respawn sparkle (Products.PASS_ITEMS): kept forever, not random.
+add({ id = "trail_vipgold", type = "swing_trail", name = "VIP Gold Rush", rarity = "Epic", source = "pass" })
+add({ id = "spawn_vipsparkle", type = "spawn_effect", name = "VIP Sparkle", rarity = "Epic", source = "pass" })
 
 Cosmetics.LIST = LIST
 local BY_ID: { [string]: Item } = {}

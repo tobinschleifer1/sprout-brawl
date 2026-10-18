@@ -19,6 +19,9 @@ local PLAZA_KIT: any = require(Shared.Data.AvatarKit)
 local MatchService = require(script.MatchService)
 local Locker = require(script.Locker)
 local Mint = require(script.Mint)
+local Passes = require(script.Passes)
+local Shop = require(script.Shop)
+local Products = require(Shared.Products)
 local Economy = require(script.Economy)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
@@ -39,18 +42,39 @@ local okMint, mintStore = pcall(function()
 	return game:GetService("DataStoreService"):GetDataStore("BlockfallMint1")
 end)
 local mint = Mint.new(if okMint then mintStore else nil, nil, RunService:IsStudio())
-local economy = Economy.new({ store = avatars, mint = mint, paidAllowed = function(userId: number): boolean
-	local player = Players:GetPlayerByUserId(userId)
-	if not player then return false end
-	local policy = game:GetService("PolicyService"):GetPolicyInfoForPlayerAsync(player)
-	return type(policy) == "table" and policy.ArePaidRandomItemsRestricted == false
-end })
+-- Roblox's paid random items policy, per player: asked once a session; unknown or failed is restricted.
+local restrictedFor: { [number]: boolean } = {}
+local function restricted(userId: number): boolean
+	if restrictedFor[userId] == nil then
+		local player = Players:GetPlayerByUserId(userId)
+		if not player then return true end
+		local ok, policy = pcall(function() return game:GetService("PolicyService"):GetPolicyInfoForPlayerAsync(player) end)
+		if not ok or type(policy) ~= "table" then return true end      -- asked again next time
+		restrictedFor[userId] = policy.ArePaidRandomItemsRestricted ~= false
+	end
+	return restrictedFor[userId]
+end
+-- Game passes (Passes; in Studio every available one is owned), and the shop (Shop).
+local MarketplaceService = game:GetService("MarketplaceService")
+local passes = Passes.new({ market = MarketplaceService, studio = RunService:IsStudio() })
+avatars.wardrobe = function(userId: number) return passes:owns(userId, "wardrobe") end
+locker.vip = function(userId: number) return passes:owns(userId, "vip") end
+local economy = Economy.new({ store = avatars, mint = mint,
+	paidAllowed = function(userId: number): boolean return not restricted(userId) end,
+	vip = function(userId: number): boolean return passes:owns(userId, "vip") end })
+local shop = Shop.new({ economy = economy, passes = passes, restricted = restricted })
 local loaded: any = {}
 local function sendEconomy(player: Player, event: any?)
 	if loaded[player.UserId] ~= player then return end
 	local view = economy:view(player.UserId)
+	view.shop = shop:view(player.UserId)
 	view.event = event
 	Net.remote("EconomyView"):FireClient(player, view)
+end
+-- VIP shows: a gold name and a [VIP] chat tag, read by every client from this attribute.
+local function markVip(player: Player)
+	local vip = passes:owns(player.UserId, "vip")
+	pcall(function() player:SetAttribute("VIP", vip) end)       -- (a test's stand-in player has no attributes)
 end
 avatars.wait = function(n: number) task.wait(n) end
 local climbs = ClimbProgress.new(avatars, #PARKOUR.course.checkpoints)
@@ -125,6 +149,8 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	loaded[player.UserId] = player
 	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
 	sendAvatars(player)
+	markVip(player)
+	shop:grantPassItems(player.UserId)
 	Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
 	sendEconomy(player)
 	local climbView = climbs:view(player.UserId)
@@ -367,7 +393,12 @@ end)
 -- Paid skips on the climb (SkipProducts): one checkpoint on from where the player is, saved as
 -- where they resume. Purchases applies a receipt once and grants it only once saved. A product id
 -- of 0 is one not created yet in the Creator Dashboard: nothing is registered, nothing sold.
-local purchases = Purchases.new({ store = avatars, player = function(userId: number) return loaded[userId] end })
+-- Every purchase id ever granted, one key each (Purchases), beyond the record's own last fifty.
+local okReceipts, receiptStore = pcall(function()
+	return game:GetService("DataStoreService"):GetDataStore("BlockfallReceipts1")
+end)
+local purchases = Purchases.new({ store = avatars, player = function(userId: number) return loaded[userId] end,
+	receipts = if okReceipts then receiptStore else nil })
 for index, productId in SkipProducts.IDS do
 	if productId ~= 0 then
 		purchases:on(productId, function(player: Player, receipt: any): boolean
@@ -389,6 +420,35 @@ for index, productId in SkipProducts.IDS do
 		end)
 	end
 end
+-- The shop's products: Forge Key bundles and the featured shop's tiers (Products; ids of 0 are not
+-- created yet and register nothing). Every grant is once per purchase id, in the record's own write.
+local function onShopReceipt(player: Player, receipt: any): boolean
+	local ok, res = shop:receipt(player.UserId, receipt.ProductId, tostring(receipt.PurchaseId))
+	if ok then
+		sendEconomy(player, { purchased = res })
+		Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
+	end
+	return ok
+end
+for _, b in Products.KEYS do if b.id ~= 0 then purchases:on(b.id, onShopReceipt) end end
+for _, t in Products.FEATURED do if t.id ~= 0 then purchases:on(t.id, onShopReceipt) end end
+Net.remote("Shop").OnServerEvent:Connect(function(player: Player, msg: any)
+	if loaded[player.UserId] ~= player or not admitted(player, "shop", 0.25) then return end
+	local ok, event = shop:request(player.UserId, msg)
+	if loaded[player.UserId] ~= player then return end
+	sendEconomy(player, if ok then event else { error = event })
+	if ok and event.purchased then Net.remote("LockerView"):FireClient(player, locker:view(player.UserId)) end
+end)
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
+	if not purchased or loaded[player.UserId] ~= player then return end
+	local id = passes:bought(player.UserId, passId)
+	if not id then return end
+	markVip(player)
+	shop:grantPassItems(player.UserId)
+	sendEconomy(player, { purchased = { kind = "pass", id = id } })
+	Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
+	sendAvatars(player)        -- the Wardrobe raises how many characters they may keep
+end)
 game:GetService("MarketplaceService").ProcessReceipt = function(receipt: any)
 	return if purchases:process(receipt) == "granted"
 		then Enum.ProductPurchaseDecision.PurchaseGranted else Enum.ProductPurchaseDecision.NotProcessedYet
@@ -559,6 +619,8 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	local id = player.UserId
 	loaded[id], poses[id], limits[id], rooms.profiles[id], presenceSig[id] = nil, nil, nil, nil, nil
 	departed[player] = true
+	passes:forget(id)
+	restrictedFor[id] = nil
 	climbs:leave(player.UserId)
 	local cab = arcade:leave(player)
 	if cab then

@@ -199,6 +199,22 @@ local function openLocker()
 	if hub.active and not hub.room and not roomOverlay() then locker:toggle() end
 end
 hub.onLocker = openLocker
+-- VIP: a gold name over a player in the plaza, and a gold [VIP] tag on their chat lines. Both read
+-- the VIP attribute the server sets on that player (from the pass); nothing here decides it.
+local function isVip(userId: number): boolean
+	local p = Players:GetPlayerByUserId(userId)
+	return p ~= nil and p:GetAttribute("VIP") == true
+end
+hub.isVip = isVip
+pcall(function()
+	game:GetService("TextChatService").OnIncomingMessage = function(message: TextChatMessage)
+		local props = Instance.new("TextChatMessageProperties")
+		if message.TextSource and isVip(message.TextSource.UserId) then
+			props.PrefixText = `<font color="#FFD24A">[VIP]</font> {message.PrefixText}`
+		end
+		return props
+	end
+end)
 Net.remote("LockerView").OnClientEvent:Connect(function(view: any) locker:setLocker(view) end)
 -- Stamps, quick messages, who is here, and warps (LobbySocial); the lobby draws what it hears.
 local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {

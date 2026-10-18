@@ -273,10 +273,45 @@ FxPlayer.KO_STYLES = {
 	end,
 } :: { [string]: (any, number, number) -> () }
 
+-- The spawn effects players can wear (Cosmetics, type spawn_effect; Roblox only): drawn where the
+-- wearer reappears after losing a stock. `x, y` are their feet, `h` their height.
+FxPlayer.SPAWN_STYLES = {
+	spawn_confetti = function(P: any, x: number, y: number, h: number)
+		add(P, "burst", x, y + h * 0.5, h * 1.1, 0.4, "gold", ONE)
+		scatter(P, x, y + h * 0.6, 8, h * 0.5, 1.0, "#FF8AC8")
+	end,
+	spawn_portal = function(P: any, x: number, y: number, h: number)
+		add(P, "ring", x, y + h * 0.5, h * 1.6, 0.5, "void", { seed = 0, sy = 1.4 })
+		add(P, "swirl", x, y + h * 0.5, h * 1.1, 0.5, "void", ONE)
+	end,
+	spawn_droppod = function(P: any, x: number, y: number, h: number)
+		add(P, "comet", x, y + h * 1.4, h * 1.4, 0.3, "wind", { rot = -math.pi / 2, seed = 0 })
+		add(P, "ring", x, y + 0.1, h * 2.2, 0.36, "smoke", { seed = 0, sy = 0.3, delay = 0.12 })
+	end,
+	spawn_lightning = function(P: any, x: number, y: number, h: number)
+		add(P, "bolt", x, y + h * 1.2, h * 2.4, 0.3, "volt", { rot = -math.pi / 2, seed = 0 })
+		add(P, "pop", x, y + 0.2, h * 0.9, 0.24, "volt", { seed = 0, delay = 0.06 })
+		flash(P, 0.12, "#9BE8FF")
+	end,
+	spawn_vipsparkle = function(P: any, x: number, y: number, h: number)
+		add(P, "star", x, y + h * 0.55, h * 0.9, 0.36, "gold", ONE)
+		scatter(P, x, y + h * 0.55, 6, h * 0.55, 0.9, "gold", "star")
+	end,
+} :: { [string]: (any, number, number, number) -> () }
+
 -- Returns true when this event was drawn here, so the caller can leave out the plain impact rings
 -- Effects would draw over it (see FightScene.spawn).
 function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolean
 	local t = e.type
+	if t == "respawn" then
+		-- the reappearing fighter's spawn effect, if they wear one
+		local s = stateOf(states, e.fighter)
+		local char = if e.fighter ~= nil then chars[e.fighter + 1] else nil
+		local style = char and char.cosmetics and char.cosmetics.spawn and FxPlayer.SPAWN_STYLES[char.cosmetics.spawn]
+		if not style or not s then return false end
+		style(P, s.x, s.y, char.height)
+		return true
+	end
 	if t == "ko" then
 		-- the stock's taker's KO effect, if they wear one; otherwise the plain burst (Effects)
 		local by = if type(e.by) == "number" and e.by >= 0 then chars[e.by + 1] else nil

@@ -23,7 +23,7 @@ ItemArt.FX = {
 	ko_pixelshatter = { "xslash", 1, "#E8ECF2" }, ko_meteor = { "comet", 1, "fire" }, ko_blackhole = { "cyclone", 2, "void" },
 	ko_dragonsbreath = { "burst", 2, "fire" },
 	spawn_confetti = { "burst", 1, "gold" }, spawn_portal = { "ring", 2, "void" }, spawn_droppod = { "comet", 1, "wind" },
-	spawn_lightning = { "bolt", 1, "volt" },
+	spawn_lightning = { "bolt", 1, "volt" }, spawn_vipsparkle = { "star", 1, "gold" },
 	shield_hex = { "ring", 3, "#7FD4FF" }, shield_crystal = { "ring", 3, "#CFEFFF" }, shield_runes = { "ring", 3, "gold" },
 	steps_leaves = { "pop", 3, "#5FD068" }, steps_sparkle = { "spark", 1, "#FFF4C8" }, steps_flame = { "pop", 2, "fire" },
 } :: { [string]: { any } }

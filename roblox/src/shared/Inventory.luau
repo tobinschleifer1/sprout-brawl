@@ -9,7 +9,9 @@
 --     owned     an index rebuilt from `items` on every read (not trusted from storage): id -> true
 --     equipped  one item per slot, and a weapon skin per weapon
 --     sparks, crates { scrap, forge }, keys { forge = { earned, paid } }, pity { scrap, forge }
---               (openings since the last guaranteed-tier item), meter (qualifying matches until the
+--               (openings since the last guaranteed-tier item; paidPity the same for paid keys),
+--               receipts (purchase ids granted in this record), presets (saved loadouts), firstWin
+--               (the UTC day of the last first-win bonus), meter (qualifying matches until the
 --               next drop), earn { hour, count, times } (legacy hour bucket and rolling timestamps), seq (the
 --               next uid)
 --   the LOADOUT, what a fighter carries into a match: only what is equipped, as plain ids.
@@ -27,9 +29,12 @@ Inventory.SLOTS = {
 local TYPE_OF: { [string]: string } = {}
 for t, slot in Inventory.SLOTS do TYPE_OF[slot] = t end
 Inventory.MAX_OWNED = 2000
+Inventory.RECEIPTS = 50                -- purchase ids granted inside the record (Purchases keeps every one too)
+Inventory.MAX_PRESETS = 5              -- saved cosmetic loadouts (VIP: five; everyone else: one)
 Inventory.MAX_COUNT = 1000000          -- any balance (Sparks, crates, keys) is clamped to this
 Inventory.CRATES = { "scrap", "forge" }
-Inventory.SOURCES = { drop = true, crate = true, craft = true, shop = true, grant = true, migrated = true }
+Inventory.SOURCES = { drop = true, crate = true, craft = true, shop = true, grant = true, migrated = true, pass = true }
+Inventory.CREDIT_RARITIES = { "Uncommon", "Rare", "Epic", "Legendary" }
 
 export type Loadout = { skins: { [string]: string }, [string]: any }
 export type Instance = { i: string, s: number, p: boolean, t: number, src: string }
@@ -120,7 +125,34 @@ function Inventory.sanitize(raw: any): any
 		crates = pair(src.crates, Inventory.CRATES),
 		keys = { forge = { earned = count(keySrc.earned), paid = count(keySrc.paid) } },
 		pity = pair(src.pity, Inventory.CRATES),
-		meter = if type(src.meter) == "number" and src.meter >= 1 and src.meter <= 5 then math.floor(src.meter) else nil,
+		-- openings with PAID keys since the last guaranteed-tier item: kept apart from earned ones,
+		-- so paid progress can never make an earned key's opening the guaranteed one
+		paidPity = pair(src.paidPity, Inventory.CRATES),
+		-- in quarters: a match against CPU fighters counts three quarters of one
+		meter = if type(src.meter) == "number" and src.meter > 0 and src.meter <= 5 then math.ceil(src.meter * 4) / 4 else nil,
+		firstWin = integer(src.firstWin, Inventory.MAX_INTEGER),
+		-- featured-shop purchases that arrived without a remembered choice: one item of that rarity
+		-- each, chosen later (a purchase is never lost, and never turned into Sparks)
+		credits = pair(src.credits, Inventory.CREDIT_RARITIES),
+		receipts = (function()
+			local out = {}
+			if type(src.receipts) == "table" then
+				for _, id in src.receipts do
+					if type(id) == "string" and #id <= 100 and #out < Inventory.RECEIPTS then table.insert(out, id) end
+				end
+			end
+			return out
+		end)(),
+		presets = (function()
+			local out = {}
+			if type(src.presets) == "table" then
+				for i = 1, Inventory.MAX_PRESETS do
+					local p = src.presets[i]
+					out[i] = if type(p) == "table" then Inventory.cleanLoadout(p) else false
+				end
+			end
+			return out
+		end)(),
 		earn = { times = times, hour = integer(type(src.earn) == "table" and src.earn.hour, Inventory.MAX_INTEGER), count = count(type(src.earn) == "table" and src.earn.count) },
 	}
 	reindex(inv)

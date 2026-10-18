@@ -22,6 +22,8 @@ local AvatarStore = {}
 AvatarStore.__index = AvatarStore
 
 AvatarStore.MAX_SLOTS = 8
+-- what a record keeps (the Wardrobe pass raises a player's limit to this; a lost pass keeps them)
+AvatarStore.STORED_SLOTS = 16
 AvatarStore.MAX_NAME = 20
 AvatarStore.VERSION = 1
 AvatarStore.SAVE_DELAY = 6          -- seconds: a burst of edits is one write, not twenty
@@ -44,7 +46,7 @@ function AvatarStore.sanitize(raw: any): any
 	local src = if type(raw) == "table" then raw else {}
 	local slots = {}
 	if type(src.slots) == "table" then
-		for i = 1, AvatarStore.MAX_SLOTS do
+		for i = 1, AvatarStore.STORED_SLOTS do
 			local s = src.slots[i]
 			if type(s) ~= "table" then
 				break
@@ -156,13 +158,20 @@ function AvatarStore.active(self: any, userId: number): string
 end
 
 -- What the creator shows its owner.
+-- How many characters this player may keep: MAX_SLOTS, or STORED_SLOTS with the Wardrobe pass
+-- (`self.wardrobe(userId)`, set by the server entry point).
+function AvatarStore.slotsFor(self: any, userId: number): number
+	local ok, has = pcall(function() return self.wardrobe and self.wardrobe(userId) end)
+	return if ok and has == true then AvatarStore.STORED_SLOTS else AvatarStore.MAX_SLOTS
+end
+
 function AvatarStore.view(self: any, userId: number): any
 	local rec = self:load(userId)
 	local slots = {}
 	for i, s in rec.slots do
 		slots[i] = { name = s.name, code = s.code }
 	end
-	return { slots = slots, active = rec.active, max = AvatarStore.MAX_SLOTS,
+	return { slots = slots, active = rec.active, max = self:slotsFor(userId),
 		saving = self.loaded[userId] == true, note = self.notes[userId], unlocked = table.clone(rec.rewards) }
 end
 
@@ -177,8 +186,9 @@ function AvatarStore.apply(self: any, userId: number, msg: any): (boolean, strin
 		return false, "Bad slot."
 	end
 	if msg.action == "save" then
-		if i > #rec.slots + 1 or i > AvatarStore.MAX_SLOTS then
-			return false, `You can keep {AvatarStore.MAX_SLOTS} characters. Delete one first.`
+		local cap = self:slotsFor(userId)
+		if i > #rec.slots + 1 or i > cap then
+			return false, `You can keep {cap} characters. Delete one first.`
 		end
 		local code = AvatarKit.canonical(msg.code)
 		if not code then

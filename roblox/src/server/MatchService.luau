@@ -296,8 +296,11 @@ function MatchService.results(self: any): any
 			stocks = row.stocks, score = row.score,
 		})
 	end
+	-- whether CPU fighters took part: such a match counts less toward the drop meter (Economy)
+	local cpu = false
+	for _, f in m.fighters do if not self.userIds[f.source] then cpu = true end end
 	return {
-		rows = rows, winnerTeam = r.winnerTeam, teams = r.teams, mode = r.mode, timed = r.timed,
+		rows = rows, winnerTeam = r.winnerTeam, teams = r.teams, mode = r.mode, timed = r.timed, cpu = cpu,
 		frames = m.frame, time = m.time,
 	}
 end

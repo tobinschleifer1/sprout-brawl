@@ -230,6 +230,7 @@ Weapons2D.TRAILS = {
 	trail_glitch = { "#FF3CD8", "#3CFFE8", "#FFFFFF" },
 	trail_rainbow = { "#FF3A3A", "#FF9A3C", "#FFE03C", "#5FD068", "#2FA8FF", "#8A3FE0" },
 	trail_gold = { "#E8A61C", "#FFE07A" },
+	trail_vipgold = { "#FFD24A", "#FFFFFF", "#E8A61C" },
 } :: { [string]: { string } }
 
 function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any, scale: number?, worn: string?)

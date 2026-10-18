@@ -236,6 +236,26 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	self.lockerBody = body("LockerTab")
 	self.lockerChips = filters(self.lockerBody, function(f) self.filter = f; self:refresh() end)
 	self.lockerGrid = grid(self.lockerBody, Vector2.new(168, 206))
+	-- saved outfits, at the end of the filter row: a number puts that outfit on; SAVE, then a number,
+	-- saves what you wear into it
+	self.saveMode = false
+	self.outfitButtons = {}
+	local outfits = Ui.make("Frame", self.lockerBody, { Name = "Outfits", BackgroundTransparency = 1, BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 2), Size = UDim2.fromOffset(300, 30) })
+	local save = Ui.button(outfits, "SAVE", Ui.PANEL2, function()
+		self.saveMode = not self.saveMode
+		self:say(if self.saveMode then "Pick an outfit slot to save what you are wearing" else "", Ui.GOLD)
+		self:refresh()
+	end, { size = 13, small = true })
+	save.Name = "SaveOutfit"
+	save.Position, save.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(64, 30)
+	self.saveOutfit = save
+	for i = 1, Inventory.MAX_PRESETS do
+		local b = Ui.button(outfits, tostring(i), Ui.PANEL2, function() self:outfit(i) end, { size = 14, small = true })
+		b.Name = "Outfit" .. i
+		b.Position, b.Size = UDim2.fromOffset(70 + (i - 1) * 46, 0), UDim2.fromOffset(40, 30)
+		self.outfitButtons[i] = b
+	end
 	self.cratesBody = body("CratesTab")
 	self.workshopBody = body("WorkshopTab")
 	self.workshopChips = filters(self.workshopBody, function(f) self.workshopFilter = f; self:refresh() end)
@@ -375,6 +395,36 @@ function LockerScreen.refreshLocker(self: any)
 	elseif self.message.Text == EMPTY then self:say("") end
 end
 
+-- An outfit slot pressed: save into it (after SAVE) or put it on.
+function LockerScreen.outfit(self: any, i: number)
+	local slots = self.locker and self.locker.presets or {}
+	if i > #slots then
+		self:say(if #slots <= 1 then "VIP has five outfit slots" else "That slot is not yours", Ui.DIM)
+		return
+	end
+	if self.saveMode then
+		self.saveMode = false
+		self.opts.sendLocker({ action = "savePreset", slot = i })
+		self:say(`Saved to outfit {i}`, Ui.GREEN)
+	elseif slots[i] then
+		self.opts.sendLocker({ action = "wearPreset", slot = i })
+	else
+		self:say(`Outfit {i} is empty: press SAVE, then {i}`, Ui.DIM)
+	end
+	self:refresh()
+end
+
+function LockerScreen.refreshOutfits(self: any)
+	local slots = self.locker and self.locker.presets or {}
+	Ui.paint(self.saveOutfit, if self.saveMode then Ui.GOLD else Ui.PANEL2)
+	for i, b in self.outfitButtons do
+		local mine = i <= #slots
+		b.Visible = mine or i == #slots + 1      -- one locked slot shows, so VIP's extra slots are discoverable
+		b.Text = if mine then tostring(i) else "VIP"
+		Ui.paint(b, if not mine then Ui.PANEL else if slots[i] then Ui.BLUE else Ui.PANEL2)
+	end
+end
+
 function LockerScreen.refreshCrates(self: any)
 	for _, m in LockerScreen.crates(self.economy) do
 		local c = self.crateCards[m.id]
@@ -383,7 +433,7 @@ function LockerScreen.refreshCrates(self: any)
 		c.guarantee.Text = m.guarantee
 		Ui.paint(c.open, if m.canOpen then Ui.GREEN else Ui.PANEL2)
 	end
-	local left = self.economy and self.economy.meter
+	local left = self.economy and self.economy.meter and math.ceil(self.economy.meter)
 	self.meter.Text = if left then `Next drop in {left} {if left == 1 then "game" else "games"}` else "Play a match to start your drop meter"
 end
 
@@ -418,7 +468,7 @@ function LockerScreen.refresh(self: any)
 	for id, b in self.tabs do Ui.paint(b, if id == self.tab then Ui.PURPLE else Ui.PANEL2) end
 	for id, b in self.lockerChips do Ui.paint(b, if id == self.filter then Ui.BLUE else Ui.PANEL2) end
 	for id, b in self.workshopChips do Ui.paint(b, if id == self.workshopFilter then Ui.BLUE else Ui.PANEL2) end
-	if self.tab == "locker" then self:refreshLocker()
+	if self.tab == "locker" then self:refreshLocker(); self:refreshOutfits()
 	elseif self.tab == "crates" then self:refreshCrates()
 	else self:refreshWorkshop() end
 end

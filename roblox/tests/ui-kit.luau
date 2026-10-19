@@ -27,6 +27,7 @@ end
 local function new(class: string): any
 	local props: any = { ClassName = class, Activated = signal(), Name = class, _children = {} }
 	props.FindFirstChild = function(_, name) for _, ch in props._children do if ch.Name == name then return ch end end return nil end
+	props.GetChildren = function() return table.clone(props._children) end
 	local self: any
 	self = setmetatable({}, { __index = props, __newindex = function(_, k, v)
 		props[k] = v
@@ -180,8 +181,65 @@ do
 	if Ui.px(20) ~= math.floor(20 * T.scale + 0.5) or Ui.px(20, "Font.Arcade") ~= math.floor(20 * Ui.ARCADE_SCALE + 0.5) then fail("px does not scale by face") end
 end
 
+-- the arcade theme (the game's, the owner's 2026-10-19 direction): pale windows with dark words that
+-- read, a pixel kit's buttons - an outline in the button's own colour darkened, a light band over
+-- the top, a dark lip - and saturated cards whose gradient, border and lip recolour together
+Ui.useTheme("arcade")
+do
+	local function lum(c: any): number
+		local function ch(v: number): number return if v <= 0.03928 then v / 12.92 else ((v + 0.055) / 1.055) ^ 2.4 end
+		return 0.2126 * ch(c.R) + 0.7152 * ch(c.G) + 0.0722 * ch(c.B)
+	end
+	local function contrast(a: any, b: any): number
+		local x, y = lum(a), lum(b)
+		return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05)
+	end
+	-- (the test loader's Color3 is a plain table: colours compare by their channels)
+	local function same(a: any, b: any): boolean
+		return a ~= nil and b ~= nil and math.abs(a.R - b.R) + math.abs(a.G - b.G) + math.abs(a.B - b.B) < 1e-6
+	end
+	if not Ui.lightPanels() then fail("the arcade theme's windows are not pale") end
+	if contrast(Ui.TEXT, Ui.PANEL) < 7 or contrast(Ui.TEXT, Ui.PANEL2) < 7 then fail("dark words on the window are under 7:1") end
+	if contrast(Ui.SUB, Ui.PANEL) < 4.5 then fail("secondary words on the window are under 4.5:1") end
+	local function strokes(o: any): (any, any)
+		local border, letters
+		for _, ch in o._children do
+			if ch.ClassName == "UIStroke" then
+				if ch.ApplyStrokeMode == "ApplyStrokeMode.Contextual" then letters = ch else border = ch end
+			end
+		end
+		return border, letters
+	end
+	local b = Ui.button(new("Frame"), "GO", Ui.GREEN)
+	local border, letters = strokes(b)
+	if not border or not same(border.Color, Ui.tone(Ui.GREEN)) or same(Ui.tone(Ui.GREEN), Ui.INK) then fail("a button's border is not its own colour darkened") end
+	if not letters or not same(letters.Color, Ui.tone(Ui.GREEN)) then fail("a button's letters are not outlined in its own colour darkened") end
+	local shine, lip = child(b, "Shine"), child(b, "Lip")
+	if Ui.light(shine.BackgroundColor3) <= Ui.light(Ui.GREEN) or shine.Size.Y.Scale < 0.2 then fail("a button has no light band over its top") end
+	if Ui.light(lip.BackgroundColor3) >= Ui.light(Ui.GREEN) or lip.Size.Y.Offset < 4 then fail("a button has no dark lip") end
+	Ui.paint(b, Ui.RED)
+	if not same(border.Color, Ui.tone(Ui.RED)) or not same(letters.Color, Ui.tone(Ui.RED)) or not same(b.TextColor3, Ui.WHITE) then fail("paint left the old colour's outline") end
+	Ui.paint(b, Ui.GOLD, Ui.WHITE)
+	if not same(b.TextColor3, Ui.tone(Ui.GOLD)) then fail("a gold button kept white letters") end
+	-- dark words are not outlined; light ones are
+	local _, darkLetters = strokes(Ui.text(new("Frame"), "HI", 20, Ui.TEXT, Ui.DISPLAY))
+	local _, lightLetters = strokes(Ui.text(new("Frame"), "HI", 20, Ui.WHITE, Ui.DISPLAY))
+	if darkLetters or not lightLetters then fail("dark words are outlined, or light ones are not") end
+	-- a card, and paintCard recolouring all of it
+	local card = Ui.card(new("Frame"), "Card", Ui.SKY)
+	local grad = child(card, "UIGradient")
+	local cardBorder = strokes(card)
+	if not grad or not child(card, "Lip") or not cardBorder or not same(cardBorder.Color, Ui.tone(Ui.SKY)) then fail("a card has no gradient, lip or own-colour border") end
+	Ui.paintCard(card, Ui.VIOLET)
+	if not same(card.BackgroundColor3, Ui.VIOLET) or not same(cardBorder.Color, Ui.tone(Ui.VIOLET)) or not same(grad.Color.Keypoints[2].Value, Ui.VIOLET)
+		or not same(child(card, "Lip").BackgroundColor3, Ui.shade(Ui.VIOLET, -0.28)) then fail("paintCard left part of the card in the old colour") end
+	local word, wordOutline = Ui.faceText(new("Frame"), "Starforged", 17, Ui.SUN)
+	if not same(word.TextColor3, Ui.WHITE) or not same(wordOutline.Color, Ui.tone(Ui.SUN)) then fail("words on a card are not white outlined in its own shade") end
+	if not child(Ui.band(new("Frame"), Ui.RED, 40), "Shine") then fail("an arcade header bar has no light band") end
+end
+
 -- widths grow with the words; no top bar outside Roblox
 if Ui.textWidth("ABCDEFGHIJ", 10) ~= 2 * Ui.textWidth("ABCDE", 10) or Ui.textWidth("ABCDE", 20) ~= 2 * Ui.textWidth("ABCDE", 10) then fail("text widths do not scale") end
 if Ui.topInset() ~= 0 then fail("a top inset outside Roblox") end
 
-print("PASS ui kit: clean theme (rounded, flat, smooth faces, rounded header bars), pixel theme (square windows with rims), shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")
+print("PASS ui kit: arcade theme (pale windows at 7:1, own-colour outlines that repaint, light band and lip, dark words bare, cards that recolour whole), clean theme (rounded, flat, smooth faces, rounded header bars), pixel theme (square windows with rims), shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")

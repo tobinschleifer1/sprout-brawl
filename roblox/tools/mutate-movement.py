@@ -311,6 +311,17 @@ emotes = [
     ('losers use victory item', 'PodiumView', 'if won then st.victoryPose = Emotes.poseFor(char.cosmetics) end', 'st.victoryPose = Emotes.poseFor(char.cosmetics)', 'loser uses victory cosmetic'),
 ]
 
+uikit = [
+    ('outlines in ink', 'Ui', 'if not theme.tone then return Ui.INK end\n\treturn Ui.shade(c, -0.58)', 'if not theme.tone then return Ui.INK end\n\treturn Ui.INK', 'own colour darkened'),
+    ('paint keeps the old border', 'Ui', 'if p.border and theme.tone then p.border.Color = Ui.tone(colour) end', 'if false then p.border.Color = Ui.tone(colour) end', "old colour's outline"),
+    ('no light band', 'Ui', 'elseif arcade then UDim2.new(1, -8, 0.3, -2)', 'elseif arcade then UDim2.new(1, -8, 0, 3)', 'no light band'),
+    ('dark words outlined', 'Ui', 'local dark = colour ~= nil and Ui.light(colour) < 0.45', 'local dark = false', 'dark words are outlined'),
+    ('card gradient kept', 'Ui', 'if ch.ClassName == "UIGradient" then ch.Color = ColorSequence.new(Ui.shade(colour, 0.32), colour)', 'if ch.ClassName == "UIGradient" then local _ = colour', 'paintCard left part'),
+    ('pale words on the window', 'Ui', 'TEXT = Color3.fromRGB(43, 33, 64), SUB', 'TEXT = Color3.fromRGB(150, 140, 160), SUB', 'under 7:1'),
+    ('card words outlined in ink', 'Ui', 'else 1, Ui.tone(face))', 'else 1, Ui.INK)', 'in its own shade'),
+    ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.tone then Ui.tone(colour) else Ui.INK', 'if lightFace then b.TextColor3 = Ui.WHITE', 'gold button kept white'),
+]
+
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--suite', action='append', help='Run only this suite (repeatable); default all')
@@ -356,7 +367,7 @@ clothingshop = [
     ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit)]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

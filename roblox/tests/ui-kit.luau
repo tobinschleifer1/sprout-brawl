@@ -239,6 +239,12 @@ do
 	local word, wordOutline = Ui.faceText(new("Frame"), "Starforged", 17, Ui.SUN)
 	if not same(word.TextColor3, Ui.WHITE) or not same(wordOutline.Color, Ui.tone(Ui.SUN)) then fail("words on a card are not white outlined in its own shade") end
 	if not child(Ui.band(new("Frame"), Ui.RED, 40), "Shine") then fail("an arcade header bar has no light band") end
+	-- a card's secondary line: bare, in the face's deep shade, on a pale face; white outlined on a deep one
+	local sec, secStroke = Ui.faceText(new("Frame"), "Legendary · #57", 13, Ui.SUN, Ui.LABEL)
+	Ui.paintSecondary(sec, secStroke, Ui.SUN)
+	if Ui.light(sec.TextColor3) > 0.35 or secStroke.Thickness ~= 0 then fail("a secondary line on a pale face is not dark and bare") end
+	Ui.paintSecondary(sec, secStroke, Ui.VIOLET)
+	if not same(sec.TextColor3, Ui.WHITE) or secStroke.Thickness < 1 or not same(secStroke.Color, Ui.tone(Ui.VIOLET)) then fail("a secondary line on a deep face is not white outlined") end
 	-- repainting a band recolours its title's outline too
 	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)
 	Ui.paintBand(pb, Ui.RED)

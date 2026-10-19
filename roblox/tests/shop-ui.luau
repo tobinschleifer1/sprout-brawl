@@ -188,6 +188,17 @@ local credit = view(false); credit.event = { purchased = { kind = "credit", tier
 s:setEconomy(credit)
 assert(string.find(find(root, "Message").Text, "standard clothing piece", 1, true), "a clothing credit was not explained")
 
+-- section tabs scroll the body to their heading (positions as Roblox would report them)
+local body = find(root, "Body")
+body.AbsolutePosition, body.CanvasPosition = Rbx.Vector2.new(0, 120), Rbx.Vector2.new(0, 300)
+find(root, "PassesHead").AbsolutePosition = Rbx.Vector2.new(0, 1900)
+find(root, "Jump_passes").Activated:Fire()
+assert(body.CanvasPosition.Y == 1900 - 120 + 300 - 4, "the PASSES tab did not scroll to the passes")
+-- (the featured heading sits 4 px into the content; scrolled down, it is that far above the body's top)
+find(root, "FeaturedHead").AbsolutePosition = Rbx.Vector2.new(0, 120 + 4 - body.CanvasPosition.Y)
+find(root, "Jump_featured").Activated:Fire()
+assert(body.CanvasPosition.Y == 0, "the FEATURED tab did not scroll back to the top")
+
 -- 4. A restricted player: no keys, no odds button, told why.
 s:setEconomy(view(true))
 local any = false

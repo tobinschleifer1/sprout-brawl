@@ -251,6 +251,7 @@ shopui = [
     ('keys for the restricted', 'ShopScreen', 'local keys = if shop.restricted then {} else shop.keys or {}', 'local keys = shop.keys or {}', 'should not have sent'),
     ('odds button for the restricted', 'ShopScreen', 'self.oddsButton.Visible = not shop.restricted', 'self.oddsButton.Visible = true', 'sees Forge Keys'),
     ('cells without slack', 'ShopScreen', '-math.ceil(10 * (cols - 1) / cols) - 1, 0, h)', '-math.ceil(10 * (cols - 1) / cols) + 1, 0, h)', 'do not fit'),
+    ('tabs do not scroll', 'ShopScreen', 'self.body.CanvasPosition = Vector2.new(0, math.max(0, y))', 'local _ = y', 'did not scroll'),
     ('pack offered regardless', 'ShopScreen', 'if pack.offer then self:request(key', 'if true then self:request(key', 'a pack not offered'),
     ('pack never BUY SINGLY', 'ShopScreen', 'elseif not pack.offer then "BUY SINGLY"', 'elseif false then "BUY SINGLY"', 'dearer than its missing pieces'),
     ('owned piece requested', 'ShopScreen', 'if not p.owned then self:request(pkey', 'if true then self:request(pkey', 'an owned piece, was requested'),
@@ -325,12 +326,17 @@ uikit = [
     ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone', 'if lightFace then b.TextColor3 = if false then Ui.TEXT elseif false', 'gold button kept white'),
     ('small words bare', 'Ui', 'or (o.small and not theme.tone) then nil', 'or o.small then nil', 'small words on a button are bare'),
     ('icon button keyless', 'Ui', 'if key then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'if false then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'icon button is not a square'),
+    ('pale-face lines white', 'Ui', 'if Ui.light(face) > 0.6 then\n\t\tt.TextColor3, stroke.Thickness = Ui.shade(face, -0.62), 0', 'if Ui.light(face) > 2 then\n\t\tt.TextColor3, stroke.Thickness = Ui.shade(face, -0.62), 0', 'not dark and bare'),
     ('repainted title keeps outline', 'Ui', 'if ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour) end', 'if false then ch.Color = Ui.tone(colour) end', "kept its title's old outline"),
 ]
 
 hudwrites = [
     ('card see-through on update', 'Hud', 'if out then 0.6 elseif Ui.lightPanels() then 0 else 0.08', 'if out then 0.6 else 0.08', 'see-through on update'),
     ('card percent too pale', 'Hud', 'while contrast(c, Ui.PANEL) < 4.5 and k < 12 do', 'while contrast(c, Ui.PANEL) < 3 and k < 12 do', 'reads under 4.5'),
+]
+
+socialui = [
+    ('panels at the old bar height', 'LobbySocial', 'if LIGHT then -(10 + LobbySocial.ICON + 8) else -62', '-62', 'covers the button bar'),
 ]
 
 import argparse
@@ -378,7 +384,7 @@ clothingshop = [
     ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui)]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

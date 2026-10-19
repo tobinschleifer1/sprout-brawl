@@ -286,7 +286,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 		self:refreshFooter()
 	end)
 	self.nameBox = nameBox
-	local count = label(preview, "Count", "", if LIGHT then 11 else 9, if LIGHT then TEXT else DIM)
+	local count = label(preview, "Count", "", if LIGHT then 12 else 9, if LIGHT then TEXT else DIM)
 	count.TextXAlignment = Enum.TextXAlignment.Center
 	count.TextWrapped = false
 	count.TextTruncate = Enum.TextTruncate.AtEnd
@@ -356,7 +356,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local status = label(footer, "Status", "", 13, DIM)
 	self.status = status
 	-- the keys as caps, the way the plaza and the fight teach theirs
-	local hint, hintW = Ui.hintRow(footer, "Hint", { { "ARROWS", "PICK" }, { "Q E", "TAB" }, { "R", "RANDOM" }, { "CTRL Z", "UNDO" } }, 22, Ui.KEY)
+	local hint, hintW = Ui.hintRow(footer, "Hint", { { "ARROWS", "PICK" }, { "Q E", "TAB" }, { "R", "RANDOM" }, { "CTRL Z", "UNDO" } }, 22, if LIGHT then TEXT else Ui.KEY)
 	self.hint, self.hintW = hint, hintW
 	local delete = button(footer, "Delete", "DELETE", function() self:confirm("Delete this character?", function() self:delete() end) end, Color3.fromRGB(150, 52, 58))
 	local saveNew = button(footer, "SaveNew", "SAVE AS NEW", function() self:save(true) end, Ui.BLUE)

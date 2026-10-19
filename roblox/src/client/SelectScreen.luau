@@ -212,7 +212,8 @@ function SelectScreen.new(parent: Instance): any
 	-- the vote pages' title and countdown
 	self.voteTitle = text(root, "", 30, WHITE, DISPLAY)
 	self.voteTitle.Name = "VoteTitle"
-	self.clock = text(root, "", 30, GOLD, DISPLAY)
+	-- (on its pale chip, a dark number: gold read only through its outline, at 1.2:1)
+	self.clock = text(root, "", 30, if LIGHT then TEXT else GOLD, DISPLAY)
 	self.clock.Name = "Clock"
 	self.clock.BackgroundTransparency, self.clock.BackgroundColor3 = 0, PANEL
 	corner(self.clock, 30)
@@ -616,6 +617,8 @@ function SelectScreen.render(self: any)
 			tag.Name = "Tag"
 			tag.BackgroundTransparency = 0
 			tag.BackgroundColor3 = colour
+			-- (white outlined in the badge's shade on a light theme: dark on green read at 3.8:1)
+			if LIGHT then tag.TextColor3 = WHITE; Ui.outline(tag, 1, Ui.tone(colour)) end
 			corner(tag, 6)
 			local r = L.roster[idx]
 			place(tag, r.x - L.cell / 2 + (n - 1) * 30 * L.s + 4, r.y - L.cell / 2 + 4, 30 * L.s, 15 * L.s)
@@ -871,17 +874,6 @@ function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 	if not myAvatar then
 		for _, slot in room.slots do if slot.userId == self.userId and slot.avatar then avatar = slot.avatar end end
 	end
-	for i, r in L.roster do
-		-- a square pixel tile behind each portrait: a dark well, lighter toward the top, with a
-		-- floor stripe the fighter stands on
-		local h = L.cell / 2
-		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell, Color3.fromRGB(38, 43, 68), 1)
-		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell * 0.55, Color3.fromRGB(58, 68, 102), 1)
-		Canvas2D.rect(c, r.x - h, r.y + h * 0.66, L.cell, L.cell * 0.17, Color3.fromRGB(24, 20, 37), 1)
-		local s, char = standIn(self, "roster" .. i, avatar, r.id, 1, "idle", true)
-		drawStanding(c, s, char, r.x, r.y + L.cell * 0.36, L.cell * 0.64, 0)
-		c:screen()
-	end
 	-- the pedestals and who stands on them
 	for _, p in L.pedestals do
 		local slot = room.slots[p.slot]
@@ -911,6 +903,18 @@ function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 			drawStanding(c, s, char, p.cx, p.plinthY - p.plinthH, p.fighterH, t)
 			c:screen()
 		end
+	end
+	-- the roster over them: a raised weapon on a pedestal reaches into the roster, and goes behind it
+	for i, r in L.roster do
+		-- a square pixel tile behind each portrait: a dark well, lighter toward the top, with a
+		-- floor stripe the fighter stands on
+		local h = L.cell / 2
+		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell, Color3.fromRGB(38, 43, 68), 1)
+		Canvas2D.rect(c, r.x - h, r.y - h, L.cell, L.cell * 0.55, Color3.fromRGB(58, 68, 102), 1)
+		Canvas2D.rect(c, r.x - h, r.y + h * 0.66, L.cell, L.cell * 0.17, Color3.fromRGB(24, 20, 37), 1)
+		local s, char = standIn(self, "roster" .. i, avatar, r.id, 1, "idle", true)
+		drawStanding(c, s, char, r.x, r.y + L.cell * 0.36, L.cell * 0.64, 0)
+		c:screen()
 	end
 	c:finish()
 	self:tickVote(t)

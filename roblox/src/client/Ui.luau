@@ -370,7 +370,8 @@ function Ui.hintRow(parent: Instance?, name: string, items: { { string } }, size
 		word.Name = "Word" .. i
 		word.TextXAlignment = Enum.TextXAlignment.Left
 		-- small words still need to stand off whatever the row is drawn over (unless it has a strip)
-		if size * 0.5 < 16 and not backed then Ui.outline(word, 2) end
+		-- (not dark words on a pale window: those read bare, as every dark word does)
+		if size * 0.5 < 16 and not backed and Ui.light(colour or Ui.WHITE) > 0.45 then Ui.outline(word, 2) end
 		word.Position, word.Size = UDim2.new(0.5, x + capW + 8, 0.5, -size / 2), UDim2.fromOffset(widths[i] - capW - 8, size)
 		x += widths[i] + 18
 	end
@@ -570,6 +571,17 @@ function Ui.currency(parent: Instance?, kind: string, value: string): (any, any)
 	return p, t
 end
 
+-- A card's secondary line (rarity, serial, price) on its face: white outlined in the face's shade on a
+-- mid or deep face; on a pale one (gold, light green, grey) bare, in the face's own deep shade - white
+-- there leaned wholly on a 1 px outline at 13 px.
+function Ui.paintSecondary(t: any, stroke: any, face: Color3)
+	if Ui.light(face) > 0.6 then
+		t.TextColor3, stroke.Thickness = Ui.shade(face, -0.62), 0
+	else
+		t.TextColor3, stroke.Thickness, stroke.Color = Ui.WHITE, 1, Ui.tone(face)
+	end
+end
+
 -- A price on a dark pill: "29 R$". Prices are always plain Robux. The caller sizes and places it.
 function Ui.pricePill(parent: Instance?, value: string): any
 	local p = Ui.make("TextLabel", parent, { Name = "Price", Text = value, Font = Ui.DISPLAY, TextSize = Ui.px(15, Ui.DISPLAY),
@@ -579,6 +591,8 @@ function Ui.pricePill(parent: Instance?, value: string): any
 end
 
 -- A dark square strip with a rim, for a line of status.
+-- the one "selected" face for every tab, filter and toggle (dark words on it: a light face)
+Ui.SELECTED = Color3.fromRGB(254, 231, 97)
 Ui.INDIGO = Color3.fromRGB(70, 74, 150)       -- a status pill's face in the arcade theme
 function Ui.pill(parent: Instance?, name: string, edge: Color3?): any
 	-- (a coloured face like every card in a light theme - gradient, own-shade border, lip - not a flat strip)

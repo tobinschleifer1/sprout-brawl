@@ -77,7 +77,9 @@ end
 local function panel(parent: Instance, name: string, title: string, w: number, h: number, colour: Color3): Frame
 	local f = Ui.panel(parent, name, colour, title, 30)
 	f.AnchorPoint = Vector2.new(1, 1)
-	f.Position, f.Size = UDim2.new(1, -16, 1, -62), UDim2.fromOffset(w, h)
+	-- (above the bar's real height: the square buttons stand 76 px, and a panel at the old 42 px bar's
+	-- height covered their tops)
+	f.Position, f.Size = UDim2.new(1, -16, 1, if LIGHT then -(10 + LobbySocial.ICON + 8) else -62), UDim2.fromOffset(w, h)
 	f.Visible = false
 	return f
 end

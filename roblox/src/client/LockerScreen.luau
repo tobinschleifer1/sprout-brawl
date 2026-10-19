@@ -233,8 +233,8 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		local list = Ui.make("ScrollingFrame", parent, { Name = "Grid", BackgroundTransparency = 1, BorderSizePixel = 0,
 			Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 1, -40), CanvasSize = UDim2.new(),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
-		-- five to a row that fill it (a light theme), with room for the cards' borders, drawn outside them
-		local cols = 5
+		-- four to a row that fill it (a light theme), with room for the cards' borders, drawn outside them
+		local cols = 4
 		Ui.make("UIGridLayout", list, { CellSize = if Ui.lightPanels() then UDim2.new(1 / cols, -math.ceil(8 * (cols - 1) / cols) - 3, 0, cell.Y)
 			else UDim2.fromOffset(cell.X, cell.Y), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder })
 		if Ui.lightPanels() then
@@ -290,7 +290,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 			local t = Ui.faceText(card, value, size, crateColour, font or Ui.LABEL)
 			return t
 		end
-		card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 0, 300)
+		card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 0, if Ui.lightPanels() then 236 else 300)
 		local thumb = Ui.make("Frame", card, { Name = "Thumb", BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(120, 100) })
 		self:drawArt(thumb, "crate_" .. id, 120, 100)
 		local name = words(Loot.CRATES[id].name, 22, Ui.WHITE, Ui.DISPLAY)
@@ -315,7 +315,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	end
 	local meter = Ui.text(self.cratesBody, "", 15, Ui.SUB, nil, true)
 	meter.Name = "Meter"
-	meter.Position, meter.Size = UDim2.fromOffset(0, 316), UDim2.new(1, 0, 0, 24)
+	meter.Position, meter.Size = UDim2.fromOffset(0, if Ui.lightPanels() then 252 else 316), UDim2.new(1, 0, 0, 24)
 	self.meter = meter
 	-- the message line
 	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
@@ -381,14 +381,16 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	direction.Name, direction.Position, direction.Size = "Direction", UDim2.fromOffset(6, 126), UDim2.new(1, -12, 0, 20)
 	local primary = Ui.button(f, "", Ui.BLUE, nil, { size = 14, small = true })
 	primary.Name = "Primary"
-	primary.Position, primary.Size = UDim2.new(0, 6, 1, -64), UDim2.new(1, -12, 0, 28)
+	primary.Position, primary.Size = UDim2.new(0, 6, 1, -68), UDim2.new(1, -12, 0, 28)
 	local secondary = Ui.button(f, "", Ui.PANEL2, nil, { size = 12, small = true })
 	secondary.Name = "Secondary"
 	secondary.Position, secondary.Size = UDim2.new(0, 6, 1, -32), UDim2.new(1, -12, 0, 26)
 	c = { frame = f, edge = edge, thumb = thumb, name = name, meta = meta, extra = extra, worn = worn,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
-			nameStroke.Color, metaStroke.Color, extraStroke.Color = Ui.tone(colour), Ui.tone(colour), Ui.tone(colour)
+			nameStroke.Color = Ui.tone(colour)
+			Ui.paintSecondary(meta, metaStroke, colour)
+			Ui.paintSecondary(extra, extraStroke, colour)
 		end,
 		primary = primary, secondary = secondary, direction = direction, slotIndex = 1, onPrimary = nil, onSecondary = nil }
 	direction.Activated:Connect(function()
@@ -422,7 +424,7 @@ function LockerScreen.refreshLocker(self: any)
 		end
 		c.worn.Visible = m.worn == true
 		self:drawArt(c.thumb, m.id, 150, 78)
-		c.primary.Position = UDim2.new(0, 6, 1, -64)
+		c.primary.Position = UDim2.new(0, 6, 1, -68)
 		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
 		c.onPrimary = function()
@@ -473,13 +475,23 @@ end
 
 function LockerScreen.refreshOutfits(self: any)
 	local slots = self.locker and self.locker.presets or {}
-	Ui.paint(self.saveOutfit, if self.saveMode then Ui.GOLD else Ui.PANEL2)
+	Ui.paint(self.saveOutfit, if self.saveMode then Ui.SELECTED else Ui.PANEL2)
+	-- laid out from the row's right edge, so SAVE sits beside the slots that show, not mid-row
+	local shown = {}
 	for i, b in self.outfitButtons do
 		local mine = i <= #slots
 		b.Visible = mine or i == #slots + 1      -- one locked slot shows, so VIP's extra slots are discoverable
 		b.Text = if mine then tostring(i) else "VIP"
 		Ui.paint(b, if not mine then Ui.PANEL else if slots[i] then Ui.BLUE else Ui.PANEL2)
+		if b.Visible then table.insert(shown, b) end
 	end
+	local x = 300
+	for k = #shown, 1, -1 do
+		x -= 40
+		shown[k].Position = UDim2.fromOffset(x, 0)
+		x -= 6
+	end
+	self.saveOutfit.Position = UDim2.fromOffset(x - 64, 0)
 end
 
 function LockerScreen.refreshCrates(self: any)
@@ -529,9 +541,10 @@ function LockerScreen.refresh(self: any)
 		self.sparksPill.Text = LockerScreen.number(e and e.sparks or 0)
 		self.keysPill.Text = tostring(e and e.keys and e.keys.forge or 0)
 	end
-	for id, b in self.tabs do Ui.paint(b, if id == self.tab then Ui.PURPLE else Ui.PANEL2) end
-	for id, b in self.lockerChips do Ui.paint(b, if id == self.filter then Ui.BLUE else Ui.PANEL2) end
-	for id, b in self.workshopChips do Ui.paint(b, if id == self.workshopFilter then Ui.BLUE else Ui.PANEL2) end
+	-- (one selected face everywhere: tabs, filters and the odds' toggles alike)
+	for id, b in self.tabs do Ui.paint(b, if id == self.tab then Ui.SELECTED else Ui.PANEL2) end
+	for id, b in self.lockerChips do Ui.paint(b, if id == self.filter then Ui.SELECTED else Ui.PANEL2) end
+	for id, b in self.workshopChips do Ui.paint(b, if id == self.workshopFilter then Ui.SELECTED else Ui.PANEL2) end
 	if self.tab == "locker" then self:refreshLocker(); self:refreshOutfits()
 	elseif self.tab == "crates" then self:refreshCrates()
 	else self:refreshWorkshop() end
@@ -618,8 +631,8 @@ function LockerScreen.showOdds(self: any, crateId: string, guaranteed: boolean)
 	local c = Loot.CRATES[crateId]
 	o.sub.Text = `{c.name}  ·  {#rows} lines  ·  ` .. (if guaranteed then `the {c.guarantee.at}th opening without {c.guarantee.min} or better`
 		else `{c.guarantee.min} or better guaranteed by the {c.guarantee.at}th opening`)
-	Ui.paint(o.now, if guaranteed then Ui.PANEL2 else Ui.BLUE)
-	Ui.paint(o.guaranteed, if guaranteed then Ui.BLUE else Ui.PANEL2)
+	Ui.paint(o.now, if guaranteed then Ui.PANEL2 else Ui.SELECTED)
+	Ui.paint(o.guaranteed, if guaranteed then Ui.SELECTED else Ui.PANEL2)
 	for i, r in rows do
 		local row = o.rows[i]
 		if not row then

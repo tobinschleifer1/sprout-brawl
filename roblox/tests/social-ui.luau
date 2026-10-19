@@ -138,4 +138,13 @@ find(find(s.gui, "Member_7"), "WarpTo").Activated:Fire()
 assert(warpedTo[1] == 7 and s:open() == nil, "WARP takes you to them and closes the list")
 s:setEnabled(false)
 assert(s:open() == nil and not s.gui.Enabled, "a fight closes everything")
+-- every panel opens above the bar, never over its buttons (both are anchored at the screen's foot)
+do
+	local bar = find(s.gui, "Bar")
+	local barTop = bar.Position.Y.Offset - bar.Size.Y.Offset
+	for _, name in { "Stamps", "Say", "People", "Map" } do
+		local p = find(s.gui, name)
+		assert(p and p.Position.Y.Scale == 1 and p.Position.Y.Offset <= barTop - 4, `the {name} panel covers the button bar`)
+	end
+end
 print("PASS social: upright stamp icons, one panel at a time, keys and buttons send stamps, messages and warps, overheads and log with expiry, member list with warps only where you can go")

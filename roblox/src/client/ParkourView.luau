@@ -104,7 +104,8 @@ function ParkourView.new(parent: Instance, opts: any): any
 	-- the clock in a pill (behind it, not its parent, so the label stays placed on the screen)
 	local pill = Ui.pill(gui, "TimerPill", Ui.EDGE)
 	pill.Position, pill.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(180, 34)
-	self.timerLabel = text(gui, "Timer", "0:00.00", 22, TEXT)
+	-- (white on its indigo pill: the number this screen is about)
+	self.timerLabel = text(gui, "Timer", "0:00.00", 22, if Ui.lightPanels() then Ui.WHITE else TEXT)
 	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(180, 34)
 	self.timerLabel.TextXAlignment = Enum.TextXAlignment.Center
 	display(self.timerLabel, 2)
@@ -210,7 +211,9 @@ function ParkourView.refreshHud(self: any)
 		local cp = COURSE.checkpoints[pk.reached + 1]
 		self.checkpointLabel.Text = if pk.done then "THE SUMMIT" else `CHECKPOINT {pk.reached}/{n}  ·  {string.upper(cp.name)}`
 		self.timerLabel.Text = ParkourView.clock(pk.frames)
-		self.timerLabel.TextColor3 = if pk.done then AMBER elseif self.from == 0 then TEXT else Color3.fromRGB(192, 203, 220)
+		-- (a resumed run, not timed as a full climb, is dimmed - but still reads on the indigo pill)
+		self.timerLabel.TextColor3 = if pk.done then AMBER elseif self.from == 0 then (if Ui.lightPanels() then Ui.WHITE else TEXT)
+			elseif Ui.lightPanels() then Color3.fromRGB(214, 220, 238) else Color3.fromRGB(192, 203, 220)
 		self.fallsLabel.Text = `{pk.deaths} {if pk.deaths == 1 then "fall" else "falls"}`
 			.. (if pk.skipped then "  ·  skipped: this run is not timed or ranked"
 				elseif self.from ~= 0 then "  ·  resumed: this run is not timed as a full climb" else "")

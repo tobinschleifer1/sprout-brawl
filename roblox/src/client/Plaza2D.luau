@@ -972,7 +972,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		self.prompt.Font = if action then Ui.DISPLAY else Ui.LABEL
 		self.prompt.TextSize = Ui.px(if action then 20 else 13)
 		-- (on a pale card: dark words, a gold edge for an action; on a dark one gold words)
-		self.prompt.TextColor3 = if Ui.lightPanels() then (if action then Ui.TEXT else Ui.SUB) elseif action then Ui.GOLD else Ui.WHITE
+		self.prompt.TextColor3 = if Ui.lightPanels() then Ui.TEXT elseif action then Ui.GOLD else Ui.WHITE
 		self.promptOutline.Enabled = action and not Ui.lightPanels()
 		self.promptEdge.Color = if Ui.lightPanels() and action then Ui.shade(Ui.SUN, -0.2) else Ui.INK
 		self.promptRim.Color = if action then Ui.GOLD else Ui.PANEL2

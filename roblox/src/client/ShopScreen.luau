@@ -58,7 +58,7 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		self.sparksPill, self.keysPill = sv, kv
 	end
 	local body = Ui.make("ScrollingFrame", panel, { Name = "Body", BackgroundTransparency = 1, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(14, HEAD + 10), Size = UDim2.new(1, -28, 1, -(HEAD + 48)), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(14, HEAD + 52), Size = UDim2.new(1, -28, 1, -(HEAD + 90)), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", body, { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder })
 	-- (room for the cards' borders, drawn outside them, so the scroll area does not clip the first column)
@@ -79,16 +79,23 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		return f
 	end
 	self.featuredHead = heading("FeaturedHead", "FEATURED", 1)
+	self.heads = { featured = self.featuredHead }
+	-- a section's tab, under the header: the passes sat ten screens down on a phone
+	for i, t in { { "featured", "FEATURED" }, { "clothing", "CLOTHING" }, { "keys", "KEYS" }, { "passes", "PASSES" } } do
+		local b = Ui.button(panel, t[2], Ui.PANEL2, function() self:jump(t[1]) end, { size = 13, small = true })
+		b.Name = "Jump_" .. t[1]
+		b.Position, b.Size = UDim2.new((i - 1) / 4, if i == 1 then 14 else 6, 0, HEAD + 10), UDim2.new(0.25, if i == 1 or i == 4 then -20 else -12, 0, 32)
+	end
 	-- the day's priciest item leads, wide, as the reference shop's starter pack; the rest beside
 	self.hero = ShopScreen.heroCard(body, 2)
 	self.featuredRow = row("Featured", 3, 220, 3)
 	-- clothing: a heading and a grid row per pack, made as packs arrive
-	heading("ClothingHead", "CLOTHING", 4)
+	self.heads.clothing = heading("ClothingHead", "CLOTHING", 4)
 	local clothing = Ui.make("Frame", body, { Name = "Clothing", BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = 5,
 		Size = UDim2.new(1, -8, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
 	Ui.make("UIListLayout", clothing, { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
 	self.clothing, self.packRows = clothing, {}
-	heading("KeysHead", "FORGE KEYS", 7)
+	self.heads.keys = heading("KeysHead", "FORGE KEYS", 7)
 	local keyNote = Ui.text(body, "Forge Keys open Forge Crates: Rare or better, Mythic possible.", 14, Ui.SUB)
 	keyNote.Name, keyNote.LayoutOrder, keyNote.TextXAlignment, keyNote.TextWrapped = "KeyNote", 8, Enum.TextXAlignment.Left, true
 	keyNote.Size = UDim2.new(1, -8, 0, 34)
@@ -98,7 +105,7 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	odds.Size = UDim2.fromOffset(200, 36)
 	self.oddsButton = odds
 	self.keysRow = row("Keys", 10, 150, 4)
-	heading("PassesHead", "PASSES", 11)
+	self.heads.passes = heading("PassesHead", "PASSES", 11)
 	-- (three to a row: VIP's six perks wrapped to fourteen lines in a fifth and ran over its price)
 	self.passesRow = row("Passes", 12, 270, 3)
 	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
@@ -108,6 +115,14 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	self.message = message
 	self:buildOdds()
 	return self
+end
+
+-- Scroll the body so a section's heading is at its top (read after layout, at a tap: not stale).
+function ShopScreen.jump(self: any, section: string)
+	local h = self.heads[section]
+	if not h or not h.AbsolutePosition or not self.body.AbsolutePosition then return end
+	local y = h.AbsolutePosition.Y - self.body.AbsolutePosition.Y + self.body.CanvasPosition.Y - 4
+	self.body.CanvasPosition = Vector2.new(0, math.max(0, y))
 end
 
 function ShopScreen.say(self: any, text: string, colour: Color3?)
@@ -171,7 +186,8 @@ local function card(parent: Instance, pool: { any }, i: number, h: number): any
 	c = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
-			nameStroke.Color, metaStroke.Color = Ui.tone(colour), Ui.tone(colour)
+			nameStroke.Color = Ui.tone(colour)
+			Ui.paintSecondary(meta, metaStroke, colour)
 		end }
 	buy.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
 	hit.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
@@ -203,7 +219,9 @@ function ShopScreen.heroCard(parent: Instance, order: number): any
 	local c: any = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
-			tagStroke.Color, nameStroke.Color, metaStroke.Color = Ui.tone(colour), Ui.tone(colour), Ui.tone(colour)
+			nameStroke.Color = Ui.tone(colour)
+			Ui.paintSecondary(tag, tagStroke, colour)
+			Ui.paintSecondary(meta, metaStroke, colour)
 		end }
 	buy.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
 	hit.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
@@ -414,8 +432,8 @@ end
 function ShopScreen.showOdds(self: any, guaranteed: boolean)
 	local o = self.odds
 	local rows = LockerScreen.oddsRows("forge", 0, guaranteed)
-	Ui.paint(o.now, if guaranteed then Ui.PANEL2 else Ui.BLUE)
-	Ui.paint(o.guaranteed, if guaranteed then Ui.BLUE else Ui.PANEL2)
+	Ui.paint(o.now, if guaranteed then Ui.PANEL2 else Ui.SELECTED)
+	Ui.paint(o.guaranteed, if guaranteed then Ui.SELECTED else Ui.PANEL2)
 	for i, r in rows do
 		local row = o.rows[i]
 		if not row then

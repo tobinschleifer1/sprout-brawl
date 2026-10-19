@@ -22,6 +22,15 @@ s.percent, s.stocks, s.ultCharge, s.state = 116.6, 2, 20, "shield"
 draw()
 assert(tile.pct.Text == "117%" and string.find(float.Text, "117%%"), "percent labels stayed cached")
 local HudModule = P:load("src/client/Hud")
+-- the card percent reads at 4.5:1 on the pale card at every damage
+do
+	local function lum(c) local function ch(v) return if v <= 0.03928 then v / 12.92 else ((v + 0.055) / 1.055) ^ 2.4 end
+		return 0.2126 * ch(c.R) + 0.7152 * ch(c.G) + 0.0722 * ch(c.B) end
+	for pct = 0, 300, 5 do
+		local a, b = lum(HudModule.cardPercent(pct)), lum(Ui.PANEL)
+		assert((math.max(a, b) + 0.05) / (math.min(a, b) + 0.05) >= 4.5, `the {pct}% card percent reads under 4.5:1`)
+	end
+end
 assert(tile.pct.TextColor3 == HudModule.cardPercent(116.6) and float.TextColor3 == Colours.percent(116.6), "damage colour stayed cached")
 for i, pip in tile.pips do assert(pip.Visible == (i <= 2), "stock pip stayed cached") end
 for _, block in tile.ult do assert(block.BackgroundColor3 == Ui.GOLD, "ready meter failed to turn gold") end

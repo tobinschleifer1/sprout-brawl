@@ -49,6 +49,13 @@ env = {
 local Shop = luau.load(fs.readFile("src/client/ShopScreen.luau"), { debugName = "ShopScreen", environment = env, injectGlobals = true })()
 local Locker = env.require("LockerScreen")
 
+-- n cells and their 10 px gaps fit a row's width, at every column count used (five used to wrap)
+for _, cols in { 3, 4, 5 } do
+	local cell = Shop.cell(cols, 100)
+	for _, w in { 600, 896, 1200 } do
+		assert(cols * (w * cell.X.Scale + cell.X.Offset) + (cols - 1) * 10 <= w, `{cols} cells do not fit a {w} px row`)
+	end
+end
 assert(Shop.wait(26000) == "7h 13m" and Shop.wait(59) == "0m" and Shop.wait(600) == "10m", "the countdown reads wrong")
 assert(Shop.each({ price = 110, count = 5 }) == "22 R$ each" and Shop.each({ price = 540, count = 30 }) == "18 R$ each" and Shop.each({ price = 50, count = 3 }) == "17 R$ each", "the per-key price is wrong")
 
@@ -91,7 +98,8 @@ end
 assert(string.find(find(root, "FeaturedHead").Text, "7h 13m", 1, true), "the featured countdown is missing")
 assert(find(cardNamed(featured, "Cobblestone"), "Buy").Text == "29 R$" and drawn >= 4, "a featured price is not plain Robux, or nothing was drawn")
 assert(find(cardNamed(featured, "Frostbite"), "Buy").Text == "OWNED", "an owned featured item is buyable")
-assert(find(cardNamed(featured, "Venomfang"), "Buy").Text == "CLAIM (PAID)", "a paid-for credit is not offered as a claim")
+assert(find(cardNamed(featured, "Venomfang"), "Buy").Text == "CLAIM" and find(cardNamed(featured, "Venomfang"), "Meta").Text == "Paid for · tap to claim",
+	"a paid-for credit is not offered as a claim, said to be paid for")
 find(cardNamed(featured, "Frostbite"), "Buy").Activated:Fire()
 assert(#sent == 0, "an owned item was requested")
 find(cardNamed(featured, "Cobblestone"), "Buy").Activated:Fire()
@@ -157,7 +165,7 @@ local candy, neon, frost = find(root, "Pack1"), find(root, "Pack2"), find(root, 
 assert(find(root, "PackHead1").Text == "CANDY CLUB" and find(root, "PackHead2").Text == "NEON NIGHT", "the packs are not headed by name")
 assert(find(cardNamed(candy, "Whole pack"), "Buy").Text == "22 R$" and find(cardNamed(candy, "Whole pack"), "Meta").Text == "you own 1 · the other 5: 28 R$ one by one",
 	"the pack's price or line is wrong")
-assert(find(cardNamed(candy, "Sugarstripe Tee"), "Buy").Text == "OWNED" and find(cardNamed(candy, "Sundae Beret"), "Buy").Text == "CLAIM (PAID)"
+assert(find(cardNamed(candy, "Sugarstripe Tee"), "Buy").Text == "OWNED" and find(cardNamed(candy, "Sundae Beret"), "Buy").Text == "CLAIM"
 	and find(cardNamed(candy, "Bonbon Shorts"), "Buy").Text == "5 R$" and find(cardNamed(candy, "Sugarstar Specs"), "Buy").Text == "3 R$",
 	"a piece's button is wrong")
 assert(find(cardNamed(neon, "Whole pack"), "Buy").Text == "BUY SINGLY" and find(cardNamed(frost, "Whole pack"), "Buy").Text == "OWNED",

@@ -155,6 +155,7 @@ function Hud.new(parent: Instance): any
 	self.guideCard = card
 	local hold = label(card, UDim2.new(0, 160, 0, 30), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
 	hold.TextXAlignment = Enum.TextXAlignment.Right
+	if Ui.lightPanels() then Ui.outline(hold, 1, Ui.tone(Ui.ORANGE)) end
 	hold.ZIndex = 3
 	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, Ui.TEXT)
 	self.guide.Name = "ComboGuide"
@@ -254,7 +255,8 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		-- name outlined in it, the percent big under it. The colour is the band, not the fill: a
 		-- filled card fights the percent for attention, and the percent is the number that decides
 		-- how you play the next ten seconds.
-		local root = Ui.make("Frame", self.gui, { Name = "Tile" .. i, BackgroundColor3 = PANEL, BackgroundTransparency = 0.08,
+		-- (opaque on a light theme: a see-through card dropped the percent under 4.5:1 over a dark stage)
+		local root = Ui.make("Frame", self.gui, { Name = "Tile" .. i, BackgroundColor3 = PANEL, BackgroundTransparency = if Ui.lightPanels() then 0 else 0.08,
 			BorderSizePixel = 0, Size = UDim2.fromOffset(W, H) })
 		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
 			-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
@@ -264,12 +266,15 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local edge = Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
 		if yours then edge.Thickness = math.max(edge.Thickness, 2) end
 		Ui.rim(root, if yours then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
-		local band = Ui.band(root, colour, 20)
+		-- (deepened on a light theme, so the white name reads on it; outlined in its own shade)
+		local bandColour = if Ui.lightPanels() then Ui.shade(colour, -0.22) else colour
+		local band = Ui.band(root, bandColour, 20)
 
 		-- (in the label face: small Fredoka capitals run together - RIVAL read as RVAL)
 		local name = label(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
 			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
+		if Ui.lightPanels() then Ui.outline(name, 1, Ui.tone(bandColour)) end
 		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 23),
 			string.upper(chars[i] and chars[i].name or entry.weapon), 11, DIM)
 		weapon.TextTruncate = Enum.TextTruncate.AtEnd
@@ -308,7 +313,7 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		-- Your own card says when your shield is up.
 		local shield = nil
 		if yours then
-			shield = label(root, UDim2.fromOffset(76, 12), UDim2.new(1, -8 - 76, 1, if compact then -36 else -29), "SHIELD", if compact then 8 else 10, DIM)
+			shield = label(root, UDim2.fromOffset(76, 12), UDim2.new(1, -8 - 76, 1, if compact then -36 else -29), "SHIELD", if Ui.lightPanels() then (if compact then 10 else 12) elseif compact then 8 else 10, DIM)
 			shield.Name = "Shield"
 			shield.TextXAlignment = Enum.TextXAlignment.Right
 		end

@@ -207,7 +207,8 @@ do
 	r.slots[2].weapon2 = "Pike"
 	screen:update(r, 1)
 	if not string.find(screen.status.Text, "weapon 1", 1, true) then fail(`after a pair the status says "{screen.status.Text}", not that weapon 1 is next`) end
-	for _, c in { { "Hammer", "1 · WAR HAMMER" }, { "Axe", "2 · BATTLE AXE" } } do
+	-- (tiles carry the short name: SelectScreen.SHORT)
+	for _, c in { { "Hammer", "1 · HAMMER" }, { "Axe", "2 · AXE" } } do
 		local cell = find("Pick" .. c[1])
 		local ring
 		for _, ch in cell._children do if ch.ClassName == "UIStroke" then ring = ch end end

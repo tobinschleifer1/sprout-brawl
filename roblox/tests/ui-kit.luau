@@ -220,7 +220,10 @@ do
 	Ui.paint(b, Ui.RED)
 	if not same(border.Color, Ui.tone(Ui.RED)) or not same(letters.Color, Ui.tone(Ui.RED)) or not same(b.TextColor3, Ui.WHITE) then fail("paint left the old colour's outline") end
 	Ui.paint(b, Ui.GOLD, Ui.WHITE)
-	if not same(b.TextColor3, Ui.tone(Ui.GOLD)) then fail("a gold button kept white letters") end
+	if not same(b.TextColor3, Ui.TEXT) then fail("a gold button kept white letters") end
+	-- small white words on a coloured face are outlined too (bare they read at 2-3:1)
+	local _, smallLetters = strokes(Ui.button(new("Frame"), "WEAR", Ui.BLUE, nil, { small = true }))
+	if not smallLetters or not same(smallLetters.Color, Ui.tone(Ui.BLUE)) or smallLetters.Thickness < 1 then fail("small words on a button are bare") end
 	-- dark words are not outlined; light ones are
 	local _, darkLetters = strokes(Ui.text(new("Frame"), "HI", 20, Ui.TEXT, Ui.DISPLAY))
 	local _, lightLetters = strokes(Ui.text(new("Frame"), "HI", 20, Ui.WHITE, Ui.DISPLAY))
@@ -236,6 +239,12 @@ do
 	local word, wordOutline = Ui.faceText(new("Frame"), "Starforged", 17, Ui.SUN)
 	if not same(word.TextColor3, Ui.WHITE) or not same(wordOutline.Color, Ui.tone(Ui.SUN)) then fail("words on a card are not white outlined in its own shade") end
 	if not child(Ui.band(new("Frame"), Ui.RED, 40), "Shine") then fail("an arcade header bar has no light band") end
+	-- a square icon button: its pixel icon over its word, the key on a cap
+	local ib = Ui.iconButton(new("Frame"), "chest", "LOCKER", Ui.PURPLE, nil, 76, "L")
+	local icon, wordLabel = child(ib, "Icon"), child(ib, "Word")
+	if ib.Size.X.Offset ~= 76 or ib.Size.Y.Offset ~= 76 or not icon or #icon._children < 8 or not wordLabel or wordLabel.Text ~= "LOCKER" or not child(ib, "Key") then
+		fail("an icon button is not a square with its icon, word and key")
+	end
 end
 
 -- widths grow with the words; no top bar outside Roblox

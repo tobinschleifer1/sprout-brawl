@@ -51,6 +51,15 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		TextColor3 = Ui.WHITE, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 3 })
 	Ui.outline(close, 3, Ui.tone(Ui.RED))
 	close.Activated:Connect(function() self:close() end)
+	-- your balance in the header, the pixel kit's gem and key, as in the Locker
+	if Ui.lightPanels() then
+		local sp, sv = Ui.currency(panel, "gem", "0")
+		local kp, kv = Ui.currency(panel, "key", "0")
+		sp.AnchorPoint, kp.AnchorPoint = Vector2.new(1, 0.5), Vector2.new(1, 0.5)
+		kp.Position, kp.Size, kp.ZIndex = UDim2.new(1, -60, 0, HEAD / 2), UDim2.fromOffset(84, 32), 3
+		sp.Position, sp.Size, sp.ZIndex = UDim2.new(1, -152, 0, HEAD / 2), UDim2.fromOffset(120, 32), 3
+		self.sparksPill, self.keysPill = sv, kv
+	end
 	close.AnchorPoint = Vector2.new(1, 0)
 	close.Position, close.Size = UDim2.new(1, -10, 0, (HEAD - 36) / 2), UDim2.fromOffset(40, 36)
 	local body = Ui.make("ScrollingFrame", panel, { Name = "Body", BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -94,7 +103,8 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	self.oddsButton = odds
 	self.keysRow = row("Keys", 10, 150, 4)
 	heading("PassesHead", "PASSES", 11)
-	self.passesRow = row("Passes", 12, 250, 5)
+	-- (three to a row: VIP's six perks wrapped to fourteen lines in a fifth and ran over its price)
+	self.passesRow = row("Passes", 12, 270, 3)
 	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
@@ -108,18 +118,22 @@ function ShopScreen.say(self: any, text: string, colour: Color3?)
 	self.message.Text, self.message.TextColor3 = text, colour or Ui.TEXT
 end
 
--- A grid cell `cols` to a row: a fraction of the row, less its share of the gaps.
+-- A grid cell `cols` to a row: a fraction of the row, less its share of the gaps and a pixel of slack
+-- (with none, five 1/5 cells and their gaps came to the row's exact width and the last one wrapped).
 function ShopScreen.cell(cols: number, h: number): UDim2
-	return UDim2.new(1 / cols, -math.ceil(10 * (cols - 1) / cols), 0, h)
+	return UDim2.new(1 / cols, -math.ceil(10 * (cols - 1) / cols) - 1, 0, h)
 end
 
 -- A price (or OWNED, CLAIM...) on a pill, coloured by what it says: a price dark, as the reference
 -- shop's price pills; owned green; a paid-for claim gold; waiting or not for sale grey.
 local PILL = Color3.fromRGB(35, 27, 51)
+local pillOutline: { [any]: any } = setmetatable({}, { __mode = "k" }) :: any
 local function pill(parent: Instance): any
 	local b = Ui.make("TextButton", parent, { Name = "Buy", Text = "", Font = Ui.DISPLAY, TextSize = Ui.px(16, Ui.DISPLAY),
 		TextColor3 = Ui.WHITE, BackgroundColor3 = PILL, BorderSizePixel = 0, AutoButtonColor = true, ZIndex = 3 })
 	Ui.make("UICorner", b, { CornerRadius = UDim.new(1, 0) })
+	-- white words on a green or grey pill are outlined in its shade (bare, OWNED read at 2.1:1)
+	pillOutline[b] = Ui.outline(b, 2, Ui.tone(PILL))
 	return b
 end
 function ShopScreen.pillColour(text: string): (Color3, Color3)
@@ -130,6 +144,11 @@ function ShopScreen.pillColour(text: string): (Color3, Color3)
 end
 local function paintPill(b: any)
 	b.BackgroundColor3, b.TextColor3 = ShopScreen.pillColour(b.Text)
+	local o = pillOutline[b]
+	if o then
+		local light = Ui.light(b.TextColor3) > 0.5
+		o.Thickness, o.Color = if light then 2 else 0, Ui.tone(b.BackgroundColor3)
+	end
 end
 
 local function card(parent: Instance, pool: { any }, i: number, h: number): any
@@ -206,6 +225,10 @@ end
 function ShopScreen.refresh(self: any)
 	local shop = self.view and self.view.shop
 	if not shop then return end
+	if self.sparksPill then
+		self.sparksPill.Text = LockerScreen.number(self.view.sparks or 0)
+		self.keysPill.Text = tostring(self.view.keys and self.view.keys.forge or 0)
+	end
 	-- featured
 	self.featuredHead.Text = `FEATURED  ·  new items in {ShopScreen.wait(shop.resetsIn or 0)}`
 	for i, f in shop.featured or {} do
@@ -217,13 +240,14 @@ function ShopScreen.refresh(self: any)
 			c.paint(col)
 			c.name.Text = it.name
 			-- (the card's colour says the rarity too: kept short so it never runs edge to edge)
-			c.meta.Text = `{it.rarity} · {it.weapon or LockerScreen.TYPE_LABEL[it.type] or ""}`
+			-- (a claim says on the card that it is already paid for: the pill has room for one word)
+			c.meta.Text = if f.credit and not f.owned then "Paid for · tap to claim" else `{it.rarity} · {it.weapon or LockerScreen.TYPE_LABEL[it.type] or ""}`
 			if self.art[c.thumb] ~= f.id then
 				self.art[c.thumb] = f.id
 				if self.opts.drawArt then self.opts.drawArt(c.thumb, f.id, if hero then 320 else 184, if hero then 120 else 90) end
 			end
 			local key = "item:" .. f.id
-			c.buy.Text = if f.owned then "OWNED" elseif f.credit then "CLAIM (PAID)" elseif self.pending == key then "..." else `{f.price} R$`
+			c.buy.Text = if f.owned then "OWNED" elseif f.credit then "CLAIM" elseif self.pending == key then "..." else `{f.price} R$`
 			paintPill(c.buy)
 			c.onBuy = function()
 				if not f.owned then self:request(key, { action = "buy", kind = "item", id = f.id }) end
@@ -255,7 +279,7 @@ function ShopScreen.refresh(self: any)
 	self:refreshClothing(shop.clothing or {})
 	-- passes
 	for i, p in shop.passes or {} do
-		local c = card(self.passesRow, self.passCards, i, 250)
+		local c = card(self.passesRow, self.passCards, i, 270)
 		c.thumb.Visible = false
 		c.name.Position, c.meta.Position = UDim2.fromOffset(8, 14), UDim2.fromOffset(8, 40)
 		c.meta.Size = UDim2.new(1, -16, 0, 160)
@@ -319,13 +343,13 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			local col = Color3.fromHex((Loot.RARITY[it and it.rarity or "Common"] or Loot.RARITY.Common).colour)
 			pc.paint(col)
 			pc.name.Text = if it then it.name else p.id
-			pc.meta.Text = if it then `{it.rarity} {it.category or ""}` else ""
+			pc.meta.Text = if p.credit and not p.owned then "Paid for · tap to claim" elseif it then `{it.rarity} {it.category or ""}` else ""
 			if self.art[pc.thumb] ~= p.id then
 				self.art[pc.thumb] = p.id
 				if self.opts.drawArt then self.opts.drawArt(pc.thumb, p.id, 134, 90) end
 			end
 			local pkey = "piece:" .. p.id
-			pc.buy.Text = if p.owned then "OWNED" elseif p.credit then "CLAIM (PAID)" elseif self.pending == pkey then "..." else `{p.price} R$`
+			pc.buy.Text = if p.owned then "OWNED" elseif p.credit then "CLAIM" elseif self.pending == pkey then "..." else `{p.price} R$`
 			paintPill(pc.buy)
 			pc.onBuy = function()
 				if not p.owned then self:request(pkey, { action = "buy", kind = "piece", id = p.id }) end
@@ -344,7 +368,7 @@ function ShopScreen.buildOdds(self: any)
 	-- a window like every other: the title on a band across its top
 	local band = Ui.band(o, Ui.BLUE, 44, "OddsBand")
 	band.ZIndex = 11
-	local t = Ui.faceText(band, "ODDS & DETAILS  ·  FORGE CRATE", 22, Ui.BLUE)
+	local t = Ui.faceText(band, "ODDS & DETAILS  ·  FORGE CRATE", Ui.WINDOW_TITLE, Ui.BLUE, Ui.TITLE)
 	t.Name, t.ZIndex, t.TextXAlignment = "Title", 12, Enum.TextXAlignment.Left
 	t.Position, t.Size = UDim2.fromOffset(16, 0), UDim2.new(1, -32, 1, 0)
 	local now = Ui.button(o, "THIS OPENING", Ui.BLUE, function() self:showOdds(false) end, { size = 13, small = true })

@@ -109,7 +109,10 @@ end
 
 -- The bottom row's right end: the CHARACTER button, and LobbySocial's button bar to its left
 -- (LobbySocial.RIGHT_GAP leaves the button its room). The controls row stays clear of the lot.
-Plaza2D.CHARACTER_W = 168
+-- the block at the bottom right: three stacked buttons this wide, or (a light theme) a row of three
+-- square icon buttons, as the reference simulator's
+Plaza2D.ICON = 76
+Plaza2D.CHARACTER_W = if Ui.lightPanels() then 3 * Plaza2D.ICON + 16 else 168
 Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 
 -- ------------------------------------------------------------------ construction ----
@@ -171,31 +174,35 @@ function Plaza2D.new(parent: Instance): any
 	self.promptKey = key
 	prompt.Activated:Connect(function() self:interact() end)
 	self.prompt = prompt
-	local character = Ui.button(gui, "CHARACTER", Ui.BLUE, function()
-		if self.active and not self.blocked and self.onCharacter then self.onCharacter() end
-	end)
+	local LIGHT = Ui.lightPanels()
+	local function openCharacter() if self.active and not self.blocked and self.onCharacter then self.onCharacter() end end
+	local character = if LIGHT then Ui.iconButton(gui, "shirt", "CHARACTER", Ui.BLUE, openCharacter, Plaza2D.ICON)
+		else Ui.button(gui, "CHARACTER", Ui.BLUE, openCharacter)
 	character.Name = "CharacterButton"
 	-- At the bottom right, in the row with the social buttons. Not the top right: Roblox's player list
 	-- hangs there under its top bar, and in a playtest the button could not be clicked through it.
 	character.AnchorPoint = Vector2.new(1, 1)
-	character.Position, character.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
+	character.Position = UDim2.new(1, -16, 1, -10)
+	if not LIGHT then character.Size = UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.characterButton = character
 	-- The Locker (also L): cosmetics, crates and the Workshop, stacked over CHARACTER.
 	-- (the Locker window's own purple; the old olive read as a disabled button beside SHOP and CHARACTER)
-	local locker = Ui.keyButton(gui, "L", "LOCKER", if Ui.lightPanels() then Ui.PURPLE else Ui.shade(Ui.GOLD, -0.35), function()
-		if self.active and not self.blocked and self.onLocker then self.onLocker() end
-	end, 42)
+	local function openLocker() if self.active and not self.blocked and self.onLocker then self.onLocker() end end
+	local locker = if LIGHT then Ui.iconButton(gui, "chest", "LOCKER", Ui.PURPLE, openLocker, Plaza2D.ICON, "L")
+		else Ui.keyButton(gui, "L", "LOCKER", Ui.shade(Ui.GOLD, -0.35), openLocker, 42)
 	locker.Name = "LockerButton"
 	locker.AnchorPoint = Vector2.new(1, 1)
-	locker.Position, locker.Size = UDim2.new(1, -16, 1, -58), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
+	if LIGHT then locker.Position = UDim2.new(1, -16 - (Plaza2D.ICON + 8), 1, -10)
+	else locker.Position, locker.Size = UDim2.new(1, -16, 1, -58), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.lockerButton = locker
 	-- The Shop, stacked over the Locker.
-	local shopButton = Ui.button(gui, "SHOP", Ui.shade(Ui.GREEN, -0.3), function()
-		if self.active and not self.blocked and self.onShop then self.onShop() end
-	end)
+	local function openShop() if self.active and not self.blocked and self.onShop then self.onShop() end end
+	local shopButton = if LIGHT then Ui.iconButton(gui, "coin", "SHOP", Ui.shade(Ui.GREEN, -0.15), openShop, Plaza2D.ICON)
+		else Ui.button(gui, "SHOP", Ui.shade(Ui.GREEN, -0.3), openShop)
 	shopButton.Name = "ShopButton"
 	shopButton.AnchorPoint = Vector2.new(1, 1)
-	shopButton.Position, shopButton.Size = UDim2.new(1, -16, 1, -106), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
+	if LIGHT then shopButton.Position = UDim2.new(1, -16 - 2 * (Plaza2D.ICON + 8), 1, -10)
+	else shopButton.Position, shopButton.Size = UDim2.new(1, -16, 1, -106), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.shopButton = shopButton
 	-- Alone at a cabinet: take on the CPU (also C).
 	local cpu = Ui.keyButton(gui, "C", "VS CPU", Ui.PURPLE, function()
@@ -919,7 +926,9 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		self.bannerAt = clock
 	end
 	local age = clock - self.bannerAt
-	self.banner.TextTransparency = if age < 2 then 0 elseif age < 3 then age - 2 else 1
+	-- (not on a narrow screen: there the billboard fills the only space for it, and the title card
+	-- already says where you are)
+	self.banner.TextTransparency = if self.bannerNarrow then 1 elseif age < 2 then 0 elseif age < 3 then age - 2 else 1
 	self.bannerOutline.Transparency = self.banner.TextTransparency
 
 	local near = self:seatStation() or model:nearest()
@@ -939,6 +948,8 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.plate.Size = UDim2.fromOffset(math.min(math.max(gw - 16, 200),
 		math.max(Ui.textWidth(self.title.Text, 22), Ui.textWidth(self.directions.Text, 12)) + 24), 62)
 	self.controls.Visible = gw - Plaza2D.SOCIAL_BAR_W - 64 >= self.controlsW
+	-- the district's name is not drawn on a narrow screen (it landed on the billboard's lettering)
+	self.bannerNarrow = gw > 0 and gw < 1000
 	local action = not self.blocked and near ~= nil
 	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
 		elseif near then `{if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`

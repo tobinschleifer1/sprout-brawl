@@ -193,8 +193,9 @@ elseif screen == "people" then
 		{ userId = 2, name = "Rival", where = "In a fight · 2v2", place = "fight" },
 		{ userId = 3, name = "ada", where = "Skyhold Bazaar", place = "market", x = 40 },
 		{ userId = 4, name = "bo", where = "Room · 3v3", place = "room" } })
-	social:addLog("ada: GG!", Rbx.Color3.fromRGB(230, 225, 214))
-	social:addLog("You  [Wave]", Rbx.Color3.fromRGB(200, 100, 60))
+	-- (through the game's own handler, so the log shows the colours the game picks)
+	social:onEvent({ userId = 3, name = "ada", kind = "say", index = 1 })
+	social:onEvent({ userId = social.localId, kind = "stamp", id = "gg" })
 	c:screen()
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
 elseif screen == "climb" then
@@ -249,7 +250,7 @@ elseif screen == "shop" then
 	local inv = Inventory.sanitize(nil)
 	inv.owned.candy_sugarstripe_tee, inv.owned.neon_circuit_bomber = true, true
 	local clothing = Loader.loadFrom("src/server/", "Shop").clothing(inv)
-	s:setEconomy({ shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes, clothing = clothing,
+	s:setEconomy({ sparks = 2340, keys = { forge = 2 }, shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes, clothing = clothing,
 		featured = { { id = "hammer_cobblestone", price = 29, owned = false }, { id = "sword_frostbite", price = 49, owned = true },
 			{ id = "daggers_venomfang", price = 99, owned = false, credit = true }, { id = "sword_starforged", price = 199, owned = false } } } })
 	if variant == "odds" then s:showOdds(false) end

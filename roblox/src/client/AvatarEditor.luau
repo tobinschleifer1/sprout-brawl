@@ -208,7 +208,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local top = Ui.band(panel, HEADER, 56, "Top")
 	self.top = top
 	-- (white on the blue bar: gold on it is barely there)
-	local title = if LIGHT then (Ui.faceText(top, "CHARACTER STUDIO", 16, HEADER, Ui.TITLE)) else Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
+	local title = if LIGHT then (Ui.faceText(top, "CHARACTER STUDIO", Ui.WINDOW_TITLE, HEADER, Ui.TITLE)) else Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
 	title.Name = "Title"
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
@@ -940,6 +940,8 @@ function AvatarEditor.rebuildTiles(self: any)
 				if e.kind == "Preset_" then self:applyPreset(e.id) else self:pick(self.category, e.id) end
 			end, if LIGHT then Ui.PANEL else PANEL2)
 			b.LayoutOrder = i
+			-- (a card even before its fighter is drawn: white at the top fading to the warm cream)
+			if LIGHT then Ui.gradient(b, Color3.new(1, 1, 1), Ui.PANEL2) end
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
 			local name = label(b, "Label", string.upper(e.name), if LIGHT then 12 else 10, if LIGHT then TEXT else Ui.KEY)

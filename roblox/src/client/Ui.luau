@@ -29,6 +29,7 @@ Ui.DISPLAY = Enum.Font.FredokaOne
 Ui.LABEL = Enum.Font.BuilderSansExtraBold
 Ui.BODY = Enum.Font.BuilderSansBold
 Ui.TITLE = Enum.Font.FredokaOne    -- a window's title on its band (the theme's `title`, else DISPLAY)
+Ui.WINDOW_TITLE = 24                -- the size every window's pixel title is asked at (drawn ~17 px)
 
 -- Style themes, so directions can be compared on the real screens before one is chosen. A theme
 -- must be picked (Ui.useTheme) before any screen module loads: they read the fonts at load.
@@ -66,7 +67,7 @@ Ui.THEMES = {
 local DARK = { PANEL = Color3.fromRGB(38, 43, 68), PANEL2 = Color3.fromRGB(58, 68, 102), EDGE = Color3.fromRGB(90, 105, 136),
 	TEXT = Color3.fromRGB(255, 255, 255), SUB = Color3.fromRGB(139, 155, 180), INK = Color3.fromRGB(24, 20, 37) }
 local LIGHT = { PANEL = Color3.fromRGB(255, 248, 236), PANEL2 = Color3.fromRGB(244, 231, 207), EDGE = Color3.fromRGB(222, 202, 166),
-	TEXT = Color3.fromRGB(43, 33, 64), SUB = Color3.fromRGB(128, 110, 92), INK = Color3.fromRGB(35, 27, 51) }
+	TEXT = Color3.fromRGB(43, 33, 64), SUB = Color3.fromRGB(107, 90, 73), INK = Color3.fromRGB(35, 27, 51) }
 Ui.ARCADE_SCALE = 1.25
 local theme = Ui.THEMES.arcade
 Ui.theme = "arcade"
@@ -232,7 +233,8 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 		TextColor3 = o.textColour or Ui.WHITE, BackgroundColor3 = colour, AutoButtonColor = true, BorderSizePixel = 0 })
 	Ui.corner(b, 0)
 	local border = Ui.stroke(b, Ui.tone(colour), 3)
-	local outline = if o.small or theme.bevel == "none" then nil else Ui.outline(b, 2, Ui.tone(colour))
+	-- (small words outlined too in a toned theme, at 1 px: bare white on a mid-tone face read at 2-3:1)
+	local outline = if theme.bevel == "none" or (o.small and not theme.tone) then nil else Ui.outline(b, if o.small then 1 else 2, Ui.tone(colour))
 	-- the bevel: full-width pixel strips (pixel themes), a rounded shine and lip set in from the
 	-- edges (rounded themes), a pixel kit's light band across the top third and a dark lip along the
 	-- foot (arcade), or nothing (flat)
@@ -256,9 +258,11 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 	end
 	parts[b] = { shine = shine, lip = lip, outline = outline, border = border }
 	if not o.textColour and Ui.light(colour) > 0.62 then
-		b.TextColor3 = if theme.tone then Ui.tone(colour) else Ui.INK
+		-- (on a pale face the words go dark and bare: the theme's text colour on a light window)
+		b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone then Ui.tone(colour) else Ui.INK
 		if outline then outline.Thickness = 0 end
 	end
+	parts[b].small = o.small
 	if onClick then b.Activated:Connect(onClick) end
 	return b
 end
@@ -269,7 +273,7 @@ end
 function Ui.paint(b: any, colour: Color3, textColour: Color3?)
 	b.BackgroundColor3 = colour
 	local lightFace = Ui.light(colour) > 0.62
-	if lightFace then b.TextColor3 = if theme.tone then Ui.tone(colour) else Ui.INK
+	if lightFace then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone then Ui.tone(colour) else Ui.INK
 	elseif textColour then b.TextColor3 = textColour
 	elseif theme.tone then b.TextColor3 = Ui.WHITE end
 	local p = parts[b]
@@ -279,7 +283,7 @@ function Ui.paint(b: any, colour: Color3, textColour: Color3?)
 		p.lip.BackgroundColor3 = Ui.shade(colour, if arcade then -0.3 else Ui.LIP)
 		if p.border and theme.tone then p.border.Color = Ui.tone(colour) end
 		if p.outline then
-			p.outline.Thickness = if lightFace then 0 else math.floor(2 * theme.outlineK + 0.5)
+			p.outline.Thickness = if lightFace then 0 else math.floor((if p.small then 1 else 2) * theme.outlineK + 0.5)
 			if theme.tone then p.outline.Color = Ui.tone(colour) end
 		end
 	end
@@ -410,8 +414,11 @@ function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?
 	local b = Ui.band(p, band, h)
 	b.ZIndex = 2
 	-- (the pixel face is drawn a quarter bigger than asked: ask it smaller to fit the same band)
-	local titleSize = if Ui.TITLE == Enum.Font.Arcade then math.floor(h * 0.46) else math.floor(h * 0.48)
-	local t = Ui.text(b, title or "", titleSize, Ui.WHITE, Ui.TITLE, theme.bevel == "none" or theme.tone)
+	-- pixel lettering only on a window's own band (40 px or more), at one size for every window; the
+	-- smaller bands of panels inside windows keep Fredoka (the pixel face under 12 px is noise)
+	local pixel = Ui.TITLE == Enum.Font.Arcade and h >= 40
+	local titleSize = if pixel then Ui.WINDOW_TITLE else math.floor(h * 0.48)
+	local t = Ui.text(b, title or "", titleSize, Ui.WHITE, if pixel then Ui.TITLE else Ui.DISPLAY, theme.bevel == "none" or theme.tone)
 	if theme.tone then Ui.outline(t, if h >= 40 then 3 else 2, Ui.tone(band))
 	elseif math.floor(h * 0.48) < 16 and theme.bevel ~= "none" then Ui.outline(t, 2) end
 	t.Name = "Title"
@@ -479,6 +486,10 @@ Ui.ICONS = {
 		colours = { O = "#6A4A08", Y = "#FFC935", y = "#FFE98A", o = "#D9971A" } },
 	star = { w = 7, rows = { "...O...", "..OyO..", "OOyYyOO", ".OYYYO.", ".OYOYO.", "OO...OO" },
 		colours = { O = "#6A4A08", Y = "#FFC935", y = "#FFF0A0" } },
+	chest = { w = 9, rows = { ".OOOOOOO.", "OwwwwwwwO", "OwbbbbbwO", "OOOOyOOOO", "ObbbYbbbO", "ObbbbbbbO", "ObbbbbbbO", "OOOOOOOOO" },
+		colours = { O = "#3D2410", w = "#D99A5B", b = "#A8642E", y = "#FFE98A", Y = "#E0A920" } },
+	shirt = { w = 9, rows = { "..OO.OO..", ".OsOOOsO.", "OssssssSO", "OOssssSOO", ".OssssSO.", ".OssssSO.", ".OOOOOOO." },
+		colours = { O = "#14264A", s = "#6FB6FF", S = "#3D7FD0" } },
 } :: { [string]: any }
 -- An icon `px` screen pixels to the art pixel, in a transparent frame the caller places.
 function Ui.icon(parent: Instance?, kind: string, px: number): any
@@ -499,6 +510,25 @@ function Ui.icon(parent: Instance?, kind: string, px: number): any
 		end
 	end
 	return f
+end
+
+-- A square button with a pixel icon over its name (the reference simulator's side buttons), and
+-- optionally its keyboard key on a cap at the top left. `size` is its side. Returns the button.
+function Ui.iconButton(parent: Instance?, kind: string, value: string, colour: Color3, onClick: (() -> ())?, size: number, key: string?): any
+	local b = Ui.button(parent, "", colour, onClick)
+	b.Size = UDim2.fromOffset(size, size)
+	local def = Ui.ICONS[kind]
+	local px = math.max(2, math.floor(size * 0.5 / math.max(def.w, #def.rows)))
+	local ic = Ui.icon(b, kind, px)
+	ic.Name, ic.AnchorPoint, ic.Position, ic.ZIndex = "Icon", Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, math.floor(size * 0.14)), (b.ZIndex or 1) + 1
+	local word = Ui.faceText(b, value, math.max(11, math.floor(size * 0.17)), colour)
+	word.Name, word.AnchorPoint = "Word", Vector2.new(0.5, 1)
+	word.Position, word.Size = UDim2.new(0.5, 0, 1, -math.floor(size * 0.1)), UDim2.new(1, -6, 0, math.floor(size * 0.24))
+	if key then
+		local cap = Ui.keycap(b, key, 11)
+		cap.Position, cap.Size, cap.ZIndex = UDim2.fromOffset(4, 4), UDim2.fromOffset(18, 18), (b.ZIndex or 1) + 2
+	end
+	return b
 end
 
 -- A balance on a dark pill with its icon: [gem] 2,340. Returns the pill and its label.

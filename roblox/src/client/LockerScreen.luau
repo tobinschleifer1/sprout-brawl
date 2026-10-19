@@ -236,8 +236,13 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		local list = Ui.make("ScrollingFrame", parent, { Name = "Grid", BackgroundTransparency = 1, BorderSizePixel = 0,
 			Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 1, -40), CanvasSize = UDim2.new(),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
-		Ui.make("UIGridLayout", list, { CellSize = UDim2.fromOffset(cell.X, cell.Y), CellPadding = UDim2.fromOffset(8, 8),
-			SortOrder = Enum.SortOrder.LayoutOrder })
+		-- five to a row that fill it (a light theme), with room for the cards' borders, drawn outside them
+		local cols = 5
+		Ui.make("UIGridLayout", list, { CellSize = if Ui.lightPanels() then UDim2.new(1 / cols, -math.ceil(8 * (cols - 1) / cols) - 3, 0, cell.Y)
+			else UDim2.fromOffset(cell.X, cell.Y), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder })
+		if Ui.lightPanels() then
+			Ui.make("UIPadding", list, { PaddingLeft = UDim.new(0, 4), PaddingTop = UDim.new(0, 4) })
+		end
 		return list
 	end
 	local function filters(parent: Instance, onPick: (string) -> ()): { [string]: any }
@@ -365,6 +370,7 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	local worn = Ui.pricePill(thumb, "WORN")
 	worn.Name, worn.Visible, worn.BackgroundColor3 = "Worn", false, Ui.GREEN
 	worn.TextSize = Ui.px(11, Ui.DISPLAY)
+	Ui.outline(worn, 1, Ui.tone(Ui.GREEN))
 	worn.AnchorPoint, worn.Position, worn.Size = Vector2.new(1, 0), UDim2.new(1, -4, 0, 4), UDim2.fromOffset(52, 18)
 	local name, nameStroke = Ui.faceText(f, "", 15, Ui.SKY)
 	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
@@ -573,7 +579,7 @@ function LockerScreen.buildOverlays(self: any)
 	-- a window like every other: the title on a band across its top
 	local oBand = Ui.band(odds, Ui.BLUE, 44, "OddsBand")
 	oBand.ZIndex = 11
-	local oTitle = Ui.faceText(oBand, "ODDS & DETAILS", 22, Ui.BLUE)
+	local oTitle = Ui.faceText(oBand, "ODDS & DETAILS", Ui.WINDOW_TITLE, Ui.BLUE, Ui.TITLE)
 	oTitle.Name, oTitle.Position, oTitle.Size, oTitle.ZIndex = "Title", UDim2.fromOffset(16, 0), UDim2.new(1, -32, 1, 0), 12
 	oTitle.TextXAlignment = Enum.TextXAlignment.Left
 	local sub = Ui.text(odds, "", 14, Ui.SUB, nil, true)

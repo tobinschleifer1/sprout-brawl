@@ -25,8 +25,9 @@ LobbySocial.__index = LobbySocial
 LobbySocial.STAMP_SECONDS = 2.6
 LobbySocial.SAY_SECONDS = 4.5
 LobbySocial.LOG_LINES = 6
--- Room at the right end of the bottom row for the plaza's CHARACTER button (Plaza2D.CHARACTER_W).
-LobbySocial.RIGHT_GAP = 168 + 8
+-- Room at the right end of the bottom row for the plaza's buttons (Plaza2D.CHARACTER_W): one wide
+-- CHARACTER button, or in a light theme the row of three square icon buttons.
+LobbySocial.RIGHT_GAP = (if Ui.lightPanels() then 3 * 76 + 16 else 168) + 8
 
 local LIGHT = Ui.lightPanels()
 local INK = Color3.fromRGB(15, 18, 24)
@@ -54,7 +55,9 @@ end
 
 -- A list button inside a panel: the kit's bevelled block, in body text so a line of words fits.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true, textColour = ON_PANEL })
+	-- (dark words only on a pale button; a coloured one keeps the kit's white, outlined in its shade)
+	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true,
+		textColour = if colour == nil or Ui.light(colour) > 0.62 then ON_PANEL else nil })
 	b.Name = name
 	return b
 end

@@ -22,8 +22,8 @@ local LIGHT = Ui.lightPanels()
 local TEXT = Ui.TEXT                         -- words on the window (dark on a pale one)
 local DIM = Ui.SUB
 local AMBER = Ui.GOLD
-local CYAN = if LIGHT then Color3.fromRGB(0, 120, 190) else Ui.CYAN     -- times and places
-local YOU = if LIGHT then Color3.fromRGB(40, 140, 40) else Ui.GREEN
+local CYAN = if LIGHT then Color3.fromRGB(0, 92, 156) else Ui.CYAN     -- times and places
+local YOU = if LIGHT then Color3.fromRGB(28, 106, 28) else Ui.GREEN
 -- the podium's metals, for ranks one to three
 local MEDALS = { Ui.GOLD, Color3.fromRGB(196, 206, 222), Color3.fromRGB(214, 140, 84) }
 local CHECKPOINTS = PARKOUR.course.checkpoints

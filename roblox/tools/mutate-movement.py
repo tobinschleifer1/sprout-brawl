@@ -239,7 +239,7 @@ shopui = [
     ('countdown in hours only', 'ShopScreen', 'return `{m // 60}h {m % 60}m`', 'return `{m // 60}h`', 'countdown reads wrong'),
     ('per-key price truncated', 'ShopScreen', 'math.floor(bundle.price / bundle.count + 0.5)', 'math.floor(bundle.price / bundle.count)', 'per-key price'),
     ('owned featured buyable', 'ShopScreen', 'if not f.owned then self:request(key', 'if true then self:request(key', 'owned item was requested'),
-    ('credit hidden', 'ShopScreen', 'elseif f.credit then "CLAIM (PAID)"', 'elseif false then "CLAIM (PAID)"', 'credit is not offered'),
+    ('credit hidden', 'ShopScreen', 'elseif f.credit then "CLAIM"', 'elseif false then "CLAIM"', 'credit is not offered'),
     ('two requests at once', 'ShopScreen', 'if self.pending then return end\n\tself.pending = key', 'self.pending = key', 'while one was pending'),
     ('prompt dropped', 'ShopScreen', 'self.opts.prompt(e.prompt.kind, e.prompt.id)', 'local _ = e.prompt.id', 'not handed to Roblox'),
     ('odds not Loot', 'ShopScreen', 'row.label.Text, row.value.Text = r.text, r.value', 'row.label.Text, row.value.Text = r.text, r.value .. "!"', 'is not Loot'),
@@ -248,6 +248,7 @@ shopui = [
     ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif not p.available', 'c.buy.Text = if false then "OWNED" elseif not p.available', 'owned pass'),
     ('keys for the restricted', 'ShopScreen', 'local keys = if shop.restricted then {} else shop.keys or {}', 'local keys = shop.keys or {}', 'should not have sent'),
     ('odds button for the restricted', 'ShopScreen', 'self.oddsButton.Visible = not shop.restricted', 'self.oddsButton.Visible = true', 'sees Forge Keys'),
+    ('cells without slack', 'ShopScreen', '-math.ceil(10 * (cols - 1) / cols) - 1, 0, h)', '-math.ceil(10 * (cols - 1) / cols) + 1, 0, h)', 'do not fit'),
     ('pack offered regardless', 'ShopScreen', 'if pack.offer then self:request(key', 'if true then self:request(key', 'a pack not offered'),
     ('pack never BUY SINGLY', 'ShopScreen', 'elseif not pack.offer then "BUY SINGLY"', 'elseif false then "BUY SINGLY"', 'dearer than its missing pieces'),
     ('owned piece requested', 'ShopScreen', 'if not p.owned then self:request(pkey', 'if true then self:request(pkey', 'an owned piece, was requested'),
@@ -319,7 +320,13 @@ uikit = [
     ('card gradient kept', 'Ui', 'if ch.ClassName == "UIGradient" then ch.Color = ColorSequence.new(Ui.shade(colour, 0.32), colour)', 'if ch.ClassName == "UIGradient" then local _ = colour', 'paintCard left part'),
     ('pale words on the window', 'Ui', 'TEXT = Color3.fromRGB(43, 33, 64), SUB', 'TEXT = Color3.fromRGB(150, 140, 160), SUB', 'under 7:1'),
     ('card words outlined in ink', 'Ui', 'else 1, Ui.tone(face))', 'else 1, Ui.INK)', 'in its own shade'),
-    ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.tone then Ui.tone(colour) else Ui.INK', 'if lightFace then b.TextColor3 = Ui.WHITE', 'gold button kept white'),
+    ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone', 'if lightFace then b.TextColor3 = if false then Ui.TEXT elseif false', 'gold button kept white'),
+    ('small words bare', 'Ui', 'or (o.small and not theme.tone) then nil', 'or o.small then nil', 'small words on a button are bare'),
+    ('icon button keyless', 'Ui', 'if key then\n\t\tlocal cap = Ui.keycap(b, key, 11)', 'if false then\n\t\tlocal cap = Ui.keycap(b, key, 11)', 'icon button is not a square'),
+]
+
+hudwrites = [
+    ('card percent too pale', 'Hud', 'while contrast(c, Ui.PANEL) < 4.5 and k < 12 do', 'while contrast(c, Ui.PANEL) < 3 and k < 12 do', 'reads under 4.5'),
 ]
 
 import argparse
@@ -367,7 +374,7 @@ clothingshop = [
     ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites)]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

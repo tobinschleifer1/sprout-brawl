@@ -35,12 +35,21 @@ local Ui = require(script.Parent.Ui)
 local SelectScreen = {}
 SelectScreen.__index = SelectScreen
 
--- The drawn size for `value` asked at `size`, shrunk until it fits `width` px (never under 60%).
+-- What a weapon's tile is labelled: its name, the long ones shortened to the word that names them,
+-- so every label fits a tile at a readable size (shrinking them instead made 8 px labels).
+SelectScreen.SHORT = { ["DUAL DAGGERS"] = "DAGGERS", ["CHAIN FLAIL"] = "FLAIL", ["ROCKET BOOTS"] = "BOOTS",
+	["WAR HAMMER"] = "HAMMER", ["BATTLE AXE"] = "AXE" }
+function SelectScreen.tileName(name: string): string
+	local up = string.upper(name)
+	return SelectScreen.SHORT[up] or up
+end
+
+-- The drawn size for `value` asked at `size`, shrunk until it fits `width` px (never under 80%).
 function SelectScreen.fitSize(value: string, size: number, width: number): number
 	local full = Ui.px(size)
 	local w = Ui.textWidth(value, size)
 	if w <= width then return full end
-	return math.max(math.floor(full * 0.6), math.floor(full * width / w))
+	return math.max(math.floor(full * 0.8), math.floor(full * width / w))
 end
 
 -- the look is the shared kit's (Ui)
@@ -327,7 +336,7 @@ function SelectScreen.build(self: any, L: any)
 		place(b, r.x - L.cell / 2, r.y - L.cell / 2, L.cell, L.cell)
 		corner(b, math.floor(L.cell / 2))
 		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
-		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 11 * s, WHITE)
+		local name = text(self.pickPage, SelectScreen.tileName(Weapons.LIST[i].name), 11 * s, WHITE)
 		Ui.outline(name, 1)
 		name.Name = "Name" .. r.id
 		-- one tile wide (plus its gap), the size shrunk to fit: long names collided with their neighbours
@@ -590,8 +599,9 @@ function SelectScreen.render(self: any)
 		local hand = if mine and mine.weapon == c.id then 1 elseif mine and mine.weapon2 == c.id then 2 else nil
 		c.ring.Color = if hand then GOLD else Color3.fromRGB(214, 228, 250)
 		c.ring.Thickness = if hand then 5 else 3
-		c.name.TextColor3 = if hand then GOLD else DIM
-		c.name.Text = (if hand then `{hand} · ` else "") .. string.upper(Weapons.BY_ID[c.id].name)
+		-- (white over the sky, outlined in ink, as every word over the world; gold for your two)
+		c.name.TextColor3 = if hand then GOLD elseif LIGHT then WHITE else DIM
+		c.name.Text = (if hand then `{hand} · ` else "") .. SelectScreen.tileName(Weapons.BY_ID[c.id].name)
 		c.name.TextSize = SelectScreen.fitSize(c.name.Text, 11 * L.s, L.cell - 4)
 		local list: { any } = picked[c.id] or {}
 		for n, entry in list do

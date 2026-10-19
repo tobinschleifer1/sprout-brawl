@@ -226,6 +226,11 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 			for _, ch in o._children do
 				if ch.destroyed then continue end
 				if ch.ClassName == "UICorner" then node.radius = ch.CornerRadius.Offset end
+				if ch.ClassName == "UIGradient" and ch.Color and ch.Color.Keypoints and ch.Enabled ~= false then
+					-- top to bottom (Rotation 90) or left to right
+					local k = ch.Color.Keypoints
+					node.gradient = { from = hex(k[1].Value), to = hex(k[#k].Value), vertical = (ch.Rotation or 0) == 90 }
+				end
 				if ch.ClassName == "UIStroke" and ch.Enabled ~= false then
 					if tostring(ch.ApplyStrokeMode) == "ApplyStrokeMode.Border" or tostring(ch.ApplyStrokeMode) == "Border" then
 						node.stroke, node.strokeW = hex(ch.Color), ch.Thickness

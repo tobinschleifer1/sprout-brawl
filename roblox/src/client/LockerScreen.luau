@@ -267,21 +267,28 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	self.workshopGrid = grid(self.workshopBody, Vector2.new(168, 176))
 	self.crateCards = {}
 	for i, id in Inventory.CRATES do
-		local card = Ui.panel(self.cratesBody, "Crate_" .. id, nil)
-		card.BackgroundColor3 = Ui.INK
+		-- each crate a coloured card (a light theme), its words white and outlined; dark otherwise
+		local crateColour = if id == "forge" then Ui.ORANGE else Ui.SKY
+		local card = if Ui.lightPanels() then Ui.card(self.cratesBody, "Crate_" .. id, crateColour) else Ui.panel(self.cratesBody, "Crate_" .. id, nil)
+		if not Ui.lightPanels() then card.BackgroundColor3 = Ui.INK end
+		local function words(value: string, size: number, colour: Color3, font: any?): any
+			if not Ui.lightPanels() then return Ui.text(card, value, size, colour, font) end
+			local t = Ui.faceText(card, value, size, crateColour, font or Ui.LABEL)
+			return t
+		end
 		card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 0, 300)
 		local thumb = Ui.make("Frame", card, { Name = "Thumb", BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(120, 100) })
 		self:drawArt(thumb, "crate_" .. id, 120, 100)
-		local name = Ui.text(card, Loot.CRATES[id].name, 22, Ui.WHITE, Ui.DISPLAY)
+		local name = words(Loot.CRATES[id].name, 22, Ui.WHITE, Ui.DISPLAY)
 		name.Name, name.TextXAlignment = "Name", Enum.TextXAlignment.Left
 		name.Position, name.Size = UDim2.fromOffset(144, 14), UDim2.new(1, -156, 0, 30)
-		local count = Ui.text(card, "", 15, Ui.DIM)
+		local count = words("", 15, Ui.DIM)
 		count.Name, count.TextXAlignment = "Count", Enum.TextXAlignment.Left
 		count.Position, count.Size = UDim2.fromOffset(144, 48), UDim2.new(1, -156, 0, 22)
-		local need = Ui.text(card, "", 14, Ui.DIM)
+		local need = words("", 14, Ui.DIM)
 		need.Name, need.TextXAlignment = "Needs", Enum.TextXAlignment.Left
 		need.Position, need.Size = UDim2.fromOffset(144, 72), UDim2.new(1, -156, 0, 22)
-		local g = Ui.text(card, "", 14, Ui.GOLD)
+		local g = words("", 14, Ui.GOLD)
 		g.Name, g.TextXAlignment, g.TextWrapped = "Guarantee", Enum.TextXAlignment.Left, true
 		g.Position, g.Size = UDim2.fromOffset(12, 124), UDim2.new(1, -24, 0, 40)
 		local open = Ui.button(card, "OPEN", Ui.GREEN, function() self:openCrate(id) end, { size = 20 })
@@ -292,12 +299,12 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		odds.Position, odds.Size = UDim2.new(0.5, 6, 0, 176), UDim2.new(0.5, -18, 0, 44)
 		self.crateCards[id] = { card = card, count = count, need = need, guarantee = g, open = open }
 	end
-	local meter = Ui.text(self.cratesBody, "", 15, Ui.DIM)
+	local meter = Ui.text(self.cratesBody, "", 15, Ui.SUB, nil, true)
 	meter.Name = "Meter"
 	meter.Position, meter.Size = UDim2.fromOffset(0, 316), UDim2.new(1, 0, 0, 24)
 	self.meter = meter
 	-- the message line
-	local message = Ui.text(panel, "", 15, Ui.WHITE)
+	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
 	message.Position, message.Size = UDim2.new(0.5, 0, 1, -8), UDim2.new(1, -24, 0, 26)
@@ -315,7 +322,7 @@ function LockerScreen.drawArt(self: any, frame: Instance, id: string, w: number,
 end
 
 function LockerScreen.say(self: any, text: string, colour: Color3?)
-	self.message.Text, self.message.TextColor3 = text, colour or Ui.WHITE
+	self.message.Text, self.message.TextColor3 = text, colour or Ui.TEXT
 end
 
 -- Ask twice for anything that spends: the first press arms it, a second within CONFIRM_SECONDS acts.
@@ -334,20 +341,26 @@ end
 local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	local c = pool[i]
 	if c then return c end
-	local f = Ui.make("Frame", grid, { Name = "Card" .. i, BackgroundColor3 = Ui.INK, BorderSizePixel = 0, LayoutOrder = i })
-	Ui.corner(f, 8)
-	local edge = Ui.stroke(f, Ui.EDGE, 2)
-	local band = Ui.make("Frame", f, { Name = "Band", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 4) })
-	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.PANEL, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(6, 10), Size = UDim2.new(1, -12, 0, 78) })
+	-- a card in the item's rarity colour (c.paint), its art on a soft window, white outlined words
+	local f = Ui.card(grid, "Card" .. i, Ui.SKY)
+	f.LayoutOrder = i
+	local edge
+	for _, ch in f:GetChildren() do if ch.ClassName == "UIStroke" then edge = ch end end
+	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 0, 80) })
 	Ui.corner(thumb, 6)
-	local name = Ui.text(f, "", 15, Ui.WHITE)
+	-- worn: a badge on the art (a gold edge would vanish on a gold card)
+	local worn = Ui.pricePill(thumb, "WORN")
+	worn.Name, worn.Visible, worn.BackgroundColor3 = "Worn", false, Ui.GREEN
+	worn.TextSize = Ui.px(11, Ui.DISPLAY)
+	worn.AnchorPoint, worn.Position, worn.Size = Vector2.new(1, 0), UDim2.new(1, -4, 0, 4), UDim2.fromOffset(52, 18)
+	local name, nameStroke = Ui.faceText(f, "", 15, Ui.SKY)
 	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
-	name.Position, name.Size = UDim2.fromOffset(6, 92), UDim2.new(1, -12, 0, 20)
-	local meta = Ui.text(f, "", 12, Ui.DIM)
-	meta.Name, meta.Position, meta.Size = "Meta", UDim2.fromOffset(6, 112), UDim2.new(1, -12, 0, 16)
-	local extra = Ui.text(f, "", 12, Ui.DIM)
-	extra.Name, extra.Position, extra.Size = "Extra", UDim2.fromOffset(6, 128), UDim2.new(1, -12, 0, 16)
+	name.Position, name.Size = UDim2.fromOffset(6, 90), UDim2.new(1, -12, 0, 20)
+	local meta, metaStroke = Ui.faceText(f, "", 12, Ui.SKY, Ui.LABEL)
+	meta.Name, meta.Position, meta.Size = "Meta", UDim2.fromOffset(6, 111), UDim2.new(1, -12, 0, 16)
+	local extra, extraStroke = Ui.faceText(f, "", 12, Ui.SKY, Ui.LABEL)
+	extra.Name, extra.Position, extra.Size = "Extra", UDim2.fromOffset(6, 127), UDim2.new(1, -12, 0, 16)
 	local direction = Ui.button(f, "", Ui.PANEL2, nil, { size = 11, small = true })
 	direction.Visible = false
 	direction.Name, direction.Position, direction.Size = "Direction", UDim2.fromOffset(6, 126), UDim2.new(1, -12, 0, 20)
@@ -357,7 +370,11 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	local secondary = Ui.button(f, "", Ui.PANEL2, nil, { size = 12, small = true })
 	secondary.Name = "Secondary"
 	secondary.Position, secondary.Size = UDim2.new(0, 6, 1, -32), UDim2.new(1, -12, 0, 26)
-	c = { frame = f, edge = edge, band = band, thumb = thumb, name = name, meta = meta, extra = extra,
+	c = { frame = f, edge = edge, thumb = thumb, name = name, meta = meta, extra = extra, worn = worn,
+		paint = function(colour: Color3)
+			Ui.paintCard(f, colour)
+			nameStroke.Color, metaStroke.Color, extraStroke.Color = Ui.tone(colour), Ui.tone(colour), Ui.tone(colour)
+		end,
 		primary = primary, secondary = secondary, direction = direction, slotIndex = 1, onPrimary = nil, onSecondary = nil }
 	direction.Activated:Connect(function()
 		c.slotIndex = c.slotIndex % #Inventory.EMOTE_ORDER + 1
@@ -375,11 +392,10 @@ function LockerScreen.refreshLocker(self: any)
 		local c = card(self, self.cardPool, self.lockerGrid, i)
 		local col = colourOf(m.rarity)
 		c.frame.Visible = true
-		c.band.BackgroundColor3, c.edge.Color = col, if m.worn then Ui.GOLD else Ui.EDGE
+		c.paint(col)
 		c.name.Text = m.name
 		local serial = LockerScreen.serialText(m)
 		c.meta.Text = `{m.rarity}{if serial ~= "" then "  ·  " .. serial else ""}`
-		c.meta.TextColor3 = col
 		c.extra.Text = if m.source == "free" then "Free for everyone" elseif m.copies == 0 then "Studio: on loan" else LockerScreen.existence(m.exist)
 		if c.itemId ~= m.id then c.itemId, c.slotIndex = m.id, 1 end
 		c.direction.Visible, c.extra.Visible = m.type == "emote", m.type ~= "emote"
@@ -387,9 +403,9 @@ function LockerScreen.refreshLocker(self: any)
 		c.direction.Text = "SLOT: " .. string.upper(Inventory.EMOTE_ORDER[c.slotIndex]) .. " >"
 		if m.type == "emote" then
 			m.worn = self.locker.wearing and self.locker.wearing[slot] == m.id
-			c.edge.Color = if m.worn then Ui.GOLD else Ui.EDGE
 			if m.source == "free" then c.meta.Text ..= " · Free" end
 		end
+		c.worn.Visible = m.worn == true
 		self:drawArt(c.thumb, m.id, 150, 78)
 		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
@@ -468,9 +484,10 @@ function LockerScreen.refreshWorkshop(self: any)
 		local c = card(self, self.craftPool, self.workshopGrid, i)
 		local col = colourOf(m.rarity)
 		c.frame.Visible = true
-		c.band.BackgroundColor3, c.edge.Color = col, Ui.EDGE
+		c.paint(col)
+		c.worn.Visible = false
 		c.name.Text = m.name
-		c.meta.Text, c.meta.TextColor3 = m.rarity, col
+		c.meta.Text = m.rarity
 		c.extra.Text = `{LockerScreen.number(m.cost)} Sparks`
 		self:drawArt(c.thumb, m.id, 150, 78)
 		c.primary.Text = "CRAFT"
@@ -507,8 +524,9 @@ end
 
 -- -------------------------------------------------------------------------------- overlays ----
 function LockerScreen.buildOverlays(self: any)
-	local function cover(name: string): any
-		local f = Ui.make("Frame", self.panel, { Name = name, BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.04,
+	-- (the opening is a dark stage whatever the theme; the odds a window like the rest)
+	local function cover(name: string, colour: Color3?): any
+		local f = Ui.make("Frame", self.panel, { Name = name, BackgroundColor3 = colour or Ui.INK, BackgroundTransparency = if colour then 0 else 0.04,
 			BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), Visible = false, ZIndex = 10 })
 		Ui.corner(f, 12)
 		return f
@@ -535,11 +553,11 @@ function LockerScreen.buildOverlays(self: any)
 	collect.Position, collect.Size = UDim2.new(0.5, 0, 1, -18), UDim2.fromOffset(200, 46)
 	self.opening = { frame = opening, title = title, strip = strip, result = result, detail = detail, collect = collect, tiles = {} }
 	-- Odds & Details
-	local odds = cover("OddsPanel")
-	local oTitle = Ui.text(odds, "ODDS & DETAILS", 22, Ui.WHITE, Ui.DISPLAY)
+	local odds = cover("OddsPanel", Ui.PANEL)
+	local oTitle = Ui.text(odds, "ODDS & DETAILS", 22, Ui.TEXT, Ui.DISPLAY, Ui.lightPanels())
 	oTitle.Name, oTitle.Position, oTitle.Size, oTitle.ZIndex = "Title", UDim2.fromOffset(16, 10), UDim2.new(1, -80, 0, 30), 11
 	oTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local sub = Ui.text(odds, "", 13, Ui.DIM)
+	local sub = Ui.text(odds, "", 13, Ui.SUB, nil, true)
 	sub.Name, sub.Position, sub.Size, sub.ZIndex = "Sub", UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 18), 11
 	sub.TextXAlignment = Enum.TextXAlignment.Left
 	local now = Ui.button(odds, "THIS OPENING", Ui.BLUE, function() self:showOdds(self.oddsCrate, false) end, { size = 13, small = true })
@@ -552,7 +570,7 @@ function LockerScreen.buildOverlays(self: any)
 		Position = UDim2.fromOffset(16, 100), Size = UDim2.new(1, -32, 1, -150), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-	local foot = Ui.text(odds, "Odds are rounded to four digits past the first non-zero one, so shown odds may not add to exactly 100%. Every item in a rarity is equally likely. Duplicates are kept: salvage them for Sparks.", 12, Ui.DIM)
+	local foot = Ui.text(odds, "Odds are rounded to four digits past the first non-zero one, so shown odds may not add to exactly 100%. Every item in a rarity is equally likely. Duplicates are kept: salvage them for Sparks.", 12, Ui.SUB, nil, true)
 	foot.Name, foot.ZIndex, foot.TextWrapped = "Footer", 11, true
 	foot.AnchorPoint = Vector2.new(0, 1)
 	foot.Position, foot.Size = UDim2.new(0, 16, 1, -8), UDim2.new(1, -120, 0, 40)
@@ -579,9 +597,9 @@ function LockerScreen.showOdds(self: any, crateId: string, guaranteed: boolean)
 		local row = o.rows[i]
 		if not row then
 			local f = Ui.make("Frame", o.list, { Name = "Row" .. i, BackgroundTransparency = 1, LayoutOrder = i, ZIndex = 11, Size = UDim2.new(1, -8, 0, 22) })
-			local l = Ui.text(f, "", 14, Ui.WHITE)
+			local l = Ui.text(f, "", 14, Ui.TEXT, nil, true)
 			l.Name, l.ZIndex, l.TextXAlignment, l.Size = "Label", 11, Enum.TextXAlignment.Left, UDim2.new(0.62, 0, 1, 0)
-			local v = Ui.text(f, "", 14, Ui.WHITE)
+			local v = Ui.text(f, "", 14, Ui.TEXT, nil, true)
 			v.Name, v.ZIndex, v.TextXAlignment = "Value", 11, Enum.TextXAlignment.Right
 			v.Position, v.Size = UDim2.fromScale(0.62, 0), UDim2.new(0.38, 0, 1, 0)
 			row = { frame = f, label = l, value = v }
@@ -589,8 +607,10 @@ function LockerScreen.showOdds(self: any, crateId: string, guaranteed: boolean)
 		end
 		row.frame.Visible = true
 		row.label.Text, row.value.Text = r.text, r.value
-		local col = if r.kind == "tier" then colourOf(r.rarity) else Ui.WHITE
-		row.label.TextColor3, row.value.TextColor3 = col, if r.kind == "tier" then col else Ui.DIM
+		-- tiers in their colour, deepened to read on a pale window
+		local tier: Color3? = if r.kind == "tier" then colourOf(r.rarity) else nil
+		local col = if tier then (if Ui.lightPanels() then Ui.shade(tier, -0.35) else tier) else Ui.TEXT
+		row.label.TextColor3, row.value.TextColor3 = col, if tier then col else Ui.SUB
 		row.label.Font = if r.kind == "tier" then Ui.DISPLAY else Ui.LABEL
 	end
 	for i = #rows + 1, #o.rows do o.rows[i].frame.Visible = false end
@@ -621,9 +641,8 @@ function LockerScreen.reveal(self: any, res: any)
 	for i, id in ids do
 		local t = o.tiles[i]
 		if not t then
-			t = Ui.make("Frame", o.strip, { Name = "Tile" .. i, BackgroundColor3 = Ui.PANEL2, BorderSizePixel = 0, ZIndex = 11,
-				Position = UDim2.fromOffset(R.pad + (i - 1) * R.width, 8), Size = UDim2.fromOffset(R.width - 8, 96) })
-			Ui.corner(t, 6)
+			t = Ui.card(o.strip, "Tile" .. i, Ui.PANEL2)
+			t.ZIndex, t.Position, t.Size = 11, UDim2.fromOffset(R.pad + (i - 1) * R.width, 8), UDim2.fromOffset(R.width - 8, 96)
 			local band = Ui.make("Frame", t, { Name = "Band", BorderSizePixel = 0, ZIndex = 12, Position = UDim2.new(0, 0, 1, -4), Size = UDim2.new(1, 0, 0, 4) })
 			local thumb = Ui.make("Frame", t, { Name = "Thumb", BackgroundTransparency = 1, ZIndex = 12, Position = UDim2.fromOffset(4, 6), Size = UDim2.new(1, -8, 1, -16) })
 			t = { frame = t, band = band, thumb = thumb }
@@ -631,6 +650,7 @@ function LockerScreen.reveal(self: any, res: any)
 		end
 		local it = Cosmetics.get(id) :: any
 		t.band.BackgroundColor3 = colourOf(it.rarity)
+		Ui.paintCard(t.frame, colourOf(it.rarity))
 		t.id = id
 		self:drawArt(t.thumb, id, R.width - 16, 80)
 	end

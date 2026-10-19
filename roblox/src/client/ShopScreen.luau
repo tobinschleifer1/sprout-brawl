@@ -18,6 +18,8 @@ local Loot = require(Shared.Loot)
 local Ui = require(script.Parent.Ui)
 local LockerScreen = require(script.Parent.LockerScreen)
 local ShopScreen = {}
+-- each pass in its own colour; one not built yet goes grey
+local PASS_COLOURS = { vip = Ui.SUN, wardrobe = Ui.TEAL, studio = Ui.VIOLET, season = Ui.PINK, emotes = Ui.SKY }
 ShopScreen.__index = ShopScreen
 
 -- 26,000 seconds -> "7h 13m"
@@ -38,22 +40,22 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		featuredCards = {}, keyCards = {}, passCards = {} }, ShopScreen)
 	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallShop", ResetOnSpawn = false, Enabled = false, DisplayOrder = 21 })
 	self.root = root
-	local panel = Ui.panel(root, "Shop", Ui.shade(Ui.GOLD, -0.35), "SHOP", 40)
+	local panel = Ui.panel(root, "Shop", Ui.RED, "SHOP", 44)
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.52), UDim2.new(1, -24, 1, -90)
 	Ui.make("UISizeConstraint", panel, { MaxSize = Vector2.new(940, 620) })
 	self.panel = panel
-	local close = Ui.button(panel, "X", Ui.RED, function() self:close() end, { size = 18 })
+	local close = Ui.button(panel, "X", Ui.WHITE, function() self:close() end, { size = 18, textColour = Ui.RED })
 	close.Name, close.ZIndex = "Close", 3
 	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position, close.Size = UDim2.new(1, -6, 0, 4), UDim2.fromOffset(34, 32)
+	close.Position, close.Size = UDim2.new(1, -8, 0, 6), UDim2.fromOffset(36, 32)
 	local body = Ui.make("ScrollingFrame", panel, { Name = "Body", BackgroundTransparency = 1, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(12, 48), Size = UDim2.new(1, -24, 1, -86), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(14, 54), Size = UDim2.new(1, -28, 1, -92), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", body, { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder })
 	self.body = body
 	local function heading(name: string, text: string, order: number): any
-		local h = Ui.text(body, text, 18, Ui.WHITE, Ui.DISPLAY)
+		local h = Ui.text(body, text, 20, Ui.TEXT, Ui.DISPLAY, true)
 		h.Name, h.LayoutOrder, h.TextXAlignment = name, order, Enum.TextXAlignment.Left
 		h.Size = UDim2.new(1, -8, 0, 26)
 		return h
@@ -73,7 +75,7 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	Ui.make("UIListLayout", clothing, { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
 	self.clothing, self.packRows = clothing, {}
 	heading("KeysHead", "FORGE KEYS", 6)
-	local keyNote = Ui.text(body, "Forge Keys open Forge Crates: Rare or better, Mythic possible.", 13, Ui.DIM)
+	local keyNote = Ui.text(body, "Forge Keys open Forge Crates: Rare or better, Mythic possible.", 14, Ui.SUB)
 	keyNote.Name, keyNote.LayoutOrder, keyNote.TextXAlignment, keyNote.TextWrapped = "KeyNote", 7, Enum.TextXAlignment.Left, true
 	keyNote.Size = UDim2.new(1, -8, 0, 34)
 	self.keyNote = keyNote
@@ -84,7 +86,7 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	self.keysRow = row("Keys", 9, 150)
 	heading("PassesHead", "PASSES", 10)
 	self.passesRow = row("Passes", 11, 250)
-	local message = Ui.text(panel, "", 15, Ui.WHITE)
+	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
 	message.Position, message.Size = UDim2.new(0.5, 0, 1, -8), UDim2.new(1, -24, 0, 26)
@@ -94,29 +96,32 @@ function ShopScreen.new(parent: Instance, opts: any): any
 end
 
 function ShopScreen.say(self: any, text: string, colour: Color3?)
-	self.message.Text, self.message.TextColor3 = text, colour or Ui.WHITE
+	self.message.Text, self.message.TextColor3 = text, colour or Ui.TEXT
 end
 
 local function card(parent: Instance, pool: { any }, i: number, h: number): any
 	local c = pool[i]
 	if c then return c end
-	local f = Ui.make("Frame", parent, { Name = "Card" .. i, BackgroundColor3 = Ui.INK, BorderSizePixel = 0, LayoutOrder = i })
-	Ui.corner(f, 8)
-	local edge = Ui.stroke(f, Ui.EDGE, 2)
-	local band = Ui.make("Frame", f, { Name = "Band", BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 4), BackgroundColor3 = Ui.EDGE })
-	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.PANEL, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 0, 90) })
+	-- a saturated card in the item's colour (paintCard), its art on a soft window, white words
+	local f = Ui.card(parent, "Card" .. i, Ui.SKY)
+	f.LayoutOrder = i
+	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 90) })
 	Ui.corner(thumb, 6)
-	local name = Ui.text(f, "", 16, Ui.WHITE, Ui.DISPLAY)
+	local name, nameStroke = Ui.faceText(f, "", 17, Ui.SKY)
 	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
-	name.Position, name.Size = UDim2.fromOffset(8, 104), UDim2.new(1, -16, 0, 22)
-	local meta = Ui.text(f, "", 13, Ui.DIM)
+	name.Position, name.Size = UDim2.fromOffset(8, 102), UDim2.new(1, -16, 0, 24)
+	local meta, metaStroke = Ui.faceText(f, "", 13, Ui.SKY, Ui.LABEL)
 	meta.Name, meta.TextWrapped = "Meta", true
-	meta.Position, meta.Size = UDim2.fromOffset(8, 128), UDim2.new(1, -16, 0, h - 176)
+	meta.Position, meta.Size = UDim2.fromOffset(8, 128), UDim2.new(1, -16, 0, math.max(18, h - 178))
 	local buy = Ui.button(f, "", Ui.GREEN, nil, { size = 16 })
 	buy.Name = "Buy"
-	buy.Position, buy.Size = UDim2.new(0, 8, 1, -42), UDim2.new(1, -16, 0, 34)
-	c = { frame = f, edge = edge, band = band, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil }
+	buy.Position, buy.Size = UDim2.new(0, 8, 1, -46), UDim2.new(1, -16, 0, 36)
+	c = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
+		paint = function(colour: Color3)
+			Ui.paintCard(f, colour)
+			nameStroke.Color, metaStroke.Color = Ui.tone(colour), Ui.tone(colour)
+		end }
 	buy.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
 	pool[i] = c
 	return c
@@ -125,7 +130,7 @@ end
 function ShopScreen.request(self: any, key: string, msg: any)
 	if self.pending then return end
 	self.pending = key
-	self:say("Asking the shop...", Ui.DIM)
+	self:say("Asking the shop...", Ui.SUB)
 	self.opts.send(msg)
 	self:refresh()
 end
@@ -140,10 +145,9 @@ function ShopScreen.refresh(self: any)
 		if it then
 			local c = card(self.featuredRow, self.featuredCards, i, 220)
 			local col = Color3.fromHex((Loot.RARITY[it.rarity] or Loot.RARITY.Common).colour)
-			c.band.BackgroundColor3 = col
+			c.paint(col)
 			c.name.Text = it.name
 			c.meta.Text = `{it.rarity} {LockerScreen.TYPE_LABEL[it.type] or ""}{if it.weapon then " · " .. it.weapon else ""}`
-			c.meta.TextColor3 = col
 			if self.art[c.thumb] ~= f.id then
 				self.art[c.thumb] = f.id
 				if self.opts.drawArt then self.opts.drawArt(c.thumb, f.id, 184, 90) end
@@ -166,6 +170,7 @@ function ShopScreen.refresh(self: any)
 		local c = card(self.keysRow, self.keyCards, i, 150)
 		c.frame.Visible = true
 		c.thumb.Visible = false
+		c.paint(Ui.ORANGE)
 		c.name.Position, c.meta.Position = UDim2.fromOffset(8, 14), UDim2.fromOffset(8, 40)
 		c.meta.Size = UDim2.new(1, -16, 0, 22)
 		c.name.Text = `{b.count} Forge Key{if b.count == 1 then "" else "s"}`
@@ -192,7 +197,7 @@ function ShopScreen.refresh(self: any)
 		c.buy.Text = if p.owned then "OWNED" elseif not p.available then "COMING SOON"
 			elseif self.pending == key then "..." else `{p.price} R$`
 		Ui.paint(c.buy, if p.owned or not p.available or self.pending then Ui.PANEL2 else Ui.GREEN)
-		c.edge.Color = if p.owned then Ui.GOLD else Ui.EDGE
+		c.paint(if not p.available then Color3.fromRGB(150, 140, 160) else PASS_COLOURS[p.id] or Ui.VIOLET)
 		c.onBuy = function()
 			if not p.owned and p.available then self:request(key, { action = "buy", kind = "pass", id = p.id }) end
 		end
@@ -211,7 +216,7 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 	for i, pack in packs do
 		local r = self.packRows[i]
 		if not r then
-			local head = Ui.text(self.clothing, "", 15, Ui.WHITE, Ui.LABEL)
+			local head = Ui.text(self.clothing, "", 16, Ui.TEXT, Ui.DISPLAY, true)
 			head.Name, head.LayoutOrder, head.TextXAlignment = "PackHead" .. i, i * 2 - 1, Enum.TextXAlignment.Left
 			head.Size = UDim2.new(1, -8, 0, 22)
 			local grid = Ui.make("Frame", self.clothing, { Name = "Pack" .. i, BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -227,12 +232,12 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 		c.name.Position, c.meta.Position = UDim2.fromOffset(8, 14), UDim2.fromOffset(8, 44)
 		c.meta.Size = UDim2.new(1, -16, 0, 110)
 		c.name.Text = "Whole pack"
-		c.meta.Text, c.meta.TextColor3 = ShopScreen.packLine(pack), Ui.DIM
+		c.meta.Text = ShopScreen.packLine(pack)
+		c.paint(Ui.SUN)
 		local key = "pack:" .. pack.id
 		c.buy.Text = if pack.missing == 0 then "OWNED" elseif not pack.offer then "BUY SINGLY"
 			elseif self.pending == key then "..." else `{pack.price} R$`
 		Ui.paint(c.buy, if not pack.offer or self.pending then Ui.PANEL2 else Ui.GREEN)
-		c.edge.Color = if pack.missing == 0 then Ui.GOLD else Ui.EDGE
 		c.onBuy = function()
 			if pack.offer then self:request(key, { action = "buy", kind = "pack", id = pack.id }) end
 		end
@@ -242,9 +247,9 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			local pc = card(r.grid, r.cards, j + 1, 220)
 			pc.frame.Visible = true
 			local col = Color3.fromHex((Loot.RARITY[it and it.rarity or "Common"] or Loot.RARITY.Common).colour)
-			pc.band.BackgroundColor3 = col
+			pc.paint(col)
 			pc.name.Text = if it then it.name else p.id
-			pc.meta.Text, pc.meta.TextColor3 = if it then `{it.rarity} {it.category or ""}` else "", col
+			pc.meta.Text = if it then `{it.rarity} {it.category or ""}` else ""
 			if self.art[pc.thumb] ~= p.id then
 				self.art[pc.thumb] = p.id
 				if self.opts.drawArt then self.opts.drawArt(pc.thumb, p.id, 134, 90) end
@@ -252,7 +257,6 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			local pkey = "piece:" .. p.id
 			pc.buy.Text = if p.owned then "OWNED" elseif p.credit then "CLAIM (PAID)" elseif self.pending == pkey then "..." else `{p.price} R$`
 			Ui.paint(pc.buy, if p.owned or self.pending then Ui.PANEL2 else Ui.GREEN)
-			pc.edge.Color = if p.owned then Ui.GOLD else Ui.EDGE
 			pc.onBuy = function()
 				if not p.owned then self:request(pkey, { action = "buy", kind = "piece", id = p.id }) end
 			end
@@ -264,10 +268,10 @@ end
 
 -- -------------------------------------------------------------------------- odds & details ----
 function ShopScreen.buildOdds(self: any)
-	local o = Ui.make("Frame", self.panel, { Name = "OddsPanel", BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.04,
+	local o = Ui.make("Frame", self.panel, { Name = "OddsPanel", BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0,
 		BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), Visible = false, ZIndex = 10 })
 	Ui.corner(o, 12)
-	local t = Ui.text(o, "ODDS & DETAILS  ·  FORGE CRATE", 22, Ui.WHITE, Ui.DISPLAY)
+	local t = Ui.text(o, "ODDS & DETAILS  ·  FORGE CRATE", 22, Ui.TEXT, Ui.DISPLAY, true)
 	t.Name, t.ZIndex, t.TextXAlignment = "Title", 11, Enum.TextXAlignment.Left
 	t.Position, t.Size = UDim2.fromOffset(16, 10), UDim2.new(1, -32, 0, 30)
 	local now = Ui.button(o, "THIS OPENING", Ui.BLUE, function() self:showOdds(false) end, { size = 13, small = true })
@@ -280,7 +284,7 @@ function ShopScreen.buildOdds(self: any)
 		Position = UDim2.fromOffset(16, 82), Size = UDim2.new(1, -32, 1, -136), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-	local foot = Ui.text(o, "Odds are rounded to four digits past the first non-zero one, so shown odds may not add to exactly 100%. Each Forge Key opens one Forge Crate. Paid keys keep their own guarantee count.", 12, Ui.DIM)
+	local foot = Ui.text(o, "Odds are rounded to four digits past the first non-zero one, so shown odds may not add to exactly 100%. Each Forge Key opens one Forge Crate. Paid keys keep their own guarantee count.", 12, Ui.SUB, nil, true)
 	foot.Name, foot.ZIndex, foot.TextWrapped, foot.TextXAlignment = "Footer", 11, true, Enum.TextXAlignment.Left
 	foot.AnchorPoint = Vector2.new(0, 1)
 	foot.Position, foot.Size = UDim2.new(0, 16, 1, -8), UDim2.new(1, -120, 0, 44)
@@ -300,9 +304,9 @@ function ShopScreen.showOdds(self: any, guaranteed: boolean)
 		local row = o.rows[i]
 		if not row then
 			local f = Ui.make("Frame", o.list, { Name = "Row" .. i, BackgroundTransparency = 1, LayoutOrder = i, ZIndex = 11, Size = UDim2.new(1, -8, 0, 22) })
-			local l = Ui.text(f, "", 14, Ui.WHITE)
+			local l = Ui.text(f, "", 14, Ui.TEXT, nil, true)
 			l.Name, l.ZIndex, l.TextXAlignment, l.Size = "Label", 11, Enum.TextXAlignment.Left, UDim2.new(0.62, 0, 1, 0)
-			local v = Ui.text(f, "", 14, Ui.WHITE)
+			local v = Ui.text(f, "", 14, Ui.TEXT, nil, true)
 			v.Name, v.ZIndex, v.TextXAlignment = "Value", 11, Enum.TextXAlignment.Right
 			v.Position, v.Size = UDim2.fromScale(0.62, 0), UDim2.new(0.38, 0, 1, 0)
 			row = { frame = f, label = l, value = v }
@@ -310,8 +314,10 @@ function ShopScreen.showOdds(self: any, guaranteed: boolean)
 		end
 		row.frame.Visible = true
 		row.label.Text, row.value.Text = r.text, r.value
-		local col = if r.kind == "tier" then Color3.fromHex(Loot.RARITY[r.rarity].colour) else Ui.WHITE
-		row.label.TextColor3, row.value.TextColor3 = col, if r.kind == "tier" then col else Ui.DIM
+		-- tiers in their colour, deepened to read on a pale window
+		local tier: Color3? = if r.kind == "tier" then Color3.fromHex(Loot.RARITY[r.rarity].colour) else nil
+		local col = if tier then (if Ui.lightPanels() then Ui.shade(tier, -0.35) else tier) else Ui.TEXT
+		row.label.TextColor3, row.value.TextColor3 = col, if tier then col else Ui.SUB
 	end
 	for i = #rows + 1, #o.rows do o.rows[i].frame.Visible = false end
 	o.frame.Visible = true
@@ -324,7 +330,7 @@ function ShopScreen.setEconomy(self: any, view: any)
 	if e then
 		if e.prompt then
 			self.pending = nil
-			self:say("Confirm in Roblox's purchase window", Ui.DIM)
+			self:say("Confirm in Roblox's purchase window", Ui.SUB)
 			self.opts.prompt(e.prompt.kind, e.prompt.id)
 		elseif e.error then
 			self.pending = nil

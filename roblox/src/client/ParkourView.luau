@@ -83,7 +83,8 @@ function ParkourView.new(parent: Instance, opts: any): any
 	gui.Parent = parent
 	self.gui = gui
 	-- the run's readout in one window (made first, so it sits behind the words placed over it)
-	local plate = Ui.panel(gui, "Readout")
+	-- (a coloured card in a light theme - its outlined light words read on it - a dark window otherwise)
+	local plate = if Ui.lightPanels() then Ui.card(gui, "Readout", Ui.SKY) else Ui.panel(gui, "Readout")
 	plate.BackgroundTransparency = 0
 	plate.Position, plate.Size = UDim2.fromOffset(8, TOP - 6), UDim2.fromOffset(490, 146)
 	self.readout = plate

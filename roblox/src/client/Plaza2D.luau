@@ -123,16 +123,19 @@ function Plaza2D.new(parent: Instance): any
 	self.gui = gui
 	-- The HUD is the shared pixel kit (Ui): outlined pixel words, bevelled square buttons, key caps.
 	-- the place's name and what is here, in one window (made first, so it sits behind them)
-	local plate = Ui.panel(gui, "TitlePlate")
-	plate.BackgroundTransparency = 0.12
+	-- (a light theme makes it a coloured card with outlined white words, like every label over the world)
+	local plateColour = if Ui.lightPanels() then Ui.TEAL else Ui.PANEL
+	local plate = if Ui.lightPanels() then Ui.card(gui, "TitlePlate", plateColour) else Ui.panel(gui, "TitlePlate")
+	if not Ui.lightPanels() then plate.BackgroundTransparency = 0.12 end
 	self.plate = plate
-	local title = Ui.text(gui, string.upper(Realms.LOBBY.name), 22, Ui.GOLD, Ui.DISPLAY)
+	local title = if Ui.lightPanels() then (Ui.faceText(gui, string.upper(Realms.LOBBY.name), 22, plateColour))
+		else Ui.text(gui, string.upper(Realms.LOBBY.name), 22, Ui.GOLD, Ui.DISPLAY)
 	title.Name = "Title"
 	title.Size = UDim2.new(1, -220, 0, 32)
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	self.title = title
 	local directions = Ui.text(gui, "", 12, Ui.WHITE)
-	Ui.outline(directions, 2)
+	Ui.outline(directions, 2, Ui.tone(plateColour))
 	directions.Name = "Directions"
 	directions.Size = UDim2.new(1, -220, 0, 20)
 	directions.TextXAlignment = Enum.TextXAlignment.Left
@@ -153,7 +156,7 @@ function Plaza2D.new(parent: Instance): any
 	self.controls, self.controlsW = controls, controlsW
 	-- What you can do here: a card with the E key on it beside a station, or a tip when there is
 	-- nothing in reach (the cap hides, the words soften).
-	local prompt = Ui.make("TextButton", gui, { Name = "Interact", Font = Ui.DISPLAY, TextSize = Ui.px(20), TextColor3 = Ui.GOLD,
+	local prompt = Ui.make("TextButton", gui, { Name = "Interact", Font = Ui.DISPLAY, TextSize = Ui.px(20), TextColor3 = if Ui.lightPanels() then Ui.TEXT else Ui.GOLD,
 		BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0.04, BorderSizePixel = 0, AutoButtonColor = false, TextWrapped = true })
 	prompt.AnchorPoint = Vector2.new(0.5, 1)
 	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, -62), UDim2.new(1, -32, 0, 50)
@@ -951,9 +954,10 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		self.promptKey.Visible = action
 		self.prompt.Font = if action then Ui.DISPLAY else Ui.LABEL
 		self.prompt.TextSize = Ui.px(if action then 20 else 13)
-		self.prompt.TextColor3 = if action then Ui.GOLD else Ui.WHITE
-		self.promptOutline.Enabled = action
-		self.promptEdge.Color = Ui.INK
+		-- (on a pale card: dark words, a gold edge for an action; on a dark one gold words)
+		self.prompt.TextColor3 = if Ui.lightPanels() then (if action then Ui.TEXT else Ui.SUB) elseif action then Ui.GOLD else Ui.WHITE
+		self.promptOutline.Enabled = action and not Ui.lightPanels()
+		self.promptEdge.Color = if Ui.lightPanels() and action then Ui.shade(Ui.SUN, -0.2) else Ui.INK
 		self.promptRim.Color = if action then Ui.GOLD else Ui.PANEL2
 		self.promptPad.PaddingLeft = UDim.new(0, if action then 64 else 16)
 	end

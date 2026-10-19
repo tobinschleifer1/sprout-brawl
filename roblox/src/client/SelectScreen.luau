@@ -39,7 +39,10 @@ SelectScreen.__index = SelectScreen
 local DISPLAY = Ui.DISPLAY
 local INK, PANEL, EDGE, WHITE, DIM = Ui.INK, Ui.PANEL, Ui.EDGE, Ui.WHITE, Ui.DIM
 local GOLD, GREEN, RED = Ui.GOLD, Ui.GREEN, Ui.RED
-local SLATE = Color3.fromRGB(58, 68, 102)         -- an unchosen chip, an unlit stat block
+local LIGHT = Ui.lightPanels()
+local TEXT, SUB = Ui.TEXT, Ui.SUB                -- words on a card (dark on a pale one)
+local SLATE = if LIGHT then Ui.EDGE else Color3.fromRGB(58, 68, 102)   -- an unchosen chip, an unlit stat block
+local ASK = if LIGHT then Color3.fromRGB(196, 92, 20) else Ui.GOLD    -- a question on a card
 local STAT_NAMES = { damage = "DMG", defense = "DEF", dexterity = "DEX", speed = "SPD" }
 local DIFFICULTIES = { "easy", "normal", "hard" }
 
@@ -174,7 +177,7 @@ function SelectScreen.new(parent: Instance): any
 	corner(bar, 18)
 	stroke(bar, EDGE, 2)
 	self.bar = bar
-	self.rules = text(bar, "", 15, WHITE)
+	self.rules = text(bar, "", 15, TEXT)
 	self.rules.Name = "Rules"
 
 	-- the VS between the teams
@@ -347,10 +350,10 @@ function SelectScreen.build(self: any, L: any)
 		status.Name = "State"
 		place(status, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		status.TextXAlignment = Enum.TextXAlignment.Right
-		local weapon = text(card, "", math.floor(22 * s), WHITE, DISPLAY)
+		local weapon = text(card, "", math.floor(22 * s), TEXT, DISPLAY)
 		weapon.Name = "Weapon"
 		place(weapon, 8 * s, 27 * s, p.cardW - 16 * s, 24 * s)
-		local kind = text(card, "", math.floor(11 * s), DIM)
+		local kind = text(card, "", math.floor(11 * s), SUB)
 		kind.Name = "Kind"
 		place(kind, 8 * s, 48 * s, p.cardW - 16 * s, 14 * s)
 		-- the four stat bars, ten segments each
@@ -358,7 +361,7 @@ function SelectScreen.build(self: any, L: any)
 		local rowH = math.floor((p.cardH - 72 * s) / 4)
 		for k, key in WeaponStats.KEYS do
 			local y = 66 * s + (k - 1) * rowH
-			local tag = text(card, STAT_NAMES[key], math.floor(11 * s), DIM)
+			local tag = text(card, STAT_NAMES[key], math.floor(11 * s), SUB)
 			place(tag, 10 * s, y, 34 * s, rowH)
 			tag.TextXAlignment = Enum.TextXAlignment.Left
 			tag.Name = "Stat" .. key
@@ -384,7 +387,7 @@ function SelectScreen.build(self: any, L: any)
 		-- the open slot: ADD BOT and the difficulty to propose it at
 		local open = make("Frame", card, { Name = "Open", BackgroundTransparency = 1 })
 		place(open, 0, 26 * s, p.cardW, p.cardH - 26 * s)
-		local openText = text(open, "OPEN SLOT", math.floor(18 * s), DIM, DISPLAY)
+		local openText = text(open, "OPEN SLOT", math.floor(18 * s), SUB, DISPLAY)
 		place(openText, 0, 4 * s, p.cardW, 24 * s)
 		local addBot = button(open, "+ ADD BOT", Ui.BLUE, function()
 			self:send("bot", self.difficulty, p.slot)
@@ -407,10 +410,10 @@ function SelectScreen.build(self: any, L: any)
 		-- a running vote on this slot: the question, the time left, the tally and your ballot
 		local vote = make("Frame", card, { Name = "Vote", BackgroundTransparency = 1, Visible = false })
 		place(vote, 0, 26 * s, p.cardW, p.cardH - 26 * s)
-		local question = text(vote, "", math.floor(16 * s), GOLD, DISPLAY)
+		local question = text(vote, "", math.floor(16 * s), ASK, DISPLAY)
 		question.Name = "Question"
 		place(question, 6 * s, 2 * s, p.cardW - 12 * s, 22 * s)
-		local tally = text(vote, "", math.floor(12 * s), WHITE)
+		local tally = text(vote, "", math.floor(12 * s), TEXT)
 		tally.Name = "Tally"
 		place(tally, 6 * s, 26 * s, p.cardW - 12 * s, 16 * s)
 		local yes = button(vote, "YES", GREEN, function() self:send("ballot", true) end)
@@ -485,13 +488,13 @@ function SelectScreen.buildVotes(self: any, L: any)
 		title.Name = "Title"
 		place(title, 6 * s, 0, r.w - 12 * s, 44 * s)
 		title.TextWrapped = true
-		local hint = text(card, if preset then preset.hint else "The room's rules as they are now.", 13 * s, Ui.KEY, Ui.BODY)
+		local hint = text(card, if preset then preset.hint else "The room's rules as they are now.", 13 * s, if LIGHT then SUB else Ui.KEY, Ui.BODY)
 		hint.Name = "Hint"
 		hint.TextWrapped = true
 		place(hint, 12 * s, 50 * s, r.w - 24 * s, 52 * s)
 		local facts = {}
 		for k = 1, 3 do
-			local f = text(card, "", math.floor(15 * s), WHITE)
+			local f = text(card, "", math.floor(15 * s), TEXT)
 			f.Name = "Fact" .. k
 			place(f, 12 * s, 108 * s + (k - 1) * 26 * s, r.w - 24 * s, 24 * s)
 			facts[k] = f
@@ -704,7 +707,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		for i, slot in room.slots do
 			local voted = slot.userId ~= nil and slot[field] ~= nil
 			local label = if slot.userId then `{if voted then "✓" else "…"} {string.upper(slot.name or "PLAYER")}` elseif slot.bot then "CPU" else "OPEN"
-			local chip = text(self.pages[phase], label, 12 * s, if voted then INK else WHITE)
+			local chip = text(self.pages[phase], label, 12 * s, if voted then INK elseif slot.bot or not LIGHT then WHITE else TEXT)
 			chip.Name = "Chip" .. i
 			chip.BackgroundTransparency = 0
 			chip.BackgroundColor3 = if voted then GREEN else (if slot.bot then Color3.fromRGB(52, 64, 88) else PANEL)

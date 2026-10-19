@@ -28,10 +28,13 @@ LobbySocial.LOG_LINES = 6
 -- Room at the right end of the bottom row for the plaza's CHARACTER button (Plaza2D.CHARACTER_W).
 LobbySocial.RIGHT_GAP = 168 + 8
 
+local LIGHT = Ui.lightPanels()
 local INK = Color3.fromRGB(15, 18, 24)
-local PANEL2 = Color3.fromRGB(46, 52, 63)
-local TEXT = Color3.fromRGB(230, 225, 214)
-local DIM = Color3.fromRGB(138, 148, 166)
+-- the panels' buttons and rows: pale with dark words in a light theme
+local PANEL2 = if LIGHT then Ui.PANEL2 else Color3.fromRGB(46, 52, 63)
+local TEXT = Color3.fromRGB(230, 225, 214)        -- words over the dark chat log
+local ON_PANEL = if LIGHT then Ui.TEXT else TEXT  -- words on a panel
+local DIM = if LIGHT then Ui.SUB else Color3.fromRGB(138, 148, 166)
 local PINK = Color3.fromRGB(200, 100, 60)
 local CYAN = Color3.fromRGB(127, 168, 184)
 local AMBER = Color3.fromRGB(232, 162, 74)
@@ -50,7 +53,7 @@ end
 
 -- A list button inside a panel: the kit's bevelled block, in body text so a line of words fits.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true, textColour = TEXT })
+	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true, textColour = ON_PANEL })
 	b.Name = name
 	return b
 end
@@ -58,7 +61,7 @@ end
 local function label(parent: Instance, name: string, text: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
 	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, Ui.px(size)
-	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment, t.TextWrapped = 1, colour or TEXT, Enum.TextXAlignment.Left, true
+	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment, t.TextWrapped = 1, colour or ON_PANEL, Enum.TextXAlignment.Left, true
 	t.Parent = parent
 	return t
 end
@@ -156,7 +159,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 
 	-- The log, bottom left.
 	-- (a window like the rest, see-through enough to keep the roofs behind it in view)
-	local log = Ui.panel(gui, "Log", Ui.PANEL2, "CHAT", 30)
+	local log = Ui.panel(gui, "Log", if LIGHT then Ui.SKY else Ui.PANEL2, "CHAT", 30)
 	log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3
 	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 42)
 	self.logFrame = log
@@ -312,8 +315,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
 		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
-		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then Color3.fromRGB(255, 150, 150)
-			elseif m.place == "room" then AMBER else Color3.fromRGB(192, 203, 220))
+		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then (if LIGHT then Color3.fromRGB(200, 50, 50) else Color3.fromRGB(255, 150, 150))
+			elseif m.place == "room" then (if LIGHT then Color3.fromRGB(196, 92, 20) else AMBER) else (if LIGHT then Ui.SUB else Color3.fromRGB(192, 203, 220)))
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
 		if m.place == "market" and m.userId ~= self.localId and m.x then
 			local go = button(row, "WarpTo", "WARP", function()

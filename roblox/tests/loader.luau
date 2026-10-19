@@ -108,6 +108,11 @@ function Loader.loadFrom(root: string, name: string): any
 			error("test loader: unsupported require target " .. tostring(target))
 		end,
 	}
+	-- A two-stop ColorSequence (UIGradient's colours) unless the test gives a real one: enough for the
+	-- render tools to draw a card's gradient.
+	(env :: any).ColorSequence = Loader.gui.ColorSequence or { new = function(a: any, b: any?): any
+		return { Keypoints = { { Time = 0, Value = a }, { Time = 1, Value = b or a } } }
+	end }
 	-- (Proxies rather than a metatable on env: injectGlobals replaces env's metatable with its own.)
 	for _, global in { "Instance", "UDim", "UDim2", "Enum" } do
 		(env :: any)[global] = setmetatable({}, { __index = function(_, k)

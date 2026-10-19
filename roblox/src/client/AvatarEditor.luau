@@ -39,8 +39,10 @@ local INK = Ui.INK
 local PANEL = Ui.PANEL
 local PANEL2 = Ui.PANEL2
 local LINE = Ui.EDGE
-local TEXT = Ui.WHITE
-local DIM = Ui.DIM
+local TEXT = Ui.TEXT                             -- words on the window (dark on a pale one)
+local DIM = Ui.SUB
+local LIGHT = Ui.lightPanels()
+local PICKED = if LIGHT then Color3.fromRGB(196, 92, 20) else Ui.GOLD   -- a picked tile's name
 local AMBER = Ui.GOLD
 local GOOD = Ui.GREEN
 local HEADER = Ui.BLUE                           -- the studio's top band
@@ -204,7 +206,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local top = Ui.band(panel, HEADER, 56, "Top")
 	self.top = top
 	-- (white on the blue bar: gold on it is barely there)
-	local title = Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
+	local title = if LIGHT then (Ui.faceText(top, "CHARACTER STUDIO", 18, HEADER)) else Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
 	title.Name = "Title"
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
@@ -232,7 +234,8 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.undoButton, self.redoButton = undo, redo
 
 	-- Preview: the real fighter, posed, with its controls.
-	local preview = frame(panel, "Preview", INK, 0)
+	-- (the character stands on a sky-blue stage in a light theme, as the plaza's sky)
+	local preview = frame(panel, "Preview", if LIGHT then Color3.fromRGB(196, 228, 255) else INK, 0)
 	corner(preview, 12)
 	Ui.stroke(preview, LINE, 2)
 	self.preview = preview
@@ -312,7 +315,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.lockButton, self.randPartButton = lock, randPart
 	local grid = Instance.new("ScrollingFrame")
 	grid.Name = "Grid"
-	grid.BackgroundColor3 = INK
+	grid.BackgroundColor3 = if LIGHT then PANEL2 else INK
 	grid.BackgroundTransparency = 0
 	grid.BorderSizePixel = 0
 	grid.ScrollBarThickness = 6
@@ -930,7 +933,7 @@ function AvatarEditor.rebuildTiles(self: any)
 			b.LayoutOrder = i
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
-			local name = label(b, "Label", string.upper(e.name), 10, Ui.KEY)
+			local name = label(b, "Label", string.upper(e.name), 10, if LIGHT then TEXT else Ui.KEY)
 			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
@@ -968,7 +971,7 @@ function AvatarEditor.renderTiles(self: any)
 		local code = self:tileCode(id)
 		local picked = if t.kind == "Preset_" then code == mine else self.spec.parts[self.category] == id
 		t.pick.Enabled = picked
-		t.label.TextColor3 = if picked then AMBER else Ui.KEY
+		t.label.TextColor3 = if picked then PICKED elseif LIGHT then TEXT else Ui.KEY
 		local key = `{code}|{view}|{px.X}x{px.Y}`
 		if t.drawn ~= key then
 			KitPortrait.draw(t.canvas, code, view, px.X, px.Y)
@@ -1022,7 +1025,8 @@ function AvatarEditor.rebuildChips(self: any)
 	local count = math.max(#self.slots, self.editing)
 	for i = 1, count do
 		local slot = self.slots[i]
-		local b = tile(self.chipBar, "Slot_" .. i, function() self:openSlot(i) end, if i == self.editing then PANEL2 else INK)
+		local b = tile(self.chipBar, "Slot_" .. i, function() self:openSlot(i) end,
+			if LIGHT then (if i == self.editing then Ui.SUN else PANEL2) elseif i == self.editing then PANEL2 else INK)
 		b.LayoutOrder = i
 		b.Size = UDim2.fromOffset(44, 44)
 		local thumb = frame(b, "Thumb")

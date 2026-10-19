@@ -49,10 +49,25 @@ Ui.THEMES = {
 		rim = false, bevel = "inset", scale = 1.0, advance = 0.62 },
 	clean = { display = F.FredokaOne, label = F.BuilderSansExtraBold, body = F.BuilderSansBold, radius = 8, borderK = 0.34,
 		outlineK = 0.4, rim = false, bevel = "none", scale = 1.05, advance = 0.62 },
+	-- The owner's direction (2026-10-19): a simulator shop's light windows, saturated cards and dark
+	-- price pills, drawn with a pixel kit's chunky buttons - a thick outline in a darker shade of the
+	-- button's own colour, a light band across its top and a dark lip along its foot - and outlined
+	-- white words on every coloured face.
+	--   light    windows are pale (palette below) and words on them dark: Ui.TEXT and Ui.SUB
+	--   tone     a coloured box's border and its words' outline are its own colour darkened, not ink
+	arcade = { display = F.FredokaOne, label = F.BuilderSansExtraBold, body = F.BuilderSansBold, radius = 10, borderK = 1,
+		outlineK = 1, rim = false, bevel = "arcade", scale = 1.08, advance = 0.62, light = true, tone = true },
 }
+-- Each theme's window colours: the dark ones share Endesga 32's; `light` themes their own.
+--   PANEL a window's body, PANEL2 a section set into it, EDGE a hairline on it, TEXT and SUB the
+--   words on it (main and secondary), INK the outline of boxes and of words over the world
+local DARK = { PANEL = Color3.fromRGB(38, 43, 68), PANEL2 = Color3.fromRGB(58, 68, 102), EDGE = Color3.fromRGB(90, 105, 136),
+	TEXT = Color3.fromRGB(255, 255, 255), SUB = Color3.fromRGB(139, 155, 180), INK = Color3.fromRGB(24, 20, 37) }
+local LIGHT = { PANEL = Color3.fromRGB(255, 248, 236), PANEL2 = Color3.fromRGB(244, 231, 207), EDGE = Color3.fromRGB(222, 202, 166),
+	TEXT = Color3.fromRGB(43, 33, 64), SUB = Color3.fromRGB(128, 110, 92), INK = Color3.fromRGB(35, 27, 51) }
 Ui.ARCADE_SCALE = 1.25
-local theme = Ui.THEMES.clean
-Ui.theme = "clean"
+local theme = Ui.THEMES.arcade
+Ui.theme = "arcade"
 
 -- Endesga 32
 Ui.INK = Color3.fromRGB(24, 20, 37)
@@ -70,6 +85,14 @@ Ui.CYAN = Color3.fromRGB(44, 232, 245)
 Ui.PINK = Color3.fromRGB(246, 117, 122)
 Ui.PURPLE = Color3.fromRGB(181, 80, 136)
 Ui.KEY = Color3.fromRGB(234, 238, 246)
+-- the words on a window, main and secondary (white and grey-blue on the dark windows)
+Ui.TEXT = Color3.fromRGB(255, 255, 255)
+Ui.SUB = Color3.fromRGB(139, 155, 180)
+-- the arcade theme's card colours: saturated, each with its own darker outline (Ui.tone)
+Ui.TEAL = Color3.fromRGB(46, 204, 170)
+Ui.VIOLET = Color3.fromRGB(150, 104, 255)
+Ui.SKY = Color3.fromRGB(77, 160, 255)
+Ui.SUN = Color3.fromRGB(255, 205, 54)
 
 -- How much bigger a size asked of the pixel face is drawn. Roblox fits Press Start 2P's square
 -- letters into a little over half of TextSize (16 draws 9 px letters), so sizes chosen for the old
@@ -99,11 +122,23 @@ function Ui.light(c: Color3): number
 end
 
 function Ui.useTheme(name: string?)
-	local t = Ui.THEMES[name or "clean"]
+	local t = Ui.THEMES[name or "arcade"]
 	if not t then return end
-	theme, Ui.theme = t, name or "clean"
+	theme, Ui.theme = t, name or "arcade"
 	Ui.DISPLAY, Ui.LABEL, Ui.BODY = t.display, t.label, t.body
 	Ui.SCALE, Ui.ADVANCE = t.scale, t.advance
+	local pal = if t.light then LIGHT else DARK
+	Ui.PANEL, Ui.PANEL2, Ui.EDGE, Ui.TEXT, Ui.SUB, Ui.INK = pal.PANEL, pal.PANEL2, pal.EDGE, pal.TEXT, pal.SUB, pal.INK
+end
+-- Is the theme's window pale (words on it dark)?
+function Ui.lightPanels(): boolean
+	return theme.light == true
+end
+-- The outline of a box or of the words on a face of colour `c`: its own colour darkened in a toned
+-- theme (a green button wears dark green), ink otherwise.
+function Ui.tone(c: Color3): Color3
+	if not theme.tone then return Ui.INK end
+	return Ui.shade(c, -0.58)
 end
 
 -- `c` moved toward white (k > 0) or black (k < 0) by |k|.
@@ -146,9 +181,9 @@ function Ui.stroke(parent: Instance, colour: Color3, thick: number): any
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border, LineJoinMode = if theme.radius > 0 then Enum.LineJoinMode.Round else Enum.LineJoinMode.Miter })
 end
 -- the ink outline on a text's letters (not its box)
-function Ui.outline(t: Instance, thick: number?): any
+function Ui.outline(t: Instance, thick: number?, colour: Color3?): any
 	local k = math.floor((thick or 2) * theme.outlineK + 0.5)
-	return Ui.make("UIStroke", t, { Color = Ui.INK, Thickness = k, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+	return Ui.make("UIStroke", t, { Color = colour or Ui.INK, Thickness = k, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
 		LineJoinMode = if theme.display == Enum.Font.Arcade then Enum.LineJoinMode.Miter else Enum.LineJoinMode.Round })
 end
 -- A lighter rim just inside a box's ink border: the second line of a pixel window's frame. Its
@@ -174,7 +209,9 @@ function Ui.text(parent: Instance?, value: string, size: number, colour: Color3?
 	-- the pixel face outlines everything big enough not to fill in; a smooth theme its display words
 	-- (a flat theme only outlines big words, the ones drawn over the world; small ones sit on cards)
 	local min = if theme.bevel == "none" then 28 else 16
-	if not bare and size >= min and (theme.label == Enum.Font.Arcade or face == Ui.DISPLAY) then Ui.outline(t, if size >= 28 then 3 else 2) end
+	-- (dark words - on a pale window - are never outlined: the outline is for light words)
+	local dark = colour ~= nil and Ui.light(colour) < 0.45
+	if not bare and not dark and size >= min and (theme.label == Enum.Font.Arcade or face == Ui.DISPLAY) then Ui.outline(t, if size >= 28 then 3 else 2) end
 	return t
 end
 
@@ -191,26 +228,32 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 	local b = Ui.make("TextButton", parent, { Text = value, Font = face, TextSize = Ui.px(o.size or 16, face),
 		TextColor3 = o.textColour or Ui.WHITE, BackgroundColor3 = colour, AutoButtonColor = true, BorderSizePixel = 0 })
 	Ui.corner(b, 0)
-	Ui.stroke(b, Ui.INK, 3)
-	local outline = if o.small or theme.bevel == "none" then nil else Ui.outline(b, 2)
+	local border = Ui.stroke(b, Ui.tone(colour), 3)
+	local outline = if o.small or theme.bevel == "none" then nil else Ui.outline(b, 2, Ui.tone(colour))
 	-- the bevel: full-width pixel strips (pixel themes), a rounded shine and lip set in from the
-	-- edges (rounded themes), or nothing (flat)
-	local inset = theme.bevel == "inset"
-	local shine = Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, Ui.SHINE),
-		BorderSizePixel = 0, Position = if inset then UDim2.fromOffset(6, 3) else UDim2.fromOffset(0, 0),
-		Size = if inset then UDim2.new(1, -12, 0, 3) else UDim2.new(1, 0, 0, 3) })
-	local lip = Ui.make("Frame", b, { Name = "Lip", BackgroundColor3 = Ui.shade(colour, Ui.LIP), BorderSizePixel = 0,
-		Position = if inset then UDim2.new(0, 3, 1, -6) else UDim2.new(0, 0, 1, -4),
-		Size = if inset then UDim2.new(1, -6, 0, 4) else UDim2.new(1, 0, 0, 4) })
-	if inset then
+	-- edges (rounded themes), a pixel kit's light band across the top third and a dark lip along the
+	-- foot (arcade), or nothing (flat)
+	local inset, arcade = theme.bevel == "inset", theme.bevel == "arcade"
+	local shine = Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, if arcade then 0.28 else Ui.SHINE),
+		BorderSizePixel = 0, Position = if inset then UDim2.fromOffset(6, 3) elseif arcade then UDim2.fromOffset(4, 3) else UDim2.fromOffset(0, 0),
+		Size = if inset then UDim2.new(1, -12, 0, 3) elseif arcade then UDim2.new(1, -8, 0.3, -2) else UDim2.new(1, 0, 0, 3) })
+	local lip = Ui.make("Frame", b, { Name = "Lip", BackgroundColor3 = Ui.shade(colour, if arcade then -0.3 else Ui.LIP), BorderSizePixel = 0,
+		Position = if inset then UDim2.new(0, 3, 1, -6) elseif arcade then UDim2.new(0, 0, 1, -5) else UDim2.new(0, 0, 1, -4),
+		Size = if inset then UDim2.new(1, -6, 0, 4) elseif arcade then UDim2.new(1, 0, 0, 5) else UDim2.new(1, 0, 0, 4) })
+	if arcade then
+		-- the shine is a rounded band; the lip follows the button's own rounded foot
+		Ui.make("UICorner", shine, { CornerRadius = UDim.new(0, math.max(2, theme.radius - 4)) })
+		Ui.make("UICorner", lip, { CornerRadius = UDim.new(0, theme.radius) })
+		shine.ZIndex, lip.ZIndex = b.ZIndex, b.ZIndex
+	elseif inset then
 		Ui.make("UICorner", shine, { CornerRadius = UDim.new(0, 2) })
 		Ui.make("UICorner", lip, { CornerRadius = UDim.new(0, 3) })
 	elseif theme.bevel == "none" then
 		shine.BackgroundTransparency, lip.BackgroundTransparency = 1, 1
 	end
-	parts[b] = { shine = shine, lip = lip, outline = outline }
+	parts[b] = { shine = shine, lip = lip, outline = outline, border = border }
 	if not o.textColour and Ui.light(colour) > 0.62 then
-		b.TextColor3 = Ui.INK
+		b.TextColor3 = if theme.tone then Ui.tone(colour) else Ui.INK
 		if outline then outline.Thickness = 0 end
 	end
 	if onClick then b.Activated:Connect(onClick) end
@@ -223,12 +266,19 @@ end
 function Ui.paint(b: any, colour: Color3, textColour: Color3?)
 	b.BackgroundColor3 = colour
 	local lightFace = Ui.light(colour) > 0.62
-	if lightFace then b.TextColor3 = Ui.INK elseif textColour then b.TextColor3 = textColour end
+	if lightFace then b.TextColor3 = if theme.tone then Ui.tone(colour) else Ui.INK
+	elseif textColour then b.TextColor3 = textColour
+	elseif theme.tone then b.TextColor3 = Ui.WHITE end
 	local p = parts[b]
 	if p then
-		p.shine.BackgroundColor3 = Ui.shade(colour, Ui.SHINE)
-		p.lip.BackgroundColor3 = Ui.shade(colour, Ui.LIP)
-		if p.outline then p.outline.Thickness = if lightFace then 0 else math.floor(2 * theme.outlineK + 0.5) end
+		local arcade = theme.bevel == "arcade"
+		p.shine.BackgroundColor3 = Ui.shade(colour, if arcade then 0.28 else Ui.SHINE)
+		p.lip.BackgroundColor3 = Ui.shade(colour, if arcade then -0.3 else Ui.LIP)
+		if p.border and theme.tone then p.border.Color = Ui.tone(colour) end
+		if p.outline then
+			p.outline.Thickness = if lightFace then 0 else math.floor(2 * theme.outlineK + 0.5)
+			if theme.tone then p.outline.Color = Ui.tone(colour) end
+		end
 	end
 end
 
@@ -330,6 +380,12 @@ function Ui.band(parent: Instance, colour: Color3, h: number, name: string?): an
 		Ui.make("Frame", b, { Name = "Square", BackgroundColor3 = colour, BorderSizePixel = 0,
 			Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(1, 0, 0.5, 0) })
 	end
+	if theme.bevel == "arcade" then
+		-- a light band across its top, as on the buttons
+		local sh = Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, 0.22), BorderSizePixel = 0,
+			Position = UDim2.fromOffset(6, 3), Size = UDim2.new(1, -12, 0.28, 0) })
+		Ui.make("UICorner", sh, { CornerRadius = UDim.new(0, math.max(2, theme.radius - 4)) })
+	end
 	if theme.bevel == "strip" then
 		Ui.make("Frame", b, { Name = "Shine", BackgroundColor3 = Ui.shade(colour, 0.35), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
 		Ui.make("Frame", b, { Name = "Ledge", BackgroundColor3 = Ui.shade(colour, -0.45), BorderSizePixel = 0,
@@ -350,8 +406,9 @@ function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?
 	local h = bandH or 34
 	local b = Ui.band(p, band, h)
 	b.ZIndex = 2
-	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY, theme.bevel == "none")
-	if math.floor(h * 0.48) < 16 and theme.bevel ~= "none" then Ui.outline(t, 2) end
+	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY, theme.bevel == "none" or theme.tone)
+	if theme.tone then Ui.outline(t, if h >= 40 then 3 else 2, Ui.tone(band))
+	elseif math.floor(h * 0.48) < 16 and theme.bevel ~= "none" then Ui.outline(t, 2) end
 	t.Name = "Title"
 	t.Position, t.Size = UDim2.fromOffset(10, 0), UDim2.new(1, -20, 1, 0)
 	t.TextXAlignment = Enum.TextXAlignment.Left
@@ -364,8 +421,49 @@ function Ui.paintBand(band: any, colour: Color3)
 	band.BackgroundColor3 = colour
 	local shine, ledge, square = band:FindFirstChild("Shine"), band:FindFirstChild("Ledge"), band:FindFirstChild("Square")
 	if square then square.BackgroundColor3 = colour end
-	if shine then shine.BackgroundColor3 = Ui.shade(colour, 0.35) end
+	if shine then shine.BackgroundColor3 = Ui.shade(colour, if theme.bevel == "arcade" then 0.22 else 0.35) end
 	if ledge then ledge.BackgroundColor3 = Ui.shade(colour, -0.45) end
+end
+
+-- A saturated card (the simulator shop's): a vertical light-to-colour gradient, a thick border in
+-- its own darker shade and a lip along its foot. The caller sizes and places it.
+function Ui.card(parent: Instance?, name: string, colour: Color3): any
+	local c = Ui.make("Frame", parent, { Name = name, BackgroundColor3 = colour, BorderSizePixel = 0 })
+	Ui.corner(c, 0)
+	Ui.stroke(c, Ui.tone(colour), 3)
+	if theme.bevel == "arcade" then
+		Ui.make("UIGradient", c, { Rotation = 90, Color = ColorSequence.new(Ui.shade(colour, 0.32), colour) })
+		local lip = Ui.make("Frame", c, { Name = "Lip", BackgroundColor3 = Ui.shade(colour, -0.28), BorderSizePixel = 0,
+			Position = UDim2.new(0, 0, 1, -5), Size = UDim2.new(1, 0, 0, 5) })
+		Ui.make("UICorner", lip, { CornerRadius = UDim.new(0, theme.radius) })
+	end
+	return c
+end
+
+-- Recolour a card: its face, gradient, border and lip together.
+function Ui.paintCard(c: any, colour: Color3)
+	c.BackgroundColor3 = colour
+	for _, ch in c:GetChildren() do
+		if ch.ClassName == "UIGradient" then ch.Color = ColorSequence.new(Ui.shade(colour, 0.32), colour)
+		elseif ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour)
+		elseif ch.Name == "Lip" then ch.BackgroundColor3 = Ui.shade(colour, -0.28) end
+	end
+end
+
+-- Words on a coloured face (a card, a band): white, outlined in the face's own darker shade, so
+-- they read on any colour - pale grey, gold or violet alike. Returns the label and its outline.
+function Ui.faceText(parent: Instance?, value: string, size: number, face: Color3, font: any?): (any, any)
+	local t = Ui.text(parent, value, size, Ui.WHITE, font or Ui.DISPLAY, true)
+	local o = Ui.outline(t, if size >= 20 then 3 elseif size >= 15 then 2 else 1, Ui.tone(face))
+	return t, o
+end
+
+-- A price on a dark pill: "29 R$". Prices are always plain Robux. The caller sizes and places it.
+function Ui.pricePill(parent: Instance?, value: string): any
+	local p = Ui.make("TextLabel", parent, { Name = "Price", Text = value, Font = Ui.DISPLAY, TextSize = Ui.px(15, Ui.DISPLAY),
+		TextColor3 = Ui.WHITE, BackgroundColor3 = Color3.fromRGB(35, 27, 51), BackgroundTransparency = 0.12, BorderSizePixel = 0 })
+	Ui.make("UICorner", p, { CornerRadius = UDim.new(1, 0) })
+	return p
 end
 
 -- A dark square strip with a rim, for a line of status.
@@ -377,4 +475,5 @@ function Ui.pill(parent: Instance?, name: string, edge: Color3?): any
 	return p
 end
 
+Ui.useTheme(Ui.theme)
 return Ui

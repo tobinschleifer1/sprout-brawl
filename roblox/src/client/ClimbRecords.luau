@@ -18,11 +18,12 @@ ClimbRecords.ROWS = 25
 
 -- the look is the shared cartoon kit's (Ui)
 local PANEL = Ui.PANEL
-local TEXT = Ui.WHITE
-local DIM = Ui.DIM
+local LIGHT = Ui.lightPanels()
+local TEXT = Ui.TEXT                         -- words on the window (dark on a pale one)
+local DIM = Ui.SUB
 local AMBER = Ui.GOLD
-local CYAN = Ui.CYAN
-local YOU = Ui.GREEN
+local CYAN = if LIGHT then Color3.fromRGB(0, 120, 190) else Ui.CYAN     -- times and places
+local YOU = if LIGHT then Color3.fromRGB(40, 140, 40) else Ui.GREEN
 -- the podium's metals, for ranks one to three
 local MEDALS = { Ui.GOLD, Color3.fromRGB(196, 206, 222), Color3.fromRGB(214, 140, 84) }
 local CHECKPOINTS = PARKOUR.course.checkpoints
@@ -60,7 +61,7 @@ end
 local function column(parent: Instance, name: string, title: string, x: number): any
 	-- a card per board: its title outlined in a gold band
 	local f = Ui.panel(parent, name, Ui.ORANGE, title, 28)
-	f.BackgroundColor3 = Ui.INK
+	f.BackgroundColor3 = if LIGHT then Ui.PANEL2 else Ui.INK
 	f.Position, f.Size = UDim2.new(x, if x == 0 then 12 else 6, 0, 52), UDim2.new(0.5, -18, 1, -112)
 	local list = Instance.new("ScrollingFrame")
 	list.Name, list.BackgroundTransparency, list.BorderSizePixel = "List", 1, 0
@@ -124,7 +125,7 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 
 	self.fastest = column(p, "Fastest", "FASTEST CLIMBS", 0)
 	self.highest = column(p, "Highest", "HIGHEST CLIMBERS", 0.5)
-	local status = text(p, "Status", "", 12, Color3.fromRGB(192, 203, 220))
+	local status = text(p, "Status", "", 12, if LIGHT then DIM else Color3.fromRGB(192, 203, 220))
 	status.AnchorPoint, status.Position, status.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -34), UDim2.new(1, -32, 0, 20)
 	self.status = status
 	local mine = text(p, "Mine", "", 12, YOU)

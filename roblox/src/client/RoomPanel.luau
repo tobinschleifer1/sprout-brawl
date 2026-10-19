@@ -27,7 +27,7 @@ function RoomPanel.drawThumb(c: any, shapes: { any })
 end
 local function label(parent: Instance, value: string, height: number): TextLabel
 	local t = Instance.new("TextLabel")
-	t.BackgroundTransparency, t.TextColor3, t.Font = 1, WHITE, Ui.LABEL
+	t.BackgroundTransparency, t.TextColor3, t.Font = 1, Ui.TEXT, Ui.LABEL
 	t.Text, t.TextSize, t.TextWrapped = value, Ui.px(12), true
 	t.Size, t.Parent = UDim2.new(1, 0, 0, height), parent
 	return t
@@ -88,7 +88,7 @@ function RoomPanel.buildNotice(self: any)
 	local cap = Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })
 	card.Visible = false
 	title.TextXAlignment = Enum.TextXAlignment.Center
-	local message = Ui.text(card, "", 15, WHITE)
+	local message = Ui.text(card, "", 15, Ui.TEXT)
 	message.Name = "Message"
 	message.TextWrapped = true
 	message.Position, message.Size = UDim2.fromOffset(16, 46), UDim2.new(1, -32, 0, 58)

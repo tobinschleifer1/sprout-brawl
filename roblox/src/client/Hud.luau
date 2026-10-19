@@ -34,7 +34,9 @@ Hud.__index = Hud
 local FONT = Ui.LABEL
 -- the floating label over each fighter: its width, and how near the screen's top or bottom it may go
 local FLOAT_W, FLOAT_EDGE = 170, 26
-local DIM = Color3.fromRGB(198, 204, 214)
+-- secondary words on a card (the weapon, SHIELD): the theme's own on a pale card
+local DIM = if Ui.lightPanels() then Ui.SUB else Color3.fromRGB(198, 204, 214)
+local SHIELD_UP = if Ui.lightPanels() then Color3.fromRGB(0, 120, 200) else Color3.fromRGB(120, 220, 255)
 local PANEL = Ui.PANEL
 local GOLD = Ui.GOLD                            -- a timed link's colour (FxPlayer.PERFECT)
 local BROKE = Color3.fromRGB(150, 156, 168)
@@ -97,7 +99,7 @@ function Hud.new(parent: Instance): any
 	pill.Position, pill.Size = UDim2.new(0.5, 0, 0, 10), UDim2.fromOffset(124, 42)
 	pill.Visible = false
 	self.timerPill = pill
-	self.timer = display(pill, UDim2.fromScale(1, 1), UDim2.new(), "", 30, DIM)
+	self.timer = display(pill, UDim2.fromScale(1, 1), UDim2.new(), "", 30, Ui.WHITE)
 	self.timer.TextXAlignment = Enum.TextXAlignment.Center
 	-- The keys that matter mid-fight, as caps, under the clock.
 	local KB: any = Bindings.keyboard
@@ -131,7 +133,7 @@ function Hud.new(parent: Instance): any
 	local hold = label(card, UDim2.new(0, 160, 0, 30), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
 	hold.TextXAlignment = Enum.TextXAlignment.Right
 	hold.ZIndex = 3
-	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, Ui.WHITE)
+	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, Ui.TEXT)
 	self.guide.Name = "ComboGuide"
 	self.guide.TextWrapped = true
 	-- a list: each route's name in white, its chain in gold, the how-to dimmed
@@ -191,7 +193,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local name, chain = string.match(line, "^([^:]+):%s*(.*)$")
 		if name and chain then
 			local route, how = string.match(chain, "^(.-)%s*(%b())$")
-			table.insert(lines, `<font color="#FEE761">{string.upper(name)}</font>   {route or chain}` .. (if how then `  <font color="#A8B5CC">{how}</font>` else ""))
+			-- (route names gold on a dark card, deep orange on a pale one; the how-to dimmed)
+			local nameHex, howHex = if Ui.lightPanels() then "C2410C" else "FEE761", if Ui.lightPanels() then "806E5C" else "A8B5CC"
+			table.insert(lines, `<font color="#{nameHex}">{string.upper(name)}</font>   {route or chain}` .. (if how then `  <font color="#{howHex}">{how}</font>` else ""))
 		else
 			table.insert(lines, line)
 		end
@@ -556,7 +560,7 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			if tile.shield then
 				local up = st.state == "shield"
 				write(tile.shield, "Text", if up then "SHIELD UP" else "SHIELD")
-				write(tile.shield, "TextColor3", if up then Color3.fromRGB(120, 220, 255) else DIM)
+				write(tile.shield, "TextColor3", if up then SHIELD_UP else DIM)
 			end
 
 			-- The floating label, over the head and a little above it.

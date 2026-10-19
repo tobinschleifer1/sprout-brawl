@@ -30,6 +30,7 @@ for (const s of d.shapes) {
 }
 out += '</g>';
 const clips = new Map();
+let gradients = 0;
 for (const n of d.nodes) {
   // a node inside a ScrollingFrame (or a ClipsDescendants box) is cut off at its edges
   let open = '';
@@ -44,7 +45,14 @@ for (const n of d.nodes) {
   }
   const r = n.radius ? Math.min(n.radius, n.w / 2, n.h / 2) : 0;
   if (n.bg || n.stroke) {
-    out += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${n.bg || 'none'}" fill-opacity="${n.bg ? n.bgAlpha : 0}"/>`;
+    let fill = n.bg || 'none';
+    if (n.gradient && n.bg) {
+      // a UIGradient multiplies the box's colour; the cards set it white-to-colour over a coloured box
+      const id = `g${gradients++}`, g = n.gradient;
+      out += `<defs><linearGradient id="${id}" x1="0" y1="0" x2="${g.vertical ? 0 : 1}" y2="${g.vertical ? 1 : 0}"><stop offset="0" stop-color="${g.from}"/><stop offset="1" stop-color="${g.to}"/></linearGradient></defs>`;
+      fill = `url(#${id})`;
+    }
+    out += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${fill}" fill-opacity="${n.bg ? n.bgAlpha : 0}"/>`;
     // a Roblox UIStroke border is drawn outside the box, where an SVG stroke straddles its edge
     if (n.stroke) {
       const h = n.strokeW / 2;

@@ -18,7 +18,9 @@ PodiumView.__index = PodiumView
 -- the place's colour, ink-bordered cards with the place outlined in a band.
 local FONT = Ui.LABEL
 local GOLD = Ui.GOLD
-local STAT = Color3.fromRGB(143, 184, 232)
+local LIGHT = Ui.lightPanels()
+local STAT = if LIGHT then Ui.SUB else Color3.fromRGB(143, 184, 232)    -- a stat's name
+local VALUE = if LIGHT then Ui.TEXT else Color3.new(1, 1, 1)            -- its number
 local STONE = Color3.fromRGB(72, 82, 106)
 local STONE_LIT = Color3.fromRGB(104, 116, 142)
 local STONE_DARK = Color3.fromRGB(44, 50, 66)
@@ -150,7 +152,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		place.Font = Ui.DISPLAY
 		if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
 		if Ui.light(if first then GOLD else colour) > 0.62 then place.TextColor3 = Ui.INK end
-		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, 0.45))
+		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, if LIGHT then -0.3 else 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
 		if not Ui.flat() then Ui.outline(name, 2) end
@@ -158,7 +160,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 			-- one row pitch on every card, from the same baseline, so the four compare row by row
 			local y = rh * 2.1 + (k - 1) * pitch
 			text(card, pad, y, s.card.w * 0.6, rh, string.upper(stat[1]), rt * 0.56, STAT).Name = `Label{k}`
-			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rt * 0.72, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
+			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rt * 0.72, VALUE, Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
 			v.Font = Ui.DISPLAY
 			if not Ui.flat() then Ui.outline(v, 2) end

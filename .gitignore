@@ -48,3 +48,4 @@ art/basic/
 
 # Agents' worktrees (see AGENTS.md, Branches): one checkout per branch, never committed.
 .claude/worktrees/
+.renders/

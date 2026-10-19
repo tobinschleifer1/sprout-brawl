@@ -92,7 +92,8 @@ function ParkourView.new(parent: Instance, opts: any): any
 	self.readout = plate
 	local title = text(gui, "Title", "SKYLINE CLIMB", if LIGHT then 18 else 22, if LIGHT then Ui.WHITE else AMBER)
 	local titleOutline = display(title, 2)
-	if LIGHT then title.Font, titleOutline.Color = Ui.TITLE, Ui.tone(Ui.SKY) end
+	-- (Fredoka on this small band: pixel lettering is for windows' own title bands)
+	if LIGHT then title.Font, titleOutline.Color = Ui.DISPLAY, Ui.tone(Ui.SKY) end
 	-- This ScreenGui ignores the inset (so world labels line up with the canvas), which puts its top
 	-- 58 px under Roblox's own top bar and its top right under the player list: seen in Studio, the
 	-- SKIP button could not be clicked there. So the HUD text starts below the bar, and every button

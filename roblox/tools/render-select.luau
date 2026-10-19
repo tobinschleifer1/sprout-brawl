@@ -138,10 +138,11 @@ for _, o in made do
 			node.bg, node.bgAlpha = hex(o.BackgroundColor3 or Rbx.Color3.new(0.6, 0.6, 0.6)), 1 - (o.BackgroundTransparency or 0)
 		end
 		for _, ch in o._children do
-			if ch.ClassName == "UICorner" and not ch.destroyed then node.radius = ch.CornerRadius.Offset end
-			if ch.ClassName == "UIStroke" and not ch.destroyed then
+			if ch.ClassName == "UICorner" and not ch.destroyed then node.radius = ch.CornerRadius.Offset + (ch.CornerRadius.Scale or 0) * math.min(w, h) end
+			-- (a 0 px stroke draws nothing in Roblox; recorded, the SVG drew a default one)
+			if ch.ClassName == "UIStroke" and not ch.destroyed and ch.Enabled ~= false and (ch.Thickness or 1) > 0 then
 				if ch.ApplyStrokeMode == "ApplyStrokeMode.Border" then node.stroke, node.strokeW = hex(ch.Color), ch.Thickness
-				elseif cls ~= "Frame" then node.textStroke = hex(ch.Color) end
+				elseif cls ~= "Frame" then node.textStroke, node.textStrokeW = hex(ch.Color), ch.Thickness end
 			end
 		end
 		if (cls == "TextLabel" or cls == "TextButton") and o.Text and o.Text ~= "" then

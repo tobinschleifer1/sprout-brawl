@@ -117,10 +117,7 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize, limit.Parent = Vector2.new(720, 520), p
 	title.TextColor3, title.Size = Ui.WHITE, UDim2.new(1, -140, 1, 0)      -- (white on the blue bar, as the studio's)
-	local close = Ui.button(p, "CLOSE", Ui.RED, function() self:close() end, { size = 13 })
-	close.Name = "Close"
-	close.AnchorPoint, close.Position, close.Size = Vector2.new(1, 0), UDim2.new(1, -10, 0, 6), UDim2.fromOffset(96, 32)
-	close.ZIndex = 3
+	local close = Ui.closeButton(p, function() self:close() end, 44)
 	self.closeButton = close
 
 	self.fastest = column(p, "Fastest", "FASTEST CLIMBS", 0)

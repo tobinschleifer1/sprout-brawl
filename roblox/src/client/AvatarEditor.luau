@@ -42,7 +42,7 @@ local LINE = Ui.EDGE
 local TEXT = Ui.TEXT                             -- words on the window (dark on a pale one)
 local DIM = Ui.SUB
 local LIGHT = Ui.lightPanels()
-local PICKED = if LIGHT then Color3.fromRGB(196, 92, 20) else Ui.GOLD   -- a picked tile's name
+local PICKED = if LIGHT then Color3.fromRGB(150, 60, 0) else Ui.GOLD    -- a picked tile's name (6:1 on cream)
 local AMBER = Ui.GOLD
 local GOOD = Ui.GREEN
 local HEADER = Ui.BLUE                           -- the studio's top band
@@ -403,8 +403,10 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local bodyY, bodyH = topH, H - topH - footH
 	self.top.Size = UDim2.new(1, 0, 0, topH)
 	self.title.Visible = W >= 640
-	self.chipBar.Position = UDim2.fromOffset(if W >= 640 then 250 else 12, 6)
-	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - (if W >= 640 then 250 else 12) - 276), 44)
+	-- (the saved characters start after the title's own width: the pixel title ran under them)
+	local chipsX = if W < 640 then 12 elseif LIGHT then 30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE) + 16 else 250
+	self.chipBar.Position = UDim2.fromOffset(chipsX, 6)
+	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - chipsX - 276), 44)
 	local pw, ph, ex, ey, ew, eh
 	if wide then
 		pw = math.clamp(W * 0.34, 260, 470)

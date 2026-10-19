@@ -217,4 +217,32 @@ find(cheap, "Primary").Activated:Fire()
 assert(#sentEconomy == 4 and sentEconomy[4].action == "craft", "two CRAFT presses did not craft")
 s:close()
 assert(not s:isOpen(), "the Locker did not close")
+-- no card's words lie under its buttons, in the Locker or the Workshop (CRAFT once covered the price)
+for _, tab in { "LockerTab", "WorkshopTab" } do
+	local g = find(find(root, tab), "Grid")
+	local layout
+	for _, ch in g:GetChildren() do if ch.ClassName == "UIGridLayout" then layout = ch end end
+	local H = layout.CellSize.Y.Offset
+	local function span(o) local y = o.Position.Y.Scale * H + o.Position.Y.Offset return y, y + o.Size.Y.Offset end
+	local checked = 0
+	for _, cardFrame in g:GetChildren() do
+		if cardFrame.Visible and string.sub(cardFrame.Name or "", 1, 4) == "Card" then
+			for _, word in { "Name", "Meta", "Extra" } do
+				local w = find(cardFrame, word)
+				if w and w.Visible ~= false and w.Text ~= "" then
+					for _, btn in { "Primary", "Secondary" } do
+						local b = find(cardFrame, btn)
+						if b and b.Visible ~= false then
+							local a1, a2 = span(w)
+							local b1, b2 = span(b)
+							assert(a2 <= b1 or b2 <= a1, `{tab}: a card's {word} ("{w.Text}") lies under its {btn}`)
+							checked += 1
+						end
+					end
+				end
+			end
+		end
+	end
+	assert(checked > 0, `{tab}: no cards were checked for overlap`)
+end
 print("PASS locker ui: cards rarest first with your lowest serial, copies and copies in existence; WEAR, TAKE OFF (skin by weapon, effects by slot), SALVAGE twice; crates with their keys and guarantee countdown, OPEN once, the reel landing on the server's roll with its serial, refusals explained; Odds & Details from Loot, guaranteed opening too; the Workshop prices and crafts on a second press")

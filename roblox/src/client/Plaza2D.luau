@@ -113,7 +113,7 @@ end
 -- square icon buttons, as the reference simulator's
 Plaza2D.ICON = 76
 Plaza2D.CHARACTER_W = if Ui.lightPanels() then 3 * Plaza2D.ICON + 16 else 168
-Plaza2D.SOCIAL_BAR_W = 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
+Plaza2D.SOCIAL_BAR_W = (if Ui.lightPanels() then 4 * (Plaza2D.ICON + 8) - 8 else 4 * 124 - 8) + 8 + Plaza2D.CHARACTER_W
 
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
@@ -162,8 +162,9 @@ function Plaza2D.new(parent: Instance): any
 	local prompt = Ui.make("TextButton", gui, { Name = "Interact", Font = Ui.DISPLAY, TextSize = Ui.px(20), TextColor3 = if Ui.lightPanels() then Ui.TEXT else Ui.GOLD,
 		BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0.04, BorderSizePixel = 0, AutoButtonColor = false, TextWrapped = true })
 	prompt.AnchorPoint = Vector2.new(0.5, 1)
-	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, -62), UDim2.new(1, -32, 0, 50)
-	Ui.make("UISizeConstraint", prompt, { MaxSize = Vector2.new(720, 50) })
+	-- (above the row of square buttons in a light theme, which stand taller than the old bar)
+	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12) else -62), UDim2.new(1, -32, 0, 50)
+	Ui.make("UISizeConstraint", prompt, { MaxSize = Vector2.new(720, 66) })
 	Ui.corner(prompt, 0)
 	self.promptEdge = Ui.stroke(prompt, Ui.INK, 3)
 	self.promptRim = select(2, Ui.rim(prompt, Ui.PANEL2, 2, 0))
@@ -210,7 +211,7 @@ function Plaza2D.new(parent: Instance): any
 	end, 42)
 	cpu.Name, cpu.Visible = "CpuButton", false
 	cpu.AnchorPoint = Vector2.new(0.5, 1)
-	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, -126), UDim2.fromOffset(190, 42)
+	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12 + 50 + 10) else -126), UDim2.fromOffset(190, 42)
 	self.cpuButton = cpu
 	self.cabinets = {}
 	self.labelLayer = gui
@@ -960,8 +961,10 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	-- word alone on a second line
 	-- (centred, it stays clear of the button column at the right on both sides: on a phone a long
 	-- tip wraps onto its second line rather than running under SHOP and LOCKER)
-	self.prompt.Size = UDim2.new(0, math.min(math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200), Ui.textWidth(self.prompt.Text, if action then 20 else 13)
-		+ (if action then 64 else 16) + 24), 0, 50)
+	local promptMax = math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
+	local promptWant = Ui.textWidth(self.prompt.Text, if action then 20 else 13) + (if action then 64 else 16) + 24
+	-- (taller when the words must wrap, so two lines keep their padding)
+	self.prompt.Size = UDim2.new(0, math.min(promptMax, promptWant), 0, if promptWant > promptMax then 66 else 50)
 	-- an action (the E key, gold words, a gold rim) or a tip (soft words, no key)
 	if self.promptAction ~= action then
 		self.promptAction = action

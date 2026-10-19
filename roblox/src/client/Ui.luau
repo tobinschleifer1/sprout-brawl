@@ -435,6 +435,21 @@ function Ui.paintBand(band: any, colour: Color3)
 	if square then square.BackgroundColor3 = colour end
 	if shine then shine.BackgroundColor3 = Ui.shade(colour, if theme.bevel == "arcade" then 0.22 else 0.35) end
 	if ledge then ledge.BackgroundColor3 = Ui.shade(colour, -0.45) end
+	-- its title's outline follows (a red band kept its old blue band's shade round the title)
+	local title = band:FindFirstChild("Title")
+	if title and theme.tone and title.GetChildren then
+		for _, ch in title:GetChildren() do
+			if ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour) end
+		end
+	end
+end
+
+-- Every window's close: one red X, centred in its title band `bandH` tall, at the right.
+function Ui.closeButton(parent: Instance, onClick: () -> (), bandH: number): any
+	local b = Ui.button(parent, "X", Ui.RED, onClick, { size = 18 })
+	b.Name, b.ZIndex, b.AnchorPoint = "Close", 3, Vector2.new(1, 0.5)
+	b.Position, b.Size = UDim2.new(1, -10, 0, bandH / 2), UDim2.fromOffset(38, 34)
+	return b
 end
 
 -- A saturated card (the simulator shop's): a vertical light-to-colour gradient, a thick border in
@@ -488,6 +503,14 @@ Ui.ICONS = {
 		colours = { O = "#6A4A08", Y = "#FFC935", y = "#FFF0A0" } },
 	chest = { w = 9, rows = { ".OOOOOOO.", "OwwwwwwwO", "OwbbbbbwO", "OOOOyOOOO", "ObbbYbbbO", "ObbbbbbbO", "ObbbbbbbO", "OOOOOOOOO" },
 		colours = { O = "#3D2410", w = "#D99A5B", b = "#A8642E", y = "#FFE98A", Y = "#E0A920" } },
+	heart = { w = 7, rows = { ".OO.OO.", "OpPOppO", "OpppppO", ".OpppO.", "..OpO..", "...O..." },
+		colours = { O = "#5A1020", p = "#FF5F7E", P = "#FFFFFF" } },
+	bubble = { w = 9, rows = { ".OOOOOOO.", "OwwwwwwwO", "OwkwkwkwO", "OwwwwwwwO", ".OOwOOOO.", "..OO....." },
+		colours = { O = "#14264A", w = "#FFFFFF", k = "#14264A" } },
+	people = { w = 9, rows = { ".OO...OO.", "OffO.OffO", ".OO...OO.", "OOOO.OOOO", "OssO.OttO", "OssO.OttO", "OOOO.OOOO" },
+		colours = { O = "#3A1A08", f = "#F0C49A", s = "#FF9A3D", t = "#5FB8FF" } },
+	map = { w = 9, rows = { "OOOOOOOOO", "OyygggyyO", "OygggyRyO", "OyyggRyRO", "OygggyRyO", "OyyyggyyO", "OOOOOOOOO" },
+		colours = { O = "#4A3010", y = "#F2D9A0", g = "#6CC45A", R = "#D93030" } },
 	shirt = { w = 9, rows = { "..OO.OO..", ".OsOOOsO.", "OssssssSO", "OOssssSOO", ".OssssSO.", ".OssssSO.", ".OOOOOOO." },
 		colours = { O = "#14264A", s = "#6FB6FF", S = "#3D7FD0" } },
 } :: { [string]: any }
@@ -517,16 +540,19 @@ end
 function Ui.iconButton(parent: Instance?, kind: string, value: string, colour: Color3, onClick: (() -> ())?, size: number, key: string?): any
 	local b = Ui.button(parent, "", colour, onClick)
 	b.Size = UDim2.fromOffset(size, size)
-	local def = Ui.ICONS[kind]
-	local px = math.max(2, math.floor(size * 0.5 / math.max(def.w, #def.rows)))
+	-- every icon on one pixel grid (a 9-cell basis), whatever its own width, so the row matches
+	local px = math.max(2, math.floor(size * 0.6 / 9))
 	local ic = Ui.icon(b, kind, px)
-	ic.Name, ic.AnchorPoint, ic.Position, ic.ZIndex = "Icon", Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, math.floor(size * 0.14)), (b.ZIndex or 1) + 1
-	local word = Ui.faceText(b, value, math.max(11, math.floor(size * 0.17)), colour)
+	ic.Name, ic.AnchorPoint, ic.Position, ic.ZIndex = "Icon", Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, math.floor(size * 0.18)), (b.ZIndex or 1) + 1
+	-- the word shrunk to fit inside the square, never under 10
+	local wordSize = math.max(11, math.floor(size * 0.17))
+	while wordSize > 10 and Ui.textWidth(value, wordSize, Ui.DISPLAY) > size - 10 do wordSize -= 1 end
+	local word = Ui.faceText(b, value, wordSize, colour)
 	word.Name, word.AnchorPoint = "Word", Vector2.new(0.5, 1)
 	word.Position, word.Size = UDim2.new(0.5, 0, 1, -math.floor(size * 0.1)), UDim2.new(1, -6, 0, math.floor(size * 0.24))
 	if key then
-		local cap = Ui.keycap(b, key, 11)
-		cap.Position, cap.Size, cap.ZIndex = UDim2.fromOffset(4, 4), UDim2.fromOffset(18, 18), (b.ZIndex or 1) + 2
+		local cap = Ui.keycap(b, key, 10)
+		cap.Position, cap.Size, cap.ZIndex = UDim2.fromOffset(3, 3), UDim2.fromOffset(15, 15), (b.ZIndex or 1) + 2
 	end
 	return b
 end

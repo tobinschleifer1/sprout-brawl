@@ -360,12 +360,16 @@ function SelectScreen.build(self: any, L: any)
 		place(ring, 2, 2, p.cardW - 4, p.cardH - 4)
 		corner(ring, 10)
 		local edge = stroke(ring, team, 2)
-		local band = Ui.band(card, team, 24 * s)
+		-- (deepened, its words outlined in its shade, on a light theme: bare white read at 3.6:1 on orange)
+		local bandColour = if LIGHT then Ui.shade(team, -0.22) else team
+		local band = Ui.band(card, bandColour, 24 * s)
 		local who = text(band, "", math.floor(14 * s), WHITE, Ui.LABEL)           -- (small Fredoka capitals run together)
+		if LIGHT then Ui.outline(who, 1, Ui.tone(bandColour)) end
 		who.Name = "Who"
 		place(who, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		who.TextXAlignment = Enum.TextXAlignment.Left
 		local status = text(band, "", math.floor(13 * s), WHITE, Ui.LABEL)
+		if LIGHT then Ui.outline(status, 1, Ui.tone(bandColour)) end
 		status.Name = "State"
 		place(status, 10 * s, 0, p.cardW - 20 * s, 24 * s)
 		status.TextXAlignment = Enum.TextXAlignment.Right

@@ -15,7 +15,7 @@ const WEIGHTS = { 'Font.GothamBlack': 900, 'Font.BuilderSansExtraBold': 900, 'Fo
 // draws it a full em per letter: scale its size to match (measured with TextService in Studio)
 const ARCADE = 0.5625;
 let out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${d.w} ${d.h}" width="${d.w}" height="${d.h}">`
-  + `<style>@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&amp;family=Montserrat:wght@700;900&amp;family=Fredoka:wght@600&amp;family=Press+Start+2P&amp;display=block');</style>`
+  + `<style>@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&amp;family=Montserrat:wght@700;900&amp;family=Fredoka:wght@600&amp;family=Press+Start+2P&amp;family=Nunito+Sans:wght@800;900&amp;display=block');</style>`
   // a renderer that cannot fetch Google Fonts (Quick Look's) can be handed the font file:
   // PS2P_TTF=path/to/PressStart2P-Regular.ttf (github.com/google/fonts, ofl/pressstart2p)
   + (process.env.PS2P_TTF ? `<style>@font-face { font-family: 'Press Start 2P'; src: url(data:font/ttf;base64,${fs.readFileSync(process.env.PS2P_TTF).toString('base64')}); }</style>` : '')
@@ -73,7 +73,7 @@ for (const n of d.nodes) {
     // (and at every newline)
     let lines = [];
     // (Builder Sans is drawn as Nunito Sans Black here, wider than Roblox's face: wrap by what is drawn)
-    const per = Math.max(1, Math.floor((right - left) / (n.size * (arcade ? ARCADE : n.font.endsWith('LuckiestGuy') ? 0.52 : /BuilderSans/.test(n.font) ? 0.58 : /FredokaOne/.test(n.font) ? 0.5 : 0.6))));
+    const per = Math.max(1, Math.floor((right - left) / (n.size * (arcade ? ARCADE : n.font.endsWith('LuckiestGuy') ? 0.52 : /BuilderSans/.test(n.font) ? 0.58 : /FredokaOne/.test(n.font) ? 0.55 : 0.6))));
     for (const para of String(n.text).split('\n')) {
       if (!n.wrap) { lines.push(para); continue; }
       let cur = '';

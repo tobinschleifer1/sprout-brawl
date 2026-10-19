@@ -576,7 +576,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			local stocks = math.clamp(st.stocks, 0, 8)
 			for k, pip in tile.pips do write(pip, "Visible", k <= stocks) end
 			local out = st.stocks <= 0 and not st.alive
-			write(tile.root, "BackgroundTransparency", if out then 0.6 else 0.08)
+			-- (opaque on a light theme while in: the constructor's opacity was undone here every frame)
+			write(tile.root, "BackgroundTransparency", if out then 0.6 elseif Ui.lightPanels() then 0 else 0.08)
 			write(tile.name, "TextTransparency", if out then 0.6 else 0)
 
 			if tile.ultBack.Visible then

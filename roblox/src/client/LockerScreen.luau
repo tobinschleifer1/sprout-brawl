@@ -198,10 +198,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.52), UDim2.new(1, -24, 1, -90)
 	Ui.make("UISizeConstraint", panel, { MaxSize = Vector2.new(940, 620) })
 	self.panel = panel
-	local close = Ui.button(panel, "X", Ui.RED, function() self:close() end, { size = 18 })
-	close.Name = "Close"
-	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position, close.Size, close.ZIndex = UDim2.new(1, -10, 0, (HEAD - 34) / 2), UDim2.fromOffset(38, 34), 3
+	Ui.closeButton(panel, function() self:close() end, HEAD)
 	-- the balance: currency pills with the pixel kit's gem and key in a light theme (the line below
 	-- stays as the plain record of it, shown in the dark themes)
 	if Ui.lightPanels() then
@@ -281,7 +278,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	self.cratesBody = body("CratesTab")
 	self.workshopBody = body("WorkshopTab")
 	self.workshopChips = filters(self.workshopBody, function(f) self.workshopFilter = f; self:refresh() end)
-	self.workshopGrid = grid(self.workshopBody, Vector2.new(168, 176))
+	self.workshopGrid = grid(self.workshopBody, Vector2.new(168, 200))
 	self.crateCards = {}
 	for i, id in Inventory.CRATES do
 		-- each crate a coloured card (a light theme), its words white and outlined; dark otherwise
@@ -425,6 +422,7 @@ function LockerScreen.refreshLocker(self: any)
 		end
 		c.worn.Visible = m.worn == true
 		self:drawArt(c.thumb, m.id, 150, 78)
+		c.primary.Position = UDim2.new(0, 6, 1, -64)
 		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
 		c.onPrimary = function()
@@ -508,6 +506,8 @@ function LockerScreen.refreshWorkshop(self: any)
 		c.meta.Text = m.rarity
 		c.extra.Text = `{LockerScreen.number(m.cost)} Sparks`
 		self:drawArt(c.thumb, m.id, 150, 78)
+		-- (one button, at the foot where SALVAGE would be: at the Locker's place it covered the price)
+		c.primary.Position = UDim2.new(0, 6, 1, -34)
 		c.primary.Text = "CRAFT"
 		Ui.paint(c.primary, if m.affordable then Ui.GREEN else Ui.PANEL2)
 		c.onPrimary = function()

@@ -37,7 +37,7 @@ end
 -- opts: { send = (msg) -> (), prompt = (kind, id) -> (), drawArt = (frame, id, w, h) -> () }
 function ShopScreen.new(parent: Instance, opts: any): any
 	local self = setmetatable({ opts = opts, view = nil, pending = nil, art = {}, oddsGuaranteed = false,
-		featuredCards = {}, keyCards = {}, passCards = {} }, ShopScreen)
+		featuredCards = {}, keyCards = {}, passCards = {}, grids = {} }, ShopScreen)
 	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallShop", ResetOnSpawn = false, Enabled = false, DisplayOrder = 21 })
 	self.root = root
 	local HEAD = 60                                           -- a heavy header, as the reference shop's
@@ -46,11 +46,8 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.52), UDim2.new(1, -24, 1, -90)
 	Ui.make("UISizeConstraint", panel, { MaxSize = Vector2.new(940, 620) })
 	self.panel = panel
-	-- a plain white X on the red band, as the reference shop's
-	local close = Ui.make("TextButton", panel, { Name = "Close", Text = "X", Font = Ui.DISPLAY, TextSize = Ui.px(26, Ui.DISPLAY),
-		TextColor3 = Ui.WHITE, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 3 })
-	Ui.outline(close, 3, Ui.tone(Ui.RED))
-	close.Activated:Connect(function() self:close() end)
+	-- (every window's close is the same red X: Ui.closeButton)
+	Ui.closeButton(panel, function() self:close() end, HEAD)
 	-- your balance in the header, the pixel kit's gem and key, as in the Locker
 	if Ui.lightPanels() then
 		local sp, sv = Ui.currency(panel, "gem", "0")
@@ -60,8 +57,6 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		sp.Position, sp.Size, sp.ZIndex = UDim2.new(1, -152, 0, HEAD / 2), UDim2.fromOffset(120, 32), 3
 		self.sparksPill, self.keysPill = sv, kv
 	end
-	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position, close.Size = UDim2.new(1, -10, 0, (HEAD - 36) / 2), UDim2.fromOffset(40, 36)
 	local body = Ui.make("ScrollingFrame", panel, { Name = "Body", BackgroundTransparency = 1, BorderSizePixel = 0,
 		Position = UDim2.fromOffset(14, HEAD + 10), Size = UDim2.new(1, -28, 1, -(HEAD + 48)), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
@@ -79,7 +74,8 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	local function row(name: string, order: number, h: number, cols: number): any
 		local f = Ui.make("Frame", body, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = order,
 			Size = UDim2.new(1, -8, 0, h), AutomaticSize = Enum.AutomaticSize.Y })
-		Ui.make("UIGridLayout", f, { CellSize = ShopScreen.cell(cols, h), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+		local g = Ui.make("UIGridLayout", f, { CellSize = ShopScreen.cell(cols, h), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+		self.grids[name] = { layout = g, cols = cols, h = h }
 		return f
 	end
 	self.featuredHead = heading("FeaturedHead", "FEATURED", 1)
@@ -222,9 +218,31 @@ function ShopScreen.request(self: any, key: string, msg: any)
 	self:refresh()
 end
 
+-- How many cards a row holds at a screen `width` px wide (the window is the screen less 24, at most
+-- 940, less its 36 px of margins): a phone gets two to a row, and passes one, each its perks' height.
+function ShopScreen.columns(width: number): { [string]: number }
+	local row = math.min(width - 24, 940) - 36
+	local narrow = row < 560
+	return { Featured = if narrow then 2 else 3, Keys = if narrow then 2 else 4, Passes = if narrow then 1 else 3,
+		Clothing = if narrow then 2 else 4 }
+end
+
 function ShopScreen.refresh(self: any)
 	local shop = self.view and self.view.shop
 	if not shop then return end
+	local size = self.root.AbsoluteSize
+	local cols = ShopScreen.columns(if size and size.X > 0 then size.X else 1280)
+	self.cols = cols
+	for name, g in self.grids do
+		-- one pass to a row: as tall as its perks need, so a long list never runs over its price
+		local h = g.h
+		if name == "Passes" and cols.Passes == 1 then
+			local most = 0
+			for _, p in shop.passes or {} do most = math.max(most, #(p.perks or {})) end
+			h = 96 + 20 * most
+		end
+		g.layout.CellSize = ShopScreen.cell(cols[name] or g.cols, h)
+	end
 	if self.sparksPill then
 		self.sparksPill.Text = LockerScreen.number(self.view.sparks or 0)
 		self.keysPill.Text = tostring(self.view.keys and self.view.keys.forge or 0)
@@ -282,7 +300,7 @@ function ShopScreen.refresh(self: any)
 		local c = card(self.passesRow, self.passCards, i, 270)
 		c.thumb.Visible = false
 		c.name.Position, c.meta.Position = UDim2.fromOffset(8, 14), UDim2.fromOffset(8, 40)
-		c.meta.Size = UDim2.new(1, -16, 0, 160)
+		c.meta.Size = UDim2.new(1, -16, 0, if self.cols and self.cols.Passes == 1 then 20 * #(p.perks or {}) + 8 else 160)
 		c.name.Text = p.name
 		local perks = {}
 		for _, perk in p.perks or {} do table.insert(perks, "· " .. perk) end
@@ -315,11 +333,12 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			head.Size = UDim2.new(1, -8, 0, 22)
 			local grid = Ui.make("Frame", self.clothing, { Name = "Pack" .. i, BackgroundTransparency = 1, BorderSizePixel = 0,
 				LayoutOrder = i * 2, Size = UDim2.new(1, -8, 0, 220), AutomaticSize = Enum.AutomaticSize.Y })
-			Ui.make("UIGridLayout", grid, { CellSize = ShopScreen.cell(4, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
-			r = { head = head, grid = grid, cards = {} }
+			local layout = Ui.make("UIGridLayout", grid, { CellSize = ShopScreen.cell(self.cols and self.cols.Clothing or 4, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+			r = { head = head, grid = grid, cards = {}, layout = layout }
 			self.packRows[i] = r
 		end
 		r.head.Text, r.head.Visible, r.grid.Visible = string.upper(pack.name or pack.id), true, true
+		r.layout.CellSize = ShopScreen.cell(self.cols and self.cols.Clothing or 4, 220)
 		-- the pack itself first
 		local c = card(r.grid, r.cards, 1, 220)
 		c.frame.Visible, c.thumb.Visible = true, false

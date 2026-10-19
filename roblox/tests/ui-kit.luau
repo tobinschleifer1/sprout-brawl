@@ -239,6 +239,11 @@ do
 	local word, wordOutline = Ui.faceText(new("Frame"), "Starforged", 17, Ui.SUN)
 	if not same(word.TextColor3, Ui.WHITE) or not same(wordOutline.Color, Ui.tone(Ui.SUN)) then fail("words on a card are not white outlined in its own shade") end
 	if not child(Ui.band(new("Frame"), Ui.RED, 40), "Shine") then fail("an arcade header bar has no light band") end
+	-- repainting a band recolours its title's outline too
+	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)
+	Ui.paintBand(pb, Ui.RED)
+	local _, ptLetters = strokes(pt)
+	if not ptLetters or not same(ptLetters.Color, Ui.tone(Ui.RED)) then fail("a repainted band kept its title's old outline") end
 	-- a square icon button: its pixel icon over its word, the key on a cap
 	local ib = Ui.iconButton(new("Frame"), "chest", "LOCKER", Ui.PURPLE, nil, 76, "L")
 	local icon, wordLabel = child(ib, "Icon"), child(ib, "Word")

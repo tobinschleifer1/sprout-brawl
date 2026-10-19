@@ -43,11 +43,14 @@ local AMBER = Color3.fromRGB(232, 162, 74)
 
 -- The button bar: { panel, key, word, colour }.
 local SPECS: { { any } } = {
-	{ "Stamps", "T", "STAMP", Color3.fromRGB(181, 80, 136) },
-	{ "Say", "Y", "SAY", Color3.fromRGB(0, 153, 219) },
-	{ "People", "P", "PEOPLE", Color3.fromRGB(247, 118, 34) },
-	{ "Map", "M", "MAP", Color3.fromRGB(62, 137, 72) },
+	{ "Stamps", "T", "STAMP", Color3.fromRGB(181, 80, 136), "heart" },
+	{ "Say", "Y", "SAY", Color3.fromRGB(0, 153, 219), "bubble" },
+	{ "People", "P", "PEOPLE", Color3.fromRGB(247, 118, 34), "people" },
+	{ "Map", "M", "MAP", Color3.fromRGB(62, 137, 72), "map" },
 }
+-- a bar button's side in a light theme (square icon buttons beside the plaza's; Plaza2D.ICON)
+LobbySocial.ICON = 76
+LobbySocial.BAR_W = if Ui.lightPanels() then 4 * (LobbySocial.ICON + 8) - 8 else 4 * 124 - 8
 
 local function corner(parent: Instance, px: number)
 	Ui.corner(parent, px)
@@ -101,13 +104,17 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	-- The button bar, bottom right.
 	local bar = Instance.new("Frame")
 	bar.Name, bar.BackgroundTransparency, bar.AnchorPoint = "Bar", 1, Vector2.new(1, 1)
-	bar.Position, bar.Size = UDim2.new(1, -16 - LobbySocial.RIGHT_GAP, 1, -10), UDim2.fromOffset(4 * 124 - 8, 42)
+	bar.Position, bar.Size = UDim2.new(1, -16 - LobbySocial.RIGHT_GAP, 1, -10),
+		UDim2.fromOffset(LobbySocial.BAR_W, if LIGHT then LobbySocial.ICON else 42)
 	bar.Parent = gui
 	-- each button is its key on a cap and its word, in its own colour; its panel's band matches
 	for i, sp in SPECS do
-		local b = Ui.keyButton(bar, sp[2], sp[3], sp[4], function() self:toggle(sp[1]) end, 42, { size = 12 })
+		local open = function() self:toggle(sp[1]) end
+		local b = if LIGHT then Ui.iconButton(bar, sp[5], sp[3], sp[4], open, LobbySocial.ICON, sp[2])
+			else Ui.keyButton(bar, sp[2], sp[3], sp[4], open, 42, { size = 12 })
 		b.Name = "Open" .. sp[1]
-		b.Position, b.Size = UDim2.fromOffset((i - 1) * 124, 0), UDim2.fromOffset(116, 42)
+		if LIGHT then b.Position = UDim2.fromOffset((i - 1) * (LobbySocial.ICON + 8), 0)
+		else b.Position, b.Size = UDim2.fromOffset((i - 1) * 124, 0), UDim2.fromOffset(116, 42) end
 	end
 	self.bar = bar
 
@@ -320,8 +327,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
 		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
-		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then (if LIGHT then Color3.fromRGB(200, 50, 50) else Color3.fromRGB(255, 150, 150))
-			elseif m.place == "room" then (if LIGHT then Color3.fromRGB(196, 92, 20) else AMBER) else (if LIGHT then Ui.SUB else Color3.fromRGB(192, 203, 220)))
+		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then (if LIGHT then Color3.fromRGB(165, 28, 28) else Color3.fromRGB(255, 150, 150))
+			elseif m.place == "room" then (if LIGHT then Color3.fromRGB(150, 60, 0) else AMBER) else (if LIGHT then Ui.SUB else Color3.fromRGB(192, 203, 220)))
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
 		if m.place == "market" and m.userId ~= self.localId and m.x then
 			local go = button(row, "WarpTo", "WARP", function()

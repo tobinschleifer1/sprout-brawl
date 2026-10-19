@@ -22,6 +22,10 @@ s.percent, s.stocks, s.ultCharge, s.state = 116.6, 2, 20, "shield"
 draw()
 assert(tile.pct.Text == "117%" and string.find(float.Text, "117%%"), "percent labels stayed cached")
 local HudModule = P:load("src/client/Hud")
+-- the card is opaque after an update, not only when built (the percent's contrast is measured against
+-- the opaque card below: a see-through one took it under 4.5:1)
+draw()
+assert(not Ui.lightPanels() or tile.root.BackgroundTransparency == 0, "the player card turned see-through on update")
 -- the card percent reads at 4.5:1 on the pale card at every damage
 do
 	local function lum(c) local function ch(v) return if v <= 0.03928 then v / 12.92 else ((v + 0.055) / 1.055) ^ 2.4 end

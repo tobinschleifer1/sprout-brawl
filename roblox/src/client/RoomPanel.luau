@@ -82,7 +82,7 @@ end
 -- own rather than the whole room panel - a band (blue while waiting, red for a problem), the
 -- message, and OK for a problem.
 function RoomPanel.buildNotice(self: any)
-	local card, band, title = Ui.panel(self.gui, "Notice", Ui.BLUE, "", 34)
+	local card, band, title = Ui.panel(self.gui, "Notice", Ui.BLUE, "", if Ui.lightPanels() then 40 else 34)
 	card.AnchorPoint, card.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
 	card.Size = UDim2.new(1, -48, 0, 150)
 	local cap = Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })

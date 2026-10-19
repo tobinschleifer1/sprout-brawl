@@ -82,8 +82,10 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	self.heads = { featured = self.featuredHead }
 	-- a section's tab, under the header: the passes sat ten screens down on a phone
 	for i, t in { { "featured", "FEATURED" }, { "clothing", "CLOTHING" }, { "keys", "KEYS" }, { "passes", "PASSES" } } do
-		local b = Ui.button(panel, t[2], Ui.PANEL2, function() self:jump(t[1]) end, { size = 13, small = true })
+		local b = Ui.button(panel, t[2], if i == 1 then Ui.SELECTED else Ui.PANEL2, function() self:jump(t[1]) end, { size = 13, small = true })
 		b.Name = "Jump_" .. t[1]
+		self.jumps = self.jumps or {}
+		self.jumps[t[1]] = b
 		b.Position, b.Size = UDim2.new((i - 1) / 4, if i == 1 then 14 else 6, 0, HEAD + 10), UDim2.new(0.25, if i == 1 or i == 4 then -20 else -12, 0, 32)
 	end
 	-- the day's priciest item leads, wide, as the reference shop's starter pack; the rest beside
@@ -123,6 +125,8 @@ function ShopScreen.jump(self: any, section: string)
 	if not h or not h.AbsolutePosition or not self.body.AbsolutePosition then return end
 	local y = h.AbsolutePosition.Y - self.body.AbsolutePosition.Y + self.body.CanvasPosition.Y - 4
 	self.body.CanvasPosition = Vector2.new(0, math.max(0, y))
+	-- the section you jumped to is the selected tab
+	for id, b in self.jumps do Ui.paint(b, if id == section then Ui.SELECTED else Ui.PANEL2) end
 end
 
 function ShopScreen.say(self: any, text: string, colour: Color3?)
@@ -186,7 +190,7 @@ local function card(parent: Instance, pool: { any }, i: number, h: number): any
 	c = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
-			nameStroke.Color = Ui.tone(colour)
+			Ui.paintTitle(name, nameStroke, colour)
 			Ui.paintSecondary(meta, metaStroke, colour)
 		end }
 	buy.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
@@ -219,7 +223,7 @@ function ShopScreen.heroCard(parent: Instance, order: number): any
 	local c: any = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
-			nameStroke.Color = Ui.tone(colour)
+			Ui.paintTitle(name, nameStroke, colour)
 			Ui.paintSecondary(tag, tagStroke, colour)
 			Ui.paintSecondary(meta, metaStroke, colour)
 		end }

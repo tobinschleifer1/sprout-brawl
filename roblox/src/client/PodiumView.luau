@@ -153,7 +153,8 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		-- on its band: white outlined in the band's own shade (a toned theme), or ink on a pale band
 		local bandColour = if first then GOLD else colour
 		if Ui.lightPanels() then
-			Ui.outline(place, math.max(2, math.floor(rh * 0.08)), Ui.tone(bandColour))
+			-- (the one rule for every face: ink and bare on a pale band - white on gold read at 1.25:1)
+			Ui.paintTitle(place, Ui.outline(place, math.max(2, math.floor(rh * 0.08)), Ui.tone(bandColour)), bandColour)
 		else
 			if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
 			if Ui.light(bandColour) > 0.62 then place.TextColor3 = Ui.INK end

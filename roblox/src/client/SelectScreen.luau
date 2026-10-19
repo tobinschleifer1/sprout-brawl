@@ -491,7 +491,9 @@ function SelectScreen.buildVotes(self: any, L: any)
 			place(q, 0, 0, m.w, m.h)
 		end
 		b.Activated:Connect(function() if self:settled() then self:send("vote", m.id) end end)
-		table.insert(self.mapCards, { id = m.id, button = b, ring = ring, name = name, count = count, m = m })
+		-- (your vote also wears the pixel kit's stepped corner brackets)
+		local marks = if LIGHT then Ui.brackets(b, GOLD) else nil
+		table.insert(self.mapCards, { id = m.id, button = b, ring = ring, name = name, count = count, m = m, marks = marks })
 	end
 	for _, r in L.rules do
 		local preset = nil
@@ -530,7 +532,8 @@ function SelectScreen.buildVotes(self: any, L: any)
 		count.Name = "Count"
 		place(count, 0, r.h - 36 * s, r.w, 30 * s)
 		card.Activated:Connect(function() if self:settled() then self:send("rule", r.id) end end)
-		table.insert(self.ruleCards, { id = r.id, root = card, ring = ring, facts = facts, count = count, preset = preset, r = r })
+		local marks = if LIGHT then Ui.brackets(card, GOLD) else nil
+		table.insert(self.ruleCards, { id = r.id, root = card, ring = ring, facts = facts, count = count, preset = preset, r = r, marks = marks })
 	end
 end
 
@@ -719,6 +722,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		c.ring.Color = if chosen then GOLD else Color3.fromRGB(214, 228, 250)
 		c.ring.Thickness = if chosen then 5 else 3
 		c.name.TextColor3 = if chosen then GOLD else WHITE
+		if c.marks then c.marks.Visible = chosen end
 	end
 	for _, c in self.ruleCards do
 		local rules = if c.preset then c.preset.rules else room
@@ -728,6 +732,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		local chosen = phase == "rules" and myVote == c.id
 		c.ring.Color = if chosen then GOLD else EDGE
 		c.ring.Thickness = if chosen then 5 else 3
+		if c.marks then c.marks.Visible = chosen end
 	end
 	-- who has voted: a chip per slot (bots do not vote)
 	for _, chip in self.chips do chip:Destroy() end
@@ -899,7 +904,8 @@ function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 		if slot and (slot.userId or slot.bot) and slot.weapon then
 			local facing = if p.team == 0 then 1 else -1
 			local s, char = standIn(self, "slot" .. p.slot, slot.avatar or "Classic", slot.weapon, facing,
-				if slot.ready or slot.bot then "victory" else "idle")
+				-- (at ease: a raised victory sword reached into the roster above; READY is on the card)
+				"idle")
 			drawStanding(c, s, char, p.cx, p.plinthY - p.plinthH, p.fighterH, t)
 			c:screen()
 		end

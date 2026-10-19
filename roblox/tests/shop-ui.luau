@@ -194,6 +194,7 @@ body.AbsolutePosition, body.CanvasPosition = Rbx.Vector2.new(0, 120), Rbx.Vector
 find(root, "PassesHead").AbsolutePosition = Rbx.Vector2.new(0, 1900)
 find(root, "Jump_passes").Activated:Fire()
 assert(body.CanvasPosition.Y == 1900 - 120 + 300 - 4, "the PASSES tab did not scroll to the passes")
+assert(find(root, "Jump_passes").BackgroundColor3 ~= find(root, "Jump_keys").BackgroundColor3, "the section you jumped to is not marked")
 -- (the featured heading sits 4 px into the content; scrolled down, it is that far above the body's top)
 find(root, "FeaturedHead").AbsolutePosition = Rbx.Vector2.new(0, 120 + 4 - body.CanvasPosition.Y)
 find(root, "Jump_featured").Activated:Fire()

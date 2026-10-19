@@ -177,7 +177,7 @@ lockerui = [
     ('confirmation never expires', 'LockerScreen', 'self.confirm.key == key and t - self.confirm.at <= LockerScreen.CONFIRM_SECONDS then', 'self.confirm.key == key then', 'long after'),
     ('salvage the lowest serial', 'LockerScreen', 'for i = #list, 1, -1 do table.insert(u, list[i].uid) end', 'for i = 1, #list do table.insert(u, list[i].uid) end', 'salvage order'),
     ('skin taken off by slot', 'LockerScreen', 'if m.type == "weapon_skin" then msg.weapon = m.weapon else msg.slot = Inventory.SLOTS[m.type] end', 'msg.slot = Inventory.SLOTS[m.type]', 'off its weapon'),
-    ('craft over the price', 'LockerScreen', 'c.primary.Position = UDim2.new(0, 6, 1, -34)\n\t\tc.primary.Text = "CRAFT"', 'c.primary.Text = "CRAFT"', 'lies under its'),
+    ('craft over the price', 'LockerScreen', 'c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, -34), UDim2.new(1, -12, 0, 28)', 'c.primary.Size = UDim2.new(1, -12, 0, 28)', 'lies under its'),
     ('workshop cells short', 'LockerScreen', 'grid(self.workshopBody, Vector2.new(168, 200))', 'grid(self.workshopBody, Vector2.new(168, 150))', 'lies under its'),
     ('double opening', 'LockerScreen', 'if self.pending then return end\n\tlocal m', 'local m', 'while one was pending'),
     ('keyless opening sent', 'LockerScreen', 'if m.key and m.keys < 1 then', 'if false then', 'keyless Forge Crate'),
@@ -326,7 +326,9 @@ uikit = [
     ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone', 'if lightFace then b.TextColor3 = if false then Ui.TEXT elseif false', 'gold button kept white'),
     ('small words bare', 'Ui', 'or (o.small and not theme.tone) then nil', 'or o.small then nil', 'small words on a button are bare'),
     ('icon button keyless', 'Ui', 'if key then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'if false then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'icon button is not a square'),
-    ('pale-face lines white', 'Ui', 'if Ui.light(face) > 0.6 then\n\t\tt.TextColor3, stroke.Thickness = Ui.shade(face, -0.62), 0', 'if Ui.light(face) > 2 then\n\t\tt.TextColor3, stroke.Thickness = Ui.shade(face, -0.62), 0', 'not dark and bare'),
+    ('pale-face lines white', 'Ui', 'if Ui.contrast(Ui.WHITE, face) < 3 then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'if false then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'not dark and bare'),
+    ('brackets without the stair', 'Ui', '\t\tbar(t, t, t, t)          -- the elbow', '\t\t-- bar(t, t, t, t)          -- the elbow', 'stepped corners'),
+    ('pale-face titles white', 'Ui', 'if Ui.light(face) > 0.62 then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'if false then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'title on a pale face'),
     ('repainted title keeps outline', 'Ui', 'if ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour) end', 'if false then ch.Color = Ui.tone(colour) end', "kept its title's old outline"),
 ]
 

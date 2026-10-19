@@ -42,7 +42,7 @@ local LINE = Ui.EDGE
 local TEXT = Ui.TEXT                             -- words on the window (dark on a pale one)
 local DIM = Ui.SUB
 local LIGHT = Ui.lightPanels()
-local PICKED = if LIGHT then Color3.fromRGB(150, 60, 0) else Ui.GOLD    -- a picked tile's name (6:1 on cream)
+local PICKED = if LIGHT then Ui.TEXT else Ui.GOLD    -- a picked tile's name: the frame and brackets say picked
 local AMBER = Ui.GOLD
 local GOOD = Ui.GREEN
 local HEADER = Ui.BLUE                           -- the studio's top band
@@ -232,7 +232,9 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Ui.PURPLE)
 	rand.Position, rand.Size = UDim2.fromOffset(132, 0), UDim2.fromOffset(80, 34)
 	local close = button(tools, "Close", "X", function() self:close() end, Ui.RED)
-	close.Position, close.Size = UDim2.fromOffset(220, 0), UDim2.fromOffset(48, 34)
+	-- (the same red X as every window's: Ui.closeButton's size and lettering)
+	close.Position, close.Size = UDim2.fromOffset(220, 0), UDim2.fromOffset(38, 34)
+	close.Font, close.TextSize = Ui.DISPLAY, Ui.px(18, Ui.DISPLAY)
 	self.undoButton, self.redoButton = undo, redo
 
 	-- Preview: the real fighter, posed, with its controls.
@@ -339,7 +341,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	-- (a dark pill straddling the grid's border, like the shop's price pills: over the frame, not a name)
 	local more = Ui.make("TextLabel", editor, { Name = "More", Text = "SCROLL FOR MORE  ▼", Font = Ui.LABEL, TextSize = Ui.px(11),
 		TextColor3 = if LIGHT then Ui.WHITE else Ui.INK, BackgroundColor3 = if LIGHT then Color3.fromRGB(35, 27, 51) else AMBER,
-		BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 0.5), ZIndex = 5, Visible = false })
+		BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 0), ZIndex = 5, Visible = false })
 	if LIGHT then Ui.make("UICorner", more, { CornerRadius = UDim.new(1, 0) }) else Ui.corner(more, 0) end
 	self.moreChip = more
 	local gridLayout = Instance.new("UIGridLayout")
@@ -468,7 +470,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
 	self.gridLayout.CellSize = UDim2.fromOffset(tile, tileH)
 	self.gridCols, self.gridTileH, self.gridShownH = cols, tileH, math.max(80, gridH)
-	self.moreChip.Position = UDim2.fromOffset(ew - 24, gridTop + math.max(80, gridH))
+	-- (below the grid, in its gutter: on its edge it covered tiles' corners)
+	self.moreChip.Position = UDim2.fromOffset(ew - 24, gridTop + math.max(80, gridH) + 4)
 	self.moreChip.Size = UDim2.fromOffset(Ui.textWidth(self.moreChip.Text, 11, Ui.LABEL) + 20, 22)
 	self:updateMore()
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
@@ -952,7 +955,9 @@ function AvatarEditor.rebuildTiles(self: any)
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
 			local pick = stroke(b, AMBER, 4)
 			pick.Enabled = false
-			self.tiles[e.id] = { button = b, canvas = Canvas2D.inFrame(thumb), pick = pick, label = name, kind = e.kind }
+			-- (the picked tile also wears the pixel kit's stepped corner brackets; its name stays dark)
+			local marks = if LIGHT then Ui.brackets(b, Ui.SELECTED) else nil
+			self.tiles[e.id] = { button = b, canvas = Canvas2D.inFrame(thumb), pick = pick, label = name, kind = e.kind, marks = marks }
 		end
 	end
 	self:renderTiles()
@@ -984,6 +989,7 @@ function AvatarEditor.renderTiles(self: any)
 		local code = self:tileCode(id)
 		local picked = if t.kind == "Preset_" then code == mine else self.spec.parts[self.category] == id
 		t.pick.Enabled = picked
+		if t.marks then t.marks.Visible = picked end
 		t.label.TextColor3 = if picked then PICKED elseif LIGHT then TEXT else Ui.KEY
 		local key = `{code}|{view}|{px.X}x{px.Y}`
 		if t.drawn ~= key then

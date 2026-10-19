@@ -1,25 +1,22 @@
 --!strict
--- Blockfall's UI kit: the retro pixel look every screen is built from, so the plaza, the
--- character studio, the select screen and the fight all read as one game - the one the sprites
--- are drawn in.
+-- Blockfall's UI kit: every screen is built from it, so the plaza, the studio, the select screen,
+-- the shop and the fight read as one game. Themes (Ui.THEMES) change its fonts, corners, borders,
+-- outlines and bevels; the game uses `arcade` (the owner's direction, 2026-10-19): a simulator
+-- shop's pale windows, coloured title bands, saturated rarity cards and dark price pills, drawn with
+-- a pixel kit's buttons and lettering.
 --
---   type     one pixel face for everything (Press Start 2P, Roblox's Font.Arcade). Roblox draws it
---            at a little over half its TextSize per letter, so `px` scales the size every builder
---            is asked for; text 16 px or bigger wears an ink outline, smaller text stays bare so
---            it does not fill in
---   colour   the Endesga 32 palette (lospec.com/palette-list/endesga-32): a small fixed set, so
---            every panel, button and bar shares one light and one set of shadows
---   window   square corners, an ink border and a lighter rim just inside it - the double frame of
---            a 16-bit game's text box
---   button   a square block: ink border, a light pixel strip along its top and a dark lip along
---            its bottom, so it reads as raised and pressable
---   keycap   a pale square key with the key's letter on it, for every "press E" in the game
---   panel    a window; optionally with a coloured title bar across its top (the select screen's
---            player cards), its lower edge a darker ledge
---   pill     a dark square strip with a rim, for a line of status
+--   words    one rule per surface: on a pale window dark and bare (Ui.TEXT, Ui.SUB); on a coloured
+--            face white outlined in the face's own darker shade (Ui.faceText, Ui.tone), or ink and
+--            bare where the face is pale (Ui.paintTitle, Ui.paintSecondary); over the world white or
+--            gold outlined in ink
+--   button   an outline in its own colour darkened, a light band over its top, a dark lip at its foot
+--   card     a light-to-colour gradient, an own-shade border and lip (Ui.card, Ui.paintCard)
+--   titles   window bands in the pixel kit's lettering at one size (Ui.TITLE, Ui.WINDOW_TITLE)
+--   pixels   pixel icons drawn as Frames (Ui.icon, Ui.iconButton, Ui.currency); stepped corner
+--            brackets for a selected art card (Ui.brackets); one selected face (Ui.SELECTED)
 --
--- `paint` recolours a button (shine and lip with it), for tabs and toggles. Pure helpers -
--- `shade`, `keyLabel`, `px` - are tested in tests/ui-kit.luau with the builders.
+-- Pure helpers - `shade`, `keyLabel`, `px`, `contrast` - and every theme's promises are tested in
+-- tests/ui-kit.luau with the builders.
 local Ui = {}
 
 -- One face. DISPLAY, LABEL and BODY are kept as names so a screen still says what its words are
@@ -558,6 +555,28 @@ function Ui.iconButton(parent: Instance?, kind: string, value: string, colour: C
 	return b
 end
 
+-- The pixel kit's selected mark for an art card: four stepped corner brackets just outside it, in
+-- `colour`, each an L of two arms `arm` long and `thick` wide with a one-pixel step at its elbow.
+-- Returns the holder (toggle its Visible); it is the caller's box's child, so it moves with it.
+function Ui.brackets(parent: Instance, colour: Color3?, arm: number?, thick: number?): any
+	local a, t, out = arm or 14, thick or 4, (thick or 4) + 3
+	local col = colour or Ui.SELECTED
+	local holder = Ui.make("Frame", parent, { Name = "Brackets", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(-out, -out), Size = UDim2.new(1, 2 * out, 1, 2 * out), ZIndex = 4, Visible = false })
+	for _, corner in { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } } do
+		local sx, sy = corner[1], corner[2]
+		local function bar(w: number, h: number, dx: number, dy: number)
+			Ui.make("Frame", holder, { Name = "Px", BackgroundColor3 = col, BorderSizePixel = 0, ZIndex = 4,
+				AnchorPoint = Vector2.new(sx, sy), Position = UDim2.new(sx, (1 - 2 * sx) * dx, sy, (1 - 2 * sy) * dy),
+				Size = UDim2.fromOffset(w, h) })
+		end
+		bar(a, t, t, 0)          -- the horizontal arm, set in by one step
+		bar(t, a, 0, t)          -- the vertical arm, set in by one step
+		bar(t, t, t, t)          -- the elbow's inner pixel: the stair
+	end
+	return holder
+end
+
 -- A balance on a dark pill with its icon: [gem] 2,340. Returns the pill and its label.
 function Ui.currency(parent: Instance?, kind: string, value: string): (any, any)
 	local p = Ui.make("Frame", parent, { Name = "Currency_" .. kind, BackgroundColor3 = Color3.fromRGB(35, 27, 51),
@@ -574,11 +593,33 @@ end
 -- A card's secondary line (rarity, serial, price) on its face: white outlined in the face's shade on a
 -- mid or deep face; on a pale one (gold, light green, grey) bare, in the face's own deep shade - white
 -- there leaned wholly on a 1 px outline at 13 px.
+-- WCAG contrast of two colours.
+function Ui.contrast(a: Color3, b: Color3): number
+	local function lum(c: Color3): number
+		local function ch(v: number): number return if v <= 0.03928 then v / 12.92 else ((v + 0.055) / 1.055) ^ 2.4 end
+		return 0.2126 * ch(c.R) + 0.7152 * ch(c.G) + 0.0722 * ch(c.B)
+	end
+	local x, y = lum(a), lum(b)
+	return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05)
+end
+-- (decided by measured contrast, not lightness: blue and mint faces fell on the wrong side of a
+-- lightness line and kept white lines at 2.4-2.9:1; ink reads at 5:1 or better on all of them)
 function Ui.paintSecondary(t: any, stroke: any, face: Color3)
-	if Ui.light(face) > 0.6 then
-		t.TextColor3, stroke.Thickness = Ui.shade(face, -0.62), 0
+	if Ui.contrast(Ui.WHITE, face) < 3 then
+		t.TextColor3, stroke.Thickness = Ui.TEXT, 0
 	else
 		t.TextColor3, stroke.Thickness, stroke.Color = Ui.WHITE, 1, Ui.tone(face)
+	end
+end
+-- A card's name or a band's title on its face: white outlined in its shade, unless the face is pale
+-- (gold, yellow, light grey - lightness over 0.62, the rule Ui.paint uses for buttons): ink, bare.
+-- One rule for every pale face, buttons, bands and cards alike.
+function Ui.paintTitle(t: any, stroke: any, face: Color3)
+	if Ui.light(face) > 0.62 then
+		t.TextColor3, stroke.Thickness = Ui.TEXT, 0
+	else
+		t.TextColor3, stroke.Color = Ui.WHITE, Ui.tone(face)
+		if stroke.Thickness == 0 then stroke.Thickness = 2 end
 	end
 end
 

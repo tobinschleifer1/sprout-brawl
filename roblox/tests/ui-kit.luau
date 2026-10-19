@@ -245,6 +245,17 @@ do
 	if Ui.light(sec.TextColor3) > 0.35 or secStroke.Thickness ~= 0 then fail("a secondary line on a pale face is not dark and bare") end
 	Ui.paintSecondary(sec, secStroke, Ui.VIOLET)
 	if not same(sec.TextColor3, Ui.WHITE) or secStroke.Thickness < 1 or not same(secStroke.Color, Ui.tone(Ui.VIOLET)) then fail("a secondary line on a deep face is not white outlined") end
+	-- a name on a pale face is ink and bare; on a deep one white outlined; a blue face's secondary line ink
+	local nm, nmStroke = Ui.faceText(new("Frame"), "Starforged", 17, Ui.SUN)
+	Ui.paintTitle(nm, nmStroke, Ui.SUN)
+	if not same(nm.TextColor3, Ui.TEXT) or nmStroke.Thickness ~= 0 then fail("a title on a pale face is not ink and bare") end
+	Ui.paintTitle(nm, nmStroke, Ui.VIOLET)
+	if not same(nm.TextColor3, Ui.WHITE) or nmStroke.Thickness < 1 then fail("a title on a deep face is not white outlined") end
+	Ui.paintSecondary(sec, secStroke, Ui.SKY)
+	if not same(sec.TextColor3, Ui.TEXT) then fail("a secondary line on a blue face kept white under 3:1") end
+	-- the selected brackets: four stepped corners outside the box, three pixels each, hidden until asked
+	local br = Ui.brackets(new("Frame"))
+	if br.Visible ~= false or #br._children ~= 12 or br.Position.X.Offset >= 0 then fail("the selected brackets are not four stepped corners outside the box") end
 	-- repainting a band recolours its title's outline too
 	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)
 	Ui.paintBand(pb, Ui.RED)

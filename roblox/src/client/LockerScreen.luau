@@ -221,7 +221,8 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	for i, t in { { "locker", "LOCKER" }, { "crates", "CRATES" }, { "workshop", "WORKSHOP" } } do
 		local b = Ui.button(panel, t[2], Ui.PANEL2, function() self:show(t[1]) end, { size = 16 })
 		b.Name = "Tab_" .. t[1]
-		b.Position, b.Size = UDim2.fromOffset(12 + (i - 1) * 132, HEAD + 8), UDim2.fromOffset(124, 34)
+		-- (8 px of clear space between faces: their 3 px borders left 2 px at a 132 px pitch)
+		b.Position, b.Size = UDim2.fromOffset(12 + (i - 1) * 136, HEAD + 8), UDim2.fromOffset(124, 34)
 		self.tabs[t[1]] = b
 	end
 	local function body(name: string): any
@@ -247,7 +248,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		for i, f in LockerScreen.FILTERS do
 			local b = Ui.button(parent, f[2], Ui.PANEL2, function() onPick(f[1]) end, { size = 13, small = true })
 			b.Name = "Filter_" .. f[1]
-			b.Position, b.Size = UDim2.fromOffset((i - 1) * 86, 2), UDim2.fromOffset(80, 30)
+			b.Position, b.Size = UDim2.fromOffset((i - 1) * 90, 2), UDim2.fromOffset(80, 30)
 			chips[f[1]] = b
 		end
 		return chips
@@ -287,7 +288,9 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		if not Ui.lightPanels() then card.BackgroundColor3 = Ui.INK end
 		local function words(value: string, size: number, colour: Color3, font: any?): any
 			if not Ui.lightPanels() then return Ui.text(card, value, size, colour, font) end
-			local t = Ui.faceText(card, value, size, crateColour, font or Ui.LABEL)
+			local t, o = Ui.faceText(card, value, size, crateColour, font or Ui.LABEL)
+			-- (the name by the title rule, the lines by the secondary rule, as on every card)
+			if font == Ui.DISPLAY then Ui.paintTitle(t, o, crateColour) else Ui.paintSecondary(t, o, crateColour) end
 			return t
 		end
 		card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 0, if Ui.lightPanels() then 236 else 300)
@@ -361,8 +364,11 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	local edge
 	for _, ch in f:GetChildren() do if ch.ClassName == "UIStroke" then edge = ch end end
 	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 0, 80) })
+		Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 0, if Ui.lightPanels() then 100 else 80) })
 	Ui.corner(thumb, 6)
+	-- (a light theme gives the art the room a second row of buttons took: one row, WEAR and a small
+	-- salvage button)
+	local dy = if Ui.lightPanels() then 20 else 0
 	-- worn: a badge on the art (a gold edge would vanish on a gold card)
 	local worn = Ui.pricePill(thumb, "WORN")
 	worn.Name, worn.Visible, worn.BackgroundColor3 = "Worn", false, Ui.GREEN
@@ -371,24 +377,32 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	worn.AnchorPoint, worn.Position, worn.Size = Vector2.new(1, 0), UDim2.new(1, -4, 0, 4), UDim2.fromOffset(52, 18)
 	local name, nameStroke = Ui.faceText(f, "", 15, Ui.SKY)
 	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
-	name.Position, name.Size = UDim2.fromOffset(6, 90), UDim2.new(1, -12, 0, 20)
+	name.Position, name.Size = UDim2.fromOffset(6, 90 + dy), UDim2.new(1, -12, 0, 20)
 	local meta, metaStroke = Ui.faceText(f, "", 12, Ui.SKY, Ui.LABEL)
-	meta.Name, meta.Position, meta.Size = "Meta", UDim2.fromOffset(6, 111), UDim2.new(1, -12, 0, 16)
+	meta.Name, meta.Position, meta.Size = "Meta", UDim2.fromOffset(6, 111 + dy), UDim2.new(1, -12, 0, 16)
 	local extra, extraStroke = Ui.faceText(f, "", 12, Ui.SKY, Ui.LABEL)
-	extra.Name, extra.Position, extra.Size = "Extra", UDim2.fromOffset(6, 127), UDim2.new(1, -12, 0, 16)
+	extra.Name, extra.Position, extra.Size = "Extra", UDim2.fromOffset(6, 127 + dy), UDim2.new(1, -12, 0, 16)
 	local direction = Ui.button(f, "", Ui.PANEL2, nil, { size = 11, small = true })
 	direction.Visible = false
-	direction.Name, direction.Position, direction.Size = "Direction", UDim2.fromOffset(6, 126), UDim2.new(1, -12, 0, 20)
+	direction.Name, direction.Position, direction.Size = "Direction", UDim2.fromOffset(6, 126 + dy), UDim2.new(1, -12, 0, 20)
 	local primary = Ui.button(f, "", Ui.BLUE, nil, { size = 14, small = true })
 	primary.Name = "Primary"
-	primary.Position, primary.Size = UDim2.new(0, 6, 1, -68), UDim2.new(1, -12, 0, 28)
+	primary.Position, primary.Size = UDim2.new(0, 6, 1, if Ui.lightPanels() then -38 else -68), UDim2.new(1, if Ui.lightPanels() then -92 else -12, 0, 28)
 	local secondary = Ui.button(f, "", Ui.PANEL2, nil, { size = 12, small = true })
 	secondary.Name = "Secondary"
-	secondary.Position, secondary.Size = UDim2.new(0, 6, 1, -32), UDim2.new(1, -12, 0, 26)
+	if Ui.lightPanels() then
+		-- beside WEAR: the gem and the Sparks it gives, small - disposal is not the card's main act
+		secondary.Position, secondary.Size = UDim2.new(1, -82, 1, -38), UDim2.fromOffset(76, 28)
+		local gem = Ui.icon(secondary, "gem", 2)
+		gem.AnchorPoint, gem.Position, gem.ZIndex = Vector2.new(0, 0.5), UDim2.new(0, 6, 0.5, 0), 3
+		Ui.make("UIPadding", secondary, { PaddingLeft = UDim.new(0, 18) })
+	else
+		secondary.Position, secondary.Size = UDim2.new(0, 6, 1, -32), UDim2.new(1, -12, 0, 26)
+	end
 	c = { frame = f, edge = edge, thumb = thumb, name = name, meta = meta, extra = extra, worn = worn,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
-			nameStroke.Color = Ui.tone(colour)
+			Ui.paintTitle(name, nameStroke, colour)
 			Ui.paintSecondary(meta, metaStroke, colour)
 			Ui.paintSecondary(extra, extraStroke, colour)
 		end,
@@ -424,7 +438,8 @@ function LockerScreen.refreshLocker(self: any)
 		end
 		c.worn.Visible = m.worn == true
 		self:drawArt(c.thumb, m.id, 150, 78)
-		c.primary.Position = UDim2.new(0, 6, 1, -68)
+		c.primary.Position = UDim2.new(0, 6, 1, if Ui.lightPanels() then -38 else -68)
+		c.primary.Size = UDim2.new(1, if Ui.lightPanels() then -92 else -12, 0, 28)
 		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
 		c.onPrimary = function()
@@ -442,9 +457,9 @@ function LockerScreen.refreshLocker(self: any)
 		end
 		local uid = m.uids[1]
 		c.secondary.Visible = uid ~= nil and m.source ~= "free"
-		c.secondary.Text = `SALVAGE  +{Loot.dupe(m.rarity)}`
+		c.secondary.Text = if Ui.lightPanels() then `+{Loot.dupe(m.rarity)}` else `SALVAGE  +{Loot.dupe(m.rarity)}`
 		c.onSecondary = function()
-			if uid and self:armed("salvage:" .. uid, `Press SALVAGE again to turn {m.name}{if m.serial then "" else ""} into {Loot.dupe(m.rarity)} Sparks`) then
+			if uid and self:armed("salvage:" .. uid, `Press again to salvage {m.name} into {Loot.dupe(m.rarity)} Sparks`) then
 				self.opts.sendEconomy({ action = "salvage", uid = uid })
 			end
 		end
@@ -482,7 +497,7 @@ function LockerScreen.refreshOutfits(self: any)
 		local mine = i <= #slots
 		b.Visible = mine or i == #slots + 1      -- one locked slot shows, so VIP's extra slots are discoverable
 		b.Text = if mine then tostring(i) else "VIP"
-		Ui.paint(b, if not mine then Ui.PANEL else if slots[i] then Ui.BLUE else Ui.PANEL2)
+		Ui.paint(b, if not mine then (if Ui.lightPanels() then Ui.EDGE else Ui.PANEL) else if slots[i] then Ui.BLUE else Ui.PANEL2)
 		if b.Visible then table.insert(shown, b) end
 	end
 	local x = 300
@@ -519,7 +534,7 @@ function LockerScreen.refreshWorkshop(self: any)
 		c.extra.Text = `{LockerScreen.number(m.cost)} Sparks`
 		self:drawArt(c.thumb, m.id, 150, 78)
 		-- (one button, at the foot where SALVAGE would be: at the Locker's place it covered the price)
-		c.primary.Position = UDim2.new(0, 6, 1, -34)
+		c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, -34), UDim2.new(1, -12, 0, 28)
 		c.primary.Text = "CRAFT"
 		Ui.paint(c.primary, if m.affordable then Ui.GREEN else Ui.PANEL2)
 		c.onPrimary = function()

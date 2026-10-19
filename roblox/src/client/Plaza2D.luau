@@ -138,7 +138,9 @@ function Plaza2D.new(parent: Instance): any
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	self.title = title
 	local directions = Ui.text(gui, "", 12, Ui.WHITE)
-	Ui.outline(directions, 2, Ui.tone(plateColour))
+	local directionsOutline = Ui.outline(directions, 2, Ui.tone(plateColour))
+	-- (the card's secondary line, by the same contrast rule as every card's: ink on the teal)
+	if Ui.lightPanels() then Ui.paintSecondary(directions, directionsOutline, plateColour) end
 	directions.Name = "Directions"
 	directions.Size = UDim2.new(1, -220, 0, 20)
 	directions.TextXAlignment = Enum.TextXAlignment.Left
@@ -233,8 +235,14 @@ function Plaza2D.label(self: any, id: string, value: string, size: number, colou
 	return t
 end
 
-function Plaza2D.placeLabel(self: any, c: any, id: string, value: string, x: number, y: number, size: number, colour: Color3, width: number?)
+-- `fit`: a width in studs the words must stay inside (a sign's face), measured through the camera, so
+-- world lettering shrinks with its sign on a small screen rather than spilling past it.
+function Plaza2D.placeLabel(self: any, c: any, id: string, value: string, x: number, y: number, size: number, colour: Color3, width: number?, fit: number?)
 	local at = c:project(x, y)
+	if fit then
+		local span = math.abs(c:project(x + fit / 2, y).X - c:project(x - fit / 2, y).X)
+		while size > 6 and Ui.textWidth(value, size) > span do size -= 1 end
+	end
 	local t = self:label(id, value, size, colour)
 	local w = width or 260
 	t.TextSize = Ui.px(size)
@@ -566,10 +574,10 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		for i = 0, 7 do
 			Canvas.rect(c, sx0, sy0 + ((clock * 2 + i * 1.3) % sh), sw, 0.1, CYAN, 0.05)
 		end
-		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520)
+		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520, sw * 0.86)
 		local n = 1
 		for _ in self.peers do n += 1 end
-		self:placeLabel(c, "billboard2", `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`, 0, sy0 + sh * 0.25, 14, CYAN, 520)
+		self:placeLabel(c, "billboard2", `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`, 0, sy0 + sh * 0.25, 14, CYAN, 520, sw * 0.9)
 	end)
 	add(22, function()
 		local wt = PlazaArt.get("tower", PlazaArt.waterTower)
@@ -956,7 +964,10 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		elseif near then `{if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
 		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade and the climb are east, the tailor is west."
 	self.prompt.Active = action
-	self.prompt.Visible = not (self.social and self.social.anyOpen and self.social:anyOpen())
+	-- (on a narrow screen a tip - not an action - goes after six seconds: it sat over your own fighter)
+	if self.promptLast ~= self.prompt.Text then self.promptLast, self.promptAt = self.prompt.Text, clock end
+	local tipDone = self.bannerNarrow and not action and clock - (self.promptAt or clock) > 6
+	self.prompt.Visible = not (self.social and self.social.anyOpen and self.social:anyOpen()) and not tipDone
 	-- the card fits its words, so a short line is not a long bar and a long one does not leave a
 	-- word alone on a second line
 	-- (centred, it stays clear of the button column at the right on both sides: on a phone a long

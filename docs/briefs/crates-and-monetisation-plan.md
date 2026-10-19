@@ -318,6 +318,17 @@ Phase 6 is emotes, the KO departure and victory poses. Its questions, from the c
 4. **Are emotes and poses items?** Recommended: four free ones for everyone, the rest in crates, the
    shop and VIP, like every other cosmetic.
 
+## Phase 6: answered (2026-10-19)
+
+1. **Emotes: taunt plus a direction** picks one of four equipped emotes (neutral, forward, up, down).
+2. **No KO departure item.** Everyone keeps one classic exit; the KO effect stays the taker's.
+3. **Victory pose: one per player**, not per weapon.
+4. **Emotes and poses are items:** four emotes and one pose free for everyone, the rest in crates, the
+   shop and VIP, worn from the Locker like every other cosmetic.
+
+Phase 6 is therefore: `k2` and clothing (worn, owned, sold one piece at a time or as a pack), emotes
+and victory poses, then Pixel Studio.
+
 ## Clothing, one piece at a time
 
 New clothing (tops, bottoms, headwear, hair, back pieces, gloves, shoes, face accessories) comes in

@@ -75,7 +75,9 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local count = #Weapons.LIST
 	local perRow = if W / H > 1.9 or H < 520 then count else math.ceil(count / 2)
 	local cell = math.floor(math.clamp(math.min(W * (0.064 - 0.001 * perRow), H * 0.1), 34, 84))
+	-- (at least Ui.CHOSEN_GAP in a light theme: a picked portrait's brackets need it clear of the next)
 	local gap = math.floor(cell * 0.22)
+	if Ui.lightPanels() and perRow * cell + (perRow - 1) * Ui.CHOSEN_GAP <= W - 40 then gap = math.max(gap, Ui.CHOSEN_GAP) end
 	local rosterW = perRow * cell + (perRow - 1) * gap
 	local rosterTop = math.floor(84 * s)
 	local roster = {}
@@ -125,15 +127,16 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local cols = 5
 	local rowsN = math.ceil(#ids / cols)
 	local nameH = math.floor(18 * s)
-	local mapW = math.floor(math.min((W - 60) / cols - 14, ((area - (rowsN - 1) * 10) / rowsN - nameH) * 16 / 9))
+	local MG = if Ui.lightPanels() then Ui.CHOSEN_GAP else 14
+	local mapW = math.floor(math.min((W - 60) / cols - MG, ((area - (rowsN - 1) * 10) / rowsN - nameH) * 16 / 9))
 	local mapH = math.floor(mapW * 9 / 16)
-	local gridW = cols * mapW + (cols - 1) * 14
+	local gridW = cols * mapW + (cols - 1) * MG
 	local gridH = rowsN * (mapH + nameH) + (rowsN - 1) * 10
 	local gridTop = voteTop + math.max(0, (area - gridH) / 2)
 	local maps = {}
 	for i, id in ids do
 		local row, col = (i - 1) // cols, (i - 1) % cols
-		maps[i] = { id = id, x = W / 2 - gridW / 2 + col * (mapW + 14), y = gridTop + row * (mapH + nameH + 10), w = mapW, h = mapH }
+		maps[i] = { id = id, x = W / 2 - gridW / 2 + col * (mapW + MG), y = gridTop + row * (mapH + nameH + 10), w = mapW, h = mapH }
 	end
 	-- the rule cards: every preset and "keep current", in a row
 	local rules = {}
@@ -342,7 +345,8 @@ function SelectScreen.build(self: any, L: any)
 		Ui.outline(name, 1)
 		name.Name = "Name" .. r.id
 		-- one tile wide (plus its gap), the size shrunk to fit: long names collided with their neighbours
-		place(name, r.x - L.cell / 2 - 4, r.y + L.cell / 2 + 5, L.cell + 8, 14 * s)
+		-- (under the picked one's brackets, which reach BRACKET_OUT + BRACKET_INK below the ring)
+		place(name, r.x - L.cell / 2 - 4, r.y + L.cell / 2 + 5 + (if LIGHT then Ui.BRACKET_OUT + Ui.BRACKET_INK else 0), L.cell + 8, 14 * s)
 		name.TextSize = SelectScreen.fitSize(name.Text, 11 * s, L.cell - 4)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
 		-- a picked weapon wears the stepped brackets the vote cards do: one mark for "chosen" everywhere
@@ -608,7 +612,8 @@ function SelectScreen.render(self: any)
 	for idx, c in self.cells do
 		-- your two in gold, each named with its hand
 		local hand = if mine and mine.weapon == c.id then 1 elseif mine and mine.weapon2 == c.id then 2 else nil
-		c.ring.Color = if hand then GOLD else Color3.fromRGB(214, 228, 250)
+		-- (gold only without brackets: the brackets are the mark, and gold marks you)
+		c.ring.Color = if hand and not c.marks then GOLD else Color3.fromRGB(214, 228, 250)
 		c.ring.Thickness = if hand and not c.marks then 5 else 3
 		if c.marks then c.marks.Visible = hand ~= nil end
 		-- (white over the sky, outlined in ink, as every word over the world; gold for your two)
@@ -723,7 +728,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		c.count.Text = tostring(n)
 		c.count.Visible = n > 0 and phase == "map"
 		local chosen = phase == "map" and myVote == c.id
-		c.ring.Color = if chosen then GOLD else Color3.fromRGB(214, 228, 250)
+		c.ring.Color = if chosen and not c.marks then GOLD else Color3.fromRGB(214, 228, 250)
 		c.ring.Thickness = if chosen and not c.marks then 5 else 3      -- (the brackets mark it; a 5 px ring crowded its neighbours)
 		c.name.TextColor3 = if chosen then GOLD else WHITE
 		if c.marks then c.marks.Visible = chosen end
@@ -732,9 +737,9 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		local rules = if c.preset then c.preset.rules else room
 		for k, line in ruleFacts(rules) do c.facts[k].Text = line end
 		local n = counts[c.id] or 0
-		c.count.Text = if n == 1 then "1 VOTE" elseif n > 1 then `{n} VOTES` else ""
+		c.count.Text = if n >= 1 then `VOTES · {n}` else ""
 		local chosen = phase == "rules" and myVote == c.id
-		c.ring.Color = if chosen then GOLD else EDGE
+		c.ring.Color = if chosen and not c.marks then GOLD else EDGE
 		c.ring.Thickness = if chosen and not c.marks then 5 else 3      -- (the brackets mark it; a 5 px ring crowded its neighbours)
 		if c.marks then c.marks.Visible = chosen end
 	end
@@ -743,7 +748,9 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 	self.chips = {}
 	if phase ~= "pick" then
 		local n = #room.slots
-		local w = math.min(150 * s, (L.W - 60) / n - 8)
+		-- (12 apart: 8 px between their 2 px strokes, as between buttons)
+		local CG = if LIGHT then 12 else 8
+		local w = math.min(150 * s, (L.W - 60) / n - CG)
 		for i, slot in room.slots do
 			local voted = slot.userId ~= nil and slot[field] ~= nil
 			local label = if slot.userId then `{if voted then "✓" else "…"} {string.upper(slot.name or "PLAYER")}` elseif slot.bot then "CPU" else "OPEN"
@@ -753,7 +760,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 			chip.BackgroundColor3 = if voted then GREEN else (if slot.bot then (if LIGHT then Ui.EDGE else Color3.fromRGB(52, 64, 88)) else PANEL)
 			corner(chip, 8)
 			stroke(chip, Ui.INK, 2)               -- (the fill says voted; the team shows on the pick page)
-			place(chip, L.W / 2 - (n * (w + 8)) / 2 + (i - 1) * (w + 8), L.stripY - 4 * s, w, 34 * s)
+			place(chip, L.W / 2 - (n * (w + CG)) / 2 + (i - 1) * (w + CG), L.stripY - 4 * s, w, 34 * s)
 			table.insert(self.chips, chip)
 		end
 	end

@@ -54,13 +54,15 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		local kp, kv = Ui.currency(panel, "key", "0")
 		sp.AnchorPoint, kp.AnchorPoint = Vector2.new(1, 0.5), Vector2.new(1, 0.5)
 		kp.Position, kp.Size, kp.ZIndex = UDim2.new(1, -60, 0, HEAD / 2), UDim2.fromOffset(84, 32), 3
-		sp.Position, sp.Size, sp.ZIndex = UDim2.new(1, -152, 0, HEAD / 2), UDim2.fromOffset(120, 32), 3
+		-- (100 wide: at 120 a phone's SHOP title ran into it)
+		sp.Position, sp.Size, sp.ZIndex = UDim2.new(1, -152, 0, HEAD / 2), UDim2.fromOffset(100, 32), 3
 		self.sparksPill, self.keysPill = sv, kv
 	end
 	local body = Ui.make("ScrollingFrame", panel, { Name = "Body", BackgroundTransparency = 1, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(14, HEAD + 52), Size = UDim2.new(1, -28, 1, -(HEAD + 90)), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(14, HEAD + 52), Size = UDim2.new(1, -28, 1, -(HEAD + (if Ui.lightPanels() then 64 else 90))), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
-	Ui.make("UIListLayout", body, { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+	-- (Ui.GAP between the sections: at 10 the hero card's outline came within 4 px of the row under it)
+	Ui.make("UIListLayout", body, { Padding = UDim.new(0, if Ui.lightPanels() then Ui.GAP else 10), SortOrder = Enum.SortOrder.LayoutOrder })
 	-- (room for the cards' borders, drawn outside them, so the scroll area does not clip the first column)
 	Ui.make("UIPadding", body, { PaddingLeft = UDim.new(0, 4), PaddingTop = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) })
 	self.body = body
@@ -74,7 +76,7 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	local function row(name: string, order: number, h: number, cols: number): any
 		local f = Ui.make("Frame", body, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = order,
 			Size = UDim2.new(1, -8, 0, h), AutomaticSize = Enum.AutomaticSize.Y })
-		local g = Ui.make("UIGridLayout", f, { CellSize = ShopScreen.cell(cols, h), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+		local g = Ui.make("UIGridLayout", f, { CellSize = ShopScreen.cell(cols, h), CellPadding = UDim2.fromOffset(Ui.GAP, Ui.GAP), SortOrder = Enum.SortOrder.LayoutOrder })
 		self.grids[name] = { layout = g, cols = cols, h = h }
 		return f
 	end
@@ -84,6 +86,9 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	for i, t in { { "featured", "FEATURED" }, { "clothing", "CLOTHING" }, { "keys", "KEYS" }, { "passes", "PASSES" } } do
 		local b = Ui.button(panel, t[2], if i == 1 then Ui.SELECTED else Ui.PANEL2, function() self:jump(t[1]) end, { size = 13, small = true })
 		b.Name = "Jump_" .. t[1]
+		-- (the word fits inside the tab, 6 px in from its edges: on a phone FEATURED touched its stroke)
+		Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6) })
+		Ui.fit(b, 10)
 		self.jumps = self.jumps or {}
 		self.jumps[t[1]] = b
 		-- (Ui.GAP between tabs, 14 px in from the window's edges)
@@ -116,6 +121,14 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
 	message.Position, message.Size = UDim2.new(0.5, 0, 1, -8), UDim2.new(1, -24, 0, 26)
+	-- (a light theme: a pill over the list's foot, shown while it has something to say, so the list
+	-- runs to the window's edge; a line kept for it left a dead 38 px strip under the cards)
+	if Ui.lightPanels() then
+		message.BackgroundColor3, message.BackgroundTransparency, message.ZIndex, message.Visible = Ui.PANEL, 0, 9, false
+		message.TextWrapped = false
+		Ui.make("UICorner", message, { CornerRadius = UDim.new(1, 0) })
+		Ui.stroke(message, Ui.INK, 2)
+	end
 	self.message = message
 	self:buildOdds()
 	return self
@@ -133,12 +146,17 @@ end
 
 function ShopScreen.say(self: any, text: string, colour: Color3?)
 	self.message.Text, self.message.TextColor3 = text, colour or Ui.TEXT
+	if Ui.lightPanels() then
+		self.message.Visible = text ~= ""
+		self.message.Size = UDim2.fromOffset(math.min(Ui.textWidth(text, 15) + 36, 900), 30)
+	end
 end
 
 -- A grid cell `cols` to a row: a fraction of the row, less its share of the gaps and a pixel of slack
 -- (with none, five 1/5 cells and their gaps came to the row's exact width and the last one wrapped).
 function ShopScreen.cell(cols: number, h: number): UDim2
-	return UDim2.new(1 / cols, -math.ceil(10 * (cols - 1) / cols) - 1, 0, h)
+	-- (Ui.GAP apart: at 10 the cards' 3 px borders left 4 px between them)
+	return UDim2.new(1 / cols, -math.ceil(Ui.GAP * (cols - 1) / cols) - 1, 0, h)
 end
 
 -- A price (or OWNED, CLAIM...) on a pill, coloured by what it says: a price dark, as the reference
@@ -154,7 +172,7 @@ local function pill(parent: Instance): any
 	return b
 end
 function ShopScreen.pillColour(text: string): (Color3, Color3)
-	if text == "OWNED" then return Ui.GREEN, Ui.WHITE end
+	if text == "OWNED" then return Ui.GREEN, Ui.INK end      -- (ink: white on the green was 2.1:1)
 	if string.find(text, "CLAIM", 1, true) then return Ui.SUN, Ui.tone(Ui.SUN) end
 	if text == "..." or text == "COMING SOON" or text == "BUY SINGLY" then return Color3.fromRGB(150, 140, 160), Ui.WHITE end
 	return PILL, Ui.WHITE
@@ -360,7 +378,7 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			head.Size = UDim2.new(1, -8, 0, 22)
 			local grid = Ui.make("Frame", self.clothing, { Name = "Pack" .. i, BackgroundTransparency = 1, BorderSizePixel = 0,
 				LayoutOrder = i * 2, Size = UDim2.new(1, -8, 0, 220), AutomaticSize = Enum.AutomaticSize.Y })
-			local layout = Ui.make("UIGridLayout", grid, { CellSize = ShopScreen.cell(self.cols and self.cols.Clothing or 4, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+			local layout = Ui.make("UIGridLayout", grid, { CellSize = ShopScreen.cell(self.cols and self.cols.Clothing or 4, 220), CellPadding = UDim2.fromOffset(Ui.GAP, Ui.GAP), SortOrder = Enum.SortOrder.LayoutOrder })
 			r = { head = head, grid = grid, cards = {}, layout = layout }
 			self.packRows[i] = r
 		end

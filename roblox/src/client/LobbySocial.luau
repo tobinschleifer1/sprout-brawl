@@ -317,7 +317,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
 		corner(row, 0)
 		-- its frame drawn inside it, so the scrolling list cannot clip one side of it away
-		local _, edge = Ui.rim(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2, 0)
+		-- (you: an ink ring a pixel heavier on a pale row, where gold measured 1.0:1)
+		local _, edge = Ui.rim(row, if m.userId == self.localId then (if LIGHT then Ui.INK else Ui.GOLD) else Ui.INK, if m.userId == self.localId and LIGHT then 3 else 2, 0)
 		edge.Thickness = 2              -- (whatever the theme does with rims: this one says who is you)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row

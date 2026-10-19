@@ -250,7 +250,7 @@ shopui = [
     ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif not p.available', 'c.buy.Text = if false then "OWNED" elseif not p.available', 'owned pass'),
     ('keys for the restricted', 'ShopScreen', 'local keys = if shop.restricted then {} else shop.keys or {}', 'local keys = shop.keys or {}', 'should not have sent'),
     ('odds button for the restricted', 'ShopScreen', 'self.oddsButton.Visible = not shop.restricted', 'self.oddsButton.Visible = true', 'sees Forge Keys'),
-    ('cells without slack', 'ShopScreen', '-math.ceil(10 * (cols - 1) / cols) - 1, 0, h)', '-math.ceil(10 * (cols - 1) / cols) + 1, 0, h)', 'do not fit'),
+    ('cells without slack', 'ShopScreen', '-math.ceil(Ui.GAP * (cols - 1) / cols) - 1, 0, h)', '-math.ceil(Ui.GAP * (cols - 1) / cols) + 3, 0, h)', 'do not fit'),
     ('tabs do not scroll', 'ShopScreen', 'self.body.CanvasPosition = Vector2.new(0, math.max(0, y))', 'local _ = y', 'did not scroll'),
     ('pack offered regardless', 'ShopScreen', 'if pack.offer then self:request(key', 'if true then self:request(key', 'a pack not offered'),
     ('pack never BUY SINGLY', 'ShopScreen', 'elseif not pack.offer then "BUY SINGLY"', 'elseif false then "BUY SINGLY"', 'dearer than its missing pieces'),
@@ -322,13 +322,13 @@ uikit = [
     ('dark words outlined', 'Ui', 'local dark = colour ~= nil and Ui.light(colour) < 0.45', 'local dark = false', 'dark words are outlined'),
     ('card gradient kept', 'Ui', 'if ch.ClassName == "UIGradient" then ch.Color = ColorSequence.new(Ui.shade(colour, 0.32), colour)', 'if ch.ClassName == "UIGradient" then local _ = colour', 'paintCard left part'),
     ('pale words on the window', 'Ui', 'TEXT = Color3.fromRGB(43, 33, 64), SUB', 'TEXT = Color3.fromRGB(150, 140, 160), SUB', 'under 7:1'),
-    ('card words outlined in ink', 'Ui', 'else 1, Ui.tone(face))', 'else 1, Ui.INK)', 'in its own shade'),
+    ('card words outlined in ink', 'Ui', 'else 2, Ui.tone(face))', 'else 2, Ui.INK)', 'in its own shade'),
     ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone', 'if lightFace then b.TextColor3 = if false then Ui.TEXT elseif false', 'gold button kept white'),
     ('small words bare', 'Ui', 'or (o.small and not theme.tone) then nil', 'or o.small then nil', 'small words on a button are bare'),
     ('icon button keyless', 'Ui', 'if key then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'if false then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'icon button is not a square'),
-    ('pale-face lines white', 'Ui', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if false then', 'not dark and bare'),
-    ('secondary measured on the base', 'Ui', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, face) then', 'better of ink and white'),
-    ('secondary always ink', 'Ui', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if true then', 'not white outlined'),
+    ('pale-face lines white', 'Ui', 'if Ui.contrast(Ui.INK, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if false then', 'not dark and bare'),
+    ('secondary measured on the base', 'Ui', 'if Ui.contrast(Ui.INK, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if Ui.contrast(Ui.INK, face) >= Ui.contrast(Ui.WHITE, face) then', 'better of ink and white'),
+    ('secondary always ink', 'Ui', 'if Ui.contrast(Ui.INK, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if true then', 'not white outlined'),
     ('brackets without the stair', 'Ui', '\t\tbar(t, t, t, t)          -- the elbow', '\t\t-- bar(t, t, t, t)          -- the elbow', 'stepped corners'),
     ('pale-face titles white', 'Ui', 'if Ui.light(face) > 0.62 then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'if false then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'title on a pale face'),
     ('repainted title keeps outline', 'Ui', 'if ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour) end', 'if false then ch.Color = Ui.tone(colour) end', "kept its title's old outline"),
@@ -367,7 +367,7 @@ mounts = [
 ]
 
 crates = [
-    ('crate card short', 'LockerScreen', 'UDim2.new(0.5, -6, 1, -40)', 'UDim2.new(0.5, -6, 0, 236)', 'does not fill the tab'),
+    ('crate card short', 'LockerScreen', 'UDim2.new(0.5, -Ui.GAP / 2, 1, -40)', 'UDim2.new(0.5, -Ui.GAP / 2, 0, 236)', 'does not fill the tab'),
 ]
 
 plazaphone = [

@@ -211,7 +211,9 @@ assert(ed.spec.parts.hair == "afro" and ed:dirty() and ed.status.Text == "Unsave
 local tileSprites = 0
 for _, sp in sprites do for _, t in ed.tiles do if sp.canvas == t.canvas then tileSprites += 1 end end end
 assert(tileSprites == 0, "picking an option redrew the option tiles")
-assert(ed.tiles.afro.pick.Enabled and not ed.tiles.crew.pick.Enabled, "the picked tile is not the one marked")
+-- (marked by its brackets in a light theme, by its ring otherwise; never both)
+local function marked(t) return if t.marks then t.marks.Visible and not t.pick.Enabled else t.pick.Enabled end
+assert(marked(ed.tiles.afro) and not marked(ed.tiles.crew) and not ed.tiles.crew.pick.Enabled, "the picked tile is not the one marked")
 -- A colour recolours the tiles (they show your colours).
 click(root, "Swatch_hair_11")
 assert(ed.spec.colours.hair == 11, "the swatch did not paint the hair")
@@ -284,7 +286,7 @@ focused = false
 click(root, "Group_presets")
 assert(find(root, "Preset_ninja") and not ed.lockButton.Visible, "the Presets tab lists presets, with no part lock")
 click(root, "Preset_ninja")
-assert(ed:code() == NINJA and ed.tiles.ninja.pick.Enabled, "a preset did not put the whole character on")
+assert(ed:code() == NINJA and marked(ed.tiles.ninja), "a preset did not put the whole character on")
 
 -- 7. Save, save as new, delete.
 ed.nameBox.Text = "  Kage <3  "

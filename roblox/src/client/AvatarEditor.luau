@@ -52,10 +52,10 @@ AvatarEditor.MAX_UNDO = 60
 -- their outlines nearly touched), 6 otherwise. (Offsets are whole pixels in Roblox: each button's share
 -- of the gaps rounds up, or the row overruns its bar.)
 AvatarEditor.BAR_GAP = if LIGHT then Ui.GAP else 6
--- between option tiles: room for the picked tile's brackets (7 px outside it) clear of its neighbours
-AvatarEditor.TILE_GAP = if LIGHT then Ui.GAP else 8
+-- between option tiles and swatches: room for the picked one's brackets clear of its neighbours
+AvatarEditor.TILE_GAP = if LIGHT then Ui.CHOSEN_GAP else 8
 -- the header's UNDO, REDO, RANDOM and X, BAR_GAP apart
-AvatarEditor.SWATCH_GAP = if LIGHT then Ui.GAP else 4
+AvatarEditor.SWATCH_GAP = if LIGHT then Ui.CHOSEN_GAP else 4
 -- a colour's row: its name (16), two rows of swatches (20 each) SWATCH_GAP apart, and 8 under them
 -- (a short screen - a phone on its side - lays each palette in one row: two overflowed its footer)
 -- the swatches start this far under their palette's name: a light theme leaves the picked one's
@@ -234,7 +234,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	chips.Position, chips.Size = UDim2.new(0, 250, 0, 6), UDim2.new(1, -520, 0, 44)
 	local list = Instance.new("UIListLayout")
 	list.FillDirection = Enum.FillDirection.Horizontal
-	list.Padding = UDim.new(0, AvatarEditor.BAR_GAP)
+	list.Padding = UDim.new(0, if LIGHT then Ui.CHOSEN_GAP else AvatarEditor.BAR_GAP)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Parent = chips
 	self.chipBar = chips
@@ -483,7 +483,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local colourRows = if self.group == "presets" then 0 else #self:paintSlots()
 	self.paletteRows = if short then 1 else 2
 	local colourH = colourRows * AvatarEditor.swatchRow(self.paletteRows)
-	local gridTop = catY + 34 + (if LIGHT then 8 else 6)
+	-- (8 px clear between the parts row's strokes and the grid well's 2 px edge)
+	local gridTop = catY + 34 + (if LIGHT then 3 + 8 + 2 else 6)
 	-- (a light theme reserves a 30 px gutter under the grid for the scroll chip: outside the grid with
 	-- no room kept, it landed on the save buttons on the presets tab)
 	local CHIP = if LIGHT then (if short then 26 else 30) else 0
@@ -1024,7 +1025,7 @@ function AvatarEditor.renderTiles(self: any)
 	for id, t in self.tiles do
 		local code = self:tileCode(id)
 		local picked = if t.kind == "Preset_" then code == mine else self.spec.parts[self.category] == id
-		t.pick.Enabled = picked
+		t.pick.Enabled = picked and not t.marks      -- (with brackets, no ring: the brackets are the mark)
 		if t.marks then t.marks.Visible = picked end
 		t.label.TextColor3 = if picked then PICKED elseif LIGHT then TEXT else Ui.KEY
 		local key = `{code}|{view}|{px.X}x{px.Y}`
@@ -1090,7 +1091,7 @@ function AvatarEditor.rebuildChips(self: any)
 	for i = 1, count do
 		local slot = self.slots[i]
 		local b = tile(self.chipBar, "Slot_" .. i, function() self:openSlot(i) end,
-			if LIGHT then (if i == self.editing then Ui.SUN else PANEL2) elseif i == self.editing then PANEL2 else INK)
+			if LIGHT then PANEL2 elseif i == self.editing then PANEL2 else INK)
 		b.LayoutOrder = i
 		b.Size = UDim2.fromOffset(CH, CH)
 		local thumb = frame(b, "Thumb")
@@ -1098,7 +1099,8 @@ function AvatarEditor.rebuildChips(self: any)
 		local canvas = Canvas2D.inFrame(thumb)
 		local code = if i == self.editing then self:code() elseif slot then slot.code else self:code()
 		KitPortrait.draw(canvas, code, "head", CH, CH)
-		if i == self.editing then stroke(b, AMBER, 2) end
+		-- (the slot you are editing wears the brackets every chosen box does, in a light theme)
+		if i == self.editing then if LIGHT then Ui.brackets(b, nil, 8, 3).Visible = true else stroke(b, AMBER, 2) end end
 		if i == self.active then
 			local dot = frame(b, "Worn", GOOD, 0)
 			dot.Size, dot.Position = UDim2.fromOffset(8, 8), UDim2.fromOffset(CH - 10, 2)

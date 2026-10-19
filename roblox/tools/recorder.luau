@@ -227,6 +227,10 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 		if BOXES[cls] and shown(o) then
 			local x, y, w, h = rect(o)
 			local node: any = { x = x, y = y, w = w, h = h, name = o.Name, button = cls == "TextButton" or cls == "ImageButton" or nil }
+			-- its layer: an overlay (an odds window, at ZIndex 10 and up) is a layer over the screen under it
+			local layer, cur = 0, o
+			while cur and BOXES[cur.ClassName] do if (cur.ZIndex or 1) >= 10 then layer = 1 end; cur = cur.Parent end
+			node.layer = layer
 			if o.BackgroundTransparency == nil or o.BackgroundTransparency < 1 then
 				node.bg, node.bgAlpha = hex(o.BackgroundColor3 or Rbx.Color3.new(0.6, 0.6, 0.6)), 1 - (o.BackgroundTransparency or 0)
 			end
@@ -258,6 +262,10 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 				node.text, node.colour, node.size = txt, hex(o.TextColor3 or Rbx.Color3.new(1, 1, 1)), o.TextSize or 14
 				node.font = tostring(o.Font or "")
 				node.wrap = o.TextWrapped == true
+				-- the legacy TextStroke (1 px round the letters) where it is drawn near-solid and no UIStroke is
+				if not node.textStroke and (o.TextStrokeTransparency or 1) <= 0.3 and o.TextStrokeColor3 then
+					node.textStroke, node.textStrokeW = hex(o.TextStrokeColor3), 1
+				end
 				-- TextScaled: Roblox fits the words to the box, up to a UITextSizeConstraint's MaxTextSize
 				if o.TextScaled == true then
 					node.scaled = true

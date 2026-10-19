@@ -231,7 +231,8 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 	Ui.corner(b, 0)
 	local border = Ui.stroke(b, Ui.tone(colour), 3)
 	-- (small words outlined too in a toned theme, at 1 px: bare white on a mid-tone face read at 2-3:1)
-	local outline = if theme.bevel == "none" or (o.small and not theme.tone) then nil else Ui.outline(b, if o.small then 1 else 2, Ui.tone(colour))
+	-- (2 px in a toned theme, small words too: at 1 px the dock's 12 px words measured 2.8-3.2:1)
+	local outline = if theme.bevel == "none" or (o.small and not theme.tone) then nil else Ui.outline(b, if o.small and not theme.tone then 1 else 2, Ui.tone(colour))
 	-- the bevel: full-width pixel strips (pixel themes), a rounded shine and lip set in from the
 	-- edges (rounded themes), a pixel kit's light band across the top third and a dark lip along the
 	-- foot (arcade), or nothing (flat)
@@ -517,7 +518,8 @@ end
 -- they read on any colour - pale grey, gold or violet alike. Returns the label and its outline.
 function Ui.faceText(parent: Instance?, value: string, size: number, face: Color3, font: any?): (any, any)
 	local t = Ui.text(parent, value, size, Ui.WHITE, font or Ui.DISPLAY, true)
-	local o = Ui.outline(t, if size >= 20 then 3 elseif size >= 15 then 2 else 1, Ui.tone(face))
+	-- (never under 2 px: at 1 the dock's and badges' small white words measured 2.0-3.2:1 bare)
+	local o = Ui.outline(t, if size >= 20 then 3 else 2, Ui.tone(face))
 	return t, o
 end
 
@@ -592,8 +594,14 @@ end
 -- `colour`, each an L of two arms `arm` long and `thick` wide with a one-pixel step at its elbow.
 -- Returns the holder (toggle its Visible); it is the caller's box's child, so it moves with it.
 Ui.BRACKET_INK = 2
+-- the brackets' outer edge sits this far outside the box: on its 3 px stroke's outer edge, the arms
+-- lying over the stroke (outside it, ink and all, they reached 9 px out and crowded the next card)
+Ui.BRACKET_OUT = 3
+-- the gap between boxes that can be chosen: room for one's brackets (BRACKET_OUT + BRACKET_INK), 8 px,
+-- and the next one's 3 px stroke
+Ui.CHOSEN_GAP = Ui.BRACKET_OUT + Ui.BRACKET_INK + 8 + 3
 function Ui.brackets(parent: Instance, colour: Color3?, arm: number?, thick: number?): any
-	local a, t, out = arm or 14, thick or 4, (thick or 4) + 3
+	local a, t, out = arm or 14, thick or 4, Ui.BRACKET_OUT
 	local col = colour or Ui.SELECTED
 	local holder = Ui.make("Frame", parent, { Name = "Brackets", BackgroundTransparency = 1, BorderSizePixel = 0,
 		Position = UDim2.fromOffset(-out, -out), Size = UDim2.new(1, 2 * out, 1, 2 * out), ZIndex = 4, Visible = false })
@@ -658,13 +666,14 @@ end
 -- lightness line and kept white lines at 2.4-2.9:1; ink reads at 5:1 or better on all of them)
 -- The words sit on the card's gradient (shade(face, 0.32) at the top down to the face), so each
 -- choice is measured at its worst: white against the lightest colour, ink against the darkest; the
--- better of the two wins. (White measured against the base alone kept Mythic's lines at 2.9:1 on the
+-- better of the two wins. Dark words are INK, the deepest the kit has (TEXT left Epic's darkest stop at
+-- 4.2:1). (White measured against the base alone kept Mythic's lines at 2.9:1 on the
 -- surface they are actually drawn on.)
 function Ui.paintSecondary(t: any, stroke: any, face: Color3)
-	if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then
-		t.TextColor3, stroke.Thickness = Ui.TEXT, 0
+	if Ui.contrast(Ui.INK, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then
+		t.TextColor3, stroke.Thickness = Ui.INK, 0
 	else
-		t.TextColor3, stroke.Thickness, stroke.Color = Ui.WHITE, 1, Ui.tone(face)
+		t.TextColor3, stroke.Thickness, stroke.Color = Ui.WHITE, 2, Ui.tone(face)
 	end
 end
 -- A card's name or a band's title on its face: white outlined in its shade, unless the face is pale

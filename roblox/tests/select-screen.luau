@@ -212,7 +212,7 @@ do
 		local cell = find("Pick" .. c[1])
 		local ring
 		for _, ch in cell._children do if ch.ClassName == "UIStroke" then ring = ch end end
-		if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness < 3 then fail(`your {c[1]} has no gold ring`) end
+		if not ring or ring.Thickness < 3 then fail(`your {c[1]} has no ring`) end
 		-- (and the stepped brackets every chosen card wears)
 		local marks = cell:FindFirstChild("Brackets")
 		if not marks or marks.Visible ~= true then fail(`your {c[1]} wears no brackets`) end
@@ -290,7 +290,9 @@ if not count or not visible(count) or count.Text ~= "2" then fail(`the Undertow'
 if visible(find("MapRandom"):FindFirstChild("Count")) then fail("an arena nobody voted for shows a count") end
 local ring
 for _, ch in undertow._children do if ch.ClassName == "UIStroke" then ring = ch end end
-if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness < 3 then fail("your arena has no gold ring") end
+if not ring or ring.Thickness < 3 then fail("your arena has no ring") end
+-- (gold is for you: a bracketed card's ring is not gold)
+if math.abs(ring.Color.R - 1) < 0.01 and math.abs(ring.Color.G - 231 / 255) < 0.01 then fail("your bracketed arena still wears a gold ring") end
 -- (and the brackets, which mark it instead of a thicker ring)
 if not undertow:FindFirstChild("Brackets") or not undertow:FindFirstChild("Brackets").Visible then fail("your arena wears no brackets") end
 if math.abs(find("MapNameUndertow").TextColor3.B - find("MapNameRandom").TextColor3.B) < 0.1 then fail("your arena's name is not picked out") end
@@ -344,7 +346,7 @@ if #sent ~= before then fail("a click the moment the rules page replaced the map
 now += Screen.SETTLE
 for _, preset in Rules.presets do
 	local card = find("Rule" .. preset.id)
-	local n = if preset.id == "chaos" then "1 VOTE" else ""
+	local n = if preset.id == "chaos" then "VOTES · 1" else ""
 	if card:FindFirstChild("Count").Text ~= n then fail(`the {preset.id} card counts "{card:FindFirstChild("Count").Text}"`) end
 	local how = card:FindFirstChild("Fact1").Text
 	if (preset.rules.mode == "timed") ~= (string.find(how, "TIMED", 1, true) ~= nil) then fail(`the {preset.id} card says "{how}"`) end

@@ -49,11 +49,11 @@ env = {
 local Shop = luau.load(fs.readFile("src/client/ShopScreen.luau"), { debugName = "ShopScreen", environment = env, injectGlobals = true })()
 local Locker = env.require("LockerScreen")
 
--- n cells and their 10 px gaps fit a row's width, at every column count used (five used to wrap)
+-- n cells and their Ui.GAP gaps fit a row's width, at every column count used (five used to wrap)
 for _, cols in { 3, 4, 5 } do
 	local cell = Shop.cell(cols, 100)
 	for _, w in { 600, 896, 1200 } do
-		assert(cols * (w * cell.X.Scale + cell.X.Offset) + (cols - 1) * 10 <= w, `{cols} cells do not fit a {w} px row`)
+		assert(cols * (w * cell.X.Scale + cell.X.Offset) + (cols - 1) * env.require("Ui").GAP <= w, `{cols} cells do not fit a {w} px row`)
 	end
 end
 assert(Shop.wait(26000) == "7h 13m" and Shop.wait(59) == "0m" and Shop.wait(600) == "10m", "the countdown reads wrong")

@@ -512,7 +512,7 @@ do
 		for _, st in Plaza2D.STALLS do
 			local t = hub.pool["stall" .. st.sign]
 			if t and t.Visible ~= false then
-				local y = 18.8 * PLAZA.depth + 10
+				local y = 18.8 * PLAZA.depth + 10.5
 				local span = math.abs(narrow:project(st.x + Plaza2D.SIGN_W / 2, y).X - narrow:project(st.x - Plaza2D.SIGN_W / 2, y).X)
 				local size = t.TextSize / Ui.SCALE
 				assert(Ui.textWidth(t.Text, math.floor(size)) <= span + 1, `{st.sign} is {Ui.textWidth(t.Text, math.floor(size))} px wide on a {span} px sign`)

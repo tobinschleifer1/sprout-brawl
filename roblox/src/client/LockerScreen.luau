@@ -231,17 +231,17 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	end
 	local function body(name: string): any
 		local f = Ui.make("Frame", panel, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0,
-			Position = UDim2.fromOffset(12, HEAD + 54), Size = UDim2.new(1, -24, 1, -(HEAD + 92)), Visible = false })
+			Position = UDim2.fromOffset(12, HEAD + 54), Size = UDim2.new(1, -24, 1, -(HEAD + (if Ui.lightPanels() then 66 else 92))), Visible = false })
 		return f
 	end
 	local function grid(parent: Instance, cell: Vector2): any
 		local list = Ui.make("ScrollingFrame", parent, { Name = "Grid", BackgroundTransparency = 1, BorderSizePixel = 0,
-			Position = UDim2.fromOffset(0, 40), Size = UDim2.new(1, 0, 1, -40), CanvasSize = UDim2.new(),
+			Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 1, -44), CanvasSize = UDim2.new(),      -- (8 px under the filters' strokes)
 			AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 		-- four to a row that fill it (a light theme), with room for the cards' borders, drawn outside them
 		local cols = 4
-		Ui.make("UIGridLayout", list, { CellSize = if Ui.lightPanels() then UDim2.new(1 / cols, -math.ceil(8 * (cols - 1) / cols) - 3, 0, cell.Y)
-			else UDim2.fromOffset(cell.X, cell.Y), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder })
+		Ui.make("UIGridLayout", list, { CellSize = if Ui.lightPanels() then UDim2.new(1 / cols, -math.ceil(Ui.GAP * (cols - 1) / cols) - 3, 0, cell.Y)
+			else UDim2.fromOffset(cell.X, cell.Y), CellPadding = if Ui.lightPanels() then UDim2.fromOffset(Ui.GAP, Ui.GAP) else UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder })
 		if Ui.lightPanels() then
 			Ui.make("UIPadding", list, { PaddingLeft = UDim.new(0, 4), PaddingTop = UDim.new(0, 4) })
 		end
@@ -300,7 +300,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		if Ui.lightPanels() then
 			-- (a light theme: the card the tab's full height, the crate large on a mount at its top, the
 			-- buttons at its foot; at a fixed 236 px the tab stood 40% empty under two short cards)
-			card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 1, -40)
+			card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else Ui.GAP / 2, 0, 4), UDim2.new(0.5, -Ui.GAP / 2, 1, -40)
 			local thumb = Ui.make("Frame", card, { Name = "Thumb", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16),
 				Size = UDim2.fromOffset(280, 190) })
 			Ui.mount(thumb, crateColour)
@@ -359,6 +359,14 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
 	message.Position, message.Size = UDim2.new(0.5, 0, 1, -8), UDim2.new(1, -24, 0, 26)
+	-- (a light theme: a pill over the list's foot, shown while it has something to say, so the list
+	-- runs to the window's edge; a line kept for it left a dead 38 px strip under the cards)
+	if Ui.lightPanels() then
+		message.BackgroundColor3, message.BackgroundTransparency, message.ZIndex, message.Visible = Ui.PANEL, 0, 9, false
+		message.TextWrapped = false
+		Ui.make("UICorner", message, { CornerRadius = UDim.new(1, 0) })
+		Ui.stroke(message, Ui.INK, 2)
+	end
 	self.message = message
 	self:buildOverlays()
 	self:show("locker")
@@ -374,6 +382,10 @@ end
 
 function LockerScreen.say(self: any, text: string, colour: Color3?)
 	self.message.Text, self.message.TextColor3 = text, colour or Ui.TEXT
+	if Ui.lightPanels() then
+		self.message.Visible = text ~= ""
+		self.message.Size = UDim2.fromOffset(math.min(Ui.textWidth(text, 15) + 36, 900), 30)
+	end
 end
 
 -- Ask twice for anything that spends: the first press arms it, a second within CONFIRM_SECONDS acts.
@@ -406,9 +418,8 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	local dy = if Ui.lightPanels() then 20 else 0
 	-- worn: a badge on the art (a gold edge would vanish on a gold card)
 	local worn = Ui.pricePill(thumb, "WORN")
-	worn.Name, worn.Visible, worn.BackgroundColor3 = "Worn", false, Ui.GREEN
+	worn.Name, worn.Visible, worn.BackgroundColor3, worn.TextColor3 = "Worn", false, Ui.GREEN, Ui.INK   -- (ink: white on green was 2.0:1)
 	worn.TextSize = Ui.px(11, Ui.DISPLAY)
-	Ui.outline(worn, 1, Ui.tone(Ui.GREEN))
 	worn.AnchorPoint, worn.Position, worn.Size = Vector2.new(1, 0), UDim2.new(1, -4, 0, 4), UDim2.fromOffset(52, 18)
 	local name, nameStroke = Ui.faceText(f, "", 15, Ui.SKY)
 	name.Name = "Name"

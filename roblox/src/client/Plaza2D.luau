@@ -592,7 +592,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		for i = 0, 7 do
 			Canvas.rect(c, sx0, sy0 + ((clock * 2 + i * 1.3) % sh), sw, 0.1, CYAN, 0.05)
 		end
-		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520, sw * 0.86)
+		local title = self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520, sw * 0.86)
 		local n = 1
 		for _ in self.peers do n += 1 end
 		-- (Plaza2D.BILLBOARD_LINE, not the scanlines' CYAN: at #7FA8B8 it measured 2.8:1 on the screen; and
@@ -600,7 +600,11 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local full = `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`
 		local span = math.abs(c:project(sw * 0.45, 0).X - c:project(-sw * 0.45, 0).X)
 		local line = if Ui.textWidth(full, 11) > span then `{n} ON THE ROOF TONIGHT` else full
-		self:placeLabel(c, "billboard2", line, 0, sy0 + sh * 0.25, 14, Plaza2D.BILLBOARD_LINE, 520, sw * 0.9)
+		local sub = self:placeLabel(c, "billboard2", line, 0, sy0 + sh * 0.25, 14, Plaza2D.BILLBOARD_LINE, 520, sw * 0.9)
+		-- (a full ink outline on both lines: the board's lighter structure behind them took the white to
+		-- 2.9:1 and the gold to 3.0:1)
+		sub.TextStrokeTransparency, sub.TextStrokeColor3 = 0, INK
+		title.TextStrokeTransparency, title.TextStrokeColor3 = 0, INK
 	end)
 	add(22, function()
 		local wt = PlazaArt.get("tower", PlazaArt.waterTower)
@@ -614,7 +618,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local front = PlazaArt.get("stallF" .. st.sign, function() return PlazaArt.stallFront(st.goods) end)
 		add(STALL_Z + 0.2, function()
 			PlazaArt.draw(c, "stallB" .. st.sign, back, st.x, STALL_Z * D)
-			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10, 15, Plaza2D.signColour(Canvas.hex(st.a, AMBER)), 160, Plaza2D.SIGN_W)
+			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10.5, 15, Plaza2D.signColour(Canvas.hex(st.a, AMBER)), 160, Plaza2D.SIGN_W)
 		end)
 		add(STALL_Z + 0.1, function()
 			local vc = vendorChar(self, st.vendor)

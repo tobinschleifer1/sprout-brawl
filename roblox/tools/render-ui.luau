@@ -34,6 +34,8 @@ local variant = process.args[5]
 local new, made = Recorder.gui(W, H)
 local enumNames = setmetatable({}, { __index = function(_, k) return setmetatable({}, { __index = function(_, v) return k .. "." .. v end }) end })
 Loader.gui = { Instance = { new = new }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = enumNames }
+-- a style theme to draw in (Ui.THEMES), picked before any screen module loads and reads its fonts
+Loader.loadFrom("src/client/", "Ui").useTheme(process.env.UI_THEME)
 -- frames' own canvases draw nowhere (see above)
 local frameCanvas = nil      -- a screen-wide frame's canvas (the podium's) is the screen's own
 Canvas.inFrame = function()
@@ -82,6 +84,7 @@ if screen == "plaza" then
 	social:setEnabled(true)
 	if variant == "stamps" then social:toggle("Stamps") end
 	local hub = Plaza2D.new(playerGui)
+	hub.social = social          -- as the client wires them (init.client.luau)
 	local cfg = Loader.load("MatchConfig").default()
 	for _, p in KIT.presets do if p.id == "knight" then cfg.slots[1].avatarId = p.code end end
 	hub:show(cfg)

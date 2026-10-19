@@ -397,7 +397,7 @@ do
 	ed:selectGroup("extras")
 	ed:selectCategory("headwear")
 	local tile = assert(ed.tiles.skylineCrown, "the Skyline Crown has a tile")
-	assert(tile.label.Text == "LOCKED · Skyline Crown", `it is shown locked: {tile.label.Text}`)
+	assert(tile.label.Text == "LOCKED · SKYLINE CROWN", `it is shown locked: {tile.label.Text}`)
 	local before = ed:code()
 	click(root, "Option_skylineCrown")
 	assert(ed:code() == before and string.find(ed.status.Text, "Crown Perch", 1, true) and string.find(ed.status.Text, "level 19", 1, true),
@@ -421,7 +421,7 @@ do
 	-- Earned: unlocked, labelled plainly, and wearable.
 	ed:selectCategory("headwear")
 	ed:setView({ slots = { { name = "Kage 3", code = NINJA } }, active = 1, saving = true, max = 8, unlocked = { "skylineCrown" } })
-	assert(ed.tiles.skylineCrown.label.Text == "Skyline Crown", "earned while looking at it, it loses its lock")
+	assert(ed.tiles.skylineCrown.label.Text == "SKYLINE CROWN", "earned while looking at it, it loses its lock")
 	click(root, "Option_skylineCrown")
 	assert(ed.spec.parts.headwear == "skylineCrown", "and can be worn")
 end
@@ -432,5 +432,14 @@ do
 	assert(ed.groupButtons.hair.BackgroundColor3 == Ui.GOLD and ed.groupButtons.body.BackgroundColor3 ~= Ui.GOLD, "the chosen tab is not the gold one")
 	ed:selectGroup("body")
 	assert(ed.groupButtons.body.BackgroundColor3 == Ui.GOLD and ed.groupButtons.hair.BackgroundColor3 ~= Ui.GOLD, "the gold tab did not follow the choice")
+end
+-- A grid whose tiles run past what it shows says so; one that shows them all does not.
+do
+	ed:layout(Rbx.Vector2.new(812, 375))
+	ed:selectGroup("face")
+	assert(ed.moreChip.Visible, `a phone's face grid hides tiles ({ed.tileCount} in {ed.gridCols} columns) without saying so`)
+	ed:layout(Rbx.Vector2.new(1280, 720))
+	ed:selectGroup("body")
+	assert(not ed.moreChip.Visible, `the desktop body grid shows all {ed.tileCount} tiles but says there are more`)
 end
 print("PASS creator: tiles show your character per option and redraw only on change; options, colours, presets, undo/redo; locked Randomise; keyboard; save / save-as-new / delete; unsaved work guarded; saving-off said; real fighter preview in five poses; phone, tablet and desktop layouts")

@@ -30,15 +30,16 @@ local Ui = require(script.Parent.Ui)
 local Hud = {}
 Hud.__index = Hud
 
--- The look is the shared cartoon kit's (Ui): outlined display numbers, ink-bordered cards, key caps.
+-- The look is the shared pixel kit's (Ui): outlined pixel numbers, square ink-framed cards, key caps.
 local FONT = Ui.LABEL
 -- the floating label over each fighter: its width, and how near the screen's top or bottom it may go
-local FLOAT_W, FLOAT_EDGE = 130, 26
+local FLOAT_W, FLOAT_EDGE = 170, 26
 local DIM = Color3.fromRGB(198, 204, 214)
 local PANEL = Ui.PANEL
 local GOLD = Ui.GOLD                            -- a timed link's colour (FxPlayer.PERFECT)
 local BROKE = Color3.fromRGB(150, 156, 168)
-local SLATE = Color3.fromRGB(40, 54, 80)        -- an empty ultimate block
+local SLATE = Color3.fromRGB(58, 68, 102)        -- an empty ultimate block
+Hud.SLATE = SLATE
 -- HUD values usually stand still while the camera moves. Keep the last assignment in Lua:
 -- even an equal engine property write dirties UI state. Weak keys let rebuilt roster tiles go.
 local written: { [any]: { [string]: any } } = setmetatable({}, { __mode = "k" }) :: any
@@ -65,7 +66,7 @@ local function label(parent: Instance, size: UDim2, pos: UDim2, text: string, px
 	t.Size = size
 	t.Position = pos
 	t.Text = text
-	t.TextSize = px
+	t.TextSize = Ui.px(px)
 	t.Font = FONT
 	t.TextColor3 = colour
 	t.TextXAlignment = Enum.TextXAlignment.Left
@@ -75,8 +76,8 @@ end
 -- Display words with the kit's ink outline; returns the label and the outline, which fades with it.
 local function display(parent: Instance, size: UDim2, pos: UDim2, text: string, px: number, colour: Color3): (TextLabel, any)
 	local t = label(parent, size, pos, text, px, colour)
-	t.Font = Ui.DISPLAY
-	return t, Ui.outline(t, math.max(1.5, px / 11))
+	t.Font, t.TextSize = Ui.DISPLAY, Ui.px(px, Ui.DISPLAY)
+	return t, Ui.outline(t, if px >= 40 then 4 elseif px >= 20 then 3 else 2)
 end
 
 function Hud.new(parent: Instance): any
@@ -101,13 +102,13 @@ function Hud.new(parent: Instance): any
 	-- The keys that matter mid-fight, as caps, under the clock.
 	local KB: any = Bindings.keyboard
 	local hints = Ui.hintRow(gui, "CombatBindings", { { KB.ult[1], "ULTIMATE" }, { KB.guard[1], "SHIELD" },
-		{ KB.pickup[1], "PICKUP" }, { Hud.COMBO_KEY, "COMBOS" } }, 22)
-	hints.Position, hints.Size = UDim2.new(0, 0, 0, 60), UDim2.new(1, 0, 0, 24)
+		{ KB.pickup[1], "PICKUP" }, { Hud.COMBO_KEY, "COMBOS" } }, 26)
+	hints.Position, hints.Size = UDim2.new(0, 0, 0, 58), UDim2.new(1, 0, 0, 28)
 	self.hints = hints
 	-- What your ultimate is waiting on, or what just happened to it, in a gold pill (empty: hidden).
 	local abilityPill = Ui.pill(gui, "AbilityPill", GOLD)
 	abilityPill.AnchorPoint = Vector2.new(0.5, 0)
-	abilityPill.Position, abilityPill.Size = UDim2.new(0.5, 0, 0, 92), UDim2.fromOffset(500, 30)
+	abilityPill.Position, abilityPill.Size = UDim2.new(0.5, 0, 0, 94), UDim2.fromOffset(500, 30)
 	abilityPill.Visible = false
 	self.abilityPill = abilityPill
 	self.abilities = display(abilityPill, UDim2.fromScale(1, 1), UDim2.new(), "", 15, GOLD)
@@ -121,19 +122,23 @@ function Hud.new(parent: Instance): any
 
 	-- The local player's combo routes (ComboGuide), read off their weapon and filled in by bind: a
 	-- card through the countdown, then tucked away until COMBO_KEY is held.
-	local card = Ui.panel(gui, "ComboCard", Color3.fromRGB(150, 96, 20), "YOUR COMBOS", 26)
+	local card = Ui.panel(gui, "ComboCard", Ui.ORANGE, "YOUR COMBOS", 30)
 	card.AnchorPoint = Vector2.new(0.5, 0)
-	card.Position, card.Size = UDim2.new(0.5, 0, 0, 126), UDim2.new(1, -32, 0, 84)
-	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(760, 84) })
+	card.Position, card.Size = UDim2.new(0.5, 0, 0, 132), UDim2.new(1, -32, 0, 104)
+	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(640, 104) })
 	card.Visible = false
 	self.guideCard = card
-	local hold = label(card, UDim2.new(0, 160, 0, 26), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
+	local hold = label(card, UDim2.new(0, 160, 0, 30), UDim2.new(1, -172, 0, 0), `HOLD {Hud.COMBO_KEY}`, 12, Ui.WHITE)
 	hold.TextXAlignment = Enum.TextXAlignment.Right
 	hold.ZIndex = 3
-	self.guide = label(card, UDim2.new(1, -24, 0, 50), UDim2.fromOffset(12, 29), "", 13, GOLD)
+	self.guide = label(card, UDim2.new(1, -28, 0, 66), UDim2.fromOffset(14, 34), "", 13, Ui.WHITE)
 	self.guide.Name = "ComboGuide"
 	self.guide.TextWrapped = true
-	self.guide.TextXAlignment = Enum.TextXAlignment.Center
+	-- a list: each route's name in white, its chain in gold, the how-to dimmed
+	self.guide.RichText = true
+	self.guide.TextXAlignment = Enum.TextXAlignment.Left
+	self.guide.TextYAlignment = Enum.TextYAlignment.Top
+	self.guide.LineHeight = 1.15
 
 	-- The ultimate's name and caster, laid along the cutscene banner the canvas paints.
 	self.ultName = label(gui, UDim2.fromOffset(10, 10), UDim2.fromOffset(0, 0), "", 20, Color3.new(1, 1, 1))
@@ -154,8 +159,8 @@ function Hud.new(parent: Instance): any
 	self.stageName.TextTransparency = 1
 
 	-- The countdown, GO, KO and GAME: big cartoon words with a heavy outline.
-	self.callout, self.calloutOutline = display(gui, UDim2.fromOffset(800, 100), UDim2.new(0.5, -400, 0.32, 0), "", 72, Color3.new(1, 1, 1))
-	self.calloutOutline.Thickness = 5
+	self.callout, self.calloutOutline = display(gui, UDim2.fromOffset(800, 150), UDim2.new(0.5, -400, 0.36, 0), "", 72, Color3.new(1, 1, 1))
+	self.calloutOutline.Thickness = 6
 	self.callout.TextXAlignment = Enum.TextXAlignment.Center
 	self.callout.TextTransparency = 1
 
@@ -181,7 +186,17 @@ end
 -- tile size four coloured boxes are four boxes.
 function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number?, teams: boolean?)
 	self.localIndex = localIndex
-	self.guide.Text = table.concat(ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil), "\n")
+	local lines = {}
+	for _, line in ComboGuide.lines(if localIndex ~= nil then chars[localIndex + 1] else nil) do
+		local name, chain = string.match(line, "^([^:]+):%s*(.*)$")
+		if name and chain then
+			local route, how = string.match(chain, "^(.-)%s*(%b())$")
+			table.insert(lines, `<font color="#FEE761">{string.upper(name)}</font>   {route or chain}` .. (if how then `  <font color="#A8B5CC">{how}</font>` else ""))
+		else
+			table.insert(lines, line)
+		end
+	end
+	self.guide.Text = table.concat(lines, "\n")
 	if teams ~= nil then self.teamsOn = teams end
 	for _, t in self.tiles do
 		t.root:Destroy()
@@ -192,8 +207,16 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 	self.tiles, self.floats, self.floatMarks = {}, {}, {}
 
 	local n = #roster
-	local W, H, GAP = math.clamp(math.floor((self.gui.AbsoluteSize.X - 36) / 2), 140, 190), 72, 10
-	local columns = math.max(1, math.min(n, math.floor((self.gui.AbsoluteSize.X - 16) / (W + GAP))))
+	-- one row along the bottom wherever the cards fit at 132 px or wider (a phone fits four), so they
+	-- stay off the arena; only past that do they wrap
+	local GAP, H = 8, 72
+	local avail = self.gui.AbsoluteSize.X - 16
+	local W = math.clamp(math.floor((avail - (n - 1) * GAP) / math.max(1, n)), 132, 190)
+	local columns = math.max(1, math.min(n, math.floor((avail + GAP) / (W + GAP))))
+	-- a narrow card (a phone's row of four, a room of six) takes its ultimate bar across the foot,
+	-- under the percent instead of beside it
+	local compact = W < 170
+	if compact then H = 84 end
 	local total = columns * W + (columns - 1) * GAP
 	self.layoutWidth = self.gui.AbsoluteSize.X
 	for i, entry in roster do
@@ -208,45 +231,55 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 			BorderSizePixel = 0, Size = UDim2.fromOffset(W, H) })
 		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
 			-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
-		Ui.corner(root, 12)
-		Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
-		local band = Ui.make("Frame", root, { Name = "Band", BackgroundColor3 = colour, BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 20) })
-		Ui.corner(band, 12)
-		Ui.make("Frame", band, { Name = "Square", BackgroundColor3 = colour, BorderSizePixel = 0,
-			Position = UDim2.new(0, 0, 1, -10), Size = UDim2.new(1, 0, 0, 10) })
+		Ui.corner(root, 0)
+		-- (your own card's gold edge stays bold whatever the theme does to borders: it is how you
+		-- find yourself among six)
+		local edge = Ui.stroke(root, if yours then GOLD else Ui.INK, 3)
+		if yours then edge.Thickness = math.max(edge.Thickness, 2) end
+		Ui.rim(root, if yours then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
+		local band = Ui.band(root, colour, 20)
 
-		local name = display(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
+		-- (in the label face: small Fredoka capitals run together - RIVAL read as RVAL)
+		local name = label(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
 			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
-		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 22),
-			string.upper(chars[i] and chars[i].name or entry.weapon), 10, DIM)
-		local pct = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", 30, Color3.new(1, 1, 1))
+		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 23),
+			string.upper(chars[i] and chars[i].name or entry.weapon), 11, DIM)
+		weapon.TextTruncate = Enum.TextTruncate.AtEnd
+		local pct = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", if compact then 22 else 30, Color3.new(1, 1, 1))
 		-- Stocks as pixel blocks in the player's colour, right-aligned, capped at eight.
 		local pips = {}
 		for k = 1, 8 do
 			local pip = Ui.make("Frame", root, { Name = "Stock" .. k, BackgroundColor3 = colour, BorderSizePixel = 0,
 				Position = UDim2.fromOffset(W - 8 - k * 13, 26), Size = UDim2.fromOffset(10, 10), Visible = false })
-			Ui.stroke(pip, Ui.INK, 1.5)
-			Ui.make("Frame", pip, { Name = "Hi", BackgroundColor3 = Ui.shade(colour, 0.45), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
+			Ui.stroke(pip, Ui.INK, 2)
+			local hi = Ui.make("Frame", pip, { Name = "Hi", BackgroundColor3 = Ui.shade(colour, 0.45), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
+			if Ui.flat() then hi.BackgroundTransparency = 1 end
+			Ui.pip(pip)
 			pips[k] = pip
 		end
 
 		-- The ultimate meter: a row of blocks along the card's foot. Hidden outright for a loadout
 		-- with no ultimate, so it never shows a meter that cannot fill.
-		local ultBack = Ui.make("Frame", root, { Name = "Ultimate", BackgroundTransparency = 1, BorderSizePixel = 0,
-			Position = UDim2.new(1, -8 - 76, 1, -15), Size = UDim2.fromOffset(76, 8) })
+		-- (a segmented bar in an ink tray: chunks read faster than a smooth fill)
+		local meterW = if compact then W - 16 else 78
+		local ultBack = Ui.make("Frame", root, { Name = "Ultimate", BackgroundColor3 = Ui.INK, BorderSizePixel = 0,
+			Position = UDim2.new(1, -8 - meterW, 1, -16), Size = UDim2.fromOffset(meterW, 10) })
+		Ui.pip(ultBack)
+		local step = (meterW - 2) / ULT_BLOCKS
 		-- (with weapon drops a fighter starts on fists, which have none - but the meter fills on fists
 		-- and waits for a weapon, so a fighter with a kit always shows it)
 		ultBack.Visible = chars[i] ~= nil and (chars[i].moves.Ultimate ~= nil or entry.kit ~= nil)
 		local blocks = {}
 		for k = 1, ULT_BLOCKS do
 			blocks[k] = Ui.make("Frame", ultBack, { BackgroundColor3 = SLATE, BorderSizePixel = 0,
-				Position = UDim2.fromOffset((k - 1) * 7.6, 0), Size = UDim2.fromOffset(6, 8) })
+				Position = UDim2.fromOffset(1 + (k - 1) * step, 1), Size = UDim2.fromOffset(math.floor(step) - 1, 8) })
+			Ui.pip(blocks[k])
 		end
 		-- Your own card says when your shield is up.
 		local shield = nil
 		if yours then
-			shield = label(root, UDim2.fromOffset(76, 12), UDim2.new(1, -8 - 76, 1, -29), "SHIELD", 10, DIM)
+			shield = label(root, UDim2.fromOffset(76, 12), UDim2.new(1, -8 - 76, 1, if compact then -36 else -29), "SHIELD", if compact then 8 else 10, DIM)
 			shield.Name = "Shield"
 			shield.TextXAlignment = Enum.TextXAlignment.Right
 		end
@@ -342,6 +375,13 @@ function Hud.ultBanner(self: any, B: any, ult: any)
 	write(self.ultCaster, "TextTransparency", 1 - B.alpha * 0.85)
 end
 
+-- A touch screen with no keyboard (a phone, a tablet): no key caps to show.
+function Hud.touchOnly(): boolean
+	if not UIS then return false end
+	local ok, touch = pcall(function() return UIS.TouchEnabled and not UIS.KeyboardEnabled end)
+	return ok and touch == true
+end
+
 -- Is COMBO_KEY held (and not into a chat box)?
 function Hud.comboHeld(_self: any): boolean
 	if not UIS then return false end
@@ -367,7 +407,11 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		write(self.timer, "Text", "")
 	end
 	write(self.timerPill, "Visible", self.timer.Text ~= "")
-	write(self.timerPill, "Size", UDim2.fromOffset(if #self.timer.Text > 6 then 250 else 124, 42))
+	-- key caps teach a keyboard: not on a touch screen, and not on a screen too narrow to spare them
+	write(self.hints, "Visible", self.gui.AbsoluteSize.X >= 900 and not Hud.touchOnly())
+	-- (the ultimate's pill closes up under the clock when the key row is not there)
+	write(self.abilityPill, "Position", UDim2.new(0.5, 0, 0, if self.hints.Visible then 94 else 58))
+	write(self.timerPill, "Size", UDim2.fromOffset(math.max(124, Ui.textWidth(self.timer.Text, 30) + 40), 42))
 
 	local banner = DisasterShapes.banner(self.disasterView)
 	if banner then
@@ -392,6 +436,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	if snap and snap.state == "countdown" then
 		local n = math.ceil(snap.countdown / 60)
 		write(self.callout, "Text", if n > 0 then tostring(n) else Callouts.go.text)
+		-- the count is the one thing on screen that matters: as big as the screen allows
+		calloutSize = if n > 0 then 120 else 96
 		write(self.callout, "TextColor3", if n > 0 then Color3.fromHex(Callouts.count.colour) else Color3.fromHex(Callouts.go.colour))
 		write(self.callout, "TextTransparency", 0)
 	elseif snap and snap.state == "fight" and snap.time < Callouts.go.ms / 1000 then
@@ -408,13 +454,13 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	else
 		write(self.callout, "TextTransparency", 1)
 	end
-	write(self.callout, "TextSize", calloutSize)
+	write(self.callout, "TextSize", Ui.px(calloutSize))
 	write(self.calloutOutline, "Transparency", self.callout.TextTransparency)
 	write(self.stageOutline, "Transparency", self.stageName.TextTransparency)
 	-- the combo card: through the countdown, and while its key is held
 	write(self.guideCard, "Visible", self.guide.Text ~= "" and ((snap ~= nil and snap.state == "countdown") or self:comboHeld()))
 	-- (a disaster's banner steps down under the card while it shows)
-	write(self.disaster, "Position", UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 218 else 128))
+	write(self.disaster, "Position", UDim2.new(0.5, -260, 0, if self.guideCard.Visible then 244 else 132))
 
 	local byIndex: { [number]: any } = self.byIndex or {}
 	self.byIndex = byIndex
@@ -438,7 +484,9 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 			if not said and fuel and string.find(fuel, "—", 1, true) then said = "FUEL " .. fuel end
 		end
 	end
-	write(self.abilities, "Text", said or "")
+	-- (a touch screen has no key to press: just say it is ready)
+	if said and Hud.touchOnly() then said = string.gsub(said, "%s*—%s*press%s+%w+$", "") end
+	write(self.abilities, "Text", if said then string.upper(said) else "")
 	write(self.abilityPill, "Visible", said ~= nil)
 	if said then write(self.abilityPill, "Size", UDim2.fromOffset(math.clamp(Ui.textWidth(said, 15) + 44, 200, 640), 30)) end
 

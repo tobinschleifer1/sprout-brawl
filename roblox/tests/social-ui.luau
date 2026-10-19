@@ -131,7 +131,7 @@ local rows = find(s.gui, "List"):GetChildren()
 local count = 0
 for _, r in rows do if r.ClassName == "Frame" then count += 1 end end
 assert(count == 4, `four rows, got {count}`)
-assert(find(find(s.gui, "Member_1"), "Name").Text == "Me  (you)", "you are marked")
+assert(find(find(s.gui, "Member_1"), "Name").Text == "Me (YOU)", "you are marked")
 assert(not find(find(s.gui, "Member_1"), "WarpTo") and not find(find(s.gui, "Member_8"), "WarpTo") and not find(find(s.gui, "Member_9"), "WarpTo"),
 	"no WARP to yourself, into a room, or into a fight")
 find(find(s.gui, "Member_7"), "WarpTo").Activated:Fire()

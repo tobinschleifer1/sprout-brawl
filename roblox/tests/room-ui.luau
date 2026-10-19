@@ -191,7 +191,7 @@ do
 	assert(n.message.Text == "Loading arena and fighters…" and not n.ok.Visible and n.title.Text == "GET READY", "the waiting notice reads wrong")
 	assert(n.band.BackgroundColor3 == BLUE, "waiting is not shown in blue")
 	panel:show("That match could not be run: no arena")
-	assert(n.ok.Visible and n.title.Text == "HOLD ON" and n.band.BackgroundColor3 ~= BLUE, "a problem is not shown as one")
+	assert(n.ok.Visible and n.title.Text == "MATCH DIDN'T START" and n.band.BackgroundColor3 ~= BLUE, "a problem is not shown as one")
 	n.ok.Activated:Fire()
 	assert(not panel.gui.Enabled, "OK did not close the notice")
 	panel:openStation("Players")
@@ -204,7 +204,7 @@ local Hud = luau.load(fs.readFile("src/client/Hud.luau"), {environment={
 	game={GetService=function() return {Shared=shared} end}, script={Parent=codes},
 	-- The results podium has its own test (podium-view); this one is about the match HUD.
 	require=function(name) if name=="PodiumView" then return {} end if name=="Callouts" then return Loader.load("Data/Callouts") end if name=="Weapons" then return Loader.load("Data/Weapons") end return if name=="Config" then Loader.load(name) else Loader.loadFrom("src/client/",name) end,
-	Enum={Font=codes,TextXAlignment=codes,ZIndexBehavior=codes,TextTruncate=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
+	Enum={Font=codes,TextXAlignment=codes,TextYAlignment=codes,ZIndexBehavior=codes,TextTruncate=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local hud=Hud.new(instance("PlayerGui"))
 local roster,chars={},{}
@@ -365,12 +365,12 @@ do
 	assert(coloured(t[3].ult, t[3].colour) == 0, "one hit of charge lit a whole block (each is two)")
 	assert(t[1].shield and not t[2].shield, "the shield light belongs on your own card only")
 	assert(t[1].shield.Text == "SHIELD", "a shield that is down reads as down")
-	assert(hud.abilityPill.Visible and hud.abilities.Text == "ULTIMATE READY — press O", `the full ultimate's pill says {hud.abilities.Text}`)
+	assert(hud.abilityPill.Visible and hud.abilities.Text == "ULTIMATE READY — PRESS O", `the full ultimate's pill says {hud.abilities.Text}`)
 	assert(not hud.timerPill.Visible, "a stock match shows an empty clock")
 	assert(not hud.guideCard.Visible, "the combo card stays tucked away mid-fight")
 	hud:update({ st(1, { ultCharge = full, state = "shield" }), st(2), st(3), st(4) }, { state = "fight", time = 11 }, nil, chars, { timed = true, timeLimit = 180 })
 	assert(t[1].shield.Text == "SHIELD UP", "a raised shield does not light")
-	assert(hud.abilities.Text == "ULTIMATE READY — release shield first", `a shielding full ultimate says {hud.abilities.Text}`)
+	assert(hud.abilities.Text == "ULTIMATE READY — RELEASE SHIELD FIRST", `a shielding full ultimate says {hud.abilities.Text}`)
 	assert(hud.timerPill.Visible and hud.timer.Text == "2:49", `a timed match's clock reads {hud.timer.Text}`)
 	hud:update({ st(1, { ultCharge = 3 }), st(2), st(3), st(4) }, { state = "countdown", countdown = 120, time = 0 }, nil, chars, nil)
 	assert(not hud.abilityPill.Visible, "a charging ultimate showed the pill")

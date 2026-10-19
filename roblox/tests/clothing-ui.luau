@@ -77,7 +77,7 @@ ed:step(1)
 assert(AvatarKit.decode(ed:code()).parts.top == top.options[1].id, "the arrows stopped on an unowned piece")
 -- tiles: the unowned piece behind a SHOP lock, the owned one plain
 ed:rebuildTiles()
-assert(string.find(ed.tiles["frost_rimeguard_coat"].label.Text, "SHOP · ", 1, true) == 1 and ed.tiles["neon_circuit_bomber"].label.Text == "Circuit Bomber",
+assert(string.find(string.lower(ed.tiles["frost_rimeguard_coat"].label.Text), "shop · ", 1, true) == 1 and string.lower(ed.tiles["neon_circuit_bomber"].label.Text) == "circuit bomber",
 	"the tiles do not tell owned clothing from clothing in the Shop")
 -- randomising never hands out an unowned piece
 for _ = 1, 20 do
@@ -89,7 +89,7 @@ end
 ed:setView({ slots = { { name = "Me", code = AvatarKit.defaultCode() } }, active = 1, max = 8, saving = true, unlocked = {},
 	pieces = { "neon_circuit_bomber", "frost_rimeguard_coat" } })
 ed:rebuildTiles()
-assert(ed:wearable("top", "frost_rimeguard_coat") and ed.tiles["frost_rimeguard_coat"].label.Text == "Rimeguard Coat", "a newly owned piece stayed locked")
+assert(ed:wearable("top", "frost_rimeguard_coat") and string.lower(ed.tiles["frost_rimeguard_coat"].label.Text) == "rimeguard coat", "a newly owned piece stayed locked")
 
 -- 2. The Locker: a clothing card goes to the Studio.
 local Locker = load("LockerScreen")

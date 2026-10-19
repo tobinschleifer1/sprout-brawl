@@ -29,7 +29,7 @@ quiet()
 s.ultCharge = 4
 draw()
 for i, block in tile.ult do
-	assert(block.BackgroundColor3 == (if i <= 2 then tile.colour else Rbx.Color3.fromRGB(40, 54, 80)), "meter failed to discharge")
+	assert(block.BackgroundColor3 == (if i <= 2 then tile.colour else P:load("src/client/Hud").SLATE), "meter failed to discharge")
 end
 s.state, s.hitlag, s.comboHits, s.breakCooldown = "hitstun", 4, 4, 0
 quiet()
@@ -58,7 +58,7 @@ assert(h.callout.Text == "2" and h.guideCard.Visible, "countdown/guide failed to
 scene.snap.state = "fight"
 h:announce("ko", "A LONG KNOCKOUT")
 quiet()
-assert(h.callout.TextSize == 48 and h.callout.TextTransparency == 0, "long callout changed size")
+assert(h.callout.TextSize == Ui.px(48) and h.callout.TextTransparency == 0, "long callout changed size")
 P.now += h.flash.dur * 0.9
 draw()
 assert(h.callout.TextTransparency > 0 and h.callout.TextTransparency < 1, "callout failed to fade")
@@ -68,7 +68,7 @@ draw()
 assert(h.callout.TextTransparency == 1, "expired callout stayed visible")
 scene.snap.state = "suddendeath"
 draw()
-assert(h.timer.Text == "SUDDEN DEATH" and h.timerPill.Size.X.Offset == 250, "timer failed to widen")
+assert(h.timer.Text == "SUDDEN DEATH" and h.timerPill.Size.X.Offset >= Ui.textWidth("SUDDEN DEATH", 30) + 40 and h.timerPill.Size.X.Offset > 124, "timer failed to widen")
 scene.snap.state, scene.cfg.timed = "fight", false
 draw()
 assert(not h.timerPill.Visible, "stock-only match kept its timer")

@@ -49,7 +49,7 @@ end
 -- The HUD is the shared cartoon kit's (Ui): body words in GothamBlack, display words outlined.
 local function text(parent: Instance, name: string, value: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, size
+	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, Ui.px(size)
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment = 1, colour or TEXT, Enum.TextXAlignment.Left
 	t.TextStrokeTransparency = 0.6
 	t.Parent = parent
@@ -63,7 +63,7 @@ local function display(t: TextLabel, thick: number): any
 end
 
 local function button(parent: Instance, name: string, value: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, value, colour or Ui.PANEL2, onClick, { size = 15 })
+	local b = Ui.button(parent, value, colour or Ui.PANEL2, onClick, { size = 12 })
 	b.Name = name
 	return b
 end
@@ -82,47 +82,52 @@ function ParkourView.new(parent: Instance, opts: any): any
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset, gui.DisplayOrder, gui.Enabled = "BlockfallClimb", false, true, 12, false
 	gui.Parent = parent
 	self.gui = gui
-	local title = text(gui, "Title", "SKYLINE CLIMB", 26, AMBER)
+	-- the run's readout in one window (made first, so it sits behind the words placed over it)
+	local plate = Ui.panel(gui, "Readout")
+	plate.BackgroundTransparency = 0
+	plate.Position, plate.Size = UDim2.fromOffset(8, TOP - 6), UDim2.fromOffset(490, 146)
+	self.readout = plate
+	local title = text(gui, "Title", "SKYLINE CLIMB", 22, AMBER)
 	display(title, 2)
 	-- This ScreenGui ignores the inset (so world labels line up with the canvas), which puts its top
 	-- 58 px under Roblox's own top bar and its top right under the player list: seen in Studio, the
 	-- SKIP button could not be clicked there. So the HUD text starts below the bar, and every button
 	-- lives in a column at the bottom right, where Roblox draws nothing.
 	title.Position, title.Size = UDim2.fromOffset(16, TOP), UDim2.fromOffset(400, 28)
-	self.checkpointLabel = text(gui, "Checkpoint", "", 15)
+	self.checkpointLabel = text(gui, "Checkpoint", "", 12)
 	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, TOP + 30), UDim2.fromOffset(500, 20)
 	-- the clock in a pill (behind it, not its parent, so the label stays placed on the screen)
 	local pill = Ui.pill(gui, "TimerPill", Ui.EDGE)
-	pill.Position, pill.Size = UDim2.fromOffset(12, TOP + 50), UDim2.fromOffset(140, 36)
-	self.timerLabel = text(gui, "Timer", "0:00.00", 26, TEXT)
-	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(12, TOP + 50), UDim2.fromOffset(140, 36)
+	pill.Position, pill.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(180, 34)
+	self.timerLabel = text(gui, "Timer", "0:00.00", 22, TEXT)
+	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(180, 34)
 	self.timerLabel.TextXAlignment = Enum.TextXAlignment.Center
 	display(self.timerLabel, 2)
-	self.fallsLabel = text(gui, "Falls", "", 13, DIM)
+	self.fallsLabel = text(gui, "Falls", "", 11, DIM)
 	self.fallsLabel.Position, self.fallsLabel.Size = UDim2.fromOffset(16, TOP + 90), UDim2.fromOffset(500, 18)
-	self.bestLabel = text(gui, "Best", "", 13, DIM)
-	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 108), UDim2.fromOffset(500, 18)
+	self.bestLabel = text(gui, "Best", "", 11, DIM)
+	self.bestLabel.Position, self.bestLabel.Size = UDim2.fromOffset(16, TOP + 112), UDim2.fromOffset(500, 18)
 	-- the lines under the title sit on a bright sky: an ink outline, not the soft stroke, keeps them
 	for _, t in { self.checkpointLabel, self.fallsLabel, self.bestLabel } do
 		t.TextStrokeTransparency = 1
-		Ui.outline(t, 1.5)
+		Ui.outline(t, 2)
 	end
 	self.fallsLabel.TextColor3, self.bestLabel.TextColor3 = Color3.fromRGB(214, 224, 240), Color3.fromRGB(214, 224, 240)
-	local banner = text(gui, "Banner", "", 40, AMBER)
+	local banner = text(gui, "Banner", "", 30, AMBER)
 	self.bannerOutline = display(banner, 4)
 	banner.AnchorPoint, banner.TextXAlignment = Vector2.new(0.5, 0), Enum.TextXAlignment.Center
-	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, TOP + 110), UDim2.fromOffset(760, 84)
+	banner.Position, banner.Size = UDim2.new(0.5, 0, 0, TOP + 160), UDim2.fromOffset(760, 84)
 	banner.TextTransparency, banner.TextWrapped = 1, true
 	self.banner = banner
 	-- how to climb, as key caps along the bottom (clear of the button column at the right)
-	local hint = Ui.hintRow(gui, "Controls", { { "A D", "RUN" }, { "SPACE", "JUMP · AGAIN IN THE AIR" }, { "S", "DROP THROUGH" } }, 24)
+	local hint = Ui.hintRow(gui, "Controls", { { "A D", "RUN" }, { "SPACE", "JUMP · AGAIN IN THE AIR" }, { "S", "DROP THROUGH" } }, 24, nil, true)
 	hint.Position, hint.Size = UDim2.new(0, 16, 1, -40), UDim2.new(1, -312, 0, 26)
 	local leave = button(gui, "Leave", "◂ " .. string.upper(Realms.LOBBY.name), function() self:leave() end, Ui.BLUE)
 	self.leaveButton = leave
 	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -134), UDim2.fromOffset(150, 38)
 	local restart = button(gui, "Restart", "RESTART FROM THE BOTTOM", function()
 		if self.opts.restart then self.opts.restart() end
-	end, Color3.fromRGB(150, 96, 20))
+	end, Ui.ORANGE)
 	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -90), UDim2.fromOffset(264, 38)
 	self.restartButton = restart
 	local records = button(gui, "Records", "RECORDS", function()
@@ -186,7 +191,7 @@ function ParkourView.setProgress(self: any, view: any)
 end
 
 function ParkourView.say(self: any, value: string, colour: Color3)
-	self.banner.Text, self.banner.TextColor3 = value, colour
+	self.banner.Text, self.banner.TextColor3 = string.upper(value), colour
 	self.bannerAt = os.clock()
 end
 
@@ -197,7 +202,7 @@ function ParkourView.refreshHud(self: any)
 		local cp = COURSE.checkpoints[pk.reached + 1]
 		self.checkpointLabel.Text = if pk.done then "THE SUMMIT" else `CHECKPOINT {pk.reached}/{n}  ·  {string.upper(cp.name)}`
 		self.timerLabel.Text = ParkourView.clock(pk.frames)
-		self.timerLabel.TextColor3 = if pk.done then AMBER elseif self.from == 0 then TEXT else DIM
+		self.timerLabel.TextColor3 = if pk.done then AMBER elseif self.from == 0 then TEXT else Color3.fromRGB(192, 203, 220)
 		self.fallsLabel.Text = `{pk.deaths} {if pk.deaths == 1 then "fall" else "falls"}`
 			.. (if pk.skipped then "  ·  skipped: this run is not timed or ranked"
 				elseif self.from ~= 0 then "  ·  resumed: this run is not timed as a full climb" else "")

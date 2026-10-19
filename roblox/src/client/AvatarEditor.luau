@@ -43,7 +43,7 @@ local TEXT = Ui.WHITE
 local DIM = Ui.DIM
 local AMBER = Ui.GOLD
 local GOOD = Ui.GREEN
-local HEADER = Color3.fromRGB(26, 44, 82)        -- the studio's top band
+local HEADER = Ui.BLUE                           -- the studio's top band
 
 AvatarEditor.MAX_UNDO = 60
 local POSES = { { "idle", "Stand" }, { "run", "Run" }, { "air", "Jump" }, { "attack", "Attack" }, { "victory", "Cheer" } }
@@ -51,9 +51,7 @@ AvatarEditor.POSES = POSES
 
 -- ------------------------------------------------------------------ helpers ----
 local function corner(parent: Instance, px: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, px)
-	c.Parent = parent
+	Ui.corner(parent, px)
 end
 
 local function frame(parent: Instance, name: string, colour: Color3?, alpha: number?): Frame
@@ -71,7 +69,7 @@ local function label(parent: Instance, name: string, text: string, size: number,
 	t.Name = name
 	t.BackgroundTransparency = 1
 	t.Font = Ui.LABEL
-	t.TextSize = size
+	t.TextSize = Ui.px(size)
 	t.TextColor3 = colour or TEXT
 	t.Text = text
 	t.TextXAlignment = Enum.TextXAlignment.Left
@@ -82,12 +80,12 @@ end
 
 -- A worded control: the kit's bevelled button.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, text, colour or PANEL2, onClick, { size = 16 })
+	local b = Ui.button(parent, text, colour or PANEL2, onClick, { size = 12 })
 	b.Name = name
 	return b
 end
 
--- A picture tile (an option, a colour, a saved character): a rounded block with a darker lip and
+-- A picture tile (an option, a colour, a saved character): a square block with a darker lip and
 -- no border of its own, so the picked ring (stroke "Pick") is the only outline it wears.
 local function tile(parent: Instance, name: string, onClick: () -> (), colour: Color3): TextButton
 	local b = Instance.new("TextButton")
@@ -102,9 +100,9 @@ local function tile(parent: Instance, name: string, onClick: () -> (), colour: C
 	lip.Name = "Lip"
 	lip.BorderSizePixel = 0
 	lip.BackgroundColor3 = Ui.shade(colour, -0.4)
-	lip.Position, lip.Size = UDim2.new(0, 3, 1, -5), UDim2.new(1, -6, 0, 3)
+	lip.Position, lip.Size = UDim2.new(0, 0, 1, -3), UDim2.new(1, 0, 0, 3)
 	lip.Parent = b
-	corner(lip, 2)
+	if Ui.flat() then lip.BackgroundTransparency = 1 end
 	b.Activated:Connect(onClick)
 	return b
 end
@@ -194,21 +192,19 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position = UDim2.fromScale(0.5, 0.5)
 	panel.Size = UDim2.new(1, -24, 1, -24)
-	corner(panel, 14)
+	corner(panel, 0)
 	Ui.stroke(panel, INK, 3)
+	Ui.rim(panel, PANEL2, 2, 0)
 	local cap = Instance.new("UISizeConstraint")
 	cap.MaxSize = Vector2.new(1440, 900)
 	cap.Parent = panel
 	self.panel = panel
 
 	-- Top bar: title, your characters, undo / redo / randomise / close.
-	local top = frame(panel, "Top", HEADER, 0)
-	top.Size = UDim2.new(1, 0, 0, 56)
-	corner(top, 14)
-	local square = frame(top, "Square", HEADER, 0)
-	square.Position, square.Size = UDim2.new(0, 0, 1, -14), UDim2.new(1, 0, 0, 14)
+	local top = Ui.band(panel, HEADER, 56, "Top")
 	self.top = top
-	local title = Ui.text(top, "CHARACTER STUDIO", 24, AMBER, Ui.DISPLAY)
+	-- (white on the blue bar: gold on it is barely there)
+	local title = Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
 	title.Name = "Title"
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
@@ -223,15 +219,16 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.chipBar = chips
 	local tools = frame(top, "Tools")
 	tools.AnchorPoint = Vector2.new(1, 0)
-	tools.Position, tools.Size = UDim2.new(1, -12, 0, 8), UDim2.fromOffset(256, 40)
-	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, Color3.fromRGB(52, 64, 88))
-	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 40)
-	local redo = button(tools, "Redo", "REDO", function() self:redo() end, Color3.fromRGB(52, 64, 88))
-	redo.Position, redo.Size = UDim2.fromOffset(62, 0), UDim2.fromOffset(58, 40)
+	-- (inset in the bar, with room between them)
+	tools.Position, tools.Size = UDim2.new(1, -14, 0, 11), UDim2.fromOffset(268, 34)
+	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, PANEL2)
+	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 34)
+	local redo = button(tools, "Redo", "REDO", function() self:redo() end, PANEL2)
+	redo.Position, redo.Size = UDim2.fromOffset(66, 0), UDim2.fromOffset(58, 34)
 	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Ui.PURPLE)
-	rand.Position, rand.Size = UDim2.fromOffset(124, 0), UDim2.fromOffset(80, 40)
-	local close = button(tools, "Close", "X", function() self:close() end, Color3.fromRGB(176, 60, 60))
-	close.Position, close.Size = UDim2.fromOffset(208, 0), UDim2.fromOffset(48, 40)
+	rand.Position, rand.Size = UDim2.fromOffset(132, 0), UDim2.fromOffset(80, 34)
+	local close = button(tools, "Close", "X", function() self:close() end, Ui.RED)
+	close.Position, close.Size = UDim2.fromOffset(220, 0), UDim2.fromOffset(48, 34)
 	self.undoButton, self.redoButton = undo, redo
 
 	-- Preview: the real fighter, posed, with its controls.
@@ -263,7 +260,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	nameBox.BackgroundColor3 = PANEL2
 	nameBox.BorderSizePixel = 0
 	nameBox.Font = Ui.DISPLAY
-	nameBox.TextSize = 20
+	nameBox.TextSize = Ui.px(14)
 	nameBox.TextColor3 = TEXT
 	nameBox.PlaceholderText = "Name your fighter"
 	nameBox.PlaceholderColor3 = DIM
@@ -279,9 +276,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 		self:refreshFooter()
 	end)
 	self.nameBox = nameBox
-	local count = label(preview, "Count", "", 11, DIM)
+	local count = label(preview, "Count", "", 9, DIM)
 	count.TextXAlignment = Enum.TextXAlignment.Center
-	count.Text = `{AvatarEditor.commas(AvatarKit.partCombinations())} possible characters, before a single colour`
+	count.TextWrapped = false
+	count.TextTruncate = Enum.TextTruncate.AtEnd
+	count.Text = `{AvatarEditor.commas(AvatarKit.partCombinations())} LOOKS, BEFORE COLOUR`
 	self.countLabel = count
 
 	-- Editor: tabs, parts, the option grid, colours.
@@ -317,6 +316,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	grid.BackgroundTransparency = 0
 	grid.BorderSizePixel = 0
 	grid.ScrollBarThickness = 6
+	grid.ScrollBarImageColor3, grid.ScrollBarImageTransparency = Ui.KEY, 0.2   -- (visible, so it says there is more)
 	grid.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	grid.CanvasSize = UDim2.new()
 	grid.Parent = editor
@@ -325,6 +325,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local pad = Instance.new("UIPadding")
 	pad.PaddingTop, pad.PaddingLeft, pad.PaddingRight, pad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = grid
+	-- "more below": a chip on the grid's lower edge while its tiles run past what it shows
+	local more = Ui.make("TextLabel", editor, { Name = "More", Text = "SCROLL FOR MORE  ▼", Font = Ui.LABEL, TextSize = Ui.px(11),
+		TextColor3 = Ui.INK, BackgroundColor3 = AMBER, BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 1), ZIndex = 5, Visible = false })
+	Ui.corner(more, 0)
+	self.moreChip = more
 	local gridLayout = Instance.new("UIGridLayout")
 	gridLayout.CellPadding = UDim2.fromOffset(8, 8)
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -338,8 +343,9 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.footer = footer
 	local status = label(footer, "Status", "", 13, DIM)
 	self.status = status
-	local hint = label(footer, "Hint", "Arrows: option / part    Q E: tab    R: random    Ctrl+Z / Y: undo / redo", 11, DIM)
-	self.hint = hint
+	-- the keys as caps, the way the plaza and the fight teach theirs
+	local hint, hintW = Ui.hintRow(footer, "Hint", { { "ARROWS", "PICK" }, { "Q E", "TAB" }, { "R", "RANDOM" }, { "CTRL Z", "UNDO" } }, 22, Ui.KEY)
+	self.hint, self.hintW = hint, hintW
 	local delete = button(footer, "Delete", "DELETE", function() self:confirm("Delete this character?", function() self:delete() end) end, Color3.fromRGB(150, 52, 58))
 	local saveNew = button(footer, "SaveNew", "SAVE AS NEW", function() self:save(true) end, Ui.BLUE)
 	local save = button(footer, "Save", "SAVE & WEAR", function() self:save(false) end, Color3.fromRGB(52, 160, 84))
@@ -398,15 +404,23 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	end
 	self.preview.Position, self.preview.Size = UDim2.fromOffset(12, bodyY), UDim2.fromOffset(pw, ph)
 	-- Inside the preview: name on top, the stage, poses and view controls under it.
-	local controlsH = if wide then 96 else 44
+	-- a short wide screen (a phone on its side) keeps the preview: no pose row, no count line
+	local short = wide and H < 500
+	local controlsH = if wide and not short then 96 else 44
 	self.nameBox.Position, self.nameBox.Size = UDim2.fromOffset(10, 10), UDim2.fromOffset(pw - 20, 34)
-	self.countLabel.Visible = wide
+	self.countLabel.Visible = wide and not short
 	self.countLabel.Position, self.countLabel.Size = UDim2.new(0, 10, 1, -22), UDim2.fromOffset(pw - 20, 16)
-	local stageTop, stageH = 50, ph - 50 - controlsH - (if wide then 24 else 6)
+	-- (monospaced: sized so the line fits the panel it is in)
+	self.countLabel.TextSize = math.min(Ui.px(9), math.floor((pw - 20) / (#self.countLabel.Text * Ui.ADVANCE)))
+	local stageTop, stageH = 50, ph - 50 - controlsH - (if wide and not short then 24 else 6)
 	self.stage.Position, self.stage.Size = UDim2.fromOffset(0, stageTop), UDim2.fromOffset(pw, stageH)
 	self.stagePx = Vector2.new(pw, stageH)
 	local cy = stageTop + stageH + 4
-	if wide then
+	self.poseBar.Visible = not short
+	if short then
+		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset((pw - 26) / 2, 36)
+		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(16 + (pw - 26) / 2, cy), UDim2.fromOffset((pw - 26) / 2, 36)
+	elseif wide then
 		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(pw - 20, 40)
 		self.poseGrid.CellSize = UDim2.fromOffset(math.floor((pw - 20 - 16) / 5), 40)
 		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy + 46), UDim2.fromOffset((pw - 26) / 2, 36)
@@ -436,7 +450,13 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local cols = math.max(2, math.floor((inner + 8) / (if wide then 120 else 96)))
 	local tile = math.floor((inner - (cols - 1) * 8) / cols)
 	local tileH = tile + (if view == "body" then math.floor(tile * 0.45) else 0) + 20
+	-- never taller than the grid shows, so a short (phone) grid still shows each tile's name
+	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
 	self.gridLayout.CellSize = UDim2.fromOffset(tile, tileH)
+	self.gridCols, self.gridTileH, self.gridShownH = cols, tileH, math.max(80, gridH)
+	self.moreChip.Position = UDim2.fromOffset(ew - 14, gridTop + math.max(80, gridH) - 8)
+	self.moreChip.Size = UDim2.fromOffset(Ui.textWidth(self.moreChip.Text, 11, Ui.LABEL) + 20, 22)
+	self:updateMore()
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
 	-- Footer.
 	self.footer.Position, self.footer.Size = UDim2.new(0, 0, 1, -footH), UDim2.new(1, 0, 0, footH)
@@ -446,8 +466,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.deleteButton.Position, self.deleteButton.Size = UDim2.new(1, -28 - saveW * 2 - 90, 0, 8), UDim2.fromOffset(90, 40)
 	local statusW = math.max(80, W - 60 - saveW * 2 - 90 - 24)
 	self.status.Position, self.status.Size = UDim2.fromOffset(16, 4), UDim2.fromOffset(statusW, 24)
-	self.hint.Visible = W >= 900
-	self.hint.Position, self.hint.Size = UDim2.fromOffset(16, 28), UDim2.fromOffset(statusW, 20)
+	self.hint.Visible = W >= 900 and self.hintW <= statusW
+	self.hint.Position, self.hint.Size = UDim2.fromOffset(16, 24), UDim2.fromOffset(self.hintW, 24)
 	self:rebuildTiles()
 	self:rebuildColours()
 end
@@ -874,7 +894,7 @@ function AvatarEditor.rebuildCategories(self: any)
 	for i, c in cats do
 		local b = button(self.catBar, "Cat_" .. c.id, string.upper(c.name), function() self:selectCategory(c.id) end)
 		b.LayoutOrder = i
-		b.TextSize = 15
+		b.TextSize = Ui.px(11)
 		b.Size = UDim2.new(1 / math.max(1, #cats), -6, 1, 0)
 		self.catButtons[c.id] = b
 	end
@@ -901,6 +921,8 @@ function AvatarEditor.rebuildTiles(self: any)
 				table.insert(entries, { kind = "Option_", id = o.id, name = if locked then `{tag} · {o.name}` else o.name, locked = locked })
 			end
 		end
+		self.tileCount = #entries
+		self:updateMore()
 		for i, e in entries do
 			local b = tile(self.grid, e.kind .. e.id, function()
 				if e.kind == "Preset_" then self:applyPreset(e.id) else self:pick(self.category, e.id) end
@@ -908,7 +930,7 @@ function AvatarEditor.rebuildTiles(self: any)
 			b.LayoutOrder = i
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
-			local name = label(b, "Label", e.name, 11, DIM)
+			local name = label(b, "Label", string.upper(e.name), 10, Ui.KEY)
 			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
@@ -931,6 +953,13 @@ function AvatarEditor.tileCode(self: any, id: string): string
 	return AvatarKit.encode(s)
 end
 
+-- Do the grid's tiles run past what it shows? Then the chip says so.
+function AvatarEditor.updateMore(self: any)
+	if not (self.moreChip and self.gridCols and self.tileCount) then return end
+	local rows = math.ceil(self.tileCount / self.gridCols)
+	self.moreChip.Visible = rows * (self.gridTileH + 8) + 8 > self.gridShownH + 1
+end
+
 function AvatarEditor.renderTiles(self: any)
 	local px = self.tilePx or Vector2.new(96, 96)
 	local view = self:view()
@@ -939,7 +968,7 @@ function AvatarEditor.renderTiles(self: any)
 		local code = self:tileCode(id)
 		local picked = if t.kind == "Preset_" then code == mine else self.spec.parts[self.category] == id
 		t.pick.Enabled = picked
-		t.label.TextColor3 = if picked then AMBER else DIM
+		t.label.TextColor3 = if picked then AMBER else Ui.KEY
 		local key = `{code}|{view}|{px.X}x{px.Y}`
 		if t.drawn ~= key then
 			KitPortrait.draw(t.canvas, code, view, px.X, px.Y)
@@ -970,7 +999,7 @@ function AvatarEditor.rebuildColours(self: any)
 		for i, hex in c.list do
 			local b = tile(sw, `Swatch_{slot}_{i - 1}`, function() self:paint(slot, i - 1) end, Canvas2D.hex(hex, INK))
 			b.LayoutOrder = i
-			local pick = stroke(b, TEXT, 2)
+			local pick = stroke(b, AMBER, 3)          -- (one 'chosen' colour everywhere: gold)
 			pick.Enabled = false
 			self.swatches[`{slot}_{i - 1}`] = pick
 		end
@@ -1012,7 +1041,7 @@ function AvatarEditor.rebuildChips(self: any)
 	if count < (self.max or 8) then
 		local add = button(self.chipBar, "SlotNew", "+", function() self:newSlot() end, Ui.BLUE)
 		add.LayoutOrder = count + 1
-		add.TextSize = 22
+		add.TextSize = Ui.px(18)
 		add.Size = UDim2.fromOffset(44, 44)
 	end
 end
@@ -1039,11 +1068,11 @@ function AvatarEditor.refresh(self: any)
 		Ui.paint(b, if id == self.group then AMBER else PANEL2, TEXT)
 	end
 	for id, b in self.catButtons or {} do
-		Ui.paint(b, if id == self.category then Ui.BLUE else PANEL2, TEXT)
+		Ui.paint(b, if id == self.category then AMBER else PANEL2, TEXT)
 		b.Text = string.upper(AvatarKit.category(id).name) .. (if self.locks[id] then " *" else "")
 	end
 	for id, b in self.poseButtons do
-		Ui.paint(b, if id == self.pose then Ui.BLUE else PANEL2, TEXT)
+		Ui.paint(b, if id == self.pose then AMBER else PANEL2, TEXT)
 	end
 	self.lockButton.Text = if self.locks[self.category] then "LOCKED" else "LOCK"
 	Ui.paint(self.lockButton, if self.locks[self.category] then AMBER else PANEL2, TEXT)

@@ -50,7 +50,7 @@ end
 
 local function text(parent: Instance, name: string, value: string, size: number, colour: Color3, align: Enum.TextXAlignment?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, size
+	t.Name, t.Text, t.Font, t.TextSize = name, value, Ui.LABEL, Ui.px(size)
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment = 1, colour, align or Enum.TextXAlignment.Left
 	t.TextTruncate = Enum.TextTruncate.AtEnd
 	t.Parent = parent
@@ -59,7 +59,7 @@ end
 
 local function column(parent: Instance, name: string, title: string, x: number): any
 	-- a card per board: its title outlined in a gold band
-	local f = Ui.panel(parent, name, Color3.fromRGB(150, 96, 20), title, 28)
+	local f = Ui.panel(parent, name, Ui.ORANGE, title, 28)
 	f.BackgroundColor3 = Ui.INK
 	f.Position, f.Size = UDim2.new(x, if x == 0 then 12 else 6, 0, 52), UDim2.new(0.5, -18, 1, -112)
 	local list = Instance.new("ScrollingFrame")
@@ -73,20 +73,20 @@ local function column(parent: Instance, name: string, title: string, x: number):
 	for i = 1, ClimbRecords.ROWS do
 		local row = Instance.new("Frame")
 		row.Name, row.BackgroundTransparency, row.LayoutOrder, row.Visible = `Row{i}`, 1, i, false
-		row.Size, row.Parent = UDim2.new(1, -6, 0, 22), list
+		row.Size, row.Parent = UDim2.new(1, -6, 0, 28), list
 		-- the rank on a badge: gold, silver and bronze for the top three
 		local rank = text(row, "Rank", tostring(i), 13, DIM, Enum.TextXAlignment.Center)
 		rank.Font = Ui.DISPLAY
-		rank.Position, rank.Size = UDim2.fromOffset(4, 1), UDim2.fromOffset(22, 20)
+		rank.Position, rank.Size = UDim2.fromOffset(4, 2), UDim2.fromOffset(26, 24)
 		Ui.corner(rank, 10)
 		if MEDALS[i] then
 			rank.BackgroundTransparency, rank.BackgroundColor3, rank.TextColor3 = 0, MEDALS[i], Ui.INK
 			Ui.stroke(rank, Ui.INK, 2)
 		end
-		local who = text(row, "Name", "", 13, TEXT)
-		who.Position, who.Size = UDim2.fromOffset(34, 0), UDim2.new(1, -150, 0, 22)
-		local value = text(row, "Value", "", 13, CYAN, Enum.TextXAlignment.Right)
-		value.Position, value.Size = UDim2.new(1, -112, 0, 0), UDim2.fromOffset(108, 22)
+		local who = text(row, "Name", "", 14, TEXT)
+		who.Position, who.Size = UDim2.fromOffset(38, 0), UDim2.new(1, -170, 0, 28)
+		local value = text(row, "Value", "", 14, CYAN, Enum.TextXAlignment.Right)
+		value.Position, value.Size = UDim2.new(1, -132, 0, 0), UDim2.fromOffset(128, 28)
 		rows[i] = { frame = row, rank = rank, name = who, value = value }
 	end
 	local empty = text(f, "Empty", "", 13, DIM, Enum.TextXAlignment.Center)
@@ -111,12 +111,12 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 	self.gui = gui
 
 	-- the board: the kit's card with the climb's name outlined in a band across its top
-	local p, _, title = Ui.panel(gui, "Panel", Color3.fromRGB(26, 44, 82), "SKYLINE CLIMB  ·  RECORDS", 44)
+	local p, _, title = Ui.panel(gui, "Panel", Ui.BLUE, "SKYLINE CLIMB  ·  RECORDS", 44)
 	p.AnchorPoint, p.Position, p.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.new(1, -32, 1, -64)
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize, limit.Parent = Vector2.new(720, 520), p
-	title.TextColor3, title.Size = AMBER, UDim2.new(1, -140, 1, 0)
-	local close = Ui.button(p, "CLOSE", Color3.fromRGB(176, 60, 60), function() self:close() end, { size = 16 })
+	title.TextColor3, title.Size = Ui.WHITE, UDim2.new(1, -140, 1, 0)      -- (white on the blue bar, as the studio's)
+	local close = Ui.button(p, "CLOSE", Ui.RED, function() self:close() end, { size = 13 })
 	close.Name = "Close"
 	close.AnchorPoint, close.Position, close.Size = Vector2.new(1, 0), UDim2.new(1, -10, 0, 6), UDim2.fromOffset(96, 32)
 	close.ZIndex = 3
@@ -124,10 +124,10 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 
 	self.fastest = column(p, "Fastest", "FASTEST CLIMBS", 0)
 	self.highest = column(p, "Highest", "HIGHEST CLIMBERS", 0.5)
-	local status = text(p, "Status", "", 13, DIM)
+	local status = text(p, "Status", "", 12, Color3.fromRGB(192, 203, 220))
 	status.AnchorPoint, status.Position, status.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -34), UDim2.new(1, -32, 0, 20)
 	self.status = status
-	local mine = text(p, "Mine", "", 14, YOU)
+	local mine = text(p, "Mine", "", 12, YOU)
 	mine.AnchorPoint, mine.Position, mine.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -10), UDim2.new(1, -32, 0, 22)
 	self.mineLabel = mine
 	self:render()
@@ -143,7 +143,7 @@ local function fill(col: any, rows: { any }?, localId: number, value: (any) -> s
 			local you = row.userId == localId
 			r.rank.Text = tostring(row.rank)
 			r.name.Text = if you then `{row.name}  (you)` else tostring(row.name)
-			r.name.TextColor3 = if you then YOU elseif row.rank <= 3 then AMBER else TEXT
+			r.name.TextColor3 = if you then YOU else TEXT        -- (the medal badge marks the top three)
 			r.value.Text = value(row)
 		end
 	end

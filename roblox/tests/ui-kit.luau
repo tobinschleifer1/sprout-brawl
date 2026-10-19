@@ -26,6 +26,7 @@ local function signal(): any
 end
 local function new(class: string): any
 	local props: any = { ClassName = class, Activated = signal(), Name = class, _children = {} }
+	props.FindFirstChild = function(_, name) for _, ch in props._children do if ch.Name == name then return ch end end return nil end
 	local self: any
 	self = setmetatable({}, { __index = props, __newindex = function(_, k, v)
 		props[k] = v
@@ -36,6 +37,8 @@ end
 local codes = setmetatable({}, { __index = function(_, k) return setmetatable({}, { __index = function(_, v) return k .. "." .. v end }) end })
 Loader.gui = { Instance = { new = new }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Enum = codes }
 local Ui = Loader.loadFrom("src/client/", "Ui")
+-- the bevelled kit's checks below are the pixel theme's; the clean theme (the game's) has its own
+Ui.useTheme("pixel")
 
 local function child(o: any, name: string): any
 	for _, ch in o._children do if ch.Name == name then return ch end end
@@ -78,7 +81,7 @@ do
 	local red = Color3.fromRGB(232, 92, 84)
 	Ui.paint(b, red, Ui.INK)
 	if b.BackgroundColor3 ~= red or b.TextColor3 ~= Ui.INK then fail("paint did not recolour the face and text") end
-	if not near(shine.BackgroundColor3.R, Ui.shade(red, 0.32).R) or not near(lip.BackgroundColor3.G, Ui.shade(red, -0.38).G) then
+	if not near(shine.BackgroundColor3.R, Ui.shade(red, Ui.SHINE).R) or not near(lip.BackgroundColor3.G, Ui.shade(red, Ui.LIP).G) then
 		fail("paint left the shine or lip in the old colour")
 	end
 	local small = Ui.button(new("Frame"), "x", face, nil, { small = true })
@@ -117,8 +120,68 @@ do
 	if math.abs(x(k1) + total / 2) > 0.5 or math.abs(right(w2) - total / 2) > 0.5 then fail(`a hint row spans {x(k1)}..{right(w2)}, not centred on {total}`) end
 	if k2.Size.X.Offset <= k1.Size.X.Offset then fail("a long key's cap is no wider than a letter's") end
 end
+-- the pixel theme: nothing is rounded; a window has its ink border and a lighter rim inside it;
+-- sizes asked of the pixel face come out bigger, never smaller
+Ui.useTheme("pixel")
+do
+	local function radius(o: any): number
+		local c = child(o, "UICorner")
+		return if c then c.CornerRadius.Offset + c.CornerRadius.Scale * 1000 else 0
+	end
+	local b = Ui.button(new("Frame"), "GO", Ui.BLUE)
+	local p = Ui.panel(new("Frame"), "Card", Ui.GREEN, "P1")
+	local pill = Ui.pill(new("Frame"), "Pill")
+	local k = Ui.keycap(new("Frame"), "e")
+	for _, o in { b, p, pill, k, Ui.corner(new("Frame"), 12).Parent or b } do
+		if radius(o) ~= 0 then fail("a box is rounded") end
+	end
+	for _, o in { p, pill } do
+		local rim = child(o, "Rim")
+		if not rim or rim.BackgroundTransparency ~= 1 or strokes(rim, "Border") ~= 1 then fail("a window has no see-through rim inside its border") end
+		if rim.Position.X.Offset < 1 or rim.Size.X.Offset > -2 then fail("a window's rim is not inside it") end
+	end
+	local shine = child(b, "Shine")
+	if shine.Size.X.Scale ~= 1 or shine.Size.X.Offset ~= 0 then fail("a button's shine is not a full-width pixel strip") end
+	for _, n in { 8, 14, 22, 40 } do
+		if Ui.px(n) < n or Ui.px(n) ~= math.floor(Ui.px(n)) then fail(`px({n}) is {Ui.px(n)}`) end
+	end
+	if Ui.text(new("Frame"), "x", 22).TextSize ~= Ui.px(22) then fail("text is not drawn at px of its size") end
+end
+
+-- the clean theme (the game's): rounded boxes, no inner rim, flat buttons, smooth faces; a header
+-- bar is rounded on top and square where it meets its card
+Ui.useTheme("clean")
+do
+	local T = Ui.THEMES.clean
+	if string.find(tostring(Ui.DISPLAY), "Arcade") or string.find(tostring(Ui.LABEL), "Arcade") then fail("the clean theme kept the pixel face") end
+	local b = Ui.button(new("Frame"), "GO", Ui.BLUE)
+	local c = child(b, "UICorner")
+	if not c or c.CornerRadius.Offset ~= T.radius or T.radius <= 0 then fail("a clean button is not rounded") end
+	if child(b, "Shine").BackgroundTransparency ~= 1 or child(b, "Lip").BackgroundTransparency ~= 1 then fail("a clean button has a bevel") end
+	local p = Ui.panel(new("Frame"), "Card", Ui.GREEN, "P1")
+	local rim = child(p, "Rim")
+	local rimStroke = nil
+	for _, ch in rim._children do if ch.ClassName == "UIStroke" then rimStroke = ch end end
+	if not rimStroke or rimStroke.Thickness ~= 0 then fail("a clean window draws an inner rim") end
+	local band = Ui.band(new("Frame"), Ui.RED, 30)
+	if not child(band, "UICorner") or not child(band, "Square") or child(band, "Ledge") then fail("a clean header bar is not rounded on top and flat") end
+	Ui.paintBand(band, Ui.GREEN)
+	if child(band, "Square").BackgroundColor3 ~= Ui.GREEN then fail("paintBand left the bar's square half in the old colour") end
+	if child(b, "UIStroke") and #b._children > 0 then
+		for _, ch in b._children do if ch.ClassName == "UIStroke" and ch.ApplyStrokeMode == "ApplyStrokeMode.Contextual" then fail("a clean button outlines its letters") end end
+	end
+	-- white on a light face is unreadable: gold takes ink letters, a dark face keeps what was asked
+	Ui.paint(b, Ui.GOLD, Ui.WHITE)
+	if b.TextColor3 ~= Ui.INK then fail("a gold button kept white letters") end
+	Ui.paint(b, Ui.PANEL2, Ui.WHITE)
+	if b.TextColor3 ~= Ui.WHITE then fail("a dark button did not take the letters asked for") end
+	if child(Ui.keycap(new("Frame"), "e"), "Lip").BackgroundTransparency ~= 1 then fail("a clean keycap has a bevel lip") end
+	-- a smooth face is scaled by the theme's own scale; the pixel face always by ARCADE_SCALE
+	if Ui.px(20) ~= math.floor(20 * T.scale + 0.5) or Ui.px(20, "Font.Arcade") ~= math.floor(20 * Ui.ARCADE_SCALE + 0.5) then fail("px does not scale by face") end
+end
+
 -- widths grow with the words; no top bar outside Roblox
 if Ui.textWidth("ABCDEFGHIJ", 10) ~= 2 * Ui.textWidth("ABCDE", 10) or Ui.textWidth("ABCDE", 20) ~= 2 * Ui.textWidth("ABCDE", 10) then fail("text widths do not scale") end
 if Ui.topInset() ~= 0 then fail("a top inset outside Roblox") end
 
-print("PASS ui kit: shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")
+print("PASS ui kit: clean theme (rounded, flat, smooth faces, rounded header bars), pixel theme (square windows with rims), shade, key labels, bevelled buttons (shine, lip, outlines, paint), outlined display text, keycaps, banded panels, key buttons, hint rows, text widths")

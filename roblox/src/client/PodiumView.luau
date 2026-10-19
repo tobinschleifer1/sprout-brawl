@@ -48,7 +48,7 @@ local function text(parent: Instance, x: number, y: number, w: number, h: number
 	t.Position = UDim2.fromOffset(x, y)
 	t.Size = UDim2.fromOffset(w, h)
 	t.Text = s
-	t.TextSize = math.max(8, math.floor(size + 0.5))
+	t.TextSize = math.max(12, Ui.px(size))
 	t.Font = FONT
 	t.TextColor3 = colour
 	t.TextXAlignment = align or Enum.TextXAlignment.Left
@@ -56,6 +56,10 @@ local function text(parent: Instance, x: number, y: number, w: number, h: number
 	t.Parent = parent
 	return t
 end
+
+-- How long the server shows the podium before the room moves on (init.server.luau's
+-- onFinished: task.wait(6), for rooms and cabinets alike).
+PodiumView.HOLD = 6
 
 -- See PosedFighter: shared with the character studio's preview.
 PodiumView.posed = PosedFighter.posed
@@ -82,13 +86,13 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	stage.Name = "PodiumStage"
 	self.canvas = Canvas2D.inFrame(stage)
 
-	local title = text(root, 0, H * 0.1, W, H * 0.09, Podium.title(rows, res.teams), H * 0.075, GOLD, Enum.TextXAlignment.Center)
+	local title = text(root, 0, H * 0.1, W, H * 0.09, string.upper(Podium.title(rows, res.teams)), H * 0.06, GOLD, Enum.TextXAlignment.Center)
 	title.Name = "PodiumTitle"
 	title.Font = Ui.DISPLAY
 	title.TextTruncate = Enum.TextTruncate.None
-	Ui.outline(title, math.max(2, H * 0.006))
+	Ui.outline(title, math.max(3, math.floor(H * 0.006)))
 
-	local gg = Ui.button(root, "SAY GG!", Color3.fromRGB(52, 160, 84), function()
+	local gg = Ui.button(root, "SAY GG!", Ui.GREEN, function()
 		self.ggUntil = (self.clock or 0) + 2
 		if onGG then onGG() end
 	end)
@@ -96,16 +100,37 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 	gg.Size = UDim2.fromOffset(150, 40)
 	gg.Position = UDim2.fromOffset(W / 2 - 75, 12)
 	self.gg = gg
+	-- What happens next: the server holds the podium PodiumView.HOLD seconds, then the room goes
+	-- back to its setup (or the arcade to its cabinet), so the pill counts that down.
+	local after = Ui.make("TextLabel", root, { Name = "NextUp", Text = "", Font = Ui.LABEL, TextSize = Ui.px(14),
+		TextColor3 = Ui.WHITE, BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.15, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(W / 2 + 85, 12), Size = UDim2.fromOffset(200, 40) })
+	Ui.corner(after, 0)
+	self.nextUp = after
 	-- The bubble a GG puts over a figure, while it lasts (placed in draw).
 	-- (ink letters on white, so no outline: on ink letters it only thickens them into a blot)
-	local bubble = Ui.make("TextLabel", root, { Name = "GGBubble", Text = "GG!", Font = Ui.DISPLAY, TextSize = 22,
+	local bubble = Ui.make("TextLabel", root, { Name = "GGBubble", Text = "GG!", Font = Ui.DISPLAY, TextSize = Ui.px(22),
 		TextColor3 = Ui.INK, BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0, BorderSizePixel = 0 })
-	Ui.corner(bubble, 12)
+	Ui.corner(bubble, 0)
 	Ui.stroke(bubble, Ui.INK, 3)
+	-- a stepped pixel tail under it, pointing down at the speaker
+	for k, sz in { { 0, 12 }, { 1, 6 } } do
+		Ui.make("Frame", bubble, { Name = "Tail" .. k, BackgroundColor3 = Ui.INK, BorderSizePixel = 0,
+			Position = UDim2.new(0.3, sz[1] * 3, 1, sz[1] * 6), Size = UDim2.fromOffset(sz[2] + 4, 7) })
+		Ui.make("Frame", bubble, { Name = "TailFill" .. k, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+			Position = UDim2.new(0.3, sz[1] * 3 + 2, 1, sz[1] * 6 - 1), Size = UDim2.fromOffset(sz[2], 6) })
+	end
 	bubble.Visible = false
 	self.bubble = bubble
 
 	self.cards = {}
+	-- one text size on every card (the smallest card's): the place shows in the pillar and the
+	-- band, so the words need not shrink with it
+	local rt = math.huge
+	for _, s in self.slots do rt = math.min(rt, s.rowH) end
+	-- and one row pitch: the most every card has room for below its name
+	local pitch = rt * 1.12
+	for _, s in self.slots do pitch = math.min(pitch, (s.card.h - rt * 2.1 - rt * 0.35) / #Podium.STATS) end
 	for i, row in rows do
 		local s = self.slots[i]
 		local colour = if res.teams then HudColors.TEAM[(row.team % 2) + 1] else HudColors.PLAYER[(row.index % 8) + 1]
@@ -113,30 +138,30 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		-- an ink-bordered card (gold for the winners), its place outlined in a band of its colour
 		local card = frame(root, s.card.x, s.card.y, s.card.w, s.card.h, CARD, 0.96)
 		card.Name = `Card{i}`
-		Ui.corner(card, 10)
+		Ui.corner(card, 0)
 		Ui.stroke(card, if first then GOLD else Ui.INK, 3)
-		local rh = s.rowH
-		local bandH = rh * 1.3
-		local band = frame(card, 0, 0, s.card.w, bandH, if first then GOLD else colour, 1)
-		band.Name = "Band"
-		Ui.corner(band, 10)
-		frame(band, 0, bandH / 2, s.card.w, bandH / 2, if first then GOLD else colour, 1).Name = "Square"
+		Ui.rim(card, if first then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
+		local rh = rt                 -- (one header and text size on every card, so the four read as a set)
+		local bandH = rt * 1.3
+		Ui.band(card, if first then GOLD else colour, bandH)
 		local pad = s.card.w * 0.06
-		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, Podium.ordinal(self.places[i]), rh * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
+		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, string.upper(Podium.ordinal(self.places[i])), rt * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"
 		place.Font = Ui.DISPLAY
-		Ui.outline(place, math.max(1.5, rh * 0.08))
-		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rh * 0.62, colour)
+		if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
+		if Ui.light(if first then GOLD else colour) > 0.62 then place.TextColor3 = Ui.INK end
+		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
-		Ui.outline(name, 1.5)
+		if not Ui.flat() then Ui.outline(name, 2) end
 		for k, stat in Podium.STATS do
-			local y = rh * (2.1 + (k - 1))
-			text(card, pad, y, s.card.w * 0.6, rh, stat[1], rh * 0.48, STAT).Name = `Label{k}`
-			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rh * 0.6, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
+			-- one row pitch on every card, from the same baseline, so the four compare row by row
+			local y = rh * 2.1 + (k - 1) * pitch
+			text(card, pad, y, s.card.w * 0.6, rh, string.upper(stat[1]), rt * 0.56, STAT).Name = `Label{k}`
+			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rt * 0.72, Color3.new(1, 1, 1), Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
 			v.Font = Ui.DISPLAY
-			Ui.outline(v, 1.2)
+			if not Ui.flat() then Ui.outline(v, 2) end
 		end
 		self.cards[i] = card
 	end
@@ -148,6 +173,7 @@ function PodiumView.draw(self: any, clock: number)
 	self.clock = clock
 	self.t0 = self.t0 or clock
 	local t = clock - self.t0
+	self.nextUp.Text = `NEXT MATCH SETUP IN {math.max(0, math.ceil(PodiumView.HOLD - t))}`
 	local sf = math.floor(t * 60)
 	local c = self.canvas
 	-- the sky: dusk in pixel bands, as the select screen's
@@ -190,7 +216,7 @@ function PodiumView.draw(self: any, clock: number)
 		local s = self.slots[self.localPlace or 1]
 		self.bubble.Position = UDim2.fromOffset(s.cx - s.figureH * 0.32, s.top - s.figureH * 1.4)
 		self.bubble.Size = UDim2.fromOffset(s.figureH * 0.64, s.figureH * 0.26)
-		self.bubble.TextSize = math.floor(s.figureH * 0.16)
+		self.bubble.TextSize = Ui.px(s.figureH * 0.16)
 	end
 	Canvas2D.finish(c)
 end

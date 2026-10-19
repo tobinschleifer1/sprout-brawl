@@ -38,28 +38,26 @@ local AMBER = Color3.fromRGB(232, 162, 74)
 
 -- The button bar: { panel, key, word, colour }.
 local SPECS: { { any } } = {
-	{ "Stamps", "T", "STAMP", Color3.fromRGB(214, 84, 120) },
-	{ "Say", "Y", "SAY", Color3.fromRGB(46, 120, 190) },
-	{ "People", "P", "PEOPLE", Color3.fromRGB(214, 132, 36) },
-	{ "Map", "M", "MAP", Color3.fromRGB(58, 150, 82) },
+	{ "Stamps", "T", "STAMP", Color3.fromRGB(181, 80, 136) },
+	{ "Say", "Y", "SAY", Color3.fromRGB(0, 153, 219) },
+	{ "People", "P", "PEOPLE", Color3.fromRGB(247, 118, 34) },
+	{ "Map", "M", "MAP", Color3.fromRGB(62, 137, 72) },
 }
 
 local function corner(parent: Instance, px: number)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, px)
-	c.Parent = parent
+	Ui.corner(parent, px)
 end
 
 -- A list button inside a panel: the kit's bevelled block, in body text so a line of words fits.
 local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 14, small = true, textColour = TEXT })
+	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true, textColour = TEXT })
 	b.Name = name
 	return b
 end
 
 local function label(parent: Instance, name: string, text: string, size: number, colour: Color3?): TextLabel
 	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, size
+	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, Ui.px(size)
 	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment, t.TextWrapped = 1, colour or TEXT, Enum.TextXAlignment.Left, true
 	t.Parent = parent
 	return t
@@ -100,7 +98,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	bar.Parent = gui
 	-- each button is its key on a cap and its word, in its own colour; its panel's band matches
 	for i, sp in SPECS do
-		local b = Ui.keyButton(bar, sp[2], sp[3], sp[4], function() self:toggle(sp[1]) end, 42, { size = 17 })
+		local b = Ui.keyButton(bar, sp[2], sp[3], sp[4], function() self:toggle(sp[1]) end, 42, { size = 12 })
 		b.Name = "Open" .. sp[1]
 		b.Position, b.Size = UDim2.fromOffset((i - 1) * 124, 0), UDim2.fromOffset(116, 42)
 	end
@@ -129,7 +127,9 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	for i, m in PLAZA.messages do
 		local key = if i <= 9 then tostring(i) elseif i == 10 then "0" else ""
 		local b = button(say, "Say_" .. i, (if key ~= "" then key .. "  " else "") .. m, function() self:say(i) end, PANEL2)
-		b.TextSize, b.TextXAlignment = 13, Enum.TextXAlignment.Left
+		b.TextSize, b.TextXAlignment = Ui.px(10), Enum.TextXAlignment.Left
+		b.TextTruncate = Enum.TextTruncate.AtEnd
+		Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 4) })
 		b.Position, b.Size = UDim2.fromOffset(10 + ((i - 1) % 2) * 142, 36 + math.floor((i - 1) / 2) * 34), UDim2.fromOffset(136, 30)
 	end
 	self.sayPanel = say
@@ -155,17 +155,15 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.mapPanel = map
 
 	-- The log, bottom left.
-	local log = Instance.new("Frame")
-	log.Name, log.BackgroundColor3, log.BackgroundTransparency, log.BorderSizePixel = "Log", INK, 0.35, 0
-	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 12)
-	log.Parent = gui
-	corner(log, 10)
-	Ui.stroke(log, Ui.INK, 2)
+	-- (a window like the rest, see-through enough to keep the roofs behind it in view)
+	local log = Ui.panel(gui, "Log", Ui.PANEL2, "CHAT", 30)
+	log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3
+	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 42)
 	self.logFrame = log
 	self.logLines = {}
 	for i = 1, LobbySocial.LOG_LINES do
 		local l = label(log, "Line" .. i, "", 13)
-		l.Position, l.Size = UDim2.fromOffset(10, 6 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
+		l.Position, l.Size = UDim2.fromOffset(10, 36 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
 		l.TextTruncate = Enum.TextTruncate.AtEnd
 		self.logLines[i] = l
 	end
@@ -190,6 +188,12 @@ end
 
 function LobbySocial.closeAll(self: any)
 	for _, p in self.panels do p.Visible = false end
+end
+
+-- Is a panel up? (The plaza's prompt steps aside under one: they share the bottom right.)
+function LobbySocial.anyOpen(self: any): boolean
+	for _, p in self.panels do if p.Visible then return true end end
+	return false
 end
 
 function LobbySocial.toggle(self: any, name: string)
@@ -294,8 +298,10 @@ function LobbySocial.setMembers(self: any, list: any)
 		local row = Instance.new("Frame")
 		row.Name, row.BackgroundColor3, row.BorderSizePixel, row.LayoutOrder = "Member_" .. tostring(m.userId), Ui.PANEL2, 0, i
 		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
-		corner(row, 8)
-		Ui.stroke(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2)
+		corner(row, 0)
+		-- its frame drawn inside it, so the scrolling list cannot clip one side of it away
+		local _, edge = Ui.rim(row, if m.userId == self.localId then Ui.GOLD else Ui.INK, 2, 0)
+		edge.Thickness = 2              -- (whatever the theme does with rims: this one says who is you)
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
 		-- a kit code, or a preset (drawn as its kit): the head in the member list
@@ -303,10 +309,11 @@ function LobbySocial.setMembers(self: any, list: any)
 		if code then
 			KitPortrait.draw(Canvas2D.inFrame(face), code, "head", 44, 44)
 		end
-		local name = label(row, "Name", (if m.userId == self.localId then m.name .. "  (you)" else tostring(m.name)), 15)
+		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
 		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
-		local where = label(row, "Where", tostring(m.where or ""), 12, if m.place == "fight" then PINK elseif m.place == "room" then AMBER else DIM)
+		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then Color3.fromRGB(255, 150, 150)
+			elseif m.place == "room" then AMBER else Color3.fromRGB(192, 203, 220))
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
 		if m.place == "market" and m.userId ~= self.localId and m.x then
 			local go = button(row, "WarpTo", "WARP", function()
@@ -315,6 +322,8 @@ function LobbySocial.setMembers(self: any, list: any)
 			go.Position, go.Size = UDim2.new(1, -78, 0, 8), UDim2.fromOffset(70, 32)
 		end
 	end
+	-- the window fits its rows (up to the room the screen gives it; the list scrolls past that)
+	self.peoplePanel.Size = UDim2.fromOffset(340, math.clamp(36 + #list * 54 + 14, 140, 380))
 end
 
 return LobbySocial

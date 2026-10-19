@@ -28,13 +28,13 @@ end
 local function label(parent: Instance, value: string, height: number): TextLabel
 	local t = Instance.new("TextLabel")
 	t.BackgroundTransparency, t.TextColor3, t.Font = 1, WHITE, Ui.LABEL
-	t.Text, t.TextSize, t.TextWrapped = value, 14, true
+	t.Text, t.TextSize, t.TextWrapped = value, Ui.px(12), true
 	t.Size, t.Parent = UDim2.new(1, 0, 0, height), parent
 	return t
 end
 -- The kit's bevelled button; a chosen one is gold.
 local function button(parent: Instance, value: string, callback: () -> (), selected: boolean?): TextButton
-	local b = Ui.button(parent, value, if selected then GOLD else STEEL, callback, { size = 15 })
+	local b = Ui.button(parent, value, if selected then GOLD else STEEL, callback, { size = 12 })
 	b.Name = value
 	b.Size, b.TextWrapped = UDim2.new(1, 0, 0, 42), true
 	return b
@@ -49,17 +49,18 @@ function RoomPanel.new(parent: Instance): any
 	panel.Name, panel.AnchorPoint = "Room", Vector2.new(0.5, 0.5)
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.5), UDim2.new(1, -24, 1, -96)
 	panel.BackgroundColor3, panel.BackgroundTransparency, panel.Parent = Ui.PANEL, 0.02, gui
-	Ui.corner(panel, 14)
+	Ui.corner(panel, 0)
 	Ui.stroke(panel, INK, 3)
+	Ui.rim(panel, Ui.PANEL2, 2, 0)
 	self.panel = panel
 	local cap = Instance.new("UISizeConstraint")
 	cap.MaxSize, cap.Parent = Vector2.new(680, 680), panel
 	self.title = label(panel, "MATCH ROOM", 44)
-	self.title.Font, self.title.TextSize, self.title.TextColor3 = Ui.DISPLAY, 22, GOLD
-	Ui.outline(self.title, 2)
+	self.title.Font, self.title.TextSize, self.title.TextColor3 = Ui.DISPLAY, Ui.px(20), GOLD
+	Ui.outline(self.title, 3)
 	self.status = label(panel, "", 44)
 	self.status.Position = UDim2.fromOffset(0, 44)
-	self.status.TextSize = 12
+	self.status.TextSize = Ui.px(11)
 	local body = Instance.new("ScrollingFrame")
 	body.Name, body.BackgroundTransparency, body.BorderSizePixel = "Choices", 1, 0
 	body.Position, body.Size = UDim2.fromOffset(12,92), UDim2.new(1,-24,1,-158)
@@ -84,27 +85,50 @@ function RoomPanel.buildNotice(self: any)
 	local card, band, title = Ui.panel(self.gui, "Notice", Ui.BLUE, "", 34)
 	card.AnchorPoint, card.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
 	card.Size = UDim2.new(1, -48, 0, 150)
-	Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })
+	local cap = Ui.make("UISizeConstraint", card, { MaxSize = Vector2.new(460, 150) })
 	card.Visible = false
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	local message = Ui.text(card, "", 15, WHITE)
 	message.Name = "Message"
 	message.TextWrapped = true
-	message.Position, message.Size = UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 58)
-	local ok = Ui.button(card, "OK", Ui.BLUE, function() self:hide() end)
+	message.Position, message.Size = UDim2.fromOffset(16, 46), UDim2.new(1, -32, 0, 58)
+	local ok = Ui.button(card, "BACK TO LOBBY", Ui.BLUE, function() self:hide() end)
 	ok.Name = "Ok"
-	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -12), UDim2.fromOffset(120, 38)
-	self.notice = { card = card, band = band, title = title, message = message, ok = ok }
+	ok.AnchorPoint, ok.Position, ok.Size = Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -16), UDim2.fromOffset(180, 38)
+	-- a wait has no OK, so its card is only as tall as its message, with a row of pixel blocks
+	-- stepping along under it to say something is happening
+	local dots = Ui.make("Frame", card, { Name = "Working", BackgroundTransparency = 1, BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -14), Size = UDim2.fromOffset(5 * 14 - 4, 10) })
+	for k = 1, 5 do
+		local dot = Ui.make("Frame", dots, { Name = "Block" .. k, BackgroundColor3 = if k == 1 then Ui.GOLD else Ui.PANEL2, BorderSizePixel = 0,
+			Position = UDim2.fromOffset((k - 1) * 14, 0), Size = UDim2.fromOffset(10, 10) })
+		if not Ui.flat() then continue end
+		Ui.make("UICorner", dot, { CornerRadius = UDim.new(0, 5) })        -- round dots in a smooth theme
+	end
+	self.notice = { card = card, band = band, title = title, message = message, ok = ok, cap = cap, dots = dots }
 end
 -- `waiting`: a fight is on its way (no button); otherwise a problem to acknowledge.
 function RoomPanel.say(self: any, message: string, waiting: boolean)
 	local n = self.notice
-	n.title.Text = if waiting then "GET READY" else "HOLD ON"
-	n.band.BackgroundColor3 = if waiting then Ui.BLUE else Color3.fromRGB(176, 60, 60)
-	local square = n.band:FindFirstChild("Square")
-	if square then square.BackgroundColor3 = n.band.BackgroundColor3 end
+	n.title.Text = if waiting then "GET READY" else "MATCH DIDN'T START"
+	Ui.paintBand(n.band, if waiting then Ui.BLUE else Ui.RED)
 	n.message.Text = message
 	n.ok.Visible = not waiting
+	n.dots.Visible = waiting
+	local h = if waiting then 130 else 166
+	n.card.Size, n.cap.MaxSize = UDim2.new(1, -48, 0, h), Vector2.new(460, h)
+	-- the lit block steps along while the wait lasts (one loop, stopped when the card goes)
+	if waiting and not n.stepping and type(task) == "table" then
+		n.stepping = true
+		local k = 1
+		local function step()
+			if not (n.dots.Visible and n.card.Visible and self.gui.Enabled) then n.stepping = false; return end
+			k = k % 5 + 1
+			for _, b in n.dots:GetChildren() do b.BackgroundColor3 = if b.Name == "Block" .. k then Ui.GOLD else Ui.PANEL2 end
+			task.delay(0.18, step)
+		end
+		task.delay(0.18, step)
+	end
 	n.card.Visible = true
 	self.panel.Visible = false
 	self.gui.Enabled = true
@@ -205,7 +229,7 @@ function RoomPanel.render(self: any)
 			if choice == "vote" and votes[stage.id] then
 				local badge = label(b, `{votes[stage.id]} vote` .. (if votes[stage.id] == 1 then "" else "s"), 18)
 				badge.Name, badge.Position, badge.Size = "Votes", UDim2.fromOffset(6, 6), UDim2.fromOffset(64, 18)
-				badge.BackgroundTransparency, badge.BackgroundColor3, badge.TextSize = 0.1, INK, 12
+				badge.BackgroundTransparency, badge.BackgroundColor3, badge.TextSize = 0.1, INK, Ui.px(10)
 			end
 			table.insert(self.previews, { canvas = Canvas.inFrame(frame), stage = if stage.id ~= "Random" then stage else nil,
 				random = stage.id == "Random", frame = frame })

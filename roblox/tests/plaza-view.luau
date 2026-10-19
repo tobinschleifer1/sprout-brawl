@@ -496,7 +496,8 @@ do
 			assert(hub.promptKey.Visible and string.find(hub.prompt.Text, "ENTER", 1, true) and not string.find(hub.prompt.Text, "[E", 1, true),
 				`beside {st.id} the prompt reads {hub.prompt.Text}`)
 			assert(hub.controls.Visible, "the controls row did not show on a wide screen")
-			assert(hub.prompt.AnchorPoint.Y == 1 and hub.prompt.Position.Y.Scale == 1, "on a wide screen the prompt left the bottom")
+			assert(hub.prompt.AnchorPoint.Y == 1 and hub.prompt.Position.Y.Scale == 1 and hub.prompt.AnchorPoint.X == 0.5 and hub.prompt.Position.X.Scale == 0.5,
+				"on a wide screen the prompt left the bottom middle")
 			break
 		end
 	end
@@ -529,12 +530,25 @@ do
 	end
 	assert(not hub.promptKey.Visible and string.find(hub.prompt.Text, "Walk", 1, true), `away from a station the prompt reads {hub.prompt.Text}`)
 	assert(not hub.controls.Visible, "the controls row showed where it runs into the social bar")
-	-- (a narrow screen: the prompt under the title card, off the fighter in the middle of a phone)
+	-- (a narrow screen: the prompt at the bottom left, above the dock, its right edge short of the
+	-- screen's middle where your fighter stands; under the title card it covered the billboard)
 	do
-		assert(hub.prompt.Visible, "no prompt on a narrow screen")
-		assert(hub.prompt.AnchorPoint.Y == 0 and hub.prompt.Position.Y.Scale == 0
-			and hub.prompt.Position.Y.Offset >= hub.plate.Position.Y.Offset + hub.plate.Size.Y.Offset + 8,
-			`on a narrow screen the prompt sits at {hub.prompt.Position.Y.Scale}, {hub.prompt.Position.Y.Offset}, not under the title card`)
+		local p = hub.prompt
+		assert(p.Visible, "no prompt on a narrow screen")
+		local right = p.Position.X.Scale * 812 + p.Position.X.Offset - p.AnchorPoint.X * p.Size.X.Offset + p.Size.X.Offset
+		local bottom = p.Position.Y.Scale * 375 + p.Position.Y.Offset + (1 - p.AnchorPoint.Y) * p.Size.Y.Offset
+		assert(right <= 812 / 2 - Plaza2D.FIGHTER_CLEAR, `on a narrow screen the prompt reaches x {right}, over your fighter`)
+		assert(bottom <= 375 - 10 - Plaza2D.ICON - 14 + 0.01 and p.Position.Y.Scale == 1, `on a narrow screen the prompt's foot is at {bottom}, not above the dock`)
+	end
+	-- each stall's lettering reads at 4.5:1 on its board's face
+	do
+		local Ui = Loader.loadFrom("src/client/", "Ui")
+		local Art = Loader.loadFrom("src/client/", "PlazaArt")
+		local face = require("@lune/roblox").Color3.fromHex(Art.SIGN_FACE)
+		for _, st in Plaza2D.STALLS do
+			local t = hub.pool["stall" .. st.sign]
+			if t then assert(Ui.contrast(t.TextColor3, face) >= 4.5, `{st.sign} reads at {Ui.contrast(t.TextColor3, face)}:1 on its board`) end
+		end
 	end
 	hub.active, hub.blocked = wasActive, wasBlocked
 end

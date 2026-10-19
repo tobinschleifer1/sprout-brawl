@@ -204,6 +204,21 @@ for _, W in { 360, 1200 } do
 	end
 	assert(x(tabs[1]) - 3 >= 8 and W - (x(tabs[4]) + w(tabs[4])) - 3 >= 8, `at {W} px the tabs reach the window's edge`)
 end
+-- every card's name shrinks to its card rather than spilling past it (a phone's long clothing names)
+do
+	local named = 0
+	local function walk(o)
+		for _, ch in o:GetChildren() do
+			if ch.Name == "Name" and ch.ClassName == "TextLabel" and string.sub(ch.Parent.Name or "", 1, 4) == "Card" then
+				named += 1
+				assert(ch.TextScaled == true, `the card name "{ch.Text}" does not fit itself to its card`)
+			end
+			walk(ch)
+		end
+	end
+	walk(root)
+	assert(named > 0, "no card names were checked")
+end
 find(root, "Jump_passes").Activated:Fire()
 assert(body.CanvasPosition.Y == 1900 - 120 + 300 - 4, "the PASSES tab did not scroll to the passes")
 assert(find(root, "Jump_passes").BackgroundColor3 ~= find(root, "Jump_keys").BackgroundColor3, "the section you jumped to is not marked")

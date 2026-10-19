@@ -66,6 +66,14 @@ for (const n of d.nodes) {
     const font = FONTS[n.font] || FONTS['Font.' + n.font] || "'Montserrat', Arial, sans-serif";
     const arcade = n.font.endsWith('Arcade');
     const weight = arcade ? 400 : WEIGHTS[n.font] || WEIGHTS['Font.' + n.font] || 700;
+    // a TextScaled label: the size its words fit the box at, by the same average glyph widths the
+    // wrapping uses, between its constraint's least and most
+    if (n.scaled) {
+      const k = arcade ? ARCADE : n.font.endsWith('LuckiestGuy') ? 0.52 : /BuilderSans/.test(n.font) ? 0.58 : /FredokaOne/.test(n.font) ? 0.55 : 0.6;
+      const longest = Math.max(...String(n.text).split('\n').map((l) => l.length), 1);
+      const fit = Math.min((right - left) / (longest * k), n.h);
+      n.size = Math.max(n.minSize || 1, Math.min(n.maxSize || n.size, Math.floor(fit)));
+    }
     const fsz = arcade ? n.size * ARCADE : n.size;
     const sw = n.textStrokeW ? n.textStrokeW * 2 : Math.max(2, n.size / 7);   // SVG strokes straddle the edge
     const stroke = n.textStroke ? ` stroke="${n.textStroke}" stroke-width="${sw}" paint-order="stroke" stroke-linejoin="${arcade ? 'miter' : 'round'}"` : '';

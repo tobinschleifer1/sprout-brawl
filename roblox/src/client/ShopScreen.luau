@@ -179,7 +179,8 @@ local function card(parent: Instance, pool: { any }, i: number, h: number): any
 	Ui.corner(thumb, 6)
 	if Ui.lightPanels() then Ui.mount(thumb, Ui.SKY) end
 	local name, nameStroke = Ui.faceText(f, "", 17, Ui.SKY)
-	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
+	name.Name = "Name"
+	Ui.fit(name, 11)
 	name.Position, name.Size = UDim2.fromOffset(8, 102), UDim2.new(1, -16, 0, 24)
 	local meta, metaStroke = Ui.faceText(f, "", 13, Ui.SKY, Ui.LABEL)
 	meta.Name, meta.TextWrapped = "Meta", true
@@ -421,7 +422,7 @@ function ShopScreen.buildOdds(self: any)
 	now.Position, now.Size = UDim2.fromOffset(16, 56), UDim2.fromOffset(150, 30)
 	local gua = Ui.button(o, "GUARANTEED OPENING", Ui.PANEL2, function() self:showOdds(true) end, { size = 13, small = true })
 	gua.Name, gua.ZIndex = "Guaranteed", 11
-	gua.Position, gua.Size = UDim2.fromOffset(174, 56), UDim2.fromOffset(190, 30)
+	gua.Position, gua.Size = UDim2.fromOffset(16 + 150 + Ui.GAP, 56), UDim2.fromOffset(190, 30)
 	local list = Ui.make("ScrollingFrame", o, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
 		Position = UDim2.fromOffset(16, 96), Size = UDim2.new(1, -32, 1, -162), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })

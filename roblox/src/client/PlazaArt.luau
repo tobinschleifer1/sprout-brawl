@@ -12,6 +12,8 @@ local Canvas2D = require(script.Parent.Canvas2D)
 
 local PlazaArt = {}
 PlazaArt.CELL = 1 / 8
+-- the stall sign board's face, behind its lettering
+PlazaArt.SIGN_FACE = "#2C3A58"
 
 local C: { [string]: string } = {
 	-- Daylight in the Skyhold Bazaar (Realms.LOBBY): warm timber, sun-bleached stone, bright
@@ -54,8 +56,8 @@ function PlazaArt.stallBack(stripeA: string, stripeB: string): any
 		b.r(i * 8 + 2, 60, 4, 4, if i % 2 == 0 then stripeA else stripeB)  -- scalloped edge
 	end
 	b.r(0, 76, W, 2, C.ink, 0.6)
-	b.r(30, 76, 36, 8, C.ink)                                              -- sign board (text is a label)
-	b.r(31, 77, 34, 6, C.night)
+	b.r(20, 76, 56, 8, C.ink)                                              -- sign board (text is a label)
+	b.r(21, 77, 54, 6, C.night)                                            -- (wide enough for SKEWERS at 12 px on a phone)
 	for _, lx in { 18, 48, 78 } do                                         -- paper lanterns
 		b.r(lx, 52, 1, 8, C.ink)
 		b.r(lx - 3, 44, 7, 8, C.lantern)

@@ -26,7 +26,7 @@ Ui.DISPLAY = Enum.Font.FredokaOne
 Ui.LABEL = Enum.Font.BuilderSansExtraBold
 Ui.BODY = Enum.Font.BuilderSansBold
 Ui.TITLE = Enum.Font.FredokaOne    -- a window's title on its band (the theme's `title`, else DISPLAY)
-Ui.WINDOW_TITLE = 24                -- the size every window's pixel title is asked at (drawn ~17 px)
+Ui.WINDOW_TITLE = 30                -- the size every window's pixel title is asked at (drawn ~21 px: at ~17 the title was smaller than the header's currency pills)
 
 -- Style themes, so directions can be compared on the real screens before one is chosen. A theme
 -- must be picked (Ui.useTheme) before any screen module loads: they read the fonts at load.
@@ -591,21 +591,30 @@ end
 -- The pixel kit's selected mark for an art card: four stepped corner brackets just outside it, in
 -- `colour`, each an L of two arms `arm` long and `thick` wide with a one-pixel step at its elbow.
 -- Returns the holder (toggle its Visible); it is the caller's box's child, so it moves with it.
+Ui.BRACKET_INK = 2
 function Ui.brackets(parent: Instance, colour: Color3?, arm: number?, thick: number?): any
 	local a, t, out = arm or 14, thick or 4, (thick or 4) + 3
 	local col = colour or Ui.SELECTED
 	local holder = Ui.make("Frame", parent, { Name = "Brackets", BackgroundTransparency = 1, BorderSizePixel = 0,
 		Position = UDim2.fromOffset(-out, -out), Size = UDim2.new(1, 2 * out, 1, 2 * out), ZIndex = 4, Visible = false })
-	for _, corner in { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } } do
-		local sx, sy = corner[1], corner[2]
-		local function bar(w: number, h: number, dx: number, dy: number)
-			Ui.make("Frame", holder, { Name = "Px", BackgroundColor3 = col, BorderSizePixel = 0, ZIndex = 4,
-				AnchorPoint = Vector2.new(sx, sy), Position = UDim2.new(sx, (1 - 2 * sx) * dx, sy, (1 - 2 * sy) * dy),
-				Size = UDim2.fromOffset(w, h) })
+	-- each stair twice: in ink, a pixel and a half bigger all round, then in its colour over it, so
+	-- the mark reads on the pale windows (gold on cream is 1.2:1) as on the sky. All the ink first,
+	-- or a later arm's ink would cut across an earlier arm's gold.
+	local o = Ui.BRACKET_INK
+	local passes: { { name: string, colour: Color3, e: number } } = { { name = "Ink", colour = Ui.INK, e = o }, { name = "Px", colour = col, e = 0 } }
+	for _, pass in passes do
+		for _, corner in { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 } } do
+			local sx, sy = corner[1], corner[2]
+			local function bar(w: number, h: number, dx: number, dy: number)
+				local e = pass.e
+				Ui.make("Frame", holder, { Name = pass.name, BackgroundColor3 = pass.colour, BorderSizePixel = 0, ZIndex = 4,
+					AnchorPoint = Vector2.new(sx, sy), Position = UDim2.new(sx, (1 - 2 * sx) * (dx - e), sy, (1 - 2 * sy) * (dy - e)),
+					Size = UDim2.fromOffset(w + 2 * e, h + 2 * e) })
+			end
+			bar(a, t, t, 0)          -- the horizontal arm, set in by one step
+			bar(t, a, 0, t)          -- the vertical arm, set in by one step
+			bar(t, t, t, t)          -- the elbow's inner pixel: the stair
 		end
-		bar(a, t, t, 0)          -- the horizontal arm, set in by one step
-		bar(t, a, 0, t)          -- the vertical arm, set in by one step
-		bar(t, t, t, t)          -- the elbow's inner pixel: the stair
 	end
 	return holder
 end
@@ -626,6 +635,16 @@ end
 -- A card's secondary line (rarity, serial, price) on its face: white outlined in the face's shade on a
 -- mid or deep face; on a pale one (gold, light green, grey) bare, in the face's own deep shade - white
 -- there leaned wholly on a 1 px outline at 13 px.
+-- A one-line label that shrinks to its box rather than spilling past it or cutting its end off: its
+-- size now is the most it grows to, `least` (10 by default) the least. (Long item names - Ridgeguard
+-- Trousers on a phone's Shop card - ran 8 px past the card's face.)
+function Ui.fit(t: any, least: number?): any
+	local most = t.TextSize
+	t.TextWrapped, t.TextScaled, t.TextTruncate = false, true, Enum.TextTruncate.None
+	Ui.make("UITextSizeConstraint", t, { MaxTextSize = most, MinTextSize = least or 10 })
+	return t
+end
+
 -- WCAG contrast of two colours.
 function Ui.contrast(a: Color3, b: Color3): number
 	local function lum(c: Color3): number

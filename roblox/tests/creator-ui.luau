@@ -457,6 +457,20 @@ do
 	ed:selectGroup("body")
 	assert(not ed.moreChip.Visible, `the desktop body grid shows all {ed.tileCount} tiles but says there are more`)
 end
+-- a palette's swatches start far enough under its name that the picked one's brackets clear it
+do
+	ed:selectGroup("outfit")
+	local rows = 0
+	for _, row in ed.colourBar:GetChildren() do
+		local lab, sw = row:FindFirstChild("Label"), row:FindFirstChild("Swatches")
+		if lab and sw then
+			rows += 1
+			local below = sw.Position.Y.Offset - (lab.Position.Y.Offset + lab.Size.Y.Offset)
+			assert(below >= 2 + 3 + 2, `the {lab.Text} swatches start {below} px under their name, inside a picked one's brackets`)
+		end
+	end
+	assert(rows > 0, "no palette rows were checked")
+end
 -- The scroll chip has its own gutter: under the grid, above the colours, clear of the footer (it once
 -- landed on SAVE on the presets tab); and the pose row's buttons keep 8 px between their strokes.
 do

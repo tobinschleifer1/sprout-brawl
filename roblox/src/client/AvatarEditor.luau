@@ -54,6 +54,17 @@ AvatarEditor.MAX_UNDO = 60
 AvatarEditor.BAR_GAP = if LIGHT then Ui.GAP else 6
 -- between option tiles: room for the picked tile's brackets (7 px outside it) clear of its neighbours
 AvatarEditor.TILE_GAP = if LIGHT then Ui.GAP else 8
+-- the header's UNDO, REDO, RANDOM and X, BAR_GAP apart
+AvatarEditor.SWATCH_GAP = if LIGHT then Ui.GAP else 4
+-- a colour's row: its name (16), two rows of swatches (20 each) SWATCH_GAP apart, and 8 under them
+-- (a short screen - a phone on its side - lays each palette in one row: two overflowed its footer)
+-- the swatches start this far under their palette's name: a light theme leaves the picked one's
+-- brackets (5 px outside it) room under the name, which they covered at 16
+AvatarEditor.SWATCH_TOP = if LIGHT then 22 else 16
+function AvatarEditor.swatchRow(rows: number): number
+	return AvatarEditor.SWATCH_TOP + rows * 20 + (rows - 1) * AvatarEditor.SWATCH_GAP + 8
+end
+AvatarEditor.TOOLS_W = 58 + 58 + 80 + 38 + 3 * AvatarEditor.BAR_GAP
 local POSES = { { "idle", "Stand" }, { "run", "Run" }, { "air", "Jump" }, { "attack", "Attack" }, { "victory", "Cheer" } }
 AvatarEditor.POSES = POSES
 
@@ -223,23 +234,25 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	chips.Position, chips.Size = UDim2.new(0, 250, 0, 6), UDim2.new(1, -520, 0, 44)
 	local list = Instance.new("UIListLayout")
 	list.FillDirection = Enum.FillDirection.Horizontal
-	list.Padding = UDim.new(0, 6)
+	list.Padding = UDim.new(0, AvatarEditor.BAR_GAP)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	list.Parent = chips
 	self.chipBar = chips
 	local tools = frame(top, "Tools")
 	tools.AnchorPoint = Vector2.new(1, 0)
 	-- (inset in the bar, with room between them)
-	tools.Position, tools.Size = UDim2.new(1, -14, 0, 11), UDim2.fromOffset(268, 34)
+	-- (8 px from the bar's top, so its foot clears the tab row's strokes; Ui.GAP apart)
+	local GP = AvatarEditor.BAR_GAP
+	tools.Position, tools.Size = UDim2.new(1, -14, 0, 8), UDim2.fromOffset(AvatarEditor.TOOLS_W, 34)
 	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, PANEL2)
 	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 34)
 	local redo = button(tools, "Redo", "REDO", function() self:redo() end, PANEL2)
-	redo.Position, redo.Size = UDim2.fromOffset(66, 0), UDim2.fromOffset(58, 34)
+	redo.Position, redo.Size = UDim2.fromOffset(58 + GP, 0), UDim2.fromOffset(58, 34)
 	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Ui.PURPLE)
-	rand.Position, rand.Size = UDim2.fromOffset(132, 0), UDim2.fromOffset(80, 34)
+	rand.Position, rand.Size = UDim2.fromOffset(2 * (58 + GP), 0), UDim2.fromOffset(80, 34)
 	local close = button(tools, "Close", "X", function() self:close() end, Ui.RED)
 	-- (the same red X as every window's: Ui.closeButton's size and lettering)
-	close.Position, close.Size = UDim2.fromOffset(220, 0), UDim2.fromOffset(38, 34)
+	close.Position, close.Size = UDim2.fromOffset(2 * (58 + GP) + 80 + GP, 0), UDim2.fromOffset(38, 34)
 	close.Font, close.TextSize = Ui.DISPLAY, Ui.px(18, Ui.DISPLAY)
 	self.undoButton, self.redoButton = undo, redo
 
@@ -413,8 +426,9 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.title.Visible = W >= 640
 	-- (the saved characters start after the title's own width: the pixel title ran under them)
 	local chipsX = if W < 640 then 12 elseif LIGHT then 30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE) + 16 else 250
-	self.chipBar.Position = UDim2.fromOffset(chipsX, 6)
-	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - chipsX - 276), 44)
+	-- (on the tools' line and at their height: 44 tall, the chips' strokes met the tab row's)
+	self.chipBar.Position = UDim2.fromOffset(chipsX, 8)
+	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - chipsX - AvatarEditor.TOOLS_W - 22), 34)
 	local pw, ph, ex, ey, ew, eh
 	if wide then
 		pw = math.clamp(W * 0.34, 260, 470)
@@ -428,7 +442,7 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	-- Inside the preview: name on top, the stage, poses and view controls under it.
 	-- a short wide screen (a phone on its side) keeps the preview: no pose row, no count line
 	local short = wide and H < 500
-	local controlsH = if wide and not short then 96 else 44
+	local controlsH = if wide and not short then 90 + AvatarEditor.BAR_GAP else 44
 	self.nameBox.Position, self.nameBox.Size = UDim2.fromOffset(10, 10), UDim2.fromOffset(pw - 20, 34)
 	self.countLabel.Visible = wide and not short
 	self.countLabel.Position, self.countLabel.Size = UDim2.new(0, 10, 1, -22), UDim2.fromOffset(pw - 20, 16)
@@ -448,8 +462,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	elseif wide then
 		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(pw - 20, 40)
 		self.poseGrid.CellSize = UDim2.fromOffset(math.floor((pw - 20 - 4 * G) / 5), 40)
-		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy + 46), UDim2.fromOffset(half, 36)
-		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(10 + half + G, cy + 46), UDim2.fromOffset(half, 36)
+		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy + 40 + AvatarEditor.BAR_GAP), UDim2.fromOffset(half, 36)
+		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(10 + half + G, cy + 40 + AvatarEditor.BAR_GAP), UDim2.fromOffset(half, 36)
 	else
 		local bw = math.floor((pw - 20 - 6 * G) / 7)
 		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(bw * 5 + 4 * G, 40)
@@ -460,18 +474,24 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	-- The editor column.
 	self.editor.Position, self.editor.Size = UDim2.fromOffset(ex, ey), UDim2.fromOffset(ew, eh)
 	self.groupBar.Position, self.groupBar.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(ew, 38)
-	self.catBar.Position, self.catBar.Size = UDim2.fromOffset(0, 44), UDim2.fromOffset(ew - 250, 34)
-	self.lockButton.Position, self.lockButton.Size = UDim2.fromOffset(ew - 242, 44), UDim2.fromOffset(100, 34)
-	self.randPartButton.Position, self.randPartButton.Size = UDim2.fromOffset(ew - 136, 44), UDim2.fromOffset(136, 34)
+	-- (the rows BAR_GAP apart down as well as across: at 6 the strokes of one row met the next's)
+	local GP = AvatarEditor.BAR_GAP
+	local catY = 38 + GP
+	self.catBar.Position, self.catBar.Size = UDim2.fromOffset(0, catY), UDim2.fromOffset(ew - 136 - 100 - 2 * GP, 34)
+	self.lockButton.Position, self.lockButton.Size = UDim2.fromOffset(ew - 136 - GP - 100, catY), UDim2.fromOffset(100, 34)
+	self.randPartButton.Position, self.randPartButton.Size = UDim2.fromOffset(ew - 136, catY), UDim2.fromOffset(136, 34)
 	local colourRows = if self.group == "presets" then 0 else #self:paintSlots()
-	local colourH = colourRows * 64
-	local gridTop = 84
+	self.paletteRows = if short then 1 else 2
+	local colourH = colourRows * AvatarEditor.swatchRow(self.paletteRows)
+	local gridTop = catY + 34 + (if LIGHT then 8 else 6)
 	-- (a light theme reserves a 30 px gutter under the grid for the scroll chip: outside the grid with
 	-- no room kept, it landed on the save buttons on the presets tab)
-	local CHIP = if LIGHT then 30 else 0
+	local CHIP = if LIGHT then (if short then 26 else 30) else 0
+	-- (the grid's least height: 60 on a short screen, where 80 pushed the colours into the footer)
+	local gridMin = if short and LIGHT then 60 else 80
 	local gridH = eh - gridTop - colourH - (if colourRows > 0 then 8 else 0) - CHIP
-	self.grid.Position, self.grid.Size = UDim2.fromOffset(0, gridTop), UDim2.fromOffset(ew, math.max(80, gridH))
-	self.colourBar.Position, self.colourBar.Size = UDim2.fromOffset(0, gridTop + math.max(80, gridH) + CHIP + 8), UDim2.fromOffset(ew, colourH)
+	self.grid.Position, self.grid.Size = UDim2.fromOffset(0, gridTop), UDim2.fromOffset(ew, math.max(gridMin, gridH))
+	self.colourBar.Position, self.colourBar.Size = UDim2.fromOffset(0, gridTop + math.max(gridMin, gridH) + CHIP + 8), UDim2.fromOffset(ew, colourH)
 	-- Tiles: as many columns as fit at 84-128 px, body pictures taller than faces.
 	local view = self:view()
 	local inner = ew - 16 - 6
@@ -480,11 +500,11 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local tile = math.floor((inner - (cols - 1) * TG) / cols)
 	local tileH = tile + (if view == "body" then math.floor(tile * 0.45) else 0) + 20
 	-- never taller than the grid shows, so a short (phone) grid still shows each tile's name
-	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
+	tileH = math.min(tileH, math.max(60, math.max(gridMin, gridH) - 14))
 	self.gridLayout.CellSize = UDim2.fromOffset(tile, tileH)
-	self.gridCols, self.gridTileH, self.gridShownH = cols, tileH, math.max(80, gridH)
+	self.gridCols, self.gridTileH, self.gridShownH = cols, tileH, math.max(gridMin, gridH)
 	-- (below the grid, in its gutter: on its edge it covered tiles' corners)
-	self.moreChip.Position = UDim2.fromOffset(ew - 24, gridTop + math.max(80, gridH) + 4)
+	self.moreChip.Position = UDim2.fromOffset(ew - 24, gridTop + math.max(gridMin, gridH) + 4)
 	self.moreChip.Size = UDim2.fromOffset(Ui.textWidth(self.moreChip.Text, 11, Ui.LABEL) + 20, 22)
 	self:updateMore()
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
@@ -492,8 +512,9 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.footer.Position, self.footer.Size = UDim2.new(0, 0, 1, -footH), UDim2.new(1, 0, 0, footH)
 	local saveW = if W >= 640 then 150 else 110
 	self.saveButton.Position, self.saveButton.Size = UDim2.new(1, -12 - saveW, 0, 8), UDim2.fromOffset(saveW, 40)
-	self.saveNewButton.Position, self.saveNewButton.Size = UDim2.new(1, -20 - saveW * 2, 0, 8), UDim2.fromOffset(saveW, 40)
-	self.deleteButton.Position, self.deleteButton.Size = UDim2.new(1, -28 - saveW * 2 - 90, 0, 8), UDim2.fromOffset(90, 40)
+	local GP = AvatarEditor.BAR_GAP
+	self.saveNewButton.Position, self.saveNewButton.Size = UDim2.new(1, -12 - GP - saveW * 2, 0, 8), UDim2.fromOffset(saveW, 40)
+	self.deleteButton.Position, self.deleteButton.Size = UDim2.new(1, -12 - 2 * GP - saveW * 2 - 90, 0, 8), UDim2.fromOffset(90, 40)
 	local statusW = math.max(80, W - 60 - saveW * 2 - 90 - 24)
 	self.status.Position, self.status.Size = UDim2.fromOffset(16, 4), UDim2.fromOffset(statusW, 24)
 	self.hint.Visible = W >= 900 and self.hintW <= statusW
@@ -965,7 +986,9 @@ function AvatarEditor.rebuildTiles(self: any)
 			local name = label(b, "Label", string.upper(e.name), if LIGHT then 12 else 10, if LIGHT then TEXT else Ui.KEY)
 			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
-			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
+			-- (6 px inside the tile's face each side, shrinking to fit: RIMEGUARD COAT ran past it)
+			name.Position, name.Size = UDim2.new(0, 6, 1, -22), UDim2.new(1, -12, 0, 20)
+			Ui.fit(name, 9)
 			local pick = stroke(b, AMBER, 4)
 			pick.Enabled = false
 			-- (the picked tile also wears the pixel kit's stepped corner brackets; its name stays dark)
@@ -1019,24 +1042,29 @@ function AvatarEditor.rebuildColours(self: any)
 	for row, slot in self:paintSlots() do
 		local c = AvatarKit.colourSlot(slot)
 		local holder = frame(self.colourBar, "Row_" .. slot)
-		holder.Position, holder.Size = UDim2.fromOffset(0, (row - 1) * 64), UDim2.fromOffset(w, 60)
+		local rows = self.paletteRows or 2
+		local pitch = AvatarEditor.swatchRow(rows)
+		holder.Position, holder.Size = UDim2.fromOffset(0, (row - 1) * pitch), UDim2.fromOffset(w, pitch - 4)
 		local name = label(holder, "Label", string.upper(c.name), 12, DIM)
 		name.Position, name.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(w, 14)
 		local sw = frame(holder, "Swatches")
-		local perRow = math.ceil(#c.list / 2)
-		local cell = math.clamp(math.floor((w - (perRow - 1) * 4) / perRow), 12, 30)
+		local perRow = math.ceil(#c.list / rows)
+		-- (a light theme: swatches SWATCH_GAP apart, so the picked one's brackets clear its neighbours)
+		local sg = AvatarEditor.SWATCH_GAP
+		local cell = math.clamp(math.floor((w - (perRow - 1) * sg) / perRow), 12, 30)
 		-- exactly half the palette a row: the full width let one more fit and left one alone below
-		sw.Position, sw.Size = UDim2.fromOffset(0, 16), UDim2.fromOffset(perRow * (cell + 4) - 4, 44)
+		sw.Position, sw.Size = UDim2.fromOffset(0, AvatarEditor.SWATCH_TOP), UDim2.fromOffset(perRow * (cell + sg) - sg, rows * 20 + (rows - 1) * sg)
 		local g = Instance.new("UIGridLayout")
 		g.CellSize = UDim2.fromOffset(cell, 20)
-		g.CellPadding = UDim2.fromOffset(4, 4)
+		g.CellPadding = UDim2.fromOffset(sg, sg)
 		g.SortOrder = Enum.SortOrder.LayoutOrder
 		g.Parent = sw
 		for i, hex in c.list do
 			local b = tile(sw, `Swatch_{slot}_{i - 1}`, function() self:paint(slot, i - 1) end, Canvas2D.hex(hex, INK))
 			b.LayoutOrder = i
-			local pick = stroke(b, AMBER, 3)          -- (one 'chosen' colour everywhere: gold)
-			pick.Enabled = false
+			-- the picked colour: the same stepped brackets as every chosen card, small (a light theme)
+			local pick = if LIGHT then Ui.brackets(b, nil, 7, 2) else stroke(b, AMBER, 3)
+			if LIGHT then pick.Visible = false else pick.Enabled = false end
 			self.swatches[`{slot}_{i - 1}`] = pick
 		end
 	end
@@ -1046,7 +1074,8 @@ end
 function AvatarEditor.renderColours(self: any)
 	for key, pick in self.swatches do
 		local slot, i = string.match(key, "^(.-)_(%d+)$")
-		pick.Enabled = slot ~= nil and self.spec.colours[slot] == tonumber(i)
+		local on = slot ~= nil and self.spec.colours[slot] == tonumber(i)
+		if pick.ClassName == "UIStroke" then pick.Enabled = on else pick.Visible = on end
 	end
 end
 
@@ -1056,21 +1085,23 @@ function AvatarEditor.rebuildChips(self: any)
 	end
 	self.chips = {}
 	local count = math.max(#self.slots, self.editing)
+	-- (as tall as the bar's tools in a light theme, so their row clears the tabs below)
+	local CH = if LIGHT then 34 else 44
 	for i = 1, count do
 		local slot = self.slots[i]
 		local b = tile(self.chipBar, "Slot_" .. i, function() self:openSlot(i) end,
 			if LIGHT then (if i == self.editing then Ui.SUN else PANEL2) elseif i == self.editing then PANEL2 else INK)
 		b.LayoutOrder = i
-		b.Size = UDim2.fromOffset(44, 44)
+		b.Size = UDim2.fromOffset(CH, CH)
 		local thumb = frame(b, "Thumb")
 		thumb.Size = UDim2.fromScale(1, 1)
 		local canvas = Canvas2D.inFrame(thumb)
 		local code = if i == self.editing then self:code() elseif slot then slot.code else self:code()
-		KitPortrait.draw(canvas, code, "head", 44, 44)
+		KitPortrait.draw(canvas, code, "head", CH, CH)
 		if i == self.editing then stroke(b, AMBER, 2) end
 		if i == self.active then
 			local dot = frame(b, "Worn", GOOD, 0)
-			dot.Size, dot.Position = UDim2.fromOffset(8, 8), UDim2.fromOffset(34, 2)
+			dot.Size, dot.Position = UDim2.fromOffset(8, 8), UDim2.fromOffset(CH - 10, 2)
 			corner(dot, 4)
 		end
 		self.chips[i] = { button = b, canvas = canvas, code = code }
@@ -1079,7 +1110,7 @@ function AvatarEditor.rebuildChips(self: any)
 		local add = button(self.chipBar, "SlotNew", "+", function() self:newSlot() end, Ui.BLUE)
 		add.LayoutOrder = count + 1
 		add.TextSize = Ui.px(18)
-		add.Size = UDim2.fromOffset(44, 44)
+		add.Size = UDim2.fromOffset(CH, CH)
 	end
 end
 

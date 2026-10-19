@@ -72,7 +72,7 @@ function ComboGuide.lines(char: any): { string }
 	if fin then
 		local labels = {}
 		for _, id in fin do table.insert(labels, moves[id].label) end
-		table.insert(out, `Finisher: {table.concat(labels, " › ")}  (press Light as each hit lands)`)
+		table.insert(out, `Finisher: {table.concat(labels, " › ")}  (Light as each hit lands)`)
 	end
 	local air = ComboGuide.airRoute(moves)
 	if air then

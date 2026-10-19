@@ -217,7 +217,8 @@ function SelectScreen.new(parent: Instance): any
 	self.clock.Name = "Clock"
 	self.clock.BackgroundTransparency, self.clock.BackgroundColor3 = 0, PANEL
 	corner(self.clock, 30)
-	stroke(self.clock, GOLD, 3)
+	-- (an ink edge in a light theme: gold marks you, not the clock)
+	stroke(self.clock, if LIGHT then Ui.INK else GOLD, 3)
 	self.mapCards, self.ruleCards, self.chips = {}, {}, {}
 	self.status.Name = "Status"
 
@@ -319,7 +320,7 @@ function SelectScreen.build(self: any, L: any)
 	self.rules.TextSize = Ui.px(15 * s)
 	for _, b in { self.leave, self.hideButton, self.ready } do b.TextSize = Ui.px(18 * s) end
 	place(self.leave, 24 * s, L.buttonsY, 110 * s, 44 * s)
-	place(self.hideButton, 144 * s, L.buttonsY, 96 * s, 44 * s)
+	place(self.hideButton, 134 * s + Ui.GAP, L.buttonsY, 96 * s, 44 * s)
 	place(self.ready, L.W / 2 - 110 * s, L.buttonsY, 220 * s, 48 * s)
 	self.ready.TextSize = Ui.px(26 * s)
 	place(self.voteTitle, L.W / 2 - 360 * s, 80 * s, 720 * s, 36 * s)
@@ -723,7 +724,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		c.count.Visible = n > 0 and phase == "map"
 		local chosen = phase == "map" and myVote == c.id
 		c.ring.Color = if chosen then GOLD else Color3.fromRGB(214, 228, 250)
-		c.ring.Thickness = if chosen then 5 else 3
+		c.ring.Thickness = if chosen and not c.marks then 5 else 3      -- (the brackets mark it; a 5 px ring crowded its neighbours)
 		c.name.TextColor3 = if chosen then GOLD else WHITE
 		if c.marks then c.marks.Visible = chosen end
 	end
@@ -734,7 +735,7 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		c.count.Text = if n == 1 then "1 VOTE" elseif n > 1 then `{n} VOTES` else ""
 		local chosen = phase == "rules" and myVote == c.id
 		c.ring.Color = if chosen then GOLD else EDGE
-		c.ring.Thickness = if chosen then 5 else 3
+		c.ring.Thickness = if chosen and not c.marks then 5 else 3      -- (the brackets mark it; a 5 px ring crowded its neighbours)
 		if c.marks then c.marks.Visible = chosen end
 	end
 	-- who has voted: a chip per slot (bots do not vote)

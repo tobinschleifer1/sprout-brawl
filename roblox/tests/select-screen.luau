@@ -290,7 +290,9 @@ if not count or not visible(count) or count.Text ~= "2" then fail(`the Undertow'
 if visible(find("MapRandom"):FindFirstChild("Count")) then fail("an arena nobody voted for shows a count") end
 local ring
 for _, ch in undertow._children do if ch.ClassName == "UIStroke" then ring = ch end end
-if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness ~= 5 then fail("your arena has no gold ring") end
+if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness < 3 then fail("your arena has no gold ring") end
+-- (and the brackets, which mark it instead of a thicker ring)
+if not undertow:FindFirstChild("Brackets") or not undertow:FindFirstChild("Brackets").Visible then fail("your arena wears no brackets") end
 if math.abs(find("MapNameUndertow").TextColor3.B - find("MapNameRandom").TextColor3.B) < 0.1 then fail("your arena's name is not picked out") end
 -- the page just replaced another under the pointer: a click this soon is not a vote
 local before = #sent

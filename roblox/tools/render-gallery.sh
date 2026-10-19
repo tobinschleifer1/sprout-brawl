@@ -43,6 +43,8 @@ for s in "select-pick|1v1|pick" "select-map|2v2|map" "select-rules|3v3|rules"; d
   lune run tools/render-select "$OUT/$name.json" 1280 720 "$fmt" "$phase" > /dev/null
   node tools/gui-svg.mjs "$OUT/$name.json" "$OUT/$name.svg" > /dev/null
 done
+# every pair of outlined buttons, on every screen, at least 8 px apart between outer strokes
+node tools/ui-lint.mjs "$OUT"/*.json > "$OUT/lint.txt" && echo "lint: no buttons too close" || { echo "lint: buttons too close (see $OUT/lint.txt)"; cat "$OUT/lint.txt"; }
 rm -f "$OUT"/*.json
 # PNGs in the real fonts, through headless Chrome when it is installed (it loads the fonts; Quick Look
 # does not). Each at its own size: the phone shots are 844 x 390 or 390 x 844.

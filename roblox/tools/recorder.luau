@@ -226,7 +226,7 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 		local cls = o.ClassName
 		if BOXES[cls] and shown(o) then
 			local x, y, w, h = rect(o)
-			local node: any = { x = x, y = y, w = w, h = h }
+			local node: any = { x = x, y = y, w = w, h = h, name = o.Name, button = cls == "TextButton" or cls == "ImageButton" or nil }
 			if o.BackgroundTransparency == nil or o.BackgroundTransparency < 1 then
 				node.bg, node.bgAlpha = hex(o.BackgroundColor3 or Rbx.Color3.new(0.6, 0.6, 0.6)), 1 - (o.BackgroundTransparency or 0)
 			end
@@ -258,6 +258,13 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 				node.text, node.colour, node.size = txt, hex(o.TextColor3 or Rbx.Color3.new(1, 1, 1)), o.TextSize or 14
 				node.font = tostring(o.Font or "")
 				node.wrap = o.TextWrapped == true
+				-- TextScaled: Roblox fits the words to the box, up to a UITextSizeConstraint's MaxTextSize
+				if o.TextScaled == true then
+					node.scaled = true
+					for _, ch in o._children or {} do
+						if ch.ClassName == "UITextSizeConstraint" and not ch.destroyed then node.maxSize, node.minSize = ch.MaxTextSize, ch.MinTextSize end
+					end
+				end
 				local a = tostring(o.TextXAlignment or "")
 				node.align = if string.find(a, "Left") then "start" elseif string.find(a, "Right") then "end" else "middle"
 			end

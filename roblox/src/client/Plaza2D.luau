@@ -64,9 +64,20 @@ local STALLS = {
 }
 local STALL_Z = 18.8
 Plaza2D.STALLS = STALLS
--- the lettering's room on a stall's sign board: its 34 art pixels (1/8 stud each) less a pixel a side
-Plaza2D.SIGN_W = 32 * PlazaArt.CELL
-Plaza2D.BILLBOARD_LINE = Color3.fromRGB(184, 224, 238)
+-- the lettering's room on a stall's sign board: its 54 art pixels (1/8 stud each) less a pixel a side
+Plaza2D.SIGN_W = 52 * PlazaArt.CELL
+-- a narrow screen's prompt keeps this far left of the screen's middle, where your fighter stands
+Plaza2D.FIGHTER_CLEAR = 64        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
+-- A stall's lettering: its awning colour, lightened until it reads at 4.5:1 on the board's dark face
+-- (MASKS' pink measured 2.8:1, GADGETS' blue 3.1:1).
+function Plaza2D.signColour(c: Color3): Color3
+	local face = Color3.fromHex(PlazaArt.SIGN_FACE)
+	local k = 0
+	while k < 1 and Ui.contrast(Ui.shade(c, k), face) < 4.5 do k += 0.05 end
+	return Ui.shade(c, math.min(k, 1))
+end
+-- (white: the pale cyan measured 3.1:1 on the board's own blue-grey, #537289)
+Plaza2D.BILLBOARD_LINE = Color3.new(1, 1, 1)
 
 local function text(parent: Instance, name: string, value: string, size: number): TextLabel
 	local t = Instance.new("TextLabel")
@@ -115,8 +126,9 @@ end
 -- the block at the bottom right: three stacked buttons this wide, or (a light theme) a row of three
 -- square icon buttons, as the reference simulator's
 Plaza2D.ICON = 76
-Plaza2D.CHARACTER_W = if Ui.lightPanels() then 3 * Plaza2D.ICON + 16 else 168
-Plaza2D.SOCIAL_BAR_W = (if Ui.lightPanels() then 4 * (Plaza2D.ICON + 8) - 8 else 4 * 124 - 8) + 8 + Plaza2D.CHARACTER_W
+Plaza2D.CHARACTER_W = if Ui.lightPanels() then 3 * Plaza2D.ICON + 2 * Ui.GAP else 168
+Plaza2D.SOCIAL_BAR_W = if Ui.lightPanels() then 4 * (Plaza2D.ICON + Ui.GAP) - Ui.GAP + Ui.GAP + Plaza2D.CHARACTER_W
+	else 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
@@ -172,7 +184,7 @@ function Plaza2D.new(parent: Instance): any
 		BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0.04, BorderSizePixel = 0, AutoButtonColor = false, TextWrapped = true })
 	prompt.AnchorPoint = Vector2.new(0.5, 1)
 	-- (above the row of square buttons in a light theme, which stand taller than the old bar)
-	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12) else -62), UDim2.new(1, -32, 0, 50)
+	prompt.Position, prompt.Size = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 14) else -62), UDim2.new(1, -32, 0, 50)
 	Ui.make("UISizeConstraint", prompt, { MaxSize = Vector2.new(720, 66) })
 	Ui.corner(prompt, 0)
 	self.promptEdge = Ui.stroke(prompt, Ui.INK, 3)
@@ -202,7 +214,7 @@ function Plaza2D.new(parent: Instance): any
 		else Ui.keyButton(gui, "L", "LOCKER", Ui.shade(Ui.GOLD, -0.35), openLocker, 42)
 	locker.Name = "LockerButton"
 	locker.AnchorPoint = Vector2.new(1, 1)
-	if LIGHT then locker.Position = UDim2.new(1, -16 - (Plaza2D.ICON + 8), 1, -10)
+	if LIGHT then locker.Position = UDim2.new(1, -16 - (Plaza2D.ICON + Ui.GAP), 1, -10)
 	else locker.Position, locker.Size = UDim2.new(1, -16, 1, -58), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.lockerButton = locker
 	-- The Shop, stacked over the Locker.
@@ -211,7 +223,7 @@ function Plaza2D.new(parent: Instance): any
 		else Ui.button(gui, "SHOP", Ui.shade(Ui.GREEN, -0.3), openShop)
 	shopButton.Name = "ShopButton"
 	shopButton.AnchorPoint = Vector2.new(1, 1)
-	if LIGHT then shopButton.Position = UDim2.new(1, -16 - 2 * (Plaza2D.ICON + 8), 1, -10)
+	if LIGHT then shopButton.Position = UDim2.new(1, -16 - 2 * (Plaza2D.ICON + Ui.GAP), 1, -10)
 	else shopButton.Position, shopButton.Size = UDim2.new(1, -16, 1, -106), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.shopButton = shopButton
 	-- Alone at a cabinet: take on the CPU (also C).
@@ -583,7 +595,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520, sw * 0.86)
 		local n = 1
 		for _ in self.peers do n += 1 end
-		-- (pale cyan, brighter than the scanlines' CYAN: at #7FA8B8 it measured 2.8:1 on the screen; and
+		-- (Plaza2D.BILLBOARD_LINE, not the scanlines' CYAN: at #7FA8B8 it measured 2.8:1 on the screen; and
 		-- the short line where the full one would shrink below 11 px)
 		local full = `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`
 		local span = math.abs(c:project(sw * 0.45, 0).X - c:project(-sw * 0.45, 0).X)
@@ -602,7 +614,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local front = PlazaArt.get("stallF" .. st.sign, function() return PlazaArt.stallFront(st.goods) end)
 		add(STALL_Z + 0.2, function()
 			PlazaArt.draw(c, "stallB" .. st.sign, back, st.x, STALL_Z * D)
-			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10, 15, Canvas.hex(st.a, AMBER), 160, Plaza2D.SIGN_W)
+			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10, 15, Plaza2D.signColour(Canvas.hex(st.a, AMBER)), 160, Plaza2D.SIGN_W)
 		end)
 		add(STALL_Z + 0.1, function()
 			local vc = vendorChar(self, st.vendor)
@@ -987,13 +999,15 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	-- button row it sat on your own fighter, who stands mid-screen on a phone)
 	local high = self.bannerNarrow and Ui.lightPanels()
 	if high then
-		self.prompt.AnchorPoint = Vector2.new(0.5, 0)
-		self.prompt.Position = UDim2.new(0.5, 0, 0, self.plate.Position.Y.Offset + 62 + 8)
+		-- (bottom left, above the dock and clear of the screen's middle: centred it sat on your fighter,
+		-- under the title card on the billboard's BLOCKFALL)
+		self.prompt.AnchorPoint = Vector2.new(0, 1)
+		self.prompt.Position = UDim2.new(0, 16, 1, -(10 + Plaza2D.ICON + 14))
 	else
 		self.prompt.AnchorPoint = Vector2.new(0.5, 1)
-		self.prompt.Position = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12) else -62)
+		self.prompt.Position = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 14) else -62)
 	end
-	local promptMax = if high then gw - 32 else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
+	local promptMax = if high then math.max(gw / 2 - 16 - Plaza2D.FIGHTER_CLEAR, 160) else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
 	local promptWant = Ui.textWidth(self.prompt.Text, if action then 20 else 13) + (if action then 64 else 16) + 24
 	-- (taller when the words must wrap, so two lines keep their padding)
 	self.prompt.Size = UDim2.new(0, math.min(promptMax, promptWant), 0, if promptWant > promptMax then 66 else 50)

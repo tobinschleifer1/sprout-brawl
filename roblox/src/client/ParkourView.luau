@@ -133,16 +133,17 @@ function ParkourView.new(parent: Instance, opts: any): any
 	hint.Position, hint.Size = UDim2.new(0, 16, 1, -40), UDim2.new(1, -312, 0, 26)
 	local leave = button(gui, "Leave", "◂ " .. string.upper(Realms.LOBBY.name), function() self:leave() end, Ui.BLUE)
 	self.leaveButton = leave
-	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -134), UDim2.fromOffset(150, 38)
+	-- (the buttons Ui.GAP apart both ways: 6 px left their strokes touching)
+	leave.AnchorPoint, leave.Position, leave.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -(44 + 40 + 38 + 2 * Ui.GAP)), UDim2.fromOffset(150, 38)
 	local restart = button(gui, "Restart", "RESTART FROM THE BOTTOM", function()
 		if self.opts.restart then self.opts.restart() end
 	end, Ui.ORANGE)
-	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -90), UDim2.fromOffset(264, 38)
+	restart.AnchorPoint, restart.Position, restart.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -(44 + 40 + Ui.GAP)), UDim2.fromOffset(150 + Ui.GAP + 108, 38)
 	self.restartButton = restart
 	local records = button(gui, "Records", "RECORDS", function()
 		if self.opts.records then self.opts.records() end
 	end, Ui.PURPLE)
-	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 1), UDim2.new(1, -172, 1, -134), UDim2.fromOffset(108, 38)
+	records.AnchorPoint, records.Position, records.Size = Vector2.new(1, 1), UDim2.new(1, -(16 + 150 + Ui.GAP), 1, -(44 + 40 + 38 + 2 * Ui.GAP)), UDim2.fromOffset(108, 38)
 	self.recordsButton = records
 	-- SKIP: buy the next checkpoint (SkipProducts). The server moves you once the purchase is
 	-- saved (ClimbView.skipTo -> skipTo), so nothing moves on the click itself.
@@ -150,7 +151,7 @@ function ParkourView.new(parent: Instance, opts: any): any
 		local pk = self.pk
 		if pk and self.opts.skip then self.opts.skip(pk.reached + 1) end       -- hidden at the Summit
 	end, Color3.fromRGB(52, 160, 84))
-	skip.AnchorPoint, skip.Position, skip.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -44), UDim2.fromOffset(264, 40)
+	skip.AnchorPoint, skip.Position, skip.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -44), UDim2.fromOffset(150 + Ui.GAP + 108, 40)
 	skip.Visible = false
 	self.skipButton = skip
 	return self

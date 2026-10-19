@@ -133,7 +133,7 @@ for _, o in made do
 	local cls = o.ClassName
 	if (cls == "Frame" or cls == "TextLabel" or cls == "TextButton") and shown(o) then
 		local x, y, w, h = rect(o)
-		local node = { x = x, y = y, w = w, h = h }
+		local node: any = { x = x, y = y, w = w, h = h, name = o.Name, button = cls == "TextButton" or nil }
 		if o.BackgroundTransparency == nil or o.BackgroundTransparency < 1 then
 			node.bg, node.bgAlpha = hex(o.BackgroundColor3 or Rbx.Color3.new(0.6, 0.6, 0.6)), 1 - (o.BackgroundTransparency or 0)
 		end

@@ -27,7 +27,7 @@ LobbySocial.SAY_SECONDS = 4.5
 LobbySocial.LOG_LINES = 6
 -- Room at the right end of the bottom row for the plaza's buttons (Plaza2D.CHARACTER_W): one wide
 -- CHARACTER button, or in a light theme the row of three square icon buttons.
-LobbySocial.RIGHT_GAP = (if Ui.lightPanels() then 3 * 76 + 16 else 168) + 8
+LobbySocial.RIGHT_GAP = if Ui.lightPanels() then 3 * 76 + 3 * Ui.GAP else 168 + 8
 
 local LIGHT = Ui.lightPanels()
 local INK = Color3.fromRGB(15, 18, 24)
@@ -50,7 +50,7 @@ local SPECS: { { any } } = {
 }
 -- a bar button's side in a light theme (square icon buttons beside the plaza's; Plaza2D.ICON)
 LobbySocial.ICON = 76
-LobbySocial.BAR_W = if Ui.lightPanels() then 4 * (LobbySocial.ICON + 8) - 8 else 4 * 124 - 8
+LobbySocial.BAR_W = if Ui.lightPanels() then 4 * (LobbySocial.ICON + Ui.GAP) - Ui.GAP else 4 * 124 - 8
 
 local function corner(parent: Instance, px: number)
 	Ui.corner(parent, px)
@@ -115,7 +115,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 		local b = if LIGHT then Ui.iconButton(bar, sp[5], sp[3], sp[4], open, LobbySocial.ICON, sp[2])
 			else Ui.keyButton(bar, sp[2], sp[3], sp[4], open, 42, { size = 12 })
 		b.Name = "Open" .. sp[1]
-		if LIGHT then b.Position = UDim2.fromOffset((i - 1) * (LobbySocial.ICON + 8), 0)
+		if LIGHT then b.Position = UDim2.fromOffset((i - 1) * (LobbySocial.ICON + Ui.GAP), 0)
 		else b.Position, b.Size = UDim2.fromOffset((i - 1) * 124, 0), UDim2.fromOffset(116, 42) end
 	end
 	self.bar = bar

@@ -225,13 +225,13 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	for i, t in { { "locker", "LOCKER" }, { "crates", "CRATES" }, { "workshop", "WORKSHOP" } } do
 		local b = Ui.button(panel, t[2], Ui.PANEL2, function() self:show(t[1]) end, { size = 16 })
 		b.Name = "Tab_" .. t[1]
-		-- (8 px of clear space between faces: their 3 px borders left 2 px at a 132 px pitch)
-		b.Position, b.Size = UDim2.fromOffset(12 + (i - 1) * 136, HEAD + 8), UDim2.fromOffset(124, 34)
+		-- (Ui.GAP apart, so 8 px between their outer strokes; and 6 under the header, clear of the filters)
+		b.Position, b.Size = UDim2.fromOffset(12 + (i - 1) * (124 + Ui.GAP), HEAD + 6), UDim2.fromOffset(124, 34)
 		self.tabs[t[1]] = b
 	end
 	local function body(name: string): any
 		local f = Ui.make("Frame", panel, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0,
-			Position = UDim2.fromOffset(12, HEAD + 50), Size = UDim2.new(1, -24, 1, -(HEAD + 88)), Visible = false })
+			Position = UDim2.fromOffset(12, HEAD + 54), Size = UDim2.new(1, -24, 1, -(HEAD + 92)), Visible = false })
 		return f
 	end
 	local function grid(parent: Instance, cell: Vector2): any
@@ -283,7 +283,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	self.cratesBody = body("CratesTab")
 	self.workshopBody = body("WorkshopTab")
 	self.workshopChips = filters(self.workshopBody, function(f) self.workshopFilter = f; self:refresh() end)
-	self.workshopGrid = grid(self.workshopBody, Vector2.new(168, 200))
+	self.workshopGrid = grid(self.workshopBody, Vector2.new(168, if Ui.lightPanels() then 212 else 200))
 	self.crateCards = {}
 	for i, id in Inventory.CRATES do
 		-- each crate a coloured card (a light theme), its words white and outlined; dark otherwise
@@ -411,7 +411,8 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	Ui.outline(worn, 1, Ui.tone(Ui.GREEN))
 	worn.AnchorPoint, worn.Position, worn.Size = Vector2.new(1, 0), UDim2.new(1, -4, 0, 4), UDim2.fromOffset(52, 18)
 	local name, nameStroke = Ui.faceText(f, "", 15, Ui.SKY)
-	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
+	name.Name = "Name"
+	Ui.fit(name, 11)
 	name.Position, name.Size = UDim2.fromOffset(6, 90 + dy), UDim2.new(1, -12, 0, 20)
 	local meta, metaStroke = Ui.faceText(f, "", 12, Ui.SKY, Ui.LABEL)
 	meta.Name, meta.Position, meta.Size = "Meta", UDim2.fromOffset(6, 111 + dy), UDim2.new(1, -12, 0, 16)
@@ -476,6 +477,8 @@ function LockerScreen.refreshLocker(self: any)
 		c.primary.Position = UDim2.new(0, 6, 1, if Ui.lightPanels() then -38 else -68)
 		c.primary.Size = UDim2.new(1, if Ui.lightPanels() then LockerScreen.WEAR_W else -12, 0, 28)
 		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
+		-- (WEAR IN STUDIO a size down: at 14 it left 2 px inside its button)
+		c.primary.TextSize = Ui.px(if m.type == "clothing" then 12 else 14)
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
 		c.onPrimary = function()
 			if m.type == "clothing" then
@@ -569,7 +572,8 @@ function LockerScreen.refreshWorkshop(self: any)
 		c.extra.Text = `{LockerScreen.number(m.cost)} Sparks`
 		self:drawArt(c.thumb, m.id, 150, 78)
 		-- (one button, at the foot where SALVAGE would be: at the Locker's place it covered the price)
-		c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, -34), UDim2.new(1, -12, 0, 28)
+		-- (clear of the price line above it and of the card's lip below: a light theme's cell is taller)
+		c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, if Ui.lightPanels() then -40 else -34), UDim2.new(1, -12, 0, 28)
 		c.primary.Text = "CRAFT"
 		Ui.paint(c.primary, if m.affordable then Ui.GREEN else Ui.PANEL2)
 		c.onPrimary = function()
@@ -653,7 +657,7 @@ function LockerScreen.buildOverlays(self: any)
 	now.Position, now.Size = UDim2.fromOffset(16, 76), UDim2.fromOffset(150, 30)
 	local gua = Ui.button(odds, "GUARANTEED OPENING", Ui.PANEL2, function() self:showOdds(self.oddsCrate, true) end, { size = 13, small = true })
 	gua.Name, gua.ZIndex = "Guaranteed", 11
-	gua.Position, gua.Size = UDim2.fromOffset(174, 76), UDim2.fromOffset(190, 30)
+	gua.Position, gua.Size = UDim2.fromOffset(16 + 150 + Ui.GAP, 76), UDim2.fromOffset(190, 30)
 	local list = Ui.make("ScrollingFrame", odds, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
 		Position = UDim2.fromOffset(16, 116), Size = UDim2.new(1, -32, 1, -182), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })

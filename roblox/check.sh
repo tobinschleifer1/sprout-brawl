@@ -223,3 +223,5 @@ echo "== weapon art: Roblox draws the shared pixel art exactly =="
 lune run tests/weapon-art
 echo "== parity: WeaponPose vs web/src/render2d/weapons2d.js =="
 lune run tests/weapon-parity
+echo "== ui lint: every screen recorded, no outlined buttons closer than 8 px between strokes =="
+tools/ui-lint.sh

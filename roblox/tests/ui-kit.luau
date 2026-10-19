@@ -259,7 +259,20 @@ do
 	if not same(sec.TextColor3, Ui.TEXT) then fail("a secondary line on a blue face kept white under 3:1") end
 	-- the selected brackets: four stepped corners outside the box, three pixels each, hidden until asked
 	local br = Ui.brackets(new("Frame"))
-	if br.Visible ~= false or #br._children ~= 12 or br.Position.X.Offset >= 0 then fail("the selected brackets are not four stepped corners outside the box") end
+	if br.Visible ~= false or #br._children ~= 24 or br.Position.X.Offset >= 0 then fail("the selected brackets are not four stepped corners outside the box") end
+	-- each stair outlined in ink: an ink copy under every gold bar, bigger all round, made first
+	do
+		local ink, gold, firstGold = 0, 0, nil
+		for k, ch in br._children do
+			if ch.Name == "Ink" then
+				ink += 1
+				if firstGold then fail("an ink bar comes after a gold one, so cuts across it") end
+				if not same(ch.BackgroundColor3, Ui.INK) then fail("the brackets' outline is not ink") end
+			elseif ch.Name == "Px" then gold += 1; firstGold = firstGold or k end
+		end
+		if ink ~= 12 or gold ~= 12 then fail("the brackets are not outlined in ink") end
+		if br._children[1].Size.X.Offset < br._children[13].Size.X.Offset + 2 then fail("the brackets' ink is not bigger than their gold") end
+	end
 	-- an art well's mount: two stepped shapes (edge and fill, three rects each, none rounded), the art
 	-- frame bare; repainting the card repaints its mount
 	do
@@ -280,6 +293,16 @@ do
 		end
 		Ui.paintCard(mc, Ui.SUN)
 		if not same(e[1].BackgroundColor3, Ui.shade(Ui.SUN, -0.22)) then fail("paintCard left the mount in the old colour") end
+	end
+	-- a fitted label shrinks to its box: scaled, one line, no larger than it was made, no smaller than asked
+	do
+		local t = Ui.text(new("Frame"), "Ridgeguard Trousers", 17, Ui.WHITE)
+		Ui.fit(t, 11)
+		local c
+		for _, ch in t._children do if ch.ClassName == "UITextSizeConstraint" then c = ch end end
+		if t.TextScaled ~= true or t.TextWrapped ~= false or not c or c.MaxTextSize ~= Ui.px(17) or c.MinTextSize ~= 11 then
+			fail("a fitted label does not shrink to its box between its own size and the least")
+		end
 	end
 	-- repainting a band recolours its title's outline too
 	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)

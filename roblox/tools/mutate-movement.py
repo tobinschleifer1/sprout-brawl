@@ -177,8 +177,8 @@ lockerui = [
     ('confirmation never expires', 'LockerScreen', 'self.confirm.key == key and t - self.confirm.at <= LockerScreen.CONFIRM_SECONDS then', 'self.confirm.key == key then', 'long after'),
     ('salvage the lowest serial', 'LockerScreen', 'for i = #list, 1, -1 do table.insert(u, list[i].uid) end', 'for i = 1, #list do table.insert(u, list[i].uid) end', 'salvage order'),
     ('skin taken off by slot', 'LockerScreen', 'if m.type == "weapon_skin" then msg.weapon = m.weapon else msg.slot = Inventory.SLOTS[m.type] end', 'msg.slot = Inventory.SLOTS[m.type]', 'off its weapon'),
-    ('craft over the price', 'LockerScreen', 'c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, -34), UDim2.new(1, -12, 0, 28)', 'c.primary.Size = UDim2.new(1, -12, 0, 28)', 'lies under its'),
-    ('workshop cells short', 'LockerScreen', 'grid(self.workshopBody, Vector2.new(168, 200))', 'grid(self.workshopBody, Vector2.new(168, 150))', 'lies under its'),
+    ('craft over the price', 'LockerScreen', 'c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, if Ui.lightPanels() then -40 else -34), UDim2.new(1, -12, 0, 28)', 'c.primary.Position, c.primary.Size = UDim2.new(0, 6, 1, -60), UDim2.new(1, -12, 0, 28)', 'lies under its'),
+    ('workshop cells short', 'LockerScreen', 'grid(self.workshopBody, Vector2.new(168, if Ui.lightPanels() then 212 else 200))', 'grid(self.workshopBody, Vector2.new(168, 150))', 'lies under its'),
     ('double opening', 'LockerScreen', 'if self.pending then return end\n\tlocal m', 'local m', 'while one was pending'),
     ('keyless opening sent', 'LockerScreen', 'if m.key and m.keys < 1 then', 'if false then', 'keyless Forge Crate'),
     ('result unnamed', 'LockerScreen', 'o.result.Text = `{it.rarity}: {it.name}`', 'o.result.Text = it.name', 'land on the result'),
@@ -346,6 +346,7 @@ gaps = [
 ]
 
 shoptabs = [
+    ('shop names spill', 'ShopScreen', '\tname.Name = "Name"\n\tUi.fit(name, 11)\n', '\tname.Name = "Name"\n', 'does not fit itself'),
     ('tabs 12 apart', 'ShopScreen', 'UDim2.new(0.25, if i == 1 or i == 4 then -(14 + Ui.GAP / 2) else -Ui.GAP, 0, 32)', 'UDim2.new(0.25, if i == 1 or i == 4 then -(14 + Ui.GAP / 2) else -Ui.GAP + 4, 0, 32)', 'tabs are'),
     ('tabs to the edge', 'ShopScreen', 'if i == 1 then 14 else Ui.GAP / 2, 0, HEAD + 10)', 'if i == 1 then 2 else Ui.GAP / 2, 0, HEAD + 10)', "reach the window's edge"),
 ]
@@ -356,6 +357,10 @@ records = [
 ]
 
 mounts = [
+    ('fit grows unbounded', 'Ui', 'Ui.make("UITextSizeConstraint", t, { MaxTextSize = most, MinTextSize = least or 10 })', 'local _ = most', 'between its own size'),
+    ('brackets bare', 'Ui', '{ { name = "Ink", colour = Ui.INK, e = o }, { name = "Px", colour = col, e = 0 } }', '{ { name = "Px", colour = col, e = 0 } }', 'not four stepped corners'),
+    ('brackets ink over gold', 'Ui', '{ { name = "Ink", colour = Ui.INK, e = o }, { name = "Px", colour = col, e = 0 } }', '{ { name = "Px", colour = col, e = 0 }, { name = "Ink", colour = Ui.INK, e = o } }', 'cuts across'),
+    ('brackets ink flush', 'Ui', 'Ui.BRACKET_INK = 2', 'Ui.BRACKET_INK = 0', 'not bigger'),
     ('mount rounded', 'Ui', 'shape("Edge", 0, edgeC)', 'shape("Edge", 0, edgeC); Ui.corner(holder, 6)', 'is rounded'),
     ('mount not stepped', 'Ui', 'Position = UDim2.fromOffset(inset + (2 - k) * s, inset + k * s),', 'Position = UDim2.fromOffset(inset, inset + k * s),', 'two even steps'),
     ('mount not repainted', 'Ui', 'for _, m in ch:GetChildren() do if m.Name == "Mount" then Ui.paintMount(m, colour) end end', 'local _ = ch', 'mount in the old colour'),
@@ -366,14 +371,17 @@ crates = [
 ]
 
 plazaphone = [
-    ('prompt on the fighter', 'Plaza2D', 'local high = self.bannerNarrow and Ui.lightPanels()', 'local high = false', 'not under the title card'),
+    ('prompt on the fighter', 'Plaza2D', 'local high = self.bannerNarrow and Ui.lightPanels()', 'local high = false', 'over your fighter'),
     ('prompt high on desktop', 'Plaza2D', 'local high = self.bannerNarrow and Ui.lightPanels()', 'local high = Ui.lightPanels()', 'left the bottom'),
     ('labels over the HUD', 'Plaza2D', 'self.labelLayer = Ui.make("Frame", gui, { Name = "WorldLabels", BackgroundTransparency = 1, BorderSizePixel = 0,\n\t\tSize = UDim2.fromScale(1, 1) })', 'self.labelLayer = gui', 'paints over the HUD'),
-    ('stall signs spill', 'Plaza2D', 'Canvas.hex(st.a, AMBER), 160, Plaza2D.SIGN_W)', 'Canvas.hex(st.a, AMBER), 160)', 'px wide on a'),
+    ('stall signs spill', 'Plaza2D', 'Canvas.hex(st.a, AMBER)), 160, Plaza2D.SIGN_W)', 'Canvas.hex(st.a, AMBER)), 160)', 'px wide on a'),
+    ('sign colour raw', 'Plaza2D', 'Plaza2D.signColour(Canvas.hex(st.a, AMBER))', 'Canvas.hex(st.a, AMBER)', 'on its board'),
+    ('prompt off the dock', 'Plaza2D', 'self.prompt.Position = UDim2.new(0, 16, 1, -(10 + Plaza2D.ICON + 14))', 'self.prompt.Position = UDim2.new(0, 16, 1, -(10 + Plaza2D.ICON))', 'not above the dock'),
 ]
 
 studiobars = [
-    ('chip gutter gone', 'AvatarEditor', 'local CHIP = if LIGHT then 30 else 0', 'local CHIP = 0', 'the chip'),
+    ('swatches under their name', 'AvatarEditor', 'AvatarEditor.SWATCH_TOP = if LIGHT then 22 else 16', 'AvatarEditor.SWATCH_TOP = 16', 'under their name'),
+    ('chip gutter gone', 'AvatarEditor', 'local CHIP = if LIGHT then (if short then 26 else 30) else 0', 'local CHIP = 0', 'the chip'),
     ('pose gap 4', 'AvatarEditor', 'local G = if LIGHT then AvatarEditor.BAR_GAP else 4', 'local G = 4', 'TURN and FACE are'),
     ('pose list gap 4', 'AvatarEditor', 'poseList.CellPadding = UDim2.fromOffset(if LIGHT then AvatarEditor.BAR_GAP else 4, 4)', 'poseList.CellPadding = UDim2.fromOffset(4, 4)', 'pose buttons are'),
     ('studio tabs 6 apart', 'AvatarEditor', 'AvatarEditor.BAR_GAP = if LIGHT then Ui.GAP else 6', 'AvatarEditor.BAR_GAP = 6', 'apart between strokes'),

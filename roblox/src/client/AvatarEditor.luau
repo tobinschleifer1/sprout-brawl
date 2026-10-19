@@ -48,6 +48,12 @@ local GOOD = Ui.GREEN
 local HEADER = Ui.BLUE                           -- the studio's top band
 
 AvatarEditor.MAX_UNDO = 60
+-- the tab and part rows' gap: Ui.GAP in a light theme (8 px between the buttons' outer strokes; at 6
+-- their outlines nearly touched), 6 otherwise. (Offsets are whole pixels in Roblox: each button's share
+-- of the gaps rounds up, or the row overruns its bar.)
+AvatarEditor.BAR_GAP = if LIGHT then Ui.GAP else 6
+-- between option tiles: room for the picked tile's brackets (7 px outside it) clear of its neighbours
+AvatarEditor.TILE_GAP = if LIGHT then Ui.GAP else 8
 local POSES = { { "idle", "Stand" }, { "run", "Run" }, { "air", "Jump" }, { "attack", "Attack" }, { "victory", "Cheer" } }
 AvatarEditor.POSES = POSES
 
@@ -260,7 +266,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 		self.poseButtons[p[1]] = b
 	end
 	local poseList = Instance.new("UIGridLayout")
-	poseList.CellPadding = UDim2.fromOffset(4, 4)
+	poseList.CellPadding = UDim2.fromOffset(if LIGHT then AvatarEditor.BAR_GAP else 4, 4)
 	poseList.SortOrder = Enum.SortOrder.LayoutOrder
 	poseList.Parent = poses
 	self.poseGrid = poseList
@@ -301,7 +307,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local groups = frame(editor, "Groups")
 	local gl = Instance.new("UIListLayout")
 	gl.FillDirection = Enum.FillDirection.Horizontal
-	gl.Padding = UDim.new(0, 6)
+	gl.Padding = UDim.new(0, AvatarEditor.BAR_GAP)
 	gl.SortOrder = Enum.SortOrder.LayoutOrder
 	gl.Parent = groups
 	self.groupBar = groups
@@ -309,13 +315,13 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	for i, g in KIT.groups do
 		local b = button(groups, "Group_" .. g.id, string.upper(g.name), function() self:selectGroup(g.id) end)
 		b.LayoutOrder = i
-		b.Size = UDim2.new(1 / #KIT.groups, -6, 1, 0)
+		b.Size = UDim2.new(1 / #KIT.groups, -math.ceil(AvatarEditor.BAR_GAP * (#KIT.groups - 1) / #KIT.groups), 1, 0)
 		self.groupButtons[g.id] = b
 	end
 	local cats = frame(editor, "Categories")
 	local cl = Instance.new("UIListLayout")
 	cl.FillDirection = Enum.FillDirection.Horizontal
-	cl.Padding = UDim.new(0, 6)
+	cl.Padding = UDim.new(0, AvatarEditor.BAR_GAP)
 	cl.SortOrder = Enum.SortOrder.LayoutOrder
 	cl.Parent = cats
 	self.catBar = cats
@@ -345,7 +351,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	if LIGHT then Ui.make("UICorner", more, { CornerRadius = UDim.new(1, 0) }) else Ui.corner(more, 0) end
 	self.moreChip = more
 	local gridLayout = Instance.new("UIGridLayout")
-	gridLayout.CellPadding = UDim2.fromOffset(8, 8)
+	gridLayout.CellPadding = UDim2.fromOffset(AvatarEditor.TILE_GAP, AvatarEditor.TILE_GAP)
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	gridLayout.Parent = grid
 	self.grid, self.gridLayout = grid, gridLayout
@@ -433,20 +439,23 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.stagePx = Vector2.new(pw, stageH)
 	local cy = stageTop + stageH + 4
 	self.poseBar.Visible = not short
+	-- (a light theme leaves Ui.GAP between faces: their 3 px borders ran together at 4)
+	local G = if LIGHT then AvatarEditor.BAR_GAP else 4
+	local half = (pw - 20 - G) / 2
 	if short then
-		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset((pw - 26) / 2, 36)
-		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(16 + (pw - 26) / 2, cy), UDim2.fromOffset((pw - 26) / 2, 36)
+		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(half, 36)
+		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(10 + half + G, cy), UDim2.fromOffset(half, 36)
 	elseif wide then
 		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(pw - 20, 40)
-		self.poseGrid.CellSize = UDim2.fromOffset(math.floor((pw - 20 - 16) / 5), 40)
-		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy + 46), UDim2.fromOffset((pw - 26) / 2, 36)
-		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(16 + (pw - 26) / 2, cy + 46), UDim2.fromOffset((pw - 26) / 2, 36)
+		self.poseGrid.CellSize = UDim2.fromOffset(math.floor((pw - 20 - 4 * G) / 5), 40)
+		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10, cy + 46), UDim2.fromOffset(half, 36)
+		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(10 + half + G, cy + 46), UDim2.fromOffset(half, 36)
 	else
-		local bw = math.floor((pw - 20 - 6 * 4) / 7)
-		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(bw * 5 + 16, 40)
+		local bw = math.floor((pw - 20 - 6 * G) / 7)
+		self.poseBar.Position, self.poseBar.Size = UDim2.fromOffset(10, cy), UDim2.fromOffset(bw * 5 + 4 * G, 40)
 		self.poseGrid.CellSize = UDim2.fromOffset(bw, 40)
-		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10 + (bw + 4) * 5, cy), UDim2.fromOffset(bw, 40)
-		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(10 + (bw + 4) * 6, cy), UDim2.fromOffset(bw, 40)
+		self.turnButton.Position, self.turnButton.Size = UDim2.fromOffset(10 + (bw + G) * 5, cy), UDim2.fromOffset(bw, 40)
+		self.zoomButton.Position, self.zoomButton.Size = UDim2.fromOffset(10 + (bw + G) * 6, cy), UDim2.fromOffset(bw, 40)
 	end
 	-- The editor column.
 	self.editor.Position, self.editor.Size = UDim2.fromOffset(ex, ey), UDim2.fromOffset(ew, eh)
@@ -457,14 +466,18 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local colourRows = if self.group == "presets" then 0 else #self:paintSlots()
 	local colourH = colourRows * 64
 	local gridTop = 84
-	local gridH = eh - gridTop - colourH - (if colourRows > 0 then 8 else 0)
+	-- (a light theme reserves a 30 px gutter under the grid for the scroll chip: outside the grid with
+	-- no room kept, it landed on the save buttons on the presets tab)
+	local CHIP = if LIGHT then 30 else 0
+	local gridH = eh - gridTop - colourH - (if colourRows > 0 then 8 else 0) - CHIP
 	self.grid.Position, self.grid.Size = UDim2.fromOffset(0, gridTop), UDim2.fromOffset(ew, math.max(80, gridH))
-	self.colourBar.Position, self.colourBar.Size = UDim2.fromOffset(0, gridTop + math.max(80, gridH) + 8), UDim2.fromOffset(ew, colourH)
+	self.colourBar.Position, self.colourBar.Size = UDim2.fromOffset(0, gridTop + math.max(80, gridH) + CHIP + 8), UDim2.fromOffset(ew, colourH)
 	-- Tiles: as many columns as fit at 84-128 px, body pictures taller than faces.
 	local view = self:view()
 	local inner = ew - 16 - 6
-	local cols = math.max(2, math.floor((inner + 8) / (if wide then 120 else 96)))
-	local tile = math.floor((inner - (cols - 1) * 8) / cols)
+	local TG = AvatarEditor.TILE_GAP
+	local cols = math.max(2, math.floor((inner + TG) / (if wide then 120 else 96)))
+	local tile = math.floor((inner - (cols - 1) * TG) / cols)
 	local tileH = tile + (if view == "body" then math.floor(tile * 0.45) else 0) + 20
 	-- never taller than the grid shows, so a short (phone) grid still shows each tile's name
 	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
@@ -912,7 +925,7 @@ function AvatarEditor.rebuildCategories(self: any)
 		local b = button(self.catBar, "Cat_" .. c.id, string.upper(c.name), function() self:selectCategory(c.id) end)
 		b.LayoutOrder = i
 		b.TextSize = Ui.px(11)
-		b.Size = UDim2.new(1 / math.max(1, #cats), -6, 1, 0)
+		b.Size = UDim2.new(1 / math.max(1, #cats), -math.ceil(AvatarEditor.BAR_GAP * (#cats - 1) / math.max(1, #cats)), 1, 0)
 		self.catButtons[c.id] = b
 	end
 	local presets = self.group == "presets"

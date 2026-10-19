@@ -171,6 +171,21 @@ local function tilesDrawn(): { [string]: string }
 	end
 	return out
 end
+-- the tab and part rows keep 8 px between their buttons' outer strokes (3 px each), and still fit
+for _, barName in { "Groups", "Categories" } do
+	local bar = find(root, barName)
+	local layout, buttons = nil, {}
+	for _, ch in bar:GetChildren() do
+		if ch.ClassName == "UIListLayout" then layout = ch elseif ch.ClassName == "TextButton" then table.insert(buttons, ch) end
+	end
+	assert(layout and #buttons > 1, `the {barName} row has no buttons to measure`)
+	assert(layout.Padding.Offset - 6 >= 8, `the {barName} row's buttons are {layout.Padding.Offset - 6} px apart between strokes`)
+	for _, W in { 500, 800 } do
+		local total = (#buttons - 1) * layout.Padding.Offset
+		for _, b in buttons do total += b.Size.X.Scale * W + b.Size.X.Offset end
+		assert(total <= W + 0.01, `the {barName} row is {total} px wide in {W}`)
+	end
+end
 click(root, "Group_hair")
 assert(ed.category == "hair" and find(root, "Cat_hair") and find(root, "Cat_facialHair"), "the Hair tab holds hair and facial hair")
 table.clear(sprites)
@@ -441,5 +456,34 @@ do
 	ed:layout(Rbx.Vector2.new(1280, 720))
 	ed:selectGroup("body")
 	assert(not ed.moreChip.Visible, `the desktop body grid shows all {ed.tileCount} tiles but says there are more`)
+end
+-- The scroll chip has its own gutter: under the grid, above the colours, clear of the footer (it once
+-- landed on SAVE on the presets tab); and the pose row's buttons keep 8 px between their strokes.
+do
+	for _, size in { { 1280, 720 }, { 1024, 600 } } do
+		ed:layout(Rbx.Vector2.new(size[1], size[2]))
+		for _, group in { "presets", "body", "face" } do
+			ed:selectGroup(group)
+			local chipTop = ed.moreChip.Position.Y.Offset
+			local chipBottom = chipTop + ed.moreChip.Size.Y.Offset
+			local gridBottom = ed.grid.Position.Y.Offset + ed.grid.Size.Y.Offset
+			assert(chipTop >= gridBottom, `{group} at {size[1]}: the chip (from {chipTop}) is on the grid (to {gridBottom})`)
+			if ed.colourBar.Size.Y.Offset > 0 then
+				assert(chipBottom <= ed.colourBar.Position.Y.Offset, `{group} at {size[1]}: the chip runs into the colours`)
+			end
+			local footTop = size[2] + ed.footer.Position.Y.Offset - ed.editor.Position.Y.Offset
+			assert(chipBottom <= footTop - 3, `{group} at {size[1]}: the chip (to {chipBottom}) reaches the footer (from {footTop})`)
+		end
+		if ed.poseBar.Visible then
+			local pad = ed.poseGrid.CellPadding.X.Offset
+			assert(pad - 6 >= 8, `at {size[1]} the pose buttons are {pad - 6} px apart between strokes`)
+			local t, z = ed.turnButton, ed.zoomButton
+			if t.Position.Y.Offset == z.Position.Y.Offset then
+				local g = z.Position.X.Offset - (t.Position.X.Offset + t.Size.X.Offset) - 6
+				assert(g >= 8, `at {size[1]} TURN and FACE are {g} px apart between strokes`)
+			end
+		end
+	end
+	ed:layout(Rbx.Vector2.new(1280, 720))
 end
 print("PASS creator: tiles show your character per option and redraw only on change; options, colours, presets, undo/redo; locked Randomise; keyboard; save / save-as-new / delete; unsaved work guarded; saving-off said; real fighter preview in five poses; phone, tablet and desktop layouts")

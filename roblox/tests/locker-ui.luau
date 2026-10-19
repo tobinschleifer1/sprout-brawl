@@ -161,6 +161,12 @@ assert(#sentEconomy == 1, "a press long after the first salvaged")
 find(root, "Tab_crates").Activated:Fire()
 assert(find(root, "CratesTab").Visible and not find(root, "LockerTab").Visible, "the CRATES tab did not show")
 assert(string.find(find(root, "Meter").Text, "3 games", 1, true), "the drop meter is not shown")
+-- (a light theme: each crate card the tab's height, its buttons at its foot, its art on a mount)
+for _, id in { "scrap", "forge" } do
+	local card = find(root, "Crate_" .. id)
+	assert(card.Size.Y.Scale == 1 and find(card, "Open").Position.Y.Scale == 1, `the {id} crate card does not fill the tab`)
+	assert(find(find(card, "Thumb"), "Mount"), `the {id} crate's art has no mount`)
+end
 local forgeCard = find(root, "Crate_forge")
 find(forgeCard, "Open").Activated:Fire()
 assert(#sentEconomy == 1 and string.find(find(root, "Message").Text, "Forge Key", 1, true), "a keyless Forge Crate was opened")
@@ -245,4 +251,35 @@ for _, tab in { "LockerTab", "WorkshopTab" } do
 	end
 	assert(checked > 0, `{tab}: no cards were checked for overlap`)
 end
+-- buttons side by side keep 8 px between their outer strokes (3 px each, drawn outside the box): WEAR
+-- and the salvage button, SAVE and the outfit slots, the filter chips. Measured at two widths, so a
+-- gap that only holds at one card width fails too.
+local function gapOK(a: any, b: any, W: number): number
+	local function x(o) return o.Position.X.Scale * W + o.Position.X.Offset end
+	local function w(o) return o.Size.X.Scale * W + o.Size.X.Offset end
+	local l, r = a, b
+	if x(a) > x(b) then l, r = b, a end
+	return x(r) - (x(l) + w(l)) - 2 * 3
+end
+local pairsChecked = 0
+local function row(parent: any, names: { string }, label: string)
+	local shown = {}
+	for _, n in names do local b = find(parent, n); if b and b.Visible ~= false then table.insert(shown, b) end end
+	table.sort(shown, function(a, b) return a.Position.X.Offset < b.Position.X.Offset end)
+	for k = 2, #shown do
+		for _, W in { 260, 400 } do
+			local g = gapOK(shown[k - 1], shown[k], W)
+			assert(g >= 8, `{label}: {shown[k - 1].Name} and {shown[k].Name} are {g} px apart between strokes, under 8`)
+		end
+		pairsChecked += 1
+	end
+end
+for _, cardFrame in find(find(root, "LockerTab"), "Grid"):GetChildren() do
+	if cardFrame.Visible and string.sub(cardFrame.Name or "", 1, 4) == "Card" then row(cardFrame, { "Primary", "Secondary" }, "a card") end
+end
+row(find(root, "Outfits"), { "SaveOutfit", "Outfit1", "Outfit2", "Outfit3", "Outfit4", "Outfit5" }, "the outfit row")
+local chips = {}
+for _, f in Locker.FILTERS do table.insert(chips, "Filter_" .. f[1]) end
+row(find(root, "LockerTab"), chips, "the filter row")
+assert(pairsChecked >= 8, `only {pairsChecked} button pairs were checked for their gap`)
 print("PASS locker ui: cards rarest first with your lowest serial, copies and copies in existence; WEAR, TAKE OFF (skin by weapon, effects by slot), SALVAGE twice; crates with their keys and guarantee countdown, OPEN once, the reel landing on the server's roll with its serial, refusals explained; Odds & Details from Loot, guaranteed opening too; the Workshop prices and crafts on a second press")

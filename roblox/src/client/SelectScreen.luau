@@ -344,7 +344,9 @@ function SelectScreen.build(self: any, L: any)
 		place(name, r.x - L.cell / 2 - 4, r.y + L.cell / 2 + 5, L.cell + 8, 14 * s)
 		name.TextSize = SelectScreen.fitSize(name.Text, 11 * s, L.cell - 4)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
-		self.cells[i] = { button = b, ring = ring, name = name, id = r.id }
+		-- a picked weapon wears the stepped brackets the vote cards do: one mark for "chosen" everywhere
+		local marks = if LIGHT then Ui.brackets(b, GOLD) else nil
+		self.cells[i] = { button = b, ring = ring, name = name, id = r.id, marks = marks }
 		table.insert(self.tags, name)
 	end
 
@@ -606,7 +608,8 @@ function SelectScreen.render(self: any)
 		-- your two in gold, each named with its hand
 		local hand = if mine and mine.weapon == c.id then 1 elseif mine and mine.weapon2 == c.id then 2 else nil
 		c.ring.Color = if hand then GOLD else Color3.fromRGB(214, 228, 250)
-		c.ring.Thickness = if hand then 5 else 3
+		c.ring.Thickness = if hand and not c.marks then 5 else 3
+		if c.marks then c.marks.Visible = hand ~= nil end
 		-- (white over the sky, outlined in ink, as every word over the world; gold for your two)
 		c.name.TextColor3 = if hand then GOLD elseif LIGHT then WHITE else DIM
 		c.name.Text = (if hand then `{hand} · ` else "") .. SelectScreen.tileName(Weapons.BY_ID[c.id].name)

@@ -15,6 +15,12 @@ local ClimbRecords = {}
 ClimbRecords.__index = ClimbRecords
 
 ClimbRecords.ROWS = 25
+-- The window's height for the longer board's rows: a board's top (52), its band and list padding
+-- (34), a row each (28 + 2) and the two status lines (60), from four rows (the empty message's room)
+-- up to 520. A fixed 520 left a seven-row board half empty.
+function ClimbRecords.height(rows: number): number
+	return math.min(520, 146 + 30 * math.max(rows, 4))
+end
 
 -- the look is the shared cartoon kit's (Ui)
 local PANEL = Ui.PANEL
@@ -115,7 +121,8 @@ function ClimbRecords.new(parent: Instance, opts: any): any
 	local p, _, title = Ui.panel(gui, "Panel", Ui.BLUE, "SKYLINE CLIMB  ·  RECORDS", 44)
 	p.AnchorPoint, p.Position, p.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.new(1, -32, 1, -64)
 	local limit = Instance.new("UISizeConstraint")
-	limit.MaxSize, limit.Parent = Vector2.new(720, 520), p
+	limit.MaxSize, limit.Parent = Vector2.new(720, ClimbRecords.height(0)), p
+	self.limit = limit
 	title.TextColor3, title.Size = Ui.WHITE, UDim2.new(1, -140, 1, 0)      -- (white on the blue bar, as the studio's)
 	local close = Ui.closeButton(p, function() self:close() end, 44)
 	self.closeButton = close
@@ -166,6 +173,7 @@ end
 function ClimbRecords.render(self: any)
 	local v = self.view or {}
 	local offline = v.offline == true
+	self.limit.MaxSize = Vector2.new(720, ClimbRecords.height(math.max(#(v.speed or {}), #(v.levels or {}))))
 	fill(self.fastest, v.speed, self.localId, function(row) return ClimbRecords.clock(row.frames) end,
 		if offline then "Leaderboards are offline on this server." elseif not self.view then "Loading…" else "No full climbs yet. Be the first to the Summit from the bottom.")
 	fill(self.highest, v.levels, self.localId, function(row) return ClimbRecords.reach(row.best, row.summits) end,

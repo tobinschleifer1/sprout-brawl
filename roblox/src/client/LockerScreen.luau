@@ -31,6 +31,10 @@ LockerScreen.TYPE_LABEL = {
 } :: { [string]: string }
 LockerScreen.FILTERS = { { "all", "ALL" }, { "weapon_skin", "SKINS" }, { "hit_effect", "HITS" }, { "ko_effect", "KOS" },
 	{ "swing_trail", "TRAILS" }, { "other", "MORE" } }
+-- the outfit row: SAVE (64) and the five VIP slots (40 each), Ui.GAP apart
+-- a card's WEAR button: its width less the card's edges, the small salvage button (72) and Ui.GAP
+LockerScreen.WEAR_W = -(6 + Ui.GAP + 72 + 6)
+LockerScreen.OUTFITS_W = 64 + Inventory.MAX_PRESETS * (40 + Ui.GAP)
 LockerScreen.CONFIRM_SECONDS = 3
 local EMPTY = "Nothing here yet: play matches for drops, open crates, or craft in the Workshop"
 LockerScreen.REEL = { tiles = 44, win = 38, width = 104, pad = 8 }
@@ -248,7 +252,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		for i, f in LockerScreen.FILTERS do
 			local b = Ui.button(parent, f[2], Ui.PANEL2, function() onPick(f[1]) end, { size = 13, small = true })
 			b.Name = "Filter_" .. f[1]
-			b.Position, b.Size = UDim2.fromOffset((i - 1) * 90, 2), UDim2.fromOffset(80, 30)
+			b.Position, b.Size = UDim2.fromOffset((i - 1) * (80 + Ui.GAP), 2), UDim2.fromOffset(80, 30)
 			chips[f[1]] = b
 		end
 		return chips
@@ -261,7 +265,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	self.saveMode = false
 	self.outfitButtons = {}
 	local outfits = Ui.make("Frame", self.lockerBody, { Name = "Outfits", BackgroundTransparency = 1, BorderSizePixel = 0,
-		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 2), Size = UDim2.fromOffset(300, 30) })
+		AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, 0, 0, 2), Size = UDim2.fromOffset(LockerScreen.OUTFITS_W, 30) })
 	local save = Ui.button(outfits, "SAVE", Ui.PANEL2, function()
 		self.saveMode = not self.saveMode
 		self:say(if self.saveMode then "Pick an outfit slot to save what you are wearing" else "", Ui.GOLD)
@@ -273,7 +277,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	for i = 1, Inventory.MAX_PRESETS do
 		local b = Ui.button(outfits, tostring(i), Ui.PANEL2, function() self:outfit(i) end, { size = 14, small = true })
 		b.Name = "Outfit" .. i
-		b.Position, b.Size = UDim2.fromOffset(70 + (i - 1) * 46, 0), UDim2.fromOffset(40, 30)
+		b.Position, b.Size = UDim2.fromOffset(64 + Ui.GAP + (i - 1) * (40 + Ui.GAP), 0), UDim2.fromOffset(40, 30)
 		self.outfitButtons[i] = b
 	end
 	self.cratesBody = body("CratesTab")
@@ -292,6 +296,36 @@ function LockerScreen.new(parent: Instance, opts: any): any
 			-- (the name by the title rule, the lines by the secondary rule, as on every card)
 			if font == Ui.DISPLAY then Ui.paintTitle(t, o, crateColour) else Ui.paintSecondary(t, o, crateColour) end
 			return t
+		end
+		if Ui.lightPanels() then
+			-- (a light theme: the card the tab's full height, the crate large on a mount at its top, the
+			-- buttons at its foot; at a fixed 236 px the tab stood 40% empty under two short cards)
+			card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 1, -40)
+			local thumb = Ui.make("Frame", card, { Name = "Thumb", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 16),
+				Size = UDim2.fromOffset(280, 190) })
+			Ui.mount(thumb, crateColour)
+			self:drawArt(thumb, "crate_" .. id, 280, 190)
+			local function line(t: any, name: string, y: number, h: number)
+				t.Name, t.TextXAlignment = name, Enum.TextXAlignment.Center
+				t.Position, t.Size = UDim2.fromOffset(12, y), UDim2.new(1, -24, 0, h)
+			end
+			local name = words(Loot.CRATES[id].name, 22, Ui.WHITE, Ui.DISPLAY)
+			line(name, "Name", 216, 30)
+			local count = words("", 15, Ui.DIM)
+			line(count, "Count", 248, 22)
+			local need = words("", 14, Ui.DIM)
+			line(need, "Needs", 270, 22)
+			local g = words("", 14, Ui.GOLD)
+			g.Name, g.TextWrapped = "Guarantee", true
+			g.Position, g.Size = UDim2.new(0, 12, 1, -110), UDim2.new(1, -24, 0, 40)
+			local open = Ui.button(card, "OPEN", Ui.GREEN, function() self:openCrate(id) end, { size = 20 })
+			open.Name = "Open"
+			open.Position, open.Size = UDim2.new(0, 12, 1, -62), UDim2.new(0.5, -(12 + Ui.GAP / 2), 0, 44)
+			local odds = Ui.button(card, "ODDS & DETAILS", Ui.BLUE, function() self:showOdds(id, false) end, { size = 15 })
+			odds.Name = "Odds"
+			odds.Position, odds.Size = UDim2.new(0.5, Ui.GAP / 2, 1, -62), UDim2.new(0.5, -(12 + Ui.GAP / 2), 0, 44)
+			self.crateCards[id] = { card = card, count = count, need = need, guarantee = g, open = open }
+			continue
 		end
 		card.Position, card.Size = UDim2.new((i - 1) * 0.5, if i == 1 then 0 else 6, 0, 4), UDim2.new(0.5, -6, 0, if Ui.lightPanels() then 236 else 300)
 		local thumb = Ui.make("Frame", card, { Name = "Thumb", BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(120, 100) })
@@ -318,7 +352,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	end
 	local meter = Ui.text(self.cratesBody, "", 15, Ui.SUB, nil, true)
 	meter.Name = "Meter"
-	meter.Position, meter.Size = UDim2.fromOffset(0, if Ui.lightPanels() then 252 else 316), UDim2.new(1, 0, 0, 24)
+	meter.Position, meter.Size = if Ui.lightPanels() then UDim2.new(0, 0, 1, -30) else UDim2.fromOffset(0, 316), UDim2.new(1, 0, 0, 24)
 	self.meter = meter
 	-- the message line
 	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
@@ -366,6 +400,7 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
 		Position = UDim2.fromOffset(6, 6), Size = UDim2.new(1, -12, 0, if Ui.lightPanels() then 100 else 80) })
 	Ui.corner(thumb, 6)
+	if Ui.lightPanels() then Ui.mount(thumb, Ui.SKY) end
 	-- (a light theme gives the art the room a second row of buttons took: one row, WEAR and a small
 	-- salvage button)
 	local dy = if Ui.lightPanels() then 20 else 0
@@ -387,12 +422,12 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	direction.Name, direction.Position, direction.Size = "Direction", UDim2.fromOffset(6, 126 + dy), UDim2.new(1, -12, 0, 20)
 	local primary = Ui.button(f, "", Ui.BLUE, nil, { size = 14, small = true })
 	primary.Name = "Primary"
-	primary.Position, primary.Size = UDim2.new(0, 6, 1, if Ui.lightPanels() then -38 else -68), UDim2.new(1, if Ui.lightPanels() then -92 else -12, 0, 28)
+	primary.Position, primary.Size = UDim2.new(0, 6, 1, if Ui.lightPanels() then -38 else -68), UDim2.new(1, if Ui.lightPanels() then LockerScreen.WEAR_W else -12, 0, 28)
 	local secondary = Ui.button(f, "", Ui.PANEL2, nil, { size = 12, small = true })
 	secondary.Name = "Secondary"
 	if Ui.lightPanels() then
 		-- beside WEAR: the gem and the Sparks it gives, small - disposal is not the card's main act
-		secondary.Position, secondary.Size = UDim2.new(1, -82, 1, -38), UDim2.fromOffset(76, 28)
+		secondary.Position, secondary.Size = UDim2.new(1, -(72 + 6), 1, -38), UDim2.fromOffset(72, 28)
 		local gem = Ui.icon(secondary, "gem", 2)
 		gem.AnchorPoint, gem.Position, gem.ZIndex = Vector2.new(0, 0.5), UDim2.new(0, 6, 0.5, 0), 3
 		Ui.make("UIPadding", secondary, { PaddingLeft = UDim.new(0, 18) })
@@ -439,7 +474,7 @@ function LockerScreen.refreshLocker(self: any)
 		c.worn.Visible = m.worn == true
 		self:drawArt(c.thumb, m.id, 150, 78)
 		c.primary.Position = UDim2.new(0, 6, 1, if Ui.lightPanels() then -38 else -68)
-		c.primary.Size = UDim2.new(1, if Ui.lightPanels() then -92 else -12, 0, 28)
+		c.primary.Size = UDim2.new(1, if Ui.lightPanels() then LockerScreen.WEAR_W else -12, 0, 28)
 		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
 		c.onPrimary = function()
@@ -500,11 +535,11 @@ function LockerScreen.refreshOutfits(self: any)
 		Ui.paint(b, if not mine then (if Ui.lightPanels() then Ui.EDGE else Ui.PANEL) else if slots[i] then Ui.BLUE else Ui.PANEL2)
 		if b.Visible then table.insert(shown, b) end
 	end
-	local x = 300
+	local x = LockerScreen.OUTFITS_W
 	for k = #shown, 1, -1 do
 		x -= 40
 		shown[k].Position = UDim2.fromOffset(x, 0)
-		x -= 6
+		x -= Ui.GAP
 	end
 	self.saveOutfit.Position = UDim2.fromOffset(x - 64, 0)
 end

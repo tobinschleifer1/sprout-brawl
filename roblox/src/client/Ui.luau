@@ -471,12 +471,45 @@ function Ui.gradient(f: Instance, top: Color3, bottom: Color3): any
 end
 
 -- Recolour a card: its face, gradient, border and lip together.
+-- An art well's mount, the pixel kit's stepped box: a pale tint of the card's colour inside a slightly
+-- deeper edge, each corner cut in two three-pixel steps (three overlapping rects per shape, so no
+-- corner radius). The one pixel motif every card carries. A child of the art frame, at its back: the
+-- art's first frame shares its ZIndex and comes later, so draws over it.
+Ui.MOUNT_STEP, Ui.MOUNT_EDGE = 3, 3
+local function mountColours(colour: Color3): (Color3, Color3)
+	return Ui.shade(colour, -0.22), Ui.shade(colour, 0.6)
+end
+function Ui.mount(art: any, colour: Color3): any
+	art.BackgroundTransparency = 1
+	local s, t = Ui.MOUNT_STEP, Ui.MOUNT_EDGE
+	local edgeC, fillC = mountColours(colour)
+	local holder = Ui.make("Frame", art, { Name = "Mount", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 1,
+		Size = UDim2.fromScale(1, 1) })
+	local function shape(name: string, inset: number, c: Color3)
+		for k = 0, 2 do
+			Ui.make("Frame", holder, { Name = name, BackgroundColor3 = c, BorderSizePixel = 0, ZIndex = 1,
+				Position = UDim2.fromOffset(inset + (2 - k) * s, inset + k * s),
+				Size = UDim2.new(1, -2 * inset - 2 * (2 - k) * s, 1, -2 * inset - 2 * k * s) })
+		end
+	end
+	shape("Edge", 0, edgeC)
+	shape("Fill", t, fillC)
+	return holder
+end
+function Ui.paintMount(m: any, colour: Color3)
+	local edgeC, fillC = mountColours(colour)
+	for _, r in m:GetChildren() do r.BackgroundColor3 = if r.Name == "Edge" then edgeC else fillC end
+end
+
 function Ui.paintCard(c: any, colour: Color3)
 	c.BackgroundColor3 = colour
 	for _, ch in c:GetChildren() do
 		if ch.ClassName == "UIGradient" then ch.Color = ColorSequence.new(Ui.shade(colour, 0.32), colour)
 		elseif ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour)
-		elseif ch.Name == "Lip" then ch.BackgroundColor3 = Ui.shade(colour, -0.28) end
+		elseif ch.Name == "Lip" then ch.BackgroundColor3 = Ui.shade(colour, -0.28)
+		elseif ch.Name == "Thumb" then
+			for _, m in ch:GetChildren() do if m.Name == "Mount" then Ui.paintMount(m, colour) end end
+		end
 	end
 end
 
@@ -604,8 +637,12 @@ function Ui.contrast(a: Color3, b: Color3): number
 end
 -- (decided by measured contrast, not lightness: blue and mint faces fell on the wrong side of a
 -- lightness line and kept white lines at 2.4-2.9:1; ink reads at 5:1 or better on all of them)
+-- The words sit on the card's gradient (shade(face, 0.32) at the top down to the face), so each
+-- choice is measured at its worst: white against the lightest colour, ink against the darkest; the
+-- better of the two wins. (White measured against the base alone kept Mythic's lines at 2.9:1 on the
+-- surface they are actually drawn on.)
 function Ui.paintSecondary(t: any, stroke: any, face: Color3)
-	if Ui.contrast(Ui.WHITE, face) < 3 then
+	if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then
 		t.TextColor3, stroke.Thickness = Ui.TEXT, 0
 	else
 		t.TextColor3, stroke.Thickness, stroke.Color = Ui.WHITE, 1, Ui.tone(face)
@@ -633,6 +670,9 @@ end
 
 -- A dark square strip with a rim, for a line of status.
 -- the one "selected" face for every tab, filter and toggle (dark words on it: a light face)
+-- Space between two buttons side by side, box to box: 8 px between their outer strokes plus the 3 px
+-- stroke each draws outside its box (4-6 px box gaps left neighbouring outlines touching).
+Ui.GAP = 14
 Ui.SELECTED = Color3.fromRGB(254, 231, 97)
 Ui.INDIGO = Color3.fromRGB(70, 74, 150)       -- a status pill's face in the arcade theme
 function Ui.pill(parent: Instance?, name: string, edge: Color3?): any

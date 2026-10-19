@@ -212,10 +212,15 @@ do
 		local cell = find("Pick" .. c[1])
 		local ring
 		for _, ch in cell._children do if ch.ClassName == "UIStroke" then ring = ch end end
-		if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness ~= 5 then fail(`your {c[1]} has no gold ring`) end
+		if not ring or math.abs(ring.Color.R - 1) > 0.01 or ring.Thickness < 3 then fail(`your {c[1]} has no gold ring`) end
+		-- (and the stepped brackets every chosen card wears)
+		local marks = cell:FindFirstChild("Brackets")
+		if not marks or marks.Visible ~= true then fail(`your {c[1]} wears no brackets`) end
 		if find("Name" .. c[1]).Text ~= c[2] then fail(`the {c[1]} portrait is named "{find("Name" .. c[1]).Text}", not "{c[2]}"`) end
 	end
 	if find("NameSword").Text ~= "SWORD" then fail("a weapon you do not hold is named with a hand") end
+	local swordMarks = find("PickSword"):FindFirstChild("Brackets")
+	if swordMarks and swordMarks.Visible then fail("a weapon you do not hold wears the brackets") end
 	if inCard(1, "Weapon").Text ~= "WAR HAMMER + BATTLE AXE" or inCard(2, "Weapon").Text ~= "WAR HAMMER + WARPIKE" then
 		fail(`the cards say "{inCard(1, "Weapon").Text}" and "{inCard(2, "Weapon").Text}"`)
 	end

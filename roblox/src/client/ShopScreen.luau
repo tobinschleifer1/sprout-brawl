@@ -86,7 +86,9 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		b.Name = "Jump_" .. t[1]
 		self.jumps = self.jumps or {}
 		self.jumps[t[1]] = b
-		b.Position, b.Size = UDim2.new((i - 1) / 4, if i == 1 then 14 else 6, 0, HEAD + 10), UDim2.new(0.25, if i == 1 or i == 4 then -20 else -12, 0, 32)
+		-- (Ui.GAP between tabs, 14 px in from the window's edges)
+		b.Position, b.Size = UDim2.new((i - 1) / 4, if i == 1 then 14 else Ui.GAP / 2, 0, HEAD + 10),
+			UDim2.new(0.25, if i == 1 or i == 4 then -(14 + Ui.GAP / 2) else -Ui.GAP, 0, 32)
 	end
 	-- the day's priciest item leads, wide, as the reference shop's starter pack; the rest beside
 	self.hero = ShopScreen.heroCard(body, 2)
@@ -175,6 +177,7 @@ local function card(parent: Instance, pool: { any }, i: number, h: number): any
 	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
 		Position = UDim2.fromOffset(8, 8), Size = UDim2.new(1, -16, 0, 90) })
 	Ui.corner(thumb, 6)
+	if Ui.lightPanels() then Ui.mount(thumb, Ui.SKY) end
 	local name, nameStroke = Ui.faceText(f, "", 17, Ui.SKY)
 	name.Name, name.TextTruncate = "Name", Enum.TextTruncate.AtEnd
 	name.Position, name.Size = UDim2.fromOffset(8, 102), UDim2.new(1, -16, 0, 24)
@@ -206,6 +209,7 @@ function ShopScreen.heroCard(parent: Instance, order: number): any
 	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
 		Position = UDim2.fromOffset(12, 12), Size = UDim2.new(0.42, -12, 1, -29) })
 	Ui.corner(thumb, 6)
+	if Ui.lightPanels() then Ui.mount(thumb, Ui.SUN) end
 	local tag, tagStroke = Ui.faceText(f, "TODAY'S BEST", 14, Ui.SUN, Ui.LABEL)
 	tag.Name, tag.TextXAlignment = "Tag", Enum.TextXAlignment.Left
 	tag.Position, tag.Size = UDim2.new(0.42, 12, 0, 14), UDim2.new(0.58, -24, 0, 18)

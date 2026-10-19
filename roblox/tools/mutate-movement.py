@@ -64,9 +64,9 @@ overlap = [
     ('never settles', 'Fighter2D', 'then 0 else k * turn', 'then 0 else k * turn - 0.02', 'still moving'),
     ('bounce carries the tip', 'Fighter2D', 'lag -= k * 0.9 *', 'lag += k * 0.9 *', 'and the blade tip'),
     ('drawn as posed', 'Fighter2D', 'drawn.angle += lag', 'drawn.angle += 0', 'the blade is drawn at'),
-    ('ultimate lags', 'Fighter2D', 'if not k or wpose.hide or (move and move.id == "Ultimate") then return 0 end', 'if not k or wpose.hide then return 0 end', 'frozen frame lags'),
+    ('ultimate lags', 'Fighter2D', 'if not k or wpose.hide or wpose.emote or (move and move.id == "Ultimate") then return 0 end', 'if not k or wpose.hide or wpose.emote then return 0 end', 'frozen frame lags'),
     ('every weapon lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]\n\t-- an ultimate', 'local k = 0.4\n\t-- an ultimate', 'is not listed, and lags'),
-    ('every pair lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]\n\tif not k or not off', 'local k = 0.4\n\tif not k or not off', 'the second gauntlet trails'),
+    ('every pair lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]\n\tif not k or wpose.emote or not off', 'local k = 0.4\n\tif not k or wpose.emote or not off', 'the second gauntlet trails'),
 ]
 dual = [
     ('daggers in one hand', 'DualWield', 'DualWield.PAIRED = { Daggers = true,', 'DualWield.PAIRED = { Daggers = false,', 'one in each hand'),
@@ -133,7 +133,7 @@ cosmetics = [
     ('equip unowned', 'shared/Inventory', 'if not owns(id) then return false, "not owned" end', '', 'unowned item was equipped'),
     ('live owns all', 'server/Locker', 'if self.studio then return Cosmetics.get(id) ~= nil end', 'if true then return Cosmetics.get(id) ~= nil end', 'live server owns everything'),
     ('studio saves', 'server/Locker', 'if ok and not self.studio then', 'if ok then', 'session-only'),
-    ('no showcase', 'server/Locker', 'return Inventory.cleanLoadout(Locker.SHOWCASE)', 'return out', 'showcase'),
+    ('no showcase', 'server/Locker', 'out.skins, out.hit, out.ko, out.trail = table.clone(Locker.SHOWCASE.skins), Locker.SHOWCASE.hit, Locker.SHOWCASE.ko, Locker.SHOWCASE.trail', '-- no showcase', 'showcase'),
     ('three-shell firework', 'FxPlayer', 'add(P, "star", x - 1.5, y + 2, 3, 0.3, "gold", { seed = 0, delay = 0.24 })', 'add(P, "burst", x - 2.2, y + 2.4, 4.5, 0.45, "volt", { seed = 0, delay = 0.2 })\n\t\tadd(P, "star", x - 1.5, y + 2, 3, 0.3, "gold", { seed = 0, delay = 0.24 })', 'ko_firework builds'),
     ('bots alike', 'server/Locker', 'hit = BOT_HITS[(i - 1) % #BOT_HITS + 1]', 'hit = BOT_HITS[1]', 'same effects'),
 ]
@@ -188,7 +188,7 @@ lockerui = [
 ]
 shop = [
     ('featured differs by server', 'server/Shop', 'local s = (day * 7919 + 104729) % 2147483647', 'local s = (day * 7919 + math.floor(os.clock() * 1000003)) % 2147483647', 'disagree'),
-    ('featured any rarity', 'server/Shop', 'if (it.source == "crate" or it.source == "shop") and it.rarity == rarity then', 'if it.source == "crate" or it.source == "shop" then', 'crate item at its price'),
+    ('featured any rarity', 'server/Shop', 'if sold and it.rarity == rarity then', 'if sold then', 'crate item at its price'),
     ('keys shown to the restricted', 'server/Shop', 'if not restricted then\n\t\tfor _, b in Products.KEYS', 'if true then\n\t\tfor _, b in Products.KEYS', 'offered Forge Keys'),
     ('policy fails open', 'server/Shop', 'return not ok or r ~= false', 'return ok and r == true', 'failed policy'),
     ('unpriced keys prompted', 'server/Shop', 'if b.id == 0 then return false, "Forge Keys are not on sale yet" end', '', 'id 0 was prompted'),
@@ -196,8 +196,8 @@ shop = [
     ('owned prompted', 'server/Shop', 'if Inventory.owns(inv, pick.id) then return false, "you already own it" end', '', 'owned item was prompted'),
     ('coming soon prompted', 'server/Shop', 'if not p.available then return false, `{p.name} is coming soon` end', '', 'coming-soon'),
     ('keys granted twice', 'server/Economy', 'if table.find(inv.receipts, purchaseId) then return true, { already = true } end', '', 'granted keys twice'),
-    ('bought item unpaid', 'server/Shop', 'local uid, why = self.economy:_grant(inv, intent.id, true, "shop")', 'local uid, why = self.economy:_grant(inv, intent.id, false, "shop")', 'not marked paid'),
-    ('no credit', 'server/Shop', 'inv.credits[what] = math.min(Inventory.MAX_COUNT, inv.credits[what] + 1)', '', 'credit'),
+    ('bought item unpaid', 'server/Shop', 'intent.rarity == what and self.time() - intent.at <= Shop.INTENT_SECONDS\n\t\tlocal ok, res = self.economy:purchase(userId, purchaseId, function(inv: any): (boolean, any)\n\t\t\tif fresh and not Inventory.owns(inv, intent.id) then\n\t\t\t\tlocal uid, why = self.economy:_grant(inv, intent.id, true, "shop")', 'intent.rarity == what and self.time() - intent.at <= Shop.INTENT_SECONDS\n\t\tlocal ok, res = self.economy:purchase(userId, purchaseId, function(inv: any): (boolean, any)\n\t\t\tif fresh and not Inventory.owns(inv, intent.id) then\n\t\t\t\tlocal uid, why = self.economy:_grant(inv, intent.id, false, "shop")', 'not marked paid'),
+    ('no credit', 'server/Shop', 'inv.credits[what] = math.min(Inventory.MAX_COUNT, inv.credits[what] + 1)\n\t\t\treturn true, { kind = "credit", rarity = what }', 'return true, { kind = "credit", rarity = what }', 'credit'),
     ('credit never spent', 'server/Shop', 'i.credits[pick.rarity] -= 1', '', 'not redeemed'),
     ('receipt store unchecked', 'server/Purchases', 'if seen then return "granted" end', '', 'granted again'),
     ('receipt store failure ignored', 'server/Purchases', 'if not ok then return "later" end         -- cannot tell', 'if false then return "later" end         -- cannot tell', 'without checking'),
@@ -326,7 +326,9 @@ uikit = [
     ('white on gold', 'Ui', 'if lightFace then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone', 'if lightFace then b.TextColor3 = if false then Ui.TEXT elseif false', 'gold button kept white'),
     ('small words bare', 'Ui', 'or (o.small and not theme.tone) then nil', 'or o.small then nil', 'small words on a button are bare'),
     ('icon button keyless', 'Ui', 'if key then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'if false then\n\t\tlocal cap = Ui.keycap(b, key, 10)', 'icon button is not a square'),
-    ('pale-face lines white', 'Ui', 'if Ui.contrast(Ui.WHITE, face) < 3 then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'if false then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'not dark and bare'),
+    ('pale-face lines white', 'Ui', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if false then', 'not dark and bare'),
+    ('secondary measured on the base', 'Ui', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, face) then', 'better of ink and white'),
+    ('secondary always ink', 'Ui', 'if Ui.contrast(Ui.TEXT, face) >= Ui.contrast(Ui.WHITE, Ui.shade(face, 0.32)) then', 'if true then', 'not white outlined'),
     ('brackets without the stair', 'Ui', '\t\tbar(t, t, t, t)          -- the elbow', '\t\t-- bar(t, t, t, t)          -- the elbow', 'stepped corners'),
     ('pale-face titles white', 'Ui', 'if Ui.light(face) > 0.62 then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'if false then\n\t\tt.TextColor3, stroke.Thickness = Ui.TEXT, 0', 'title on a pale face'),
     ('repainted title keeps outline', 'Ui', 'if ch.ClassName == "UIStroke" then ch.Color = Ui.tone(colour) end', 'if false then ch.Color = Ui.tone(colour) end', "kept its title's old outline"),
@@ -335,6 +337,52 @@ uikit = [
 hudwrites = [
     ('card see-through on update', 'Hud', 'if out then 0.6 elseif Ui.lightPanels() then 0 else 0.08', 'if out then 0.6 else 0.08', 'see-through on update'),
     ('card percent too pale', 'Hud', 'while contrast(c, Ui.PANEL) < 4.5 and k < 12 do', 'while contrast(c, Ui.PANEL) < 3 and k < 12 do', 'reads under 4.5'),
+]
+
+gaps = [
+    ('salvage touches WEAR', 'LockerScreen', 'LockerScreen.WEAR_W = -(6 + Ui.GAP + 72 + 6)', 'LockerScreen.WEAR_W = -(6 + 4 + 72 + 6)', 'a card: '),
+    ('outfit slots 6 apart', 'LockerScreen', '\t\tx -= Ui.GAP\n\tend\n\tself.saveOutfit', '\t\tx -= 6\n\tend\n\tself.saveOutfit', 'the outfit row:'),
+    ('filter chips 10 apart', 'LockerScreen', 'UDim2.fromOffset((i - 1) * (80 + Ui.GAP), 2)', 'UDim2.fromOffset((i - 1) * 90, 2)', 'the filter row:'),
+]
+
+shoptabs = [
+    ('tabs 12 apart', 'ShopScreen', 'UDim2.new(0.25, if i == 1 or i == 4 then -(14 + Ui.GAP / 2) else -Ui.GAP, 0, 32)', 'UDim2.new(0.25, if i == 1 or i == 4 then -(14 + Ui.GAP / 2) else -Ui.GAP + 4, 0, 32)', 'tabs are'),
+    ('tabs to the edge', 'ShopScreen', 'if i == 1 then 14 else Ui.GAP / 2, 0, HEAD + 10)', 'if i == 1 then 2 else Ui.GAP / 2, 0, HEAD + 10)', "reach the window's edge"),
+]
+
+records = [
+    ('records fixed height', 'ClimbRecords', '\tself.limit.MaxSize = Vector2.new(720, ClimbRecords.height(math.max(#(v.speed or {}), #(v.levels or {}))))\n', '', 'eight-row board'),
+    ('records rows cut', 'ClimbRecords', 'return math.min(520, 146 + 30 * math.max(rows, 4))', 'return math.min(520, 120 + 30 * math.max(rows, 4))', 'do not fit'),
+]
+
+mounts = [
+    ('mount rounded', 'Ui', 'shape("Edge", 0, edgeC)', 'shape("Edge", 0, edgeC); Ui.corner(holder, 6)', 'is rounded'),
+    ('mount not stepped', 'Ui', 'Position = UDim2.fromOffset(inset + (2 - k) * s, inset + k * s),', 'Position = UDim2.fromOffset(inset, inset + k * s),', 'two even steps'),
+    ('mount not repainted', 'Ui', 'for _, m in ch:GetChildren() do if m.Name == "Mount" then Ui.paintMount(m, colour) end end', 'local _ = ch', 'mount in the old colour'),
+]
+
+crates = [
+    ('crate card short', 'LockerScreen', 'UDim2.new(0.5, -6, 1, -40)', 'UDim2.new(0.5, -6, 0, 236)', 'does not fill the tab'),
+]
+
+plazaphone = [
+    ('prompt on the fighter', 'Plaza2D', 'local high = self.bannerNarrow and Ui.lightPanels()', 'local high = false', 'not under the title card'),
+    ('prompt high on desktop', 'Plaza2D', 'local high = self.bannerNarrow and Ui.lightPanels()', 'local high = Ui.lightPanels()', 'left the bottom'),
+    ('labels over the HUD', 'Plaza2D', 'self.labelLayer = Ui.make("Frame", gui, { Name = "WorldLabels", BackgroundTransparency = 1, BorderSizePixel = 0,\n\t\tSize = UDim2.fromScale(1, 1) })', 'self.labelLayer = gui', 'paints over the HUD'),
+    ('stall signs spill', 'Plaza2D', 'Canvas.hex(st.a, AMBER), 160, Plaza2D.SIGN_W)', 'Canvas.hex(st.a, AMBER), 160)', 'px wide on a'),
+]
+
+studiobars = [
+    ('chip gutter gone', 'AvatarEditor', 'local CHIP = if LIGHT then 30 else 0', 'local CHIP = 0', 'the chip'),
+    ('pose gap 4', 'AvatarEditor', 'local G = if LIGHT then AvatarEditor.BAR_GAP else 4', 'local G = 4', 'TURN and FACE are'),
+    ('pose list gap 4', 'AvatarEditor', 'poseList.CellPadding = UDim2.fromOffset(if LIGHT then AvatarEditor.BAR_GAP else 4, 4)', 'poseList.CellPadding = UDim2.fromOffset(4, 4)', 'pose buttons are'),
+    ('studio tabs 6 apart', 'AvatarEditor', 'AvatarEditor.BAR_GAP = if LIGHT then Ui.GAP else 6', 'AvatarEditor.BAR_GAP = 6', 'apart between strokes'),
+    ('studio tab share rounded down', 'AvatarEditor', '-math.ceil(AvatarEditor.BAR_GAP * (#KIT.groups - 1) / #KIT.groups), 1, 0)', '-math.floor(AvatarEditor.BAR_GAP * (#KIT.groups - 1) / #KIT.groups), 1, 0)', 'row is'),
+]
+
+selectui = [
+    ('picked tile bare', 'SelectScreen', 'if c.marks then c.marks.Visible = hand ~= nil end', 'local _ = hand', 'wears no brackets'),
+    ('every tile bracketed', 'SelectScreen', 'if c.marks then c.marks.Visible = hand ~= nil end', 'if c.marks then c.marks.Visible = true end', 'do not hold wears the brackets'),
 ]
 
 socialui = [
@@ -386,7 +434,7 @@ clothingshop = [
     ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui), ('select-screen', selectui), ('locker-ui', gaps), ('shop-ui', shoptabs), ('records-ui', records), ('ui-kit', mounts), ('locker-ui', crates), ('plaza-view', plazaphone), ('creator-ui', studiobars)]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

@@ -80,6 +80,24 @@ assert(find(row(fastest, 2), "Name").Text == "me  (you)", "you are marked")
 assert(find(row(fastest, 2), "Name").TextColor3 ~= find(row(fastest, 1), "Name").TextColor3, "and coloured apart")
 assert(find(row(highest, 1), "Value").Text == "Summit ×4" and find(row(highest, 2), "Value").Text == CPS[3].name, "HIGHEST shows how far")
 assert(not find(fastest, "Empty").Visible, "no empty note on a board with rows")
+-- the window fits its longer board (from four rows' height up to 520), and every row it holds fits
+do
+	local limit
+	for _, ch in find(panel, "Panel"):GetChildren() do if ch.ClassName == "UISizeConstraint" then limit = ch end end
+	assert(limit and limit.MaxSize.Y == Records.height(2) and Records.height(2) < 300, `a two-row board's window is {limit and limit.MaxSize.Y} tall`)
+	local eight = {}
+	for i = 1, 8 do table.insert(eight, { rank = i, userId = 20 + i, name = "p" .. i, frames = 4000 + i }) end
+	r:set({ speed = eight, levels = {}, updatedAt = now - 60, nextAt = now + 72 * 60 })
+	assert(limit.MaxSize.Y == Records.height(8) and Records.height(8) > Records.height(2), `an eight-row board's window is {limit.MaxSize.Y} tall`)
+	r:set({ speed = { { rank = 1, userId = 3, name = "ada", frames = 60 * 61 }, { rank = 2, userId = 7, name = "me", frames = 60 * 75 } },
+		levels = { { rank = 1, userId = 3, name = "ada", best = LAST, summits = 4 }, { rank = 2, userId = 9, name = "bo", best = 2, summits = 0 } },
+		updatedAt = now - 60, nextAt = now + 72 * 60 })
+	for n = 1, Records.ROWS do
+		local h = Records.height(n)
+		assert(h <= 520, `{n} rows make a window {h} tall`)
+		if h < 520 then assert(h - 112 >= 34 + 30 * math.max(n, 4), `{n} rows do not fit a {h} px window`) end
+	end
+end
 assert(string.find(find(panel, "Status").Text, "next update in 1h 12m"), `the countdown: {find(panel, "Status").Text}`)
 now += 13 * 60
 r:tick()

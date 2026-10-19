@@ -192,6 +192,18 @@ assert(string.find(find(root, "Message").Text, "standard clothing piece", 1, tru
 local body = find(root, "Body")
 body.AbsolutePosition, body.CanvasPosition = Rbx.Vector2.new(0, 120), Rbx.Vector2.new(0, 300)
 find(root, "PassesHead").AbsolutePosition = Rbx.Vector2.new(0, 1900)
+-- the section tabs keep 8 px between their outer strokes (3 px each, outside the box), at a phone's
+-- width and a desktop's, and stay inside the window
+for _, W in { 360, 1200 } do
+	local function x(o) return o.Position.X.Scale * W + o.Position.X.Offset end
+	local function w(o) return o.Size.X.Scale * W + o.Size.X.Offset end
+	local tabs = { find(root, "Jump_featured"), find(root, "Jump_clothing"), find(root, "Jump_keys"), find(root, "Jump_passes") }
+	for k = 2, 4 do
+		local g = x(tabs[k]) - (x(tabs[k - 1]) + w(tabs[k - 1])) - 6
+		assert(g >= 8, `at {W} px the {tabs[k - 1].Name} and {tabs[k].Name} tabs are {g} px apart between strokes, under 8`)
+	end
+	assert(x(tabs[1]) - 3 >= 8 and W - (x(tabs[4]) + w(tabs[4])) - 3 >= 8, `at {W} px the tabs reach the window's edge`)
+end
 find(root, "Jump_passes").Activated:Fire()
 assert(body.CanvasPosition.Y == 1900 - 120 + 300 - 4, "the PASSES tab did not scroll to the passes")
 assert(find(root, "Jump_passes").BackgroundColor3 ~= find(root, "Jump_keys").BackgroundColor3, "the section you jumped to is not marked")

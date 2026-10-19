@@ -243,8 +243,12 @@ do
 	local sec, secStroke = Ui.faceText(new("Frame"), "Legendary · #57", 13, Ui.SUN, Ui.LABEL)
 	Ui.paintSecondary(sec, secStroke, Ui.SUN)
 	if Ui.light(sec.TextColor3) > 0.35 or secStroke.Thickness ~= 0 then fail("a secondary line on a pale face is not dark and bare") end
-	Ui.paintSecondary(sec, secStroke, Ui.VIOLET)
-	if not same(sec.TextColor3, Ui.WHITE) or secStroke.Thickness < 1 or not same(secStroke.Color, Ui.tone(Ui.VIOLET)) then fail("a secondary line on a deep face is not white outlined") end
+	Ui.paintSecondary(sec, secStroke, Ui.INDIGO)
+	if not same(sec.TextColor3, Ui.WHITE) or secStroke.Thickness < 1 or not same(secStroke.Color, Ui.tone(Ui.INDIGO)) then fail("a secondary line on a deep face is not white outlined") end
+	-- each choice at its worst across the gradient, the better one wins: on red, white beats ink on the
+	-- base alone (4.2:1 against 3.6:1) but falls to 2.7:1 at the gradient's top, so ink wins
+	Ui.paintSecondary(sec, secStroke, Ui.RED)
+	if not same(sec.TextColor3, Ui.TEXT) or secStroke.Thickness ~= 0 then fail("a secondary line on red did not take the better of ink and white") end
 	-- a name on a pale face is ink and bare; on a deep one white outlined; a blue face's secondary line ink
 	local nm, nmStroke = Ui.faceText(new("Frame"), "Starforged", 17, Ui.SUN)
 	Ui.paintTitle(nm, nmStroke, Ui.SUN)
@@ -256,6 +260,27 @@ do
 	-- the selected brackets: four stepped corners outside the box, three pixels each, hidden until asked
 	local br = Ui.brackets(new("Frame"))
 	if br.Visible ~= false or #br._children ~= 12 or br.Position.X.Offset >= 0 then fail("the selected brackets are not four stepped corners outside the box") end
+	-- an art well's mount: two stepped shapes (edge and fill, three rects each, none rounded), the art
+	-- frame bare; repainting the card repaints its mount
+	do
+		local mc = Ui.card(new("Frame"), "C", Ui.SKY)
+		local art = new("Frame"); art.Name = "Thumb"; art.Parent = mc
+		local m = Ui.mount(art, Ui.SKY)
+		local edges, fills = 0, 0
+		for _, r in m._children do
+			if r.Name == "Edge" then edges += 1 elseif r.Name == "Fill" then fills += 1 end
+			if r.ClassName == "UICorner" then fail("a mount is rounded") end
+		end
+		if edges ~= 3 or fills ~= 3 or art.BackgroundTransparency ~= 1 then fail("a mount is not a stepped edge and fill behind bare art") end
+		-- the steps: each rect inset in x by as much as the next is in y, so the corner is a stair
+		local e = {}
+		for _, r in m._children do if r.Name == "Edge" then table.insert(e, r) end end
+		if e[1].Position.X.Offset ~= e[3].Position.Y.Offset or e[1].Position.X.Offset ~= 2 * e[2].Position.X.Offset or e[2].Position.X.Offset ~= e[2].Position.Y.Offset or e[3].Position.X.Offset ~= 0 then
+			fail("a mount's corners are not two even steps")
+		end
+		Ui.paintCard(mc, Ui.SUN)
+		if not same(e[1].BackgroundColor3, Ui.shade(Ui.SUN, -0.22)) then fail("paintCard left the mount in the old colour") end
+	end
 	-- repainting a band recolours its title's outline too
 	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)
 	Ui.paintBand(pb, Ui.RED)

@@ -64,6 +64,9 @@ local STALLS = {
 }
 local STALL_Z = 18.8
 Plaza2D.STALLS = STALLS
+-- the lettering's room on a stall's sign board: its 34 art pixels (1/8 stud each) less a pixel a side
+Plaza2D.SIGN_W = 32 * PlazaArt.CELL
+Plaza2D.BILLBOARD_LINE = Color3.fromRGB(184, 224, 238)
 
 local function text(parent: Instance, name: string, value: string, size: number): TextLabel
 	local t = Instance.new("TextLabel")
@@ -124,6 +127,10 @@ function Plaza2D.new(parent: Instance): any
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
 	gui.DisplayOrder, gui.Enabled, gui.Parent = 12, false, parent
 	self.gui = gui
+	-- world lettering in its own layer, made first, so it paints under every HUD card: labels are made
+	-- as they are first needed, and straight into the ScreenGui the billboard's drew over the prompt
+	self.labelLayer = Ui.make("Frame", gui, { Name = "WorldLabels", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1) })
 	-- The HUD is the shared pixel kit (Ui): outlined pixel words, bevelled square buttons, key caps.
 	-- the place's name and what is here, in one window (made first, so it sits behind them)
 	-- (a light theme makes it a coloured card with outlined white words, like every label over the world)
@@ -216,7 +223,6 @@ function Plaza2D.new(parent: Instance): any
 	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12 + 50 + 10) else -126), UDim2.fromOffset(190, 42)
 	self.cpuButton = cpu
 	self.cabinets = {}
-	self.labelLayer = gui
 	self:placeTop(Ui.topInset())
 	return self
 end
@@ -577,7 +583,12 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520, sw * 0.86)
 		local n = 1
 		for _ in self.peers do n += 1 end
-		self:placeLabel(c, "billboard2", `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`, 0, sy0 + sh * 0.25, 14, CYAN, 520, sw * 0.9)
+		-- (pale cyan, brighter than the scanlines' CYAN: at #7FA8B8 it measured 2.8:1 on the screen; and
+		-- the short line where the full one would shrink below 11 px)
+		local full = `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`
+		local span = math.abs(c:project(sw * 0.45, 0).X - c:project(-sw * 0.45, 0).X)
+		local line = if Ui.textWidth(full, 11) > span then `{n} ON THE ROOF TONIGHT` else full
+		self:placeLabel(c, "billboard2", line, 0, sy0 + sh * 0.25, 14, Plaza2D.BILLBOARD_LINE, 520, sw * 0.9)
 	end)
 	add(22, function()
 		local wt = PlazaArt.get("tower", PlazaArt.waterTower)
@@ -591,7 +602,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local front = PlazaArt.get("stallF" .. st.sign, function() return PlazaArt.stallFront(st.goods) end)
 		add(STALL_Z + 0.2, function()
 			PlazaArt.draw(c, "stallB" .. st.sign, back, st.x, STALL_Z * D)
-			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10, 15, Canvas.hex(st.a, AMBER), 160)
+			self:placeLabel(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10, 15, Canvas.hex(st.a, AMBER), 160, Plaza2D.SIGN_W)
 		end)
 		add(STALL_Z + 0.1, function()
 			local vc = vendorChar(self, st.vendor)
@@ -972,7 +983,17 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	-- word alone on a second line
 	-- (centred, it stays clear of the button column at the right on both sides: on a phone a long
 	-- tip wraps onto its second line rather than running under SHOP and LOCKER)
-	local promptMax = math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
+	-- (a narrow screen in a light theme: under the title card, the full width - centred over the
+	-- button row it sat on your own fighter, who stands mid-screen on a phone)
+	local high = self.bannerNarrow and Ui.lightPanels()
+	if high then
+		self.prompt.AnchorPoint = Vector2.new(0.5, 0)
+		self.prompt.Position = UDim2.new(0.5, 0, 0, self.plate.Position.Y.Offset + 62 + 8)
+	else
+		self.prompt.AnchorPoint = Vector2.new(0.5, 1)
+		self.prompt.Position = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12) else -62)
+	end
+	local promptMax = if high then gw - 32 else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
 	local promptWant = Ui.textWidth(self.prompt.Text, if action then 20 else 13) + (if action then 64 else 16) + 24
 	-- (taller when the words must wrap, so two lines keep their padding)
 	self.prompt.Size = UDim2.new(0, math.min(promptMax, promptWant), 0, if promptWant > promptMax then 66 else 50)

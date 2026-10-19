@@ -496,14 +496,46 @@ do
 			assert(hub.promptKey.Visible and string.find(hub.prompt.Text, "ENTER", 1, true) and not string.find(hub.prompt.Text, "[E", 1, true),
 				`beside {st.id} the prompt reads {hub.prompt.Text}`)
 			assert(hub.controls.Visible, "the controls row did not show on a wide screen")
+			assert(hub.prompt.AnchorPoint.Y == 1 and hub.prompt.Position.Y.Scale == 1, "on a wide screen the prompt left the bottom")
 			break
 		end
 	end
 	hub.model:setScene(hub.model.data, { x = 0, z = 8 })
 	hub.gui.AbsoluteSize = { X = 812, Y = 375 }
-	hub:draw(canvas(812, 375), 1/60)
+	local narrow = canvas(812, 375)
+	hub:draw(narrow, 1/60)
+	-- each stall's name stays on its sign board on a phone (it spilled past the board's ends)
+	do
+		local Ui = Loader.loadFrom("src/client/", "Ui")
+		local signs = 0
+		for _, st in Plaza2D.STALLS do
+			local t = hub.pool["stall" .. st.sign]
+			if t and t.Visible ~= false then
+				local y = 18.8 * PLAZA.depth + 10
+				local span = math.abs(narrow:project(st.x + Plaza2D.SIGN_W / 2, y).X - narrow:project(st.x - Plaza2D.SIGN_W / 2, y).X)
+				local size = t.TextSize / Ui.SCALE
+				assert(Ui.textWidth(t.Text, math.floor(size)) <= span + 1, `{st.sign} is {Ui.textWidth(t.Text, math.floor(size))} px wide on a {span} px sign`)
+				signs += 1
+			end
+		end
+		assert(signs > 0, "no stall sign was checked")
+		-- world lettering lives in a layer under the HUD (the billboard's drew over the prompt card)
+		local labels = 0
+		for _, t in hub.pool do
+			assert(t.Parent == hub.labelLayer and hub.labelLayer ~= hub.gui, `the world label {t.Name} paints over the HUD`)
+			labels += 1
+		end
+		assert(labels > 0, "no world labels were checked")
+	end
 	assert(not hub.promptKey.Visible and string.find(hub.prompt.Text, "Walk", 1, true), `away from a station the prompt reads {hub.prompt.Text}`)
 	assert(not hub.controls.Visible, "the controls row showed where it runs into the social bar")
+	-- (a narrow screen: the prompt under the title card, off the fighter in the middle of a phone)
+	do
+		assert(hub.prompt.Visible, "no prompt on a narrow screen")
+		assert(hub.prompt.AnchorPoint.Y == 0 and hub.prompt.Position.Y.Scale == 0
+			and hub.prompt.Position.Y.Offset >= hub.plate.Position.Y.Offset + hub.plate.Size.Y.Offset + 8,
+			`on a narrow screen the prompt sits at {hub.prompt.Position.Y.Scale}, {hub.prompt.Position.Y.Offset}, not under the title card`)
+	end
 	hub.active, hub.blocked = wasActive, wasBlocked
 end
 -- The top row sits below Roblox's top bar, and follows it when the bar's height arrives late (it is

@@ -16,6 +16,7 @@
 -- players would have to go through TextService filtering first; other players see DisplayName.
 
 local AvatarKit = require(game:GetService("ReplicatedStorage").Shared.AvatarKit)
+local Clothing: any = require(game:GetService("ReplicatedStorage").Shared.RobloxClothing)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 
 local AvatarStore = {}
@@ -152,9 +153,18 @@ function AvatarStore.load(self: any, userId: number): any
 	return self.records[userId]
 end
 
+-- The character this player plays as, wearing only the clothing they own now (`self.owns(userId,
+-- itemId)`, set by the server entry point; a piece salvaged or traded away since it was saved comes
+-- off here, and so does every piece while ownership cannot be read).
 function AvatarStore.active(self: any, userId: number): string
 	local rec = self:load(userId)
-	return rec.slots[rec.active].code
+	return self:wearable(userId, rec.slots[rec.active].code)
+end
+
+function AvatarStore.wearable(self: any, userId: number, code: string): string
+	local spec = AvatarKit.decode(code)
+	if not spec or #AvatarKit.pieces(spec) == 0 then return code end
+	return AvatarKit.encode(AvatarKit.strip(spec, function(id) return self.owns ~= nil and self.owns(userId, id) end))
 end
 
 -- What the creator shows its owner.
@@ -171,8 +181,14 @@ function AvatarStore.view(self: any, userId: number): any
 	for i, s in rec.slots do
 		slots[i] = { name = s.name, code = s.code }
 	end
+	-- the clothing this player owns, so the creator can offer it (and lock the rest)
+	local pieces = {}
+	for _, it in Clothing.items do
+		local ok, has = pcall(function() return self.owns ~= nil and self.owns(userId, it.id) end)
+		if ok and has == true then table.insert(pieces, it.id) end
+	end
 	return { slots = slots, active = rec.active, max = self:slotsFor(userId),
-		saving = self.loaded[userId] == true, note = self.notes[userId], unlocked = table.clone(rec.rewards) }
+		saving = self.loaded[userId] == true, note = self.notes[userId], unlocked = table.clone(rec.rewards), pieces = pieces }
 end
 
 -- An edit from the creator. Returns ok, error text. `slot` may be one past the end to add a slot.
@@ -198,6 +214,13 @@ function AvatarStore.apply(self: any, userId: number, msg: any): (boolean, strin
 		for _, need in AvatarKit.unlocks(AvatarKit.decode(code) :: any) do
 			if not table.find(rec.rewards, need) then
 				return false, "That part is earned on the Skyline Climb. Collect it first."
+			end
+		end
+		-- Clothing is saved only by a player who owns every piece (a copied code is not ownership).
+		for _, id in AvatarKit.pieces(AvatarKit.decode(code) :: any) do
+			local ok, has = pcall(function() return self.owns ~= nil and self.owns(userId, id) end)
+			if not (ok and has == true) then
+				return false, "That character wears clothing you do not own yet. Get it in the Shop first."
 			end
 		end
 		rec.slots[i] = { name = cleanName(msg.name, `Fighter {i}`), code = code }

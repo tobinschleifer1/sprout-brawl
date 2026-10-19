@@ -15,12 +15,13 @@
 -- `crates` lists which crates it can come out of when source is "crate".
 local Cosmetics = {}
 
-Cosmetics.TYPES = { "weapon_skin", "hit_effect", "ko_effect", "swing_trail", "step_trail", "spawn_effect", "shield_skin", "title" }
+Cosmetics.TYPES = { "weapon_skin", "hit_effect", "ko_effect", "swing_trail", "step_trail", "spawn_effect", "shield_skin", "title", "clothing" }
 Cosmetics.RARITIES = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 
 export type Item = {
 	id: string, type: string, name: string, rarity: string, series: number, source: string,
 	weapon: string?, crates: { string }?, ramp: string?, blurb: string?,
+	category: string?, pack: string?, priceTier: string?,
 }
 
 local S1 = 1
@@ -160,6 +161,13 @@ add({ id = "title_vip", type = "title", name = "VIP", rarity = "Epic", source = 
 -- VIP's Series 1 cosmetic, and its respawn sparkle (Products.PASS_ITEMS): kept forever, not random.
 add({ id = "trail_vipgold", type = "swing_trail", name = "VIP Gold Rush", rarity = "Epic", source = "pass" })
 add({ id = "spawn_vipsparkle", type = "spawn_effect", name = "VIP Sparkle", rarity = "Epic", source = "pass" })
+
+-- Clothing (RobloxClothing): bought outright, one piece or a pack, worn in the Character Studio
+-- through k2 codes rather than a Locker slot. Same ids as the clothing catalogue.
+for _, it in (require(script.Parent.RobloxClothing) :: any).items do
+	add({ id = it.id, type = "clothing", name = it.name, rarity = it.rarity, source = "shop",
+		category = it.category, pack = it.pack, priceTier = it.priceTier })
+end
 
 Cosmetics.LIST = LIST
 local BY_ID: { [string]: Item } = {}

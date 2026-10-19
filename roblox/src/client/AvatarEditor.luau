@@ -28,6 +28,8 @@ local Ui = require(script.Parent.Ui)
 
 local KIT: any = AvatarKit.KIT
 local PARKOUR: any = require(Shared.Data.Parkour)
+local Clothing: any = require(Shared.RobloxClothing)
+local Products: any = require(Shared.Products)
 
 local AvatarEditor = {}
 AvatarEditor.__index = AvatarEditor
@@ -167,6 +169,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	self.undoStack, self.redoStack = {}, {}
 	self.locks = {}
 	self.owned = {}                    -- earned parts' reward ids (the server's AvatarView.unlocked)
+	self.pieces = {}                   -- clothing owned (the server's AvatarView.pieces)
 	self.group, self.category = "body", "build"
 	self.pose, self.facing, self.zoom = "idle", 1, "body"
 	self.tiles, self.chips, self.swatches = {}, {}, {}
@@ -508,14 +511,33 @@ function AvatarEditor.redo(self: any)
 	self:refresh()
 end
 
--- An earned part (the Skyline Climb's rewards) can be worn once it is earned; anything else always.
+-- A category's options in the creator: its free parts, then its clothing pieces (k2; Roblox only).
+function AvatarEditor.optionsOf(_self: any, c: any): { any }
+	local out = table.clone(c.options)
+	for _, it in Clothing.items do
+		if it.category == c.id then table.insert(out, AvatarKit.option(c.id, it.id)) end
+	end
+	return out
+end
+
+-- An earned part (the Skyline Climb's rewards) can be worn once it is earned, a clothing piece once
+-- it is owned; anything else always.
 function AvatarEditor.wearable(self: any, catId: string, optionId: string): boolean
+	if AvatarKit.piece(optionId) then return self.pieces[optionId] == true end
 	local need = AvatarKit.unlockOf(catId, optionId)
 	return need == nil or self.owned[need] == true
 end
 
--- Where a locked part is earned, for the creator to say when it is picked.
+-- Where a locked part is earned (or bought), for the creator to say when it is picked.
 function AvatarEditor.whereEarned(_self: any, catId: string, optionId: string): string
+	for _, it in Clothing.items do
+		if it.id == optionId then
+			local price = Products.CLOTHING[it.priceTier] and Products.CLOTHING[it.priceTier].price
+			local pack
+			for _, p in Clothing.packs do if p.id == it.pack then pack = p end end
+			return `In the Shop: {it.name}, {price} R$ on its own{if pack then `, or in the {pack.name} pack` else ""}.`
+		end
+	end
 	local need = AvatarKit.unlockOf(catId, optionId)
 	for _, r in PARKOUR.course.rewards do
 		if r.unlock == need then
@@ -537,7 +559,7 @@ end
 -- The options of a category a player can put on: randomising never hands out a locked part.
 local function wearableOptions(self: any, c: any): { any }
 	local out = {}
-	for _, o in c.options do
+	for _, o in self:optionsOf(c) do
 		if self:wearable(c.id, o.id) then table.insert(out, o) end
 	end
 	return out
@@ -613,14 +635,15 @@ end
 function AvatarEditor.step(self: any, dir: number)
 	if self.group == "presets" then return end
 	local c = AvatarKit.category(self.category)
-	for i, o in c.options do
+	local options = self:optionsOf(c)
+	for i, o in options do
 		if o.id == self.spec.parts[c.id] then
 			-- Past any part not yet earned: the arrows move between what you can wear.
 			local j = i
 			repeat
-				j = (j - 1 + dir) % #c.options + 1
-			until self:wearable(c.id, c.options[j].id) or j == i
-			self:pick(c.id, c.options[j].id)
+				j = (j - 1 + dir) % #options + 1
+			until self:wearable(c.id, options[j].id) or j == i
+			self:pick(c.id, options[j].id)
 			return
 		end
 	end
@@ -691,9 +714,16 @@ function AvatarEditor.setView(self: any, view: any)
 		owned[id] = true
 		table.insert(sig, tostring(id))
 	end
+	local pieces = {}
+	for _, id in (if type(view.pieces) == "table" then view.pieces else {}) do
+		if type(id) == "string" then
+			pieces[id] = true
+			table.insert(sig, "piece:" .. id)
+		end
+	end
 	table.sort(sig)
 	if table.concat(sig, ",") ~= self.ownedSig then
-		self.owned, self.ownedSig = owned, table.concat(sig, ",")
+		self.owned, self.pieces, self.ownedSig = owned, pieces, table.concat(sig, ",")
 		self.tileKey = nil               -- a part was earned: its tile loses its lock
 	end
 	self.max = view.max or 8
@@ -863,11 +893,12 @@ function AvatarEditor.rebuildTiles(self: any)
 		if self.group == "presets" then
 			for _, p in KIT.presets do table.insert(entries, { kind = "Preset_", id = p.id, name = p.name }) end
 		else
-			for _, o in AvatarKit.category(self.category).options do
+			for _, o in self:optionsOf(AvatarKit.category(self.category)) do
 				-- An earned part not yet earned still shows on your character - it is the reason to go
-				-- and earn it - behind a lock.
+				-- and earn it - behind a lock; so does clothing not yet bought.
 				local locked = not self:wearable(self.category, o.id)
-				table.insert(entries, { kind = "Option_", id = o.id, name = if locked then `LOCKED · {o.name}` else o.name, locked = locked })
+				local tag = if AvatarKit.piece(o.id) then "SHOP" else "LOCKED"
+				table.insert(entries, { kind = "Option_", id = o.id, name = if locked then `{tag} · {o.name}` else o.name, locked = locked })
 			end
 		end
 		for i, e in entries do

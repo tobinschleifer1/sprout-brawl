@@ -6,7 +6,7 @@
 --   lune run tools/render-ui <out.json> <plaza|studio|hud|results|records|notice|people|climb|locker|shop> [width] [height] [variant]
 --     plaza   variant: "x,z" where you stand (beside a station shows its prompt; the default shows
 --             the tip), or "stamps" to open the stamp panel
---     studio  variant: a tab - presets, body, face, hair, outfit, extras
+--     studio  variant: a tab - presets, body, face, hair, outfit, extras; or clothing (the tops, two owned)
 --     hud     variant: "fight" (mid-fight, a full ultimate) or "countdown" (the combo card, "3")
 --     results variant: "teams" for a team match (the winners share first); a GG has just been said
 --     notice  variant: "error" for a refused match (with OK); otherwise the loading notice
@@ -23,6 +23,7 @@ local Recorder = require("./recorder")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local Input = Loader.load("Input")
 local Products = Loader.load("Products")
+local AvatarKit = Loader.load("AvatarKit")
 local shapes = Recorder.install(Canvas)
 
 local screen = process.args[2] or "plaza"
@@ -99,7 +100,13 @@ elseif screen == "studio" then
 	ed.gui.AbsoluteSize = Rbx.Vector2.new(W, H)
 	ed:open()
 	ed:layout(Rbx.Vector2.new(W, H))
-	if variant then ed:selectGroup(variant) end
+	if variant == "clothing" then
+		-- the tops, two pieces owned and the rest in the Shop
+		ed:setView({ slots = { { name = "Fighter 1", code = AvatarKit.defaultCode() } }, active = 1, max = 8, saving = true, unlocked = {},
+			pieces = { "neon_circuit_bomber", "candy_sugarstripe_tee" } })
+		ed:selectCategory("top")
+		ed:pick("top", "neon_circuit_bomber")
+	elseif variant then ed:selectGroup(variant) end
 	table.clear(shapes)
 	-- a backdrop where the plaza would be
 	c:screen()
@@ -200,13 +207,14 @@ elseif screen == "locker" then
 	local L = load("LockerScreen")
 	local s = L.new(playerGui, { sendLocker = function() end, sendEconomy = function() end, now = os.clock, rand = function() return 0.4 end })
 	s:open()
-	s:setLocker({ owned = { "sword_starforged", "hit_sakura", "ko_dragonsbreath", "trail_ember", "daggers_neontwins", "pike_eventide" },
+	s:setLocker({ owned = { "sword_starforged", "hit_sakura", "ko_dragonsbreath", "trail_ember", "daggers_neontwins", "pike_eventide", "frost_snowline_beanie", "neon_circuit_bomber" },
 		wearing = { skins = { Sword = "sword_starforged" }, hit = "hit_sakura" } })
 	local econ = { sparks = 2340, crates = { scrap = 3, forge = 1 }, keys = { forge = 2 }, meter = 2, guarantees = { scrap = 18, forge = 33 },
 		items = { { uid = "u1", id = "sword_starforged", serial = 57, copies = 1240 }, { uid = "u2", id = "hit_sakura", serial = 312, copies = 8800 },
 			{ uid = "u3", id = "ko_dragonsbreath", serial = 4, copies = 96 }, { uid = "u4", id = "trail_ember", serial = 1021, copies = 9100 },
 			{ uid = "u5", id = "daggers_neontwins", serial = 77, copies = 5400 }, { uid = "u6", id = "daggers_neontwins", serial = 901, copies = 5400 },
-			{ uid = "u7", id = "pike_eventide", serial = 2, copies = 31 } } }
+			{ uid = "u7", id = "pike_eventide", serial = 2, copies = 31 }, { uid = "u9", id = "frost_snowline_beanie", serial = 140, copies = 2210 },
+			{ uid = "u10", id = "neon_circuit_bomber", serial = 18, copies = 940 } } }
 	s:setEconomy(econ)
 	if variant == "crates" or variant == "odds" or variant == "opening" then s:show("crates") end
 	if variant == "workshop" then s:show("workshop") end

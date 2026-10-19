@@ -27,6 +27,7 @@ LockerScreen.__index = LockerScreen
 LockerScreen.TYPE_LABEL = {
 	weapon_skin = "Weapon skin", hit_effect = "Hit effect", ko_effect = "KO effect", swing_trail = "Swing trail",
 	step_trail = "Step trail", spawn_effect = "Spawn effect", shield_skin = "Shield skin", title = "Title",
+	clothing = "Clothing",
 } :: { [string]: string }
 LockerScreen.FILTERS = { { "all", "ALL" }, { "weapon_skin", "SKINS" }, { "hit_effect", "HITS" }, { "ko_effect", "KOS" },
 	{ "swing_trail", "TRAILS" }, { "other", "MORE" } }
@@ -370,10 +371,13 @@ function LockerScreen.refreshLocker(self: any)
 		c.meta.TextColor3 = col
 		c.extra.Text = if m.copies == 0 then "Studio: on loan" else LockerScreen.existence(m.exist)
 		self:drawArt(c.thumb, m.id, 150, 78)
-		c.primary.Text = if m.worn then "TAKE OFF" else "WEAR"
+		c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
 		c.onPrimary = function()
-			if m.worn then
+			if m.type == "clothing" then
+				-- clothing is part of a character (a k2 code), put on in the Character Studio
+				if self.opts.openStudio then self:close(); self.opts.openStudio() end
+			elseif m.worn then
 				local msg: any = { action = "remove" }
 				if m.type == "weapon_skin" then msg.weapon = m.weapon else msg.slot = Inventory.SLOTS[m.type] end
 				self.opts.sendLocker(msg)

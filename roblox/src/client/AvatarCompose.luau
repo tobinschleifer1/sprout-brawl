@@ -100,6 +100,9 @@ function AvatarCompose.layersOf(spec: AvatarKit.Spec, override: { [string]: { an
 				chosen = o
 			end
 		end
+		if not chosen then
+			chosen = AvatarKit.option(cat.id, spec.parts[cat.id])      -- Roblox only: a k2 clothing piece
+		end
 		if chosen.trim and chosen.trim > trim then
 			trim = chosen.trim
 		end

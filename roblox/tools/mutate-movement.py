@@ -251,7 +251,34 @@ shopui = [
     ('refusal silent', 'ShopScreen', 'self:say(`Could not do that: {e.error}`, Ui.RED)', 'self:say("", Ui.RED)', 'refusal was not shown'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
+kitk2 = [
+    ('k2 for everyone', 'shared/AvatarKit', 'if #worn > 0 then\n\t\tout[1] = AvatarKit.K2', 'if true then\n\t\tout[1] = AvatarKit.K2', 'left k1'),
+    ('piece number off by one', 'shared/AvatarKit', 'local hi, lo = p.n // 36, p.n % 36', 'local hi, lo = p.n // 36, (p.n + 1) % 36', 'did not round trip'),
+    ('misfiled piece worn', 'shared/AvatarKit', 'if c and p and p.category == c.id then parts[c.id] = p.id end', 'if c and p then parts[c.id] = p.id end', 'worn as a top'),
+    ('sanitize ignores category', 'shared/AvatarKit', 'if optionIndex(c, v) or (p and p.category == c.id) then v', 'if optionIndex(c, v) or p ~= nil then v', 'wrong category'),
+    ('k2 not a code', 'shared/AvatarKit', 'return v == AvatarKit.VERSION or v == AvatarKit.K2', 'return v == AvatarKit.VERSION', 'round trip'),
+    ('strip keeps everything', 'shared/AvatarKit', 'if not (ok and has == true) then parts[PIECE[id].category]', 'if false then parts[PIECE[id].category]', 'stayed on'),
+    ('strip trusts a failed read', 'shared/AvatarKit', 'if not (ok and has == true) then parts[PIECE[id].category]', 'if ok and has == false then parts[PIECE[id].category]', 'could not be read'),
+    ('save without ownership', 'server/AvatarStore', 'if not (ok and has == true) then\n\t\t\t\treturn false, "That character wears', 'if false then\n\t\t\t\treturn false, "That character wears', 'unowned piece was saved'),
+    ('active not stripped', 'server/AvatarStore', 'return self:wearable(userId, rec.slots[rec.active].code)', 'return rec.slots[rec.active].code', 'no longer owned stayed on'),
+    ('piece drawn as a free part', 'AvatarCompose', 'chosen = AvatarKit.option(cat.id, spec.parts[cat.id])', 'chosen = cat.options[1]', 'not drawn on the torso'),
+    ('clothing in crates', 'shared/Cosmetics', 'rarity = it.rarity, source = "shop",', 'rarity = it.rarity, source = "crate",', 'bought outright'),
+]
+
+clothingui = [
+    ('studio offers no clothing', 'AvatarEditor', 'if it.category == c.id then table.insert(out, AvatarKit.option(c.id, it.id)) end', 'if false then table.insert(out, AvatarKit.option(c.id, it.id)) end', 'every top piece'),
+    ('every piece wearable', 'AvatarEditor', 'if AvatarKit.piece(optionId) then return self.pieces[optionId] == true end', 'if AvatarKit.piece(optionId) then return true end', 'wearable does not follow'),
+    ('no price given', 'AvatarEditor', '{price} R$ on its own', 'on its own', 'where it is sold'),
+    ('locked as LOCKED', 'AvatarEditor', 'local tag = if AvatarKit.piece(o.id) then "SHOP" else "LOCKED"', 'local tag = "LOCKED"', 'tiles do not tell'),
+    ('pieces not read', 'AvatarEditor', 'pieces[id] = true\n\t\t\ttable.insert(sig, "piece:" .. id)', 'table.insert(sig, "piece:" .. id)', 'wearable does not follow'),
+    ('arrows skip clothing', 'AvatarEditor', 'local options = self:optionsOf(c)\n\tfor i, o in options do', 'local options = c.options\n\tfor i, o in options do', 'did not reach the owned piece'),
+    ('random hands out anything', 'AvatarEditor', 'if self:wearable(c.id, o.id) then table.insert(out, o) end', 'table.insert(out, o)', 'unowned piece'),
+    ('clothing worn by slot', 'LockerScreen', 'if m.type == "clothing" then\n\t\t\t\t-- clothing', 'if false then\n\t\t\t\t-- clothing', 'did not go to the Studio'),
+    ('clothing button says WEAR', 'LockerScreen', 'c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif', 'c.primary.Text = if false then "WEAR IN STUDIO" elseif', 'offers a Locker slot'),
+    ('hats on a figure', 'ItemArt', 'if HEAD_WORN[it.category] then "head" else "figure"', '"figure"', 'wrong view'),
+]
+
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -270,4 +297,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shopui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shopui) + len(kitk2) + len(clothingui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')

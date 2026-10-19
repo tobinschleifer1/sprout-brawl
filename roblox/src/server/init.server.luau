@@ -422,24 +422,31 @@ for index, productId in SkipProducts.IDS do
 		end)
 	end
 end
--- The shop's products: Forge Key bundles and the featured shop's tiers (Products; ids of 0 are not
--- created yet and register nothing). Every grant is once per purchase id, in the record's own write.
+-- The shop's products: Forge Key bundles, the featured shop's tiers, clothing tiers and packs
+-- (Products; ids of 0 are not created yet and register nothing). Every grant is once per purchase
+-- id, in the record's own write.
 local function onShopReceipt(player: Player, receipt: any): boolean
 	local ok, res = shop:receipt(player.UserId, receipt.ProductId, tostring(receipt.PurchaseId))
-	if ok then
+	if ok and loaded[player.UserId] == player then
 		sendEconomy(player, { purchased = res })
 		Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
+		sendAvatars(player)        -- clothing bought can be worn in the Character Studio
 	end
 	return ok
 end
 for _, b in Products.KEYS do if b.id ~= 0 then purchases:on(b.id, onShopReceipt) end end
 for _, t in Products.FEATURED do if t.id ~= 0 then purchases:on(t.id, onShopReceipt) end end
+for _, t in Products.CLOTHING do if t.id ~= 0 then purchases:on(t.id, onShopReceipt) end end
+for _, t in Products.PACKS do if t.id ~= 0 then purchases:on(t.id, onShopReceipt) end end
 Net.remote("Shop").OnServerEvent:Connect(function(player: Player, msg: any)
 	if loaded[player.UserId] ~= player or not admitted(player, "shop", 0.25) then return end
 	local ok, event = shop:request(player.UserId, msg)
 	if loaded[player.UserId] ~= player then return end
 	sendEconomy(player, if ok then event else { error = event })
-	if ok and event.purchased then Net.remote("LockerView"):FireClient(player, locker:view(player.UserId)) end
+	if ok and event.purchased then
+		Net.remote("LockerView"):FireClient(player, locker:view(player.UserId))
+		sendAvatars(player)
+	end
 end)
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, passId: number, purchased: boolean)
 	if not purchased or loaded[player.UserId] ~= player then return end
@@ -622,6 +629,7 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	loaded[id], poses[id], limits[id], rooms.profiles[id], presenceSig[id] = nil, nil, nil, nil, nil
 	departed[player] = true
 	passes:forget(id)
+	shop:forget(id)
 	restrictedFor[id] = nil
 	climbs:leave(player.UserId)
 	local cab = arcade:leave(player)

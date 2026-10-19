@@ -35,6 +35,11 @@ Inventory.MAX_COUNT = 1000000          -- any balance (Sparks, crates, keys) is 
 Inventory.CRATES = { "scrap", "forge" }
 Inventory.SOURCES = { drop = true, crate = true, craft = true, shop = true, grant = true, migrated = true, pass = true }
 Inventory.CREDIT_RARITIES = { "Uncommon", "Rare", "Epic", "Legendary" }
+-- clothing purchases with no remembered piece (or a pack's piece bought singly meanwhile): one
+-- piece of that price tier each
+Inventory.CLOTHING_CREDITS = { "accent", "standard", "statement" }
+local CREDIT_KEYS = table.clone(Inventory.CREDIT_RARITIES)
+for _, k in Inventory.CLOTHING_CREDITS do table.insert(CREDIT_KEYS, k) end
 
 export type Loadout = { skins: { [string]: string }, [string]: any }
 export type Instance = { i: string, s: number, p: boolean, t: number, src: string }
@@ -133,7 +138,7 @@ function Inventory.sanitize(raw: any): any
 		firstWin = integer(src.firstWin, Inventory.MAX_INTEGER),
 		-- featured-shop purchases that arrived without a remembered choice: one item of that rarity
 		-- each, chosen later (a purchase is never lost, and never turned into Sparks)
-		credits = pair(src.credits, Inventory.CREDIT_RARITIES),
+		credits = pair(src.credits, CREDIT_KEYS),
 		receipts = (function()
 			local out = {}
 			if type(src.receipts) == "table" then

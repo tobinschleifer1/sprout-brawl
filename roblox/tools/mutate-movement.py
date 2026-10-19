@@ -245,9 +245,13 @@ shopui = [
     ('odds not Loot', 'ShopScreen', 'row.label.Text, row.value.Text = r.text, r.value', 'row.label.Text, row.value.Text = r.text, r.value .. "!"', 'is not Loot'),
     ('guaranteed odds ignored', 'ShopScreen', 'LockerScreen.oddsRows("forge", 0, guaranteed)', 'LockerScreen.oddsRows("forge", 0, false)', 'guaranteed opening'),
     ('coming soon offered', 'ShopScreen', 'if not p.owned and p.available then self:request', 'if not p.owned then self:request', 'not on sale, or owned'),
-    ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif', 'c.buy.Text = if false then "OWNED" elseif', 'owned pass'),
+    ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif not p.available', 'c.buy.Text = if false then "OWNED" elseif not p.available', 'owned pass'),
     ('keys for the restricted', 'ShopScreen', 'local keys = if shop.restricted then {} else shop.keys or {}', 'local keys = shop.keys or {}', 'should not have sent'),
     ('odds button for the restricted', 'ShopScreen', 'self.oddsButton.Visible = not shop.restricted', 'self.oddsButton.Visible = true', 'sees Forge Keys'),
+    ('pack offered regardless', 'ShopScreen', 'if pack.offer then self:request(key', 'if true then self:request(key', 'a pack not offered'),
+    ('pack never BUY SINGLY', 'ShopScreen', 'elseif not pack.offer then "BUY SINGLY"', 'elseif false then "BUY SINGLY"', 'dearer than its missing pieces'),
+    ('owned piece requested', 'ShopScreen', 'if not p.owned then self:request(pkey', 'if true then self:request(pkey', 'an owned piece, was requested'),
+    ('pack line miscounts', 'ShopScreen', 'return `you own {n - pack.missing}', 'return `you own {n}', 'line reads wrong'),
     ('refusal silent', 'ShopScreen', 'self:say(`Could not do that: {e.error}`, Ui.RED)', 'self:say("", Ui.RED)', 'refusal was not shown'),
 ]
 
@@ -278,7 +282,20 @@ clothingui = [
     ('hats on a figure', 'ItemArt', 'if HEAD_WORN[it.category] then "head" else "figure"', '"figure"', 'wrong view'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
+clothingshop = [
+    ('pack grants owned pieces', 'server/Shop', 'if not Inventory.owns(inv, it.id) then\n\t\t\t\t\tlocal uid, why = self.economy:_grant(inv, it.id, true, "shop")', 'if true then\n\t\t\t\t\tlocal uid, why = self.economy:_grant(inv, it.id, true, "shop")', 'exactly what was missing'),
+    ('pack always offered', 'server/Shop', 'offer = missing > 0 and price < missingTotal,', 'offer = missing > 0,', 'dearer than its missing pieces is offered'),
+    ('pack dearer than singles sold', 'server/Shop', 'if product.price >= missingTotal then return false', 'if false then return false', 'could be bought'),
+    ('owned pack sold', 'server/Shop', 'if #missing == 0 then return false, "you already own every piece in it" end', 'local _ = #missing', 'fully owned pack could be bought'),
+    ('race paid twice', 'server/Shop', 'elseif fresh and table.find(intent.missing, it.id) then', 'elseif false then', 'paid for twice'),
+    ('one intent for all', 'server/Shop', 'self.packIntents[userId] = { id = msg.id', 'self.pieceIntents[userId] = { id = msg.id', 'paid for twice'),
+    ('credit of any tier', 'server/Shop', 'if inv.credits[it.priceTier] > 0 then\n\t\t\t-- a clothing purchase', 'if inv.credits.accent + inv.credits.standard + inv.credits.statement > 0 then\n\t\t\t-- a clothing purchase', 'accent credit paid'),
+    ('clothing product unknown', 'shared/Products', 'for tier, t in Products.CLOTHING do if t.id == productId then return "clothing", tier end end', 'local _ = productId', 'not recognised'),
+    ('prompted before created', 'server/Shop', 'if product.id == 0 then return false, "clothing is not on sale yet" end\n\t\tself.pieceIntents', 'if false then return false, "clothing is not on sale yet" end\n\t\tself.pieceIntents', 'with no product was prompted'),
+    ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
+]
+
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -297,4 +314,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shopui) + len(kitk2) + len(clothingui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shopui) + len(kitk2) + len(clothingui) + len(clothingshop) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')

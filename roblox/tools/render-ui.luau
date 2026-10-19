@@ -241,7 +241,12 @@ elseif screen == "shop" then
 	for _, p in Products.PASSES do
 		table.insert(passes, { id = p.id, name = p.name, price = p.price, owned = p.id == "wardrobe", available = p.available, perks = p.perks })
 	end
-	s:setEconomy({ shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes,
+	-- the clothing packs as the server builds them, two pieces owned
+	local Inventory = Loader.load("Inventory")
+	local inv = Inventory.sanitize(nil)
+	inv.owned.candy_sugarstripe_tee, inv.owned.neon_circuit_bomber = true, true
+	local clothing = Loader.loadFrom("src/server/", "Shop").clothing(inv)
+	s:setEconomy({ shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes, clothing = clothing,
 		featured = { { id = "hammer_cobblestone", price = 29, owned = false }, { id = "sword_frostbite", price = 49, owned = true },
 			{ id = "daggers_venomfang", price = 99, owned = false, credit = true }, { id = "sword_starforged", price = 199, owned = false } } } })
 	-- the Recorder draws in creation order, not ZIndex: hide what the odds panel (ZIndex 10) covers

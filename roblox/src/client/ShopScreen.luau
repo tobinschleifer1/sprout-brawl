@@ -66,18 +66,24 @@ function ShopScreen.new(parent: Instance, opts: any): any
 	end
 	self.featuredHead = heading("FeaturedHead", "FEATURED", 1)
 	self.featuredRow = row("Featured", 2, 220)
-	heading("KeysHead", "FORGE KEYS", 3)
+	-- clothing: a heading and a grid row per pack, made as packs arrive
+	heading("ClothingHead", "CLOTHING", 3)
+	local clothing = Ui.make("Frame", body, { Name = "Clothing", BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = 4,
+		Size = UDim2.new(1, -8, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
+	Ui.make("UIListLayout", clothing, { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
+	self.clothing, self.packRows = clothing, {}
+	heading("KeysHead", "FORGE KEYS", 6)
 	local keyNote = Ui.text(body, "Forge Keys open Forge Crates: Rare or better, Mythic possible.", 13, Ui.DIM)
-	keyNote.Name, keyNote.LayoutOrder, keyNote.TextXAlignment, keyNote.TextWrapped = "KeyNote", 4, Enum.TextXAlignment.Left, true
+	keyNote.Name, keyNote.LayoutOrder, keyNote.TextXAlignment, keyNote.TextWrapped = "KeyNote", 7, Enum.TextXAlignment.Left, true
 	keyNote.Size = UDim2.new(1, -8, 0, 34)
 	self.keyNote = keyNote
 	local odds = Ui.button(body, "ODDS & DETAILS", Ui.BLUE, function() self:showOdds(false) end, { size = 15 })
-	odds.Name, odds.LayoutOrder = "Odds", 5
+	odds.Name, odds.LayoutOrder = "Odds", 8
 	odds.Size = UDim2.fromOffset(200, 36)
 	self.oddsButton = odds
-	self.keysRow = row("Keys", 6, 150)
-	heading("PassesHead", "PASSES", 7)
-	self.passesRow = row("Passes", 8, 250)
+	self.keysRow = row("Keys", 9, 150)
+	heading("PassesHead", "PASSES", 10)
+	self.passesRow = row("Passes", 11, 250)
 	local message = Ui.text(panel, "", 15, Ui.WHITE)
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
@@ -171,6 +177,7 @@ function ShopScreen.refresh(self: any)
 	end
 	for i = #keys + 1, #self.keyCards do self.keyCards[i].frame.Visible = false end
 	self.keysRow.Visible = #keys > 0
+	self:refreshClothing(shop.clothing or {})
 	-- passes
 	for i, p in shop.passes or {} do
 		local c = card(self.passesRow, self.passCards, i, 250)
@@ -190,6 +197,69 @@ function ShopScreen.refresh(self: any)
 			if not p.owned and p.available then self:request(key, { action = "buy", kind = "pass", id = p.id }) end
 		end
 	end
+end
+
+-- A pack's line under its card: what it holds, and what owning some of it leaves to pay.
+function ShopScreen.packLine(pack: any): string
+	local n = #(pack.pieces or {})
+	if pack.missing == 0 then return `{n} pieces · you own them all` end
+	if pack.missing == n then return `{n} pieces · {pack.total} R$ one by one` end
+	return `you own {n - pack.missing} · the other {pack.missing}: {pack.missingTotal} R$ one by one`
+end
+
+function ShopScreen.refreshClothing(self: any, packs: { any })
+	for i, pack in packs do
+		local r = self.packRows[i]
+		if not r then
+			local head = Ui.text(self.clothing, "", 15, Ui.WHITE, Ui.LABEL)
+			head.Name, head.LayoutOrder, head.TextXAlignment = "PackHead" .. i, i * 2 - 1, Enum.TextXAlignment.Left
+			head.Size = UDim2.new(1, -8, 0, 22)
+			local grid = Ui.make("Frame", self.clothing, { Name = "Pack" .. i, BackgroundTransparency = 1, BorderSizePixel = 0,
+				LayoutOrder = i * 2, Size = UDim2.new(1, -8, 0, 220), AutomaticSize = Enum.AutomaticSize.Y })
+			Ui.make("UIGridLayout", grid, { CellSize = UDim2.fromOffset(150, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+			r = { head = head, grid = grid, cards = {} }
+			self.packRows[i] = r
+		end
+		r.head.Text, r.head.Visible, r.grid.Visible = string.upper(pack.name or pack.id), true, true
+		-- the pack itself first
+		local c = card(r.grid, r.cards, 1, 220)
+		c.frame.Visible, c.thumb.Visible = true, false
+		c.name.Position, c.meta.Position = UDim2.fromOffset(8, 14), UDim2.fromOffset(8, 44)
+		c.meta.Size = UDim2.new(1, -16, 0, 110)
+		c.name.Text = "Whole pack"
+		c.meta.Text, c.meta.TextColor3 = ShopScreen.packLine(pack), Ui.DIM
+		local key = "pack:" .. pack.id
+		c.buy.Text = if pack.missing == 0 then "OWNED" elseif not pack.offer then "BUY SINGLY"
+			elseif self.pending == key then "..." else `{pack.price} R$`
+		Ui.paint(c.buy, if not pack.offer or self.pending then Ui.PANEL2 else Ui.GREEN)
+		c.edge.Color = if pack.missing == 0 then Ui.GOLD else Ui.EDGE
+		c.onBuy = function()
+			if pack.offer then self:request(key, { action = "buy", kind = "pack", id = pack.id }) end
+		end
+		-- then each piece
+		for j, p in pack.pieces or {} do
+			local it = Cosmetics.get(p.id)
+			local pc = card(r.grid, r.cards, j + 1, 220)
+			pc.frame.Visible = true
+			local col = Color3.fromHex((Loot.RARITY[it and it.rarity or "Common"] or Loot.RARITY.Common).colour)
+			pc.band.BackgroundColor3 = col
+			pc.name.Text = if it then it.name else p.id
+			pc.meta.Text, pc.meta.TextColor3 = if it then `{it.rarity} {it.category or ""}` else "", col
+			if self.art[pc.thumb] ~= p.id then
+				self.art[pc.thumb] = p.id
+				if self.opts.drawArt then self.opts.drawArt(pc.thumb, p.id, 134, 90) end
+			end
+			local pkey = "piece:" .. p.id
+			pc.buy.Text = if p.owned then "OWNED" elseif p.credit then "CLAIM (PAID)" elseif self.pending == pkey then "..." else `{p.price} R$`
+			Ui.paint(pc.buy, if p.owned or self.pending then Ui.PANEL2 else Ui.GREEN)
+			pc.edge.Color = if p.owned then Ui.GOLD else Ui.EDGE
+			pc.onBuy = function()
+				if not p.owned then self:request(pkey, { action = "buy", kind = "piece", id = p.id }) end
+			end
+		end
+		for j = #(pack.pieces or {}) + 2, #r.cards do r.cards[j].frame.Visible = false end
+	end
+	for i = #packs + 1, #self.packRows do self.packRows[i].head.Visible, self.packRows[i].grid.Visible = false, false end
 end
 
 -- -------------------------------------------------------------------------- odds & details ----
@@ -265,6 +335,8 @@ function ShopScreen.setEconomy(self: any, view: any)
 			local it = p.id and Cosmetics.get(p.id)
 			self:say(if p.kind == "keys" then `Thank you: {p.count} Forge Key{if p.count == 1 then "" else "s"} added`
 				elseif p.kind == "pass" then "Thank you: your pass is active"
+				elseif p.kind == "pack" then `Thank you: {#(p.granted or {})} piece{if #(p.granted or {}) == 1 then " is" else "s are"} in your Locker - wear them in the Character Studio`
+				elseif p.kind == "credit" and p.tier then `Thank you: pick a {p.tier} clothing piece to claim it`
 				elseif p.kind == "credit" then `Thank you: pick a {p.rarity} item to claim it`
 				elseif it then `Thank you: {it.name} is in your Locker` else "Thank you", Ui.GREEN)
 		end

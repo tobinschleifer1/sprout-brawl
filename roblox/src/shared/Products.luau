@@ -29,12 +29,21 @@ Products.FEATURED = {
 	Legendary = { price = 199, id = 0 },
 } :: { [string]: { price: number, id: number } }
 
--- Clothing (GPT's tiers): one piece at a time, or a pack. Sold once clothing can be worn (plan
--- phase 6, the k2 code); listed here so the prices live in one place.
+-- Clothing (GPT's tiers, RobloxClothing): one piece at a time, by its tier. One Developer Product
+-- per tier; the server remembers which piece the player chose before prompting.
 Products.CLOTHING = {
 	accent = { price = 3, id = 0 },
 	standard = { price = 5, id = 0 },
 	statement = { price = 8, id = 0 },
+} :: { [string]: { price: number, id: number } }
+
+-- Clothing packs: one Developer Product each, priced as RobloxClothing's pack. A pack grants the
+-- pieces its buyer is missing; the shop offers it only while that is cheaper than buying them singly.
+Products.PACKS = {
+	neon_night = { price = 24, id = 0 },
+	frostforged = { price = 26, id = 0 },
+	candy_club = { price = 22, id = 0 },
+	void_court = { price = 24, id = 0 },
 } :: { [string]: { price: number, id: number } }
 
 -- Game passes. `available` is false for a pass whose perks are not built yet: the shop shows it
@@ -65,11 +74,14 @@ function Products.pass(id: any): any
 	for _, p in Products.PASSES do if p.id == id then return p end end
 	return nil
 end
--- What a Developer Product id is: ("keys", bundle) or ("featured", rarity), or nil.
+-- What a Developer Product id is: ("keys", bundle), ("featured", rarity), ("clothing", tier) or
+-- ("pack", packId), or nil.
 function Products.byProductId(productId: number): (string?, any)
 	if productId == 0 then return nil, nil end
 	for _, b in Products.KEYS do if b.id == productId then return "keys", b end end
 	for rarity, t in Products.FEATURED do if t.id == productId then return "featured", rarity end end
+	for tier, t in Products.CLOTHING do if t.id == productId then return "clothing", tier end end
+	for pack, t in Products.PACKS do if t.id == productId then return "pack", pack end end
 	return nil, nil
 end
 

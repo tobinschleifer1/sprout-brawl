@@ -178,6 +178,7 @@ lune run tests/locker-ui
 lune run tests/shop-ui
 lune run tests/kit-k2
 lune run tests/clothing-ui
+lune run tests/clothing-shop
 lune run tests/shop
 lune run tests/secondary
 echo "== faces: expressions from the player's own face (Roblox only) =="

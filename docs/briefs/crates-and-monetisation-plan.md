@@ -506,6 +506,13 @@ miscounted match time. It also left these, which phase 5 must close before a key
    and chat tag, +10% Spark drops, the VIP Gold Rush trail and VIP Sparkle respawn, double first-win
    Sparks, five saved outfits), the Wardrobe's 16 characters. Respawn effects now draw. Clothing goes on
    sale with phase 6, when it can be worn.
-6. Clothing and `k2`: GPT's pieces joined to the kit; Pixel Studio.
+6. **Clothing, emotes and poses (2026-10-19, on `feature/clothing`):** `k2` codes (k1's digits, then
+   three characters per piece; k1 unchanged; 51 of 64 characters at most) with permanent piece numbers;
+   clothing saved only by its owner and stripped when no longer owned; the Studio lists owned pieces
+   and shows the rest behind SHOP; the Shop sells each piece at its tier (3/5/8 R$) and each pack
+   (22-26 R$) granting only what is missing, offered only while cheaper than the missing pieces singly.
+   GPT's emotes (12) and victory poses (6): four free emotes and one pose for everyone, the rest in
+   crates, the shop and VIP; taunt plus a direction picks the emote; the podium shows the worn pose.
+   Products not created yet (ids 0). **Pixel Studio is not started.**
 7. Trading: session locking first, then the Trading Post; estimated value.
 8. Coming back: levels, season track, challenges, mastery, login calendar.

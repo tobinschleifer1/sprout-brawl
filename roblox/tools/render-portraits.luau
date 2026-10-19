@@ -1,6 +1,7 @@
 --!nocheck
 -- Record the shipping still portraits, for kit-sheet.mjs and fight-png.mjs.
--- lune run tools/render-portraits out.json [presets|category[:head]|random] [--half|--match]
+-- lune run tools/render-portraits out.json [presets|category[:head]|random|clothing] [--half|--match]
+--   clothing: every clothing piece on the default character, through its k2 code (AvatarKit)
 local fs, process, serde = require("@lune/fs"), require("@lune/process"), require("@lune/serde")
 local Loader = require("../tests/loader")
 local Recorder = require("./recorder")
@@ -24,6 +25,12 @@ elseif mode == "random" then
 		for _, c in Kit.KIT.categories do spec.parts[c.id] = c.options[rnd(#c.options)].id end
 		for _, c in Kit.KIT.colours do spec.colours[c.id] = rnd(#c.list) - 1 end
 		table.insert(entries, { code = Kit.encode(spec), label = `#{i}` })
+	end
+elseif mode == "clothing" then
+	for _, it in Loader.load("RobloxClothing").items do
+		local spec = Kit.sanitize(nil)
+		spec.parts[it.category] = it.id
+		table.insert(entries, { code = Kit.encode(spec), label = it.name })
 	end
 else
 	local category = assert(Kit.category(mode), "unknown category " .. mode)

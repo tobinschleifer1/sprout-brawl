@@ -245,9 +245,13 @@ shopui = [
     ('odds not Loot', 'ShopScreen', 'row.label.Text, row.value.Text = r.text, r.value', 'row.label.Text, row.value.Text = r.text, r.value .. "!"', 'is not Loot'),
     ('guaranteed odds ignored', 'ShopScreen', 'LockerScreen.oddsRows("forge", 0, guaranteed)', 'LockerScreen.oddsRows("forge", 0, false)', 'guaranteed opening'),
     ('coming soon offered', 'ShopScreen', 'if not p.owned and p.available then self:request', 'if not p.owned then self:request', 'not on sale, or owned'),
-    ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif', 'c.buy.Text = if false then "OWNED" elseif', 'owned pass'),
+    ('owned pass offered', 'ShopScreen', 'c.buy.Text = if p.owned then "OWNED" elseif not p.available', 'c.buy.Text = if false then "OWNED" elseif not p.available', 'owned pass'),
     ('keys for the restricted', 'ShopScreen', 'local keys = if shop.restricted then {} else shop.keys or {}', 'local keys = shop.keys or {}', 'should not have sent'),
     ('odds button for the restricted', 'ShopScreen', 'self.oddsButton.Visible = not shop.restricted', 'self.oddsButton.Visible = true', 'sees Forge Keys'),
+    ('pack offered regardless', 'ShopScreen', 'if pack.offer then self:request(key', 'if true then self:request(key', 'a pack not offered'),
+    ('pack never BUY SINGLY', 'ShopScreen', 'elseif not pack.offer then "BUY SINGLY"', 'elseif false then "BUY SINGLY"', 'dearer than its missing pieces'),
+    ('owned piece requested', 'ShopScreen', 'if not p.owned then self:request(pkey', 'if true then self:request(pkey', 'an owned piece, was requested'),
+    ('pack line miscounts', 'ShopScreen', 'return `you own {n - pack.missing}', 'return `you own {n}', 'line reads wrong'),
     ('refusal silent', 'ShopScreen', 'self:say(`Could not do that: {e.error}`, Ui.RED)', 'self:say("", Ui.RED)', 'refusal was not shown'),
 ]
 
@@ -258,7 +262,7 @@ emotes = [
     ('migrated free instance', 'shared/Inventory', 'and item(id).source ~= "free" and n <', 'and n <', 'free item has transferable instance'),
     ('mint free copies', 'shared/Inventory', 'if not item(id) or item(id).source == "free" then return nil end', 'if not item(id) then return nil end', 'free item can be minted'),
     ('lost VIP grant', 'shared/Products', ', "emote_vip"', '', 'VIP emote not granted by pass'),
-    ('exclusive items never sold', 'server/Shop', '(it.source == "crate" or it.source == "shop")', '(it.source == "crate")', 'shop-only poses never offered'),
+    ('exclusive items never sold', 'server/Shop', 'local sold = it.source == "crate" or (it.source == "shop" and it.type ~= "clothing")', 'local sold = it.source == "crate"', 'shop-only poses never offered'),
     ('exclusive item in crate', 'shared/Cosmetics', 'type = "emote", name = "En Garde", rarity = "Rare", source = "shop"', 'type = "emote", name = "En Garde", rarity = "Rare", source = "crate"', 'phase six catalogue distribution'),
     ('crate emote not craftable', 'shared/Loot', 'if not item or item.source ~= "crate" then return nil end', 'if not item or item.type == "emote" or item.source ~= "crate" then return nil end', 'crate emote is not craftable'),
     ('wrong direction fallback', 'shared/Inventory', 'neutral = "emote_wave"', 'neutral = "emote_cheer"', 'direction defaults changed'),
@@ -312,7 +316,47 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--suite', action='append', help='Run only this suite (repeatable); default all')
 args = parser.parse_args()
 selected = 0
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes)]:
+kitk2 = [
+    ('k2 for everyone', 'shared/AvatarKit', 'if #worn > 0 then\n\t\tout[1] = AvatarKit.K2', 'if true then\n\t\tout[1] = AvatarKit.K2', 'left k1'),
+    ('piece number off by one', 'shared/AvatarKit', 'local hi, lo = p.n // 36, p.n % 36', 'local hi, lo = p.n // 36, (p.n + 1) % 36', 'did not round trip'),
+    ('misfiled piece worn', 'shared/AvatarKit', 'if c and p and p.category == c.id then parts[c.id] = p.id end', 'if c and p then parts[c.id] = p.id end', 'worn as a top'),
+    ('sanitize ignores category', 'shared/AvatarKit', 'if optionIndex(c, v) or (p and p.category == c.id) then v', 'if optionIndex(c, v) or p ~= nil then v', 'wrong category'),
+    ('k2 not a code', 'shared/AvatarKit', 'return v == AvatarKit.VERSION or v == AvatarKit.K2', 'return v == AvatarKit.VERSION', 'round trip'),
+    ('strip keeps everything', 'shared/AvatarKit', 'if not (ok and has == true) then parts[PIECE[id].category]', 'if false then parts[PIECE[id].category]', 'stayed on'),
+    ('strip trusts a failed read', 'shared/AvatarKit', 'if not (ok and has == true) then parts[PIECE[id].category]', 'if ok and has == false then parts[PIECE[id].category]', 'could not be read'),
+    ('save without ownership', 'server/AvatarStore', 'if not (ok and has == true) then\n\t\t\t\treturn false, "That character wears', 'if false then\n\t\t\t\treturn false, "That character wears', 'unowned piece was saved'),
+    ('active not stripped', 'server/AvatarStore', 'return self:wearable(userId, rec.slots[rec.active].code)', 'return rec.slots[rec.active].code', 'no longer owned stayed on'),
+    ('piece drawn as a free part', 'AvatarCompose', 'chosen = AvatarKit.option(cat.id, spec.parts[cat.id])', 'chosen = cat.options[1]', 'not drawn on the torso'),
+    ('clothing in crates', 'shared/Cosmetics', 'rarity = it.rarity, source = "shop",', 'rarity = it.rarity, source = "crate",', 'bought outright'),
+]
+
+clothingui = [
+    ('studio offers no clothing', 'AvatarEditor', 'if it.category == c.id then table.insert(out, AvatarKit.option(c.id, it.id)) end', 'if false then table.insert(out, AvatarKit.option(c.id, it.id)) end', 'every top piece'),
+    ('every piece wearable', 'AvatarEditor', 'if AvatarKit.piece(optionId) then return self.pieces[optionId] == true end', 'if AvatarKit.piece(optionId) then return true end', 'wearable does not follow'),
+    ('no price given', 'AvatarEditor', '{price} R$ on its own', 'on its own', 'where it is sold'),
+    ('locked as LOCKED', 'AvatarEditor', 'local tag = if AvatarKit.piece(o.id) then "SHOP" else "LOCKED"', 'local tag = "LOCKED"', 'tiles do not tell'),
+    ('pieces not read', 'AvatarEditor', 'pieces[id] = true\n\t\t\ttable.insert(sig, "piece:" .. id)', 'table.insert(sig, "piece:" .. id)', 'wearable does not follow'),
+    ('arrows skip clothing', 'AvatarEditor', 'local options = self:optionsOf(c)\n\tfor i, o in options do', 'local options = c.options\n\tfor i, o in options do', 'did not reach the owned piece'),
+    ('random hands out anything', 'AvatarEditor', 'if self:wearable(c.id, o.id) then table.insert(out, o) end', 'table.insert(out, o)', 'unowned piece'),
+    ('clothing worn by slot', 'LockerScreen', 'if m.type == "clothing" then\n\t\t\t\t-- clothing', 'if false then\n\t\t\t\t-- clothing', 'did not go to the Studio'),
+    ('clothing button says WEAR', 'LockerScreen', 'c.primary.Text = if m.type == "clothing" then "WEAR IN STUDIO" elseif', 'c.primary.Text = if false then "WEAR IN STUDIO" elseif', 'offers a Locker slot'),
+    ('hats on a figure', 'ItemArt', 'if HEAD_WORN[it.category] then "head" else "figure"', '"figure"', 'wrong view'),
+]
+
+clothingshop = [
+    ('pack grants owned pieces', 'server/Shop', 'if not Inventory.owns(inv, it.id) then\n\t\t\t\t\tlocal uid, why = self.economy:_grant(inv, it.id, true, "shop")', 'if true then\n\t\t\t\t\tlocal uid, why = self.economy:_grant(inv, it.id, true, "shop")', 'exactly what was missing'),
+    ('pack always offered', 'server/Shop', 'offer = missing > 0 and price < missingTotal,', 'offer = missing > 0,', 'dearer than its missing pieces is offered'),
+    ('pack dearer than singles sold', 'server/Shop', 'if product.price >= missingTotal then return false', 'if false then return false', 'could be bought'),
+    ('owned pack sold', 'server/Shop', 'if #missing == 0 then return false, "you already own every piece in it" end', 'local _ = #missing', 'fully owned pack could be bought'),
+    ('race paid twice', 'server/Shop', 'elseif fresh and table.find(intent.missing, it.id) then', 'elseif false then', 'paid for twice'),
+    ('one intent for all', 'server/Shop', 'self.packIntents[userId] = { id = msg.id', 'self.pieceIntents[userId] = { id = msg.id', 'paid for twice'),
+    ('credit of any tier', 'server/Shop', 'if inv.credits[it.priceTier] > 0 then\n\t\t\t-- a clothing purchase', 'if inv.credits.accent + inv.credits.standard + inv.credits.statement > 0 then\n\t\t\t-- a clothing purchase', 'accent credit paid'),
+    ('clothing product unknown', 'shared/Products', 'for tier, t in Products.CLOTHING do if t.id == productId then return "clothing", tier end end', 'local _ = productId', 'not recognised'),
+    ('prompted before created', 'server/Shop', 'if product.id == 0 then return false, "clothing is not on sale yet" end\n\t\tself.pieceIntents', 'if false then return false, "clothing is not on sale yet" end\n\t\tself.pieceIntents', 'with no product was prompted'),
+    ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
+]
+
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes)]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

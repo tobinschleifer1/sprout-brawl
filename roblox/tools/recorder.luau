@@ -122,7 +122,8 @@ end
 local BOXES = { Frame = true, TextLabel = true, TextButton = true, TextBox = true, ScrollingFrame = true }
 function Recorder.nodes(made: { any }, W: number, H: number): { any }
 	-- a box's height: its Size, or with AutomaticSize Y and a UIGridLayout, as tall as its cells
-	local function height(o: any, pw: number, ph: number): number
+	local height: (any, number, number) -> number
+	function height(o: any, pw: number, ph: number): number
 		local sz = o.Size or Rbx.UDim2.new(1, 0, 1, 0)
 		local h = ph * sz.Y.Scale + sz.Y.Offset
 		if not string.find(tostring(o.AutomaticSize or ""), "Y") then return h end
@@ -136,6 +137,17 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 				local cols = math.max(1, math.floor((w + gap.X.Offset) / (cw + gap.X.Offset)))
 				local rows = math.ceil(n / cols)
 				return math.max(h, rows * ch + math.max(0, rows - 1) * gap.Y.Offset)
+			end
+			if g.ClassName == "UIListLayout" and not g.destroyed and not string.find(tostring(g.FillDirection or ""), "Horizontal") then
+				-- a vertical list grows to the sum of its visible boxes and the gaps between them
+				local w, total, n = pw * sz.X.Scale + sz.X.Offset, 0, 0
+				local pad = g.Padding and g.Padding.Offset or 0
+				for _, c in o._children do
+					if BOXES[c.ClassName] and not c.destroyed and c.Visible ~= false then
+						total += height(c, w, h); n += 1
+					end
+				end
+				return math.max(h, total + math.max(0, n - 1) * pad)
 			end
 		end
 		return h

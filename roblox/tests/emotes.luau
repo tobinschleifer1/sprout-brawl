@@ -208,11 +208,18 @@ for i,it in items do
  local plain=Posture.For(ch,snap,char,wp,nil,0)
  Emotes.apply(ch,wp,key,char)
  local p=Posture.For(ch,snap,char,wp,nil,0)
+ -- continuous between samples, not only at them: in smooth motion each quarter frame's change is
+ -- about the size of its neighbours'; a jump is one step far bigger than the steps either side
+ -- (a kink, where the leading leg changes, is not a jump and passes)
+ local bobs={}
  for frame=0,90,0.25 do
-  local before=Channels.For(snap,char,nil,0);local after=Channels.For(snap,char,nil,0)
-  Emotes.apply(before,{},Emotes.sample(it.id,frame),char)
-  Emotes.apply(after,{},Emotes.sample(it.id,frame+0.001),char)
-  near(before.bob,after.bob,'applied pose height jumps',0.001)
+  local ch2=Channels.For(snap,char,nil,0)
+  Emotes.apply(ch2,{},Emotes.sample(it.id,frame),char)
+  table.insert(bobs,ch2.bob)
+ end
+ for k=2,#bobs-2 do
+  local step,prev,nextStep=math.abs(bobs[k+1]-bobs[k]),math.abs(bobs[k]-bobs[k-1]),math.abs(bobs[k+2]-bobs[k+1])
+  assert(step<=2*math.max(prev,nextStep)+1e-4*char.height,`applied pose height jumps ({it.id} near frame {(k-1)*0.25})`)
  end
  assert(math.abs(p.back.ex-plain.back.ex)+math.abs(p.back.ey-plain.back.ey)+math.abs(p.front.ex-plain.front.ex)+math.abs(p.front.ey-plain.front.ey)>0.5,'item still draws plain taunt')
  for leg,L in p.legs do

@@ -187,6 +187,7 @@ local TweenService = game:GetService("TweenService")
 local locker = LockerScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	sendLocker = function(msg: any) Net.remote("Locker"):FireServer(msg) end,
 	sendEconomy = function(msg: any) Net.remote("Economy"):FireServer(msg) end,
+	openStudio = function() openStudio() end,
 	drawArt = function(frame: Frame, id: string, w: number, h: number)
 		ItemArt.draw(Canvas2D.inFrame(frame), id, w, h)
 	end,

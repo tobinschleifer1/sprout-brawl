@@ -1,5 +1,5 @@
 // The shipping Luau portrait renderer, presented as an SVG contact sheet.
-// node tools/kit-sheet.mjs out.svg [presets|category[:head]|random] [--half|--match]
+// node tools/kit-sheet.mjs out.svg [presets|category[:head]|random|clothing] [--half|--match]
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';

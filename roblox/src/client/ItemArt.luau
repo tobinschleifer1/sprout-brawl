@@ -17,6 +17,10 @@ local Emotes = require(script.Parent.Emotes)
 local Fighter2D = require(script.Parent.Fighter2D)
 local PosedFighter = require(script.Parent.PosedFighter)
 local Loadout = require(Shared.Loadout)
+local KitPortrait = require(script.Parent.KitPortrait)
+local AvatarKit = require(Shared.AvatarKit)
+-- clothing worn on the head is shown on a head; the rest on the whole figure
+local HEAD_WORN = { headwear = true, hair = true, eyewear = true }
 local ItemArt = {}
 
 -- The drawing each effect's tile shows: a kind, a flipbook frame and a ramp. A recolouring hit
@@ -32,7 +36,8 @@ ItemArt.FX = {
 	steps_leaves = { "pop", 3, "#5FD068" }, steps_sparkle = { "spark", 1, "#FFF4C8" }, steps_flame = { "pop", 2, "fire" },
 } :: { [string]: { any } }
 
--- What a tile draws for `id`: "weapon", "fx", "trail", "title" or "crate"; and its parameters.
+-- What a tile draws for `id`: "weapon", "fx", "trail", "title", "crate" or "kit" (a clothing piece on
+-- the default character: { code, view }); and its parameters.
 function ItemArt.plan(id: string): (string, any)
 	if CosmeticArt.props and CosmeticArt.props[id] then return "crate", id end
 	local it = Cosmetics.get(id)
@@ -41,6 +46,11 @@ function ItemArt.plan(id: string): (string, any)
 	if it.type == "swing_trail" then return "trail", Weapons2D.TRAILS[id] or { "#FFFFFF" } end
 	if it.type == "title" then return "title", it.name end
 	if it.type == "emote" or it.type == "victory_pose" then return "pose", { id = id, victory = it.type == "victory_pose", frame = Emotes.KEY_FRAME } end
+	if it.type == "clothing" and it.category then
+		local spec = AvatarKit.sanitize(nil)
+		spec.parts[it.category] = id
+		return "kit", { AvatarKit.encode(spec), if HEAD_WORN[it.category] then "head" else "figure" }
+	end
 	local fx: { any } = ItemArt.FX[id] or { "pop", 2 :: any, it.ramp or (Loot.RARITY[it.rarity] or Loot.RARITY.Common).colour }
 	return "fx", fx
 end
@@ -73,6 +83,9 @@ function ItemArt.draw(c: any, id: string, w: number, h: number)
 		local cx, cy, ppu = Weapons2D.fit(arg, w, h, 6)
 		Canvas2D.setTransform(c, ppu, 0, 0, -ppu, w / 2 - cx * ppu, h / 2 + cy * ppu)
 		Weapons2D.draw(c, arg, Weapons2D.skinPalette(string.match(arg, "@(.+)$")) or {}, { angle = 0, ox = 0, oy = 0, scale = 1, charge = 0 })
+	elseif kind == "kit" then
+		KitPortrait.draw(c, arg[1], arg[2], w, h)
+		return
 	elseif kind == "crate" then
 		fitRects(c, CosmeticArt.props[arg], w, h, 6)
 	elseif kind == "fx" then

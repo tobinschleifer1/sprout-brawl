@@ -1,7 +1,9 @@
 --!strict
--- Design catalogue only. Not registered with k1, the shop, or the runtime composer.
--- Every item is sold singly; a pack grants its constituent item ids at a discount.
--- Price tiers are suggestions in Robux, not product ids or a purchase implementation.
+-- The clothing catalogue: pieces worn through k2 character codes (AvatarKit), owned as Cosmetics
+-- items of type "clothing", sold singly or as a pack (Products.CLOTHING, Shop).
+-- `n` is a piece's PERMANENT number: k2 codes carry it, so never renumber or reuse one - a new piece
+-- takes the next unused number; a retired piece keeps its number and codes naming it fall back to
+-- the category's free option. tests/kit-k2.luau pins every number.
 -- Layers use the existing kit's zero-based x/y, z order, clipping and colour ROLES.
 -- No literal colours: a/A/u top, b/B trim, c/C bottom, f/F shoes, x/X/y accessory,
 -- h/H/i hair. Hats carry trim; every hair layer is marked hair so hats can trim it.
@@ -14,7 +16,7 @@ export type Layer = {
 	clip: boolean?, hair: boolean?,
 }
 export type Item = {
-	id: string, category: string, name: string, rarity: string, pack: string,
+	id: string, n: number, category: string, name: string, rarity: string, pack: string,
 	priceTier: string, layers: { Layer }, trim: number?,
 }
 export type Pack = { id: string, name: string, suggestedPriceRobux: number }
@@ -54,6 +56,7 @@ local catalogue: Catalogue = {
 	items = {
 		{
 			id = "neon_circuit_bomber",
+			n = 1,
 			category = "top",
 			name = "Circuit Bomber",
 			rarity = "Rare",
@@ -80,6 +83,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "neon_sideband_joggers",
+			n = 2,
 			category = "bottom",
 			name = "Sideband Joggers",
 			rarity = "Common",
@@ -104,6 +108,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "neon_signal_cap",
+			n = 3,
 			category = "headwear",
 			name = "Signal Cap",
 			rarity = "Uncommon",
@@ -122,6 +127,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "neon_voltage_sweep",
+			n = 4,
 			category = "hair",
 			name = "Voltage Sweep",
 			rarity = "Uncommon",
@@ -140,6 +146,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "neon_pulse_gloves",
+			n = 5,
 			category = "gloves",
 			name = "Pulse Gloves",
 			rarity = "Common",
@@ -157,6 +164,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "neon_nightstep_hightops",
+			n = 6,
 			category = "shoes",
 			name = "Nightstep Hightops",
 			rarity = "Uncommon",
@@ -174,6 +182,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "frost_rimeguard_coat",
+			n = 7,
 			category = "top",
 			name = "Rimeguard Coat",
 			rarity = "Rare",
@@ -200,6 +209,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "frost_ridgeguard_trousers",
+			n = 8,
 			category = "bottom",
 			name = "Ridgeguard Trousers",
 			rarity = "Common",
@@ -224,6 +234,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "frost_snowline_beanie",
+			n = 9,
 			category = "headwear",
 			name = "Snowline Beanie",
 			rarity = "Uncommon",
@@ -242,6 +253,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "frost_whiteout_halfcape",
+			n = 10,
 			category = "neck",
 			name = "Whiteout Halfcape",
 			rarity = "Rare",
@@ -266,6 +278,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "frost_icebreak_mitts",
+			n = 11,
 			category = "gloves",
 			name = "Icebreak Mitts",
 			rarity = "Common",
@@ -283,6 +296,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "frost_snowdrift_boots",
+			n = 12,
 			category = "shoes",
 			name = "Snowdrift Boots",
 			rarity = "Uncommon",
@@ -300,6 +314,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "candy_sugarstripe_tee",
+			n = 13,
 			category = "top",
 			name = "Sugarstripe Tee",
 			rarity = "Common",
@@ -326,6 +341,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "candy_bonbon_shorts",
+			n = 14,
 			category = "bottom",
 			name = "Bonbon Shorts",
 			rarity = "Common",
@@ -350,6 +366,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "candy_sundae_beret",
+			n = 15,
 			category = "headwear",
 			name = "Sundae Beret",
 			rarity = "Uncommon",
@@ -368,6 +385,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "candy_softserve_swirl",
+			n = 16,
 			category = "hair",
 			name = "Softserve Swirl",
 			rarity = "Rare",
@@ -386,6 +404,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "candy_sugarstar_specs",
+			n = 17,
 			category = "eyewear",
 			name = "Sugarstar Specs",
 			rarity = "Uncommon",
@@ -403,6 +422,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "candy_taffy_trainers",
+			n = 18,
 			category = "shoes",
 			name = "Taffy Trainers",
 			rarity = "Common",
@@ -420,6 +440,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "void_eventide_vest",
+			n = 19,
 			category = "top",
 			name = "Eventide Vest",
 			rarity = "Uncommon",
@@ -438,6 +459,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "void_rift_pleats",
+			n = 20,
 			category = "bottom",
 			name = "Rift Pleats",
 			rarity = "Uncommon",
@@ -455,6 +477,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "void_comet_tail",
+			n = 21,
 			category = "hair",
 			name = "Comet Tail",
 			rarity = "Rare",
@@ -481,6 +504,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "void_eclipse_mantle",
+			n = 22,
 			category = "neck",
 			name = "Eclipse Mantle",
 			rarity = "Epic",
@@ -505,6 +529,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "void_orbit_cuffs",
+			n = 23,
 			category = "gloves",
 			name = "Orbit Cuffs",
 			rarity = "Uncommon",
@@ -522,6 +547,7 @@ local catalogue: Catalogue = {
 		},
 		{
 			id = "void_null_visor",
+			n = 24,
 			category = "eyewear",
 			name = "Null Visor",
 			rarity = "Rare",

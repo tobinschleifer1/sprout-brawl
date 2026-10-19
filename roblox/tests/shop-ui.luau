@@ -62,6 +62,16 @@ local function view(restricted)
 		passes = { { id = "vip", name = "VIP", price = 199, owned = false, available = true, perks = { "Gold name", "+10% Sparks" } },
 			{ id = "season", name = "Season Pass", price = 149, owned = false, available = false, perks = { "The premium track" } },
 			{ id = "wardrobe", name = "Wardrobe", price = 79, owned = true, available = true, perks = { "16 characters" } } },
+		clothing = {
+			{ id = "candy_club", name = "Candy Club", price = 22, total = 31, missing = 5, missingTotal = 28, offer = true, pieces = {
+				{ id = "candy_sugarstripe_tee", price = 8, owned = true }, { id = "candy_bonbon_shorts", price = 5, owned = false },
+				{ id = "candy_sundae_beret", price = 5, owned = false, credit = true }, { id = "candy_softserve_swirl", price = 5, owned = false },
+				{ id = "candy_sugarstar_specs", price = 3, owned = false }, { id = "candy_taffy_trainers", price = 5, owned = false } } },
+			{ id = "neon_night", name = "Neon Night", price = 24, total = 31, missing = 1, missingTotal = 8, offer = false, pieces = {
+				{ id = "neon_circuit_bomber", price = 8, owned = false } } },
+			{ id = "frostforged", name = "Frostforged", price = 26, total = 34, missing = 0, missingTotal = 0, offer = false, pieces = {
+				{ id = "frost_snowline_beanie", price = 5, owned = true } } },
+		},
 	} }
 end
 
@@ -127,6 +137,38 @@ s:cancelled()
 local done = view(false); done.event = { purchased = { kind = "keys", count = 5 } }
 s:setEconomy(done)
 assert(string.find(find(root, "Message").Text, "5 Forge Keys added", 1, true), "a purchase was not acknowledged")
+-- 3b. Clothing: a pack and its pieces; the pack offered only while cheaper than what is missing.
+assert(Shop.packLine({ pieces = { 1, 2, 3, 4, 5, 6 }, missing = 6, total = 31, missingTotal = 31 }) == "6 pieces · 31 R$ one by one"
+	and Shop.packLine({ pieces = { 1, 2, 3, 4, 5, 6 }, missing = 5, total = 31, missingTotal = 28 }) == "you own 1 · the other 5: 28 R$ one by one"
+	and Shop.packLine({ pieces = { 1, 2 }, missing = 0, total = 8, missingTotal = 0 }) == "2 pieces · you own them all", "a pack's line reads wrong")
+s:cancelled()
+local candy, neon, frost = find(root, "Pack1"), find(root, "Pack2"), find(root, "Pack3")
+assert(find(root, "PackHead1").Text == "CANDY CLUB" and find(root, "PackHead2").Text == "NEON NIGHT", "the packs are not headed by name")
+assert(find(cardNamed(candy, "Whole pack"), "Buy").Text == "22 R$" and find(cardNamed(candy, "Whole pack"), "Meta").Text == "you own 1 · the other 5: 28 R$ one by one",
+	"the pack's price or line is wrong")
+assert(find(cardNamed(candy, "Sugarstripe Tee"), "Buy").Text == "OWNED" and find(cardNamed(candy, "Sundae Beret"), "Buy").Text == "CLAIM (PAID)"
+	and find(cardNamed(candy, "Bonbon Shorts"), "Buy").Text == "5 R$" and find(cardNamed(candy, "Sugarstar Specs"), "Buy").Text == "3 R$",
+	"a piece's button is wrong")
+assert(find(cardNamed(neon, "Whole pack"), "Buy").Text == "BUY SINGLY" and find(cardNamed(frost, "Whole pack"), "Buy").Text == "OWNED",
+	"a pack dearer than its missing pieces, or fully owned, is offered")
+local was = #sent
+find(cardNamed(neon, "Whole pack"), "Buy").Activated:Fire()
+find(cardNamed(frost, "Whole pack"), "Buy").Activated:Fire()
+find(cardNamed(candy, "Sugarstripe Tee"), "Buy").Activated:Fire()
+assert(#sent == was, "a pack not offered, or an owned piece, was requested")
+find(cardNamed(candy, "Bonbon Shorts"), "Buy").Activated:Fire()
+assert(sent[#sent].kind == "piece" and sent[#sent].id == "candy_bonbon_shorts", "a piece was not requested")
+s:cancelled()
+find(cardNamed(candy, "Whole pack"), "Buy").Activated:Fire()
+assert(sent[#sent].kind == "pack" and sent[#sent].id == "candy_club", "the pack was not requested")
+s:cancelled()
+local packDone = view(false); packDone.event = { purchased = { kind = "pack", id = "candy_club", granted = { "a", "b", "c", "d", "e" }, credited = {} } }
+s:setEconomy(packDone)
+assert(string.find(find(root, "Message").Text, "5 pieces are in your Locker", 1, true), "a pack purchase was not acknowledged")
+local credit = view(false); credit.event = { purchased = { kind = "credit", tier = "standard" } }
+s:setEconomy(credit)
+assert(string.find(find(root, "Message").Text, "standard clothing piece", 1, true), "a clothing credit was not explained")
+
 -- 4. A restricted player: no keys, no odds button, told why.
 s:setEconomy(view(true))
 local any = false
@@ -140,4 +182,4 @@ for _, c in keys:GetChildren() do if c.Visible and find(c, "Name") then any = tr
 assert(not any and not keys.Visible, "a restricted player sees Forge Keys the server should not have sent")
 s:close()
 assert(not s:isOpen(), "the Shop did not close")
-print("PASS shop ui: featured items in plain Robux with their countdown, owned and paid-for credits shown; Forge Keys with per-key prices and a worded ODDS & DETAILS from Loot's own table, guaranteed opening too; passes with perks, coming soon and owned; one request at a time, prompts handed to Roblox, refusals and purchases shown; restricted players see no keys and are told why")
+print("PASS shop ui: featured items in plain Robux with their countdown, owned and paid-for credits shown; Forge Keys with per-key prices and a worded ODDS & DETAILS from Loot's own table, guaranteed opening too; passes with perks, coming soon and owned; clothing packs with their pieces, offered only while cheaper than what is missing; one request at a time, prompts handed to Roblox, refusals and purchases shown; restricted players see no keys and are told why")

@@ -252,8 +252,7 @@ elseif screen == "shop" then
 	s:setEconomy({ shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes, clothing = clothing,
 		featured = { { id = "hammer_cobblestone", price = 29, owned = false }, { id = "sword_frostbite", price = 49, owned = true },
 			{ id = "daggers_venomfang", price = 99, owned = false, credit = true }, { id = "sword_starforged", price = 199, owned = false } } } })
-	-- the Recorder draws in creation order, not ZIndex: hide what the odds panel (ZIndex 10) covers
-	if variant == "odds" then s:showOdds(false); s.body.Visible = false end
+	if variant == "odds" then s:showOdds(false) end
 	c:screen()
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
 else

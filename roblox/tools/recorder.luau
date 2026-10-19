@@ -186,6 +186,13 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 			end
 			local horizontal = string.find(tostring(layout.FillDirection or ""), "Horizontal") ~= nil
 			local padPx = layout.Padding and layout.Padding.Offset or 0
+			-- the parent's UIPadding moves the list in and narrows what its children's scale is of
+			for _, c in p._children do
+				if c.ClassName == "UIPadding" then
+					local l, r = c.PaddingLeft and c.PaddingLeft.Offset or 0, c.PaddingRight and c.PaddingRight.Offset or 0
+					x, y, pw = l, c.PaddingTop and c.PaddingTop.Offset or 0, pw - l - r
+				end
+			end
 			for k = 1, at - 1 do
 				local sz2 = sibs[k].Size or Rbx.UDim2.new()
 				if horizontal then x += pw * sz2.X.Scale + sz2.X.Offset + padPx
@@ -225,7 +232,8 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 			end
 			for _, ch in o._children do
 				if ch.destroyed then continue end
-				if ch.ClassName == "UICorner" then node.radius = ch.CornerRadius.Offset end
+				-- (a scale radius - UDim.new(1, 0) for a pill - is a fraction of the shorter side)
+				if ch.ClassName == "UICorner" then node.radius = ch.CornerRadius.Offset + (ch.CornerRadius.Scale or 0) * math.min(w, h) end
 				if ch.ClassName == "UIGradient" and ch.Color and ch.Color.Keypoints and ch.Enabled ~= false then
 					-- top to bottom (Rotation 90) or left to right
 					local k = ch.Color.Keypoints
@@ -271,7 +279,31 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 			table.insert(list, { order = (r and r.DisplayOrder or 0), i = i, node = node })
 		end
 	end
-	table.sort(list, function(a, b) if a.order ~= b.order then return a.order < b.order end return a.i < b.i end)
+	-- Roblox's own paint order (ZIndexBehavior.Sibling, every screen's): by ScreenGui DisplayOrder;
+	-- then siblings by ZIndex, ties in the order they were made; a box's children over it. So each
+	-- box's key is its chain of (ZIndex, made) from the ScreenGui down, compared level by level.
+	local madeAt: { [any]: number } = {}
+	for i, o in made do madeAt[o] = i end
+	local function chain(o: any): { { number } }
+		local out = {}
+		local cur = o
+		while cur and cur.ClassName ~= "ScreenGui" do
+			table.insert(out, 1, { cur.ZIndex or 1, madeAt[cur] or 0 })
+			cur = cur.Parent
+		end
+		return out
+	end
+	for _, e in list do e.chain = chain(made[e.i]) end
+	table.sort(list, function(a, b)
+		if a.order ~= b.order then return a.order < b.order end
+		local ca, cb = a.chain, b.chain
+		for k = 1, math.min(#ca, #cb) do
+			if ca[k][1] ~= cb[k][1] then return ca[k][1] < cb[k][1] end
+			if ca[k][2] ~= cb[k][2] then return ca[k][2] < cb[k][2] end
+		end
+		if #ca ~= #cb then return #ca < #cb end
+		return a.i < b.i
+	end)
 	local nodes = {}
 	for _, e in list do table.insert(nodes, e.node) end
 	return nodes

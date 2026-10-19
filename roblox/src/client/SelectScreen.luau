@@ -35,6 +35,14 @@ local Ui = require(script.Parent.Ui)
 local SelectScreen = {}
 SelectScreen.__index = SelectScreen
 
+-- The drawn size for `value` asked at `size`, shrunk until it fits `width` px (never under 60%).
+function SelectScreen.fitSize(value: string, size: number, width: number): number
+	local full = Ui.px(size)
+	local w = Ui.textWidth(value, size)
+	if w <= width then return full end
+	return math.max(math.floor(full * 0.6), math.floor(full * width / w))
+end
+
 -- the look is the shared kit's (Ui)
 local DISPLAY = Ui.DISPLAY
 local INK, PANEL, EDGE, WHITE, DIM = Ui.INK, Ui.PANEL, Ui.EDGE, Ui.WHITE, Ui.DIM
@@ -322,7 +330,9 @@ function SelectScreen.build(self: any, L: any)
 		local name = text(self.pickPage, string.upper(Weapons.LIST[i].name), 11 * s, WHITE)
 		Ui.outline(name, 1)
 		name.Name = "Name" .. r.id
-		place(name, r.x - L.cell, r.y + L.cell / 2 + 5, L.cell * 2, 14 * s)
+		-- one tile wide (plus its gap), the size shrunk to fit: long names collided with their neighbours
+		place(name, r.x - L.cell / 2 - 4, r.y + L.cell / 2 + 5, L.cell + 8, 14 * s)
+		name.TextSize = SelectScreen.fitSize(name.Text, 11 * s, L.cell - 4)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
 		self.cells[i] = { button = b, ring = ring, name = name, id = r.id }
 		table.insert(self.tags, name)
@@ -482,9 +492,12 @@ function SelectScreen.buildVotes(self: any, L: any)
 		local panel = make("Frame", card, { Name = "Panel", BackgroundColor3 = PANEL, BorderSizePixel = 0 })
 		place(panel, 0, 0, r.w, r.panelH)
 		corner(panel, 12)
-		local bandColour = if preset then Ui.BLUE else Ui.PANEL2
+		-- (keeping the room's rules is a choice like the others: a real colour, not a pale disabled band)
+		local bandColour = if preset then Ui.BLUE elseif LIGHT then Ui.TEAL else Ui.PANEL2
 		local band = Ui.band(card, bandColour, 44 * s)
-		local title = text(band, if preset then string.upper(preset.name) else "KEEP CURRENT", math.floor(20 * s), WHITE, DISPLAY)
+		local titleText = if preset then string.upper(preset.name) else "KEEP CURRENT"
+		local title = if LIGHT then (Ui.faceText(band, titleText, math.floor(20 * s), bandColour))
+			else text(band, titleText, math.floor(20 * s), WHITE, DISPLAY)
 		title.Name = "Title"
 		place(title, 6 * s, 0, r.w - 12 * s, 44 * s)
 		title.TextWrapped = true
@@ -579,6 +592,7 @@ function SelectScreen.render(self: any)
 		c.ring.Thickness = if hand then 5 else 3
 		c.name.TextColor3 = if hand then GOLD else DIM
 		c.name.Text = (if hand then `{hand} · ` else "") .. string.upper(Weapons.BY_ID[c.id].name)
+		c.name.TextSize = SelectScreen.fitSize(c.name.Text, 11 * L.s, L.cell - 4)
 		local list: { any } = picked[c.id] or {}
 		for n, entry in list do
 			local slot = entry.slot
@@ -707,10 +721,10 @@ function SelectScreen.renderVotes(self: any, phase: string, room: any, mine: any
 		for i, slot in room.slots do
 			local voted = slot.userId ~= nil and slot[field] ~= nil
 			local label = if slot.userId then `{if voted then "✓" else "…"} {string.upper(slot.name or "PLAYER")}` elseif slot.bot then "CPU" else "OPEN"
-			local chip = text(self.pages[phase], label, 12 * s, if voted then INK elseif slot.bot or not LIGHT then WHITE else TEXT)
+			local chip = text(self.pages[phase], label, 12 * s, if voted then INK elseif LIGHT then TEXT else WHITE)
 			chip.Name = "Chip" .. i
 			chip.BackgroundTransparency = 0
-			chip.BackgroundColor3 = if voted then GREEN else (if slot.bot then Color3.fromRGB(52, 64, 88) else PANEL)
+			chip.BackgroundColor3 = if voted then GREEN else (if slot.bot then (if LIGHT then Ui.EDGE else Color3.fromRGB(52, 64, 88)) else PANEL)
 			corner(chip, 8)
 			stroke(chip, Ui.INK, 2)               -- (the fill says voted; the team shows on the pick page)
 			place(chip, L.W / 2 - (n * (w + 8)) / 2 + (i - 1) * (w + 8), L.stripY - 4 * s, w, 34 * s)

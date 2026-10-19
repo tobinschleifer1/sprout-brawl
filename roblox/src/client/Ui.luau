@@ -28,6 +28,7 @@ local Ui = {}
 Ui.DISPLAY = Enum.Font.FredokaOne
 Ui.LABEL = Enum.Font.BuilderSansExtraBold
 Ui.BODY = Enum.Font.BuilderSansBold
+Ui.TITLE = Enum.Font.FredokaOne    -- a window's title on its band (the theme's `title`, else DISPLAY)
 
 -- Style themes, so directions can be compared on the real screens before one is chosen. A theme
 -- must be picked (Ui.useTheme) before any screen module loads: they read the fonts at load.
@@ -55,8 +56,9 @@ Ui.THEMES = {
 	-- white words on every coloured face.
 	--   light    windows are pale (palette below) and words on them dark: Ui.TEXT and Ui.SUB
 	--   tone     a coloured box's border and its words' outline are its own colour darkened, not ink
+	--   title    window titles in the pixel kit's lettering (Font.Arcade), the rest in Fredoka
 	arcade = { display = F.FredokaOne, label = F.BuilderSansExtraBold, body = F.BuilderSansBold, radius = 10, borderK = 1,
-		outlineK = 1, rim = false, bevel = "arcade", scale = 1.08, advance = 0.62, light = true, tone = true },
+		outlineK = 1, rim = false, bevel = "arcade", scale = 1.08, advance = 0.62, light = true, tone = true, title = F.Arcade },
 }
 -- Each theme's window colours: the dark ones share Endesga 32's; `light` themes their own.
 --   PANEL a window's body, PANEL2 a section set into it, EDGE a hairline on it, TEXT and SUB the
@@ -126,6 +128,7 @@ function Ui.useTheme(name: string?)
 	if not t then return end
 	theme, Ui.theme = t, name or "arcade"
 	Ui.DISPLAY, Ui.LABEL, Ui.BODY = t.display, t.label, t.body
+	Ui.TITLE = t.title or t.display
 	Ui.SCALE, Ui.ADVANCE = t.scale, t.advance
 	local pal = if t.light then LIGHT else DARK
 	Ui.PANEL, Ui.PANEL2, Ui.EDGE, Ui.TEXT, Ui.SUB, Ui.INK = pal.PANEL, pal.PANEL2, pal.EDGE, pal.TEXT, pal.SUB, pal.INK
@@ -406,7 +409,9 @@ function Ui.panel(parent: Instance?, name: string, band: Color3?, title: string?
 	local h = bandH or 34
 	local b = Ui.band(p, band, h)
 	b.ZIndex = 2
-	local t = Ui.text(b, title or "", math.floor(h * 0.48), Ui.WHITE, Ui.DISPLAY, theme.bevel == "none" or theme.tone)
+	-- (the pixel face is drawn a quarter bigger than asked: ask it smaller to fit the same band)
+	local titleSize = if Ui.TITLE == Enum.Font.Arcade then math.floor(h * 0.46) else math.floor(h * 0.48)
+	local t = Ui.text(b, title or "", titleSize, Ui.WHITE, Ui.TITLE, theme.bevel == "none" or theme.tone)
 	if theme.tone then Ui.outline(t, if h >= 40 then 3 else 2, Ui.tone(band))
 	elseif math.floor(h * 0.48) < 16 and theme.bevel ~= "none" then Ui.outline(t, 2) end
 	t.Name = "Title"
@@ -440,6 +445,11 @@ function Ui.card(parent: Instance?, name: string, colour: Color3): any
 	return c
 end
 
+-- A vertical gradient over a box, `top` fading to `bottom` (UIGradient tints the box's colour).
+function Ui.gradient(f: Instance, top: Color3, bottom: Color3): any
+	return Ui.make("UIGradient", f, { Rotation = 90, Color = ColorSequence.new(top, bottom) })
+end
+
 -- Recolour a card: its face, gradient, border and lip together.
 function Ui.paintCard(c: any, colour: Color3)
 	c.BackgroundColor3 = colour
@@ -458,6 +468,52 @@ function Ui.faceText(parent: Instance?, value: string, size: number, face: Color
 	return t, o
 end
 
+-- Pixel icons, as a pixel kit draws them: a small grid of letters, each a colour ("." empty).
+-- Drawn as Frames (one per run of a colour along a row), so they need no uploaded image.
+Ui.ICONS = {
+	gem = { w = 7, rows = { "..OOO..", ".OWwwO.", "OWwwppO", "OwwppPO", ".OppPO.", "..OPO..", "...O..." },
+		colours = { O = "#5A1A4A", W = "#FFFFFF", w = "#FFB3E1", p = "#FF5FB4", P = "#C2338A" } },
+	key = { w = 9, rows = { ".OOO.....", "OyYyO....", "OY.YOOOOO", "OyYyOyyYO", ".OOO.O.O." },
+		colours = { O = "#5A3A0A", Y = "#FFD84A", y = "#FFF0A0" } },
+	coin = { w = 7, rows = { "..OOO..", ".OyyyO.", "OyYYYyO", "OyYoYyO", "OyYYYyO", ".OyyyO.", "..OOO.." },
+		colours = { O = "#6A4A08", Y = "#FFC935", y = "#FFE98A", o = "#D9971A" } },
+	star = { w = 7, rows = { "...O...", "..OyO..", "OOyYyOO", ".OYYYO.", ".OYOYO.", "OO...OO" },
+		colours = { O = "#6A4A08", Y = "#FFC935", y = "#FFF0A0" } },
+} :: { [string]: any }
+-- An icon `px` screen pixels to the art pixel, in a transparent frame the caller places.
+function Ui.icon(parent: Instance?, kind: string, px: number): any
+	local def = Ui.ICONS[kind]
+	local f = Ui.make("Frame", parent, { Name = "Icon", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Size = UDim2.fromOffset(def.w * px, #def.rows * px) })
+	for y, row in def.rows do
+		local x = 1
+		while x <= #row do
+			local ch = string.sub(row, x, x)
+			local run = x
+			while run < #row and string.sub(row, run + 1, run + 1) == ch do run += 1 end
+			if ch ~= "." then
+				Ui.make("Frame", f, { Name = "Px", BackgroundColor3 = Color3.fromHex(def.colours[ch]), BorderSizePixel = 0,
+					Position = UDim2.fromOffset((x - 1) * px, (y - 1) * px), Size = UDim2.fromOffset((run - x + 1) * px, px) })
+			end
+			x = run + 1
+		end
+	end
+	return f
+end
+
+-- A balance on a dark pill with its icon: [gem] 2,340. Returns the pill and its label.
+function Ui.currency(parent: Instance?, kind: string, value: string): (any, any)
+	local p = Ui.make("Frame", parent, { Name = "Currency_" .. kind, BackgroundColor3 = Color3.fromRGB(35, 27, 51),
+		BackgroundTransparency = 0.1, BorderSizePixel = 0, Size = UDim2.fromOffset(110, 30) })
+	Ui.make("UICorner", p, { CornerRadius = UDim.new(1, 0) })
+	local ic = Ui.icon(p, kind, 3)
+	ic.AnchorPoint, ic.Position = Vector2.new(0, 0.5), UDim2.new(0, 8, 0.5, 0)
+	local t = Ui.text(p, value, 15, Ui.WHITE, Ui.DISPLAY, true)
+	t.Name, t.TextXAlignment = "Value", Enum.TextXAlignment.Left
+	t.Position, t.Size = UDim2.fromOffset(Ui.ICONS[kind].w * 3 + 14, 0), UDim2.new(1, -(Ui.ICONS[kind].w * 3 + 20), 1, 0)
+	return p, t
+end
+
 -- A price on a dark pill: "29 R$". Prices are always plain Robux. The caller sizes and places it.
 function Ui.pricePill(parent: Instance?, value: string): any
 	local p = Ui.make("TextLabel", parent, { Name = "Price", Text = value, Font = Ui.DISPLAY, TextSize = Ui.px(15, Ui.DISPLAY),
@@ -467,7 +523,10 @@ function Ui.pricePill(parent: Instance?, value: string): any
 end
 
 -- A dark square strip with a rim, for a line of status.
+Ui.INDIGO = Color3.fromRGB(70, 74, 150)       -- a status pill's face in the arcade theme
 function Ui.pill(parent: Instance?, name: string, edge: Color3?): any
+	-- (a coloured face like every card in a light theme - gradient, own-shade border, lip - not a flat strip)
+	if theme.light then return Ui.card(parent, name, Ui.INDIGO) end
 	local p = Ui.make("Frame", parent, { Name = name, BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.08, BorderSizePixel = 0 })
 	Ui.corner(p, 0)
 	Ui.stroke(p, Ui.INK, 3)

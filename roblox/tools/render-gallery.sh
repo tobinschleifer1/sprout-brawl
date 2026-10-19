@@ -44,6 +44,17 @@ for s in "select-pick|1v1|pick" "select-map|2v2|map" "select-rules|3v3|rules"; d
   node tools/gui-svg.mjs "$OUT/$name.json" "$OUT/$name.svg" > /dev/null
 done
 rm -f "$OUT"/*.json
+# PNGs in the real fonts, through headless Chrome when it is installed (it loads the fonts; Quick Look
+# does not). Each at its own size: the phone shots are 844 x 390 or 390 x 844.
+CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+if [ -x "$CHROME" ]; then
+  for f in "$OUT"/*.svg; do
+    size=$(head -c 300 "$f" | sed -n 's/.*width="\([0-9]*\)" height="\([0-9]*\)".*/\1,\2/p')
+    url="file://$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$f")"
+    "$CHROME" --headless=new --disable-gpu --hide-scrollbars --window-size="${size:-1280,720}" --virtual-time-budget=4000 \
+      --user-data-dir="${TMPDIR:-/tmp}/blockfall-gallery-chrome" --screenshot="${f%.svg}.png" "$url" > /dev/null 2>&1 || true
+  done
+fi
 {
   echo '<!doctype html><meta charset="utf-8"><title>Blockfall UI</title><style>body{background:#222;color:#ddd;font:14px sans-serif;margin:16px}'
   echo 'figure{margin:0 0 28px}figcaption{margin:4px 0}img{display:block;max-width:100%;border:1px solid #444}</style>'

@@ -40,19 +40,25 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		featuredCards = {}, keyCards = {}, passCards = {} }, ShopScreen)
 	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallShop", ResetOnSpawn = false, Enabled = false, DisplayOrder = 21 })
 	self.root = root
-	local panel = Ui.panel(root, "Shop", Ui.RED, "SHOP", 44)
+	local HEAD = 60                                           -- a heavy header, as the reference shop's
+	local panel = Ui.panel(root, "Shop", Ui.RED, "SHOP", HEAD)
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.52), UDim2.new(1, -24, 1, -90)
 	Ui.make("UISizeConstraint", panel, { MaxSize = Vector2.new(940, 620) })
 	self.panel = panel
-	local close = Ui.button(panel, "X", Ui.WHITE, function() self:close() end, { size = 18, textColour = Ui.RED })
-	close.Name, close.ZIndex = "Close", 3
+	-- a plain white X on the red band, as the reference shop's
+	local close = Ui.make("TextButton", panel, { Name = "Close", Text = "X", Font = Ui.DISPLAY, TextSize = Ui.px(26, Ui.DISPLAY),
+		TextColor3 = Ui.WHITE, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 3 })
+	Ui.outline(close, 3, Ui.tone(Ui.RED))
+	close.Activated:Connect(function() self:close() end)
 	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position, close.Size = UDim2.new(1, -8, 0, 6), UDim2.fromOffset(36, 32)
+	close.Position, close.Size = UDim2.new(1, -10, 0, (HEAD - 36) / 2), UDim2.fromOffset(40, 36)
 	local body = Ui.make("ScrollingFrame", panel, { Name = "Body", BackgroundTransparency = 1, BorderSizePixel = 0,
-		Position = UDim2.fromOffset(14, 54), Size = UDim2.new(1, -28, 1, -92), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(14, HEAD + 10), Size = UDim2.new(1, -28, 1, -(HEAD + 48)), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", body, { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+	-- (room for the cards' borders, drawn outside them, so the scroll area does not clip the first column)
+	Ui.make("UIPadding", body, { PaddingLeft = UDim.new(0, 4), PaddingTop = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) })
 	self.body = body
 	local function heading(name: string, text: string, order: number): any
 		local h = Ui.text(body, text, 20, Ui.TEXT, Ui.DISPLAY, true)
@@ -60,32 +66,35 @@ function ShopScreen.new(parent: Instance, opts: any): any
 		h.Size = UDim2.new(1, -8, 0, 26)
 		return h
 	end
-	local function row(name: string, order: number, h: number): any
+	-- a row of `cols` cards that fill its width (no dead space at the right, whatever the window)
+	local function row(name: string, order: number, h: number, cols: number): any
 		local f = Ui.make("Frame", body, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = order,
 			Size = UDim2.new(1, -8, 0, h), AutomaticSize = Enum.AutomaticSize.Y })
-		Ui.make("UIGridLayout", f, { CellSize = UDim2.fromOffset(200, h), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+		Ui.make("UIGridLayout", f, { CellSize = ShopScreen.cell(cols, h), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
 		return f
 	end
 	self.featuredHead = heading("FeaturedHead", "FEATURED", 1)
-	self.featuredRow = row("Featured", 2, 220)
+	-- the day's priciest item leads, wide, as the reference shop's starter pack; the rest beside
+	self.hero = ShopScreen.heroCard(body, 2)
+	self.featuredRow = row("Featured", 3, 220, 3)
 	-- clothing: a heading and a grid row per pack, made as packs arrive
-	heading("ClothingHead", "CLOTHING", 3)
-	local clothing = Ui.make("Frame", body, { Name = "Clothing", BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = 4,
+	heading("ClothingHead", "CLOTHING", 4)
+	local clothing = Ui.make("Frame", body, { Name = "Clothing", BackgroundTransparency = 1, BorderSizePixel = 0, LayoutOrder = 5,
 		Size = UDim2.new(1, -8, 0, 0), AutomaticSize = Enum.AutomaticSize.Y })
 	Ui.make("UIListLayout", clothing, { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
 	self.clothing, self.packRows = clothing, {}
-	heading("KeysHead", "FORGE KEYS", 6)
+	heading("KeysHead", "FORGE KEYS", 7)
 	local keyNote = Ui.text(body, "Forge Keys open Forge Crates: Rare or better, Mythic possible.", 14, Ui.SUB)
-	keyNote.Name, keyNote.LayoutOrder, keyNote.TextXAlignment, keyNote.TextWrapped = "KeyNote", 7, Enum.TextXAlignment.Left, true
+	keyNote.Name, keyNote.LayoutOrder, keyNote.TextXAlignment, keyNote.TextWrapped = "KeyNote", 8, Enum.TextXAlignment.Left, true
 	keyNote.Size = UDim2.new(1, -8, 0, 34)
 	self.keyNote = keyNote
 	local odds = Ui.button(body, "ODDS & DETAILS", Ui.BLUE, function() self:showOdds(false) end, { size = 15 })
-	odds.Name, odds.LayoutOrder = "Odds", 8
+	odds.Name, odds.LayoutOrder = "Odds", 9
 	odds.Size = UDim2.fromOffset(200, 36)
 	self.oddsButton = odds
-	self.keysRow = row("Keys", 9, 150)
-	heading("PassesHead", "PASSES", 10)
-	self.passesRow = row("Passes", 11, 250)
+	self.keysRow = row("Keys", 10, 150, 4)
+	heading("PassesHead", "PASSES", 11)
+	self.passesRow = row("Passes", 12, 250, 5)
 	local message = Ui.text(panel, "", 15, Ui.TEXT, nil, true)
 	message.Name = "Message"
 	message.AnchorPoint = Vector2.new(0.5, 1)
@@ -97,6 +106,30 @@ end
 
 function ShopScreen.say(self: any, text: string, colour: Color3?)
 	self.message.Text, self.message.TextColor3 = text, colour or Ui.TEXT
+end
+
+-- A grid cell `cols` to a row: a fraction of the row, less its share of the gaps.
+function ShopScreen.cell(cols: number, h: number): UDim2
+	return UDim2.new(1 / cols, -math.ceil(10 * (cols - 1) / cols), 0, h)
+end
+
+-- A price (or OWNED, CLAIM...) on a pill, coloured by what it says: a price dark, as the reference
+-- shop's price pills; owned green; a paid-for claim gold; waiting or not for sale grey.
+local PILL = Color3.fromRGB(35, 27, 51)
+local function pill(parent: Instance): any
+	local b = Ui.make("TextButton", parent, { Name = "Buy", Text = "", Font = Ui.DISPLAY, TextSize = Ui.px(16, Ui.DISPLAY),
+		TextColor3 = Ui.WHITE, BackgroundColor3 = PILL, BorderSizePixel = 0, AutoButtonColor = true, ZIndex = 3 })
+	Ui.make("UICorner", b, { CornerRadius = UDim.new(1, 0) })
+	return b
+end
+function ShopScreen.pillColour(text: string): (Color3, Color3)
+	if text == "OWNED" then return Ui.GREEN, Ui.WHITE end
+	if string.find(text, "CLAIM", 1, true) then return Ui.SUN, Ui.tone(Ui.SUN) end
+	if text == "..." or text == "COMING SOON" or text == "BUY SINGLY" then return Color3.fromRGB(150, 140, 160), Ui.WHITE end
+	return PILL, Ui.WHITE
+end
+local function paintPill(b: any)
+	b.BackgroundColor3, b.TextColor3 = ShopScreen.pillColour(b.Text)
 end
 
 local function card(parent: Instance, pool: { any }, i: number, h: number): any
@@ -114,16 +147,51 @@ local function card(parent: Instance, pool: { any }, i: number, h: number): any
 	local meta, metaStroke = Ui.faceText(f, "", 13, Ui.SKY, Ui.LABEL)
 	meta.Name, meta.TextWrapped = "Meta", true
 	meta.Position, meta.Size = UDim2.fromOffset(8, 128), UDim2.new(1, -16, 0, math.max(18, h - 178))
-	local buy = Ui.button(f, "", Ui.GREEN, nil, { size = 16 })
-	buy.Name = "Buy"
-	buy.Position, buy.Size = UDim2.new(0, 8, 1, -46), UDim2.new(1, -16, 0, 36)
+	-- the whole card buys, as the reference's do; its price on a pill along the foot
+	local hit = Ui.make("TextButton", f, { Name = "Hit", Text = "", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1), ZIndex = 2 })
+	local buy = pill(f)
+	buy.AnchorPoint = Vector2.new(0.5, 1)
+	buy.Position, buy.Size = UDim2.new(0.5, 0, 1, -12), UDim2.new(1, -28, 0, 32)
 	c = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
 		paint = function(colour: Color3)
 			Ui.paintCard(f, colour)
 			nameStroke.Color, metaStroke.Color = Ui.tone(colour), Ui.tone(colour)
 		end }
 	buy.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
+	hit.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
 	pool[i] = c
+	return c
+end
+
+-- The wide card that leads the featured shop: its art at the left, the name large, the price pill.
+function ShopScreen.heroCard(parent: Instance, order: number): any
+	local f = Ui.card(parent, "Hero", Ui.SUN)
+	f.LayoutOrder, f.Size = order, UDim2.new(1, -8, 0, 150)
+	local thumb = Ui.make("Frame", f, { Name = "Thumb", BackgroundColor3 = Ui.WHITE, BackgroundTransparency = 0.72, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(12, 12), Size = UDim2.new(0.42, -12, 1, -29) })
+	Ui.corner(thumb, 6)
+	local tag, tagStroke = Ui.faceText(f, "TODAY'S BEST", 14, Ui.SUN, Ui.LABEL)
+	tag.Name, tag.TextXAlignment = "Tag", Enum.TextXAlignment.Left
+	tag.Position, tag.Size = UDim2.new(0.42, 12, 0, 14), UDim2.new(0.58, -24, 0, 18)
+	local name, nameStroke = Ui.faceText(f, "", 30, Ui.SUN)
+	name.Name, name.TextXAlignment, name.TextTruncate = "Name", Enum.TextXAlignment.Left, Enum.TextTruncate.AtEnd
+	name.Position, name.Size = UDim2.new(0.42, 12, 0, 34), UDim2.new(0.58, -24, 0, 38)
+	local meta, metaStroke = Ui.faceText(f, "", 15, Ui.SUN, Ui.LABEL)
+	meta.Name, meta.TextXAlignment = "Meta", Enum.TextXAlignment.Left
+	meta.Position, meta.Size = UDim2.new(0.42, 12, 0, 74), UDim2.new(0.58, -24, 0, 20)
+	local hit = Ui.make("TextButton", f, { Name = "Hit", Text = "", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1), ZIndex = 2 })
+	local buy = pill(f)
+	buy.AnchorPoint = Vector2.new(1, 1)
+	buy.Position, buy.Size = UDim2.new(1, -16, 1, -18), UDim2.fromOffset(160, 38)
+	local c: any = { frame = f, thumb = thumb, name = name, meta = meta, buy = buy, onBuy = nil,
+		paint = function(colour: Color3)
+			Ui.paintCard(f, colour)
+			tagStroke.Color, nameStroke.Color, metaStroke.Color = Ui.tone(colour), Ui.tone(colour), Ui.tone(colour)
+		end }
+	buy.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
+	hit.Activated:Connect(function() if c.onBuy then c.onBuy() end end)
 	return c
 end
 
@@ -143,18 +211,20 @@ function ShopScreen.refresh(self: any)
 	for i, f in shop.featured or {} do
 		local it = Cosmetics.get(f.id)
 		if it then
-			local c = card(self.featuredRow, self.featuredCards, i, 220)
+			local hero = i == #shop.featured
+			local c = if hero then self.hero else card(self.featuredRow, self.featuredCards, i, 220)
 			local col = Color3.fromHex((Loot.RARITY[it.rarity] or Loot.RARITY.Common).colour)
 			c.paint(col)
 			c.name.Text = it.name
-			c.meta.Text = `{it.rarity} {LockerScreen.TYPE_LABEL[it.type] or ""}{if it.weapon then " · " .. it.weapon else ""}`
+			-- (the card's colour says the rarity too: kept short so it never runs edge to edge)
+			c.meta.Text = `{it.rarity} · {it.weapon or LockerScreen.TYPE_LABEL[it.type] or ""}`
 			if self.art[c.thumb] ~= f.id then
 				self.art[c.thumb] = f.id
-				if self.opts.drawArt then self.opts.drawArt(c.thumb, f.id, 184, 90) end
+				if self.opts.drawArt then self.opts.drawArt(c.thumb, f.id, if hero then 320 else 184, if hero then 120 else 90) end
 			end
 			local key = "item:" .. f.id
 			c.buy.Text = if f.owned then "OWNED" elseif f.credit then "CLAIM (PAID)" elseif self.pending == key then "..." else `{f.price} R$`
-			Ui.paint(c.buy, if f.owned or self.pending then Ui.PANEL2 else Ui.GREEN)
+			paintPill(c.buy)
 			c.onBuy = function()
 				if not f.owned then self:request(key, { action = "buy", kind = "item", id = f.id }) end
 			end
@@ -177,7 +247,7 @@ function ShopScreen.refresh(self: any)
 		c.meta.Text = ShopScreen.each(b)
 		local key = "keys:" .. b.bundle
 		c.buy.Text = if self.pending == key then "..." else `{b.price} R$`
-		Ui.paint(c.buy, if self.pending then Ui.PANEL2 else Ui.GREEN)
+		paintPill(c.buy)
 		c.onBuy = function() self:request(key, { action = "buy", kind = "keys", bundle = b.bundle }) end
 	end
 	for i = #keys + 1, #self.keyCards do self.keyCards[i].frame.Visible = false end
@@ -196,7 +266,7 @@ function ShopScreen.refresh(self: any)
 		local key = "pass:" .. p.id
 		c.buy.Text = if p.owned then "OWNED" elseif not p.available then "COMING SOON"
 			elseif self.pending == key then "..." else `{p.price} R$`
-		Ui.paint(c.buy, if p.owned or not p.available or self.pending then Ui.PANEL2 else Ui.GREEN)
+		paintPill(c.buy)
 		c.paint(if not p.available then Color3.fromRGB(150, 140, 160) else PASS_COLOURS[p.id] or Ui.VIOLET)
 		c.onBuy = function()
 			if not p.owned and p.available then self:request(key, { action = "buy", kind = "pass", id = p.id }) end
@@ -221,7 +291,7 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			head.Size = UDim2.new(1, -8, 0, 22)
 			local grid = Ui.make("Frame", self.clothing, { Name = "Pack" .. i, BackgroundTransparency = 1, BorderSizePixel = 0,
 				LayoutOrder = i * 2, Size = UDim2.new(1, -8, 0, 220), AutomaticSize = Enum.AutomaticSize.Y })
-			Ui.make("UIGridLayout", grid, { CellSize = UDim2.fromOffset(150, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
+			Ui.make("UIGridLayout", grid, { CellSize = ShopScreen.cell(4, 220), CellPadding = UDim2.fromOffset(10, 10), SortOrder = Enum.SortOrder.LayoutOrder })
 			r = { head = head, grid = grid, cards = {} }
 			self.packRows[i] = r
 		end
@@ -237,7 +307,7 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 		local key = "pack:" .. pack.id
 		c.buy.Text = if pack.missing == 0 then "OWNED" elseif not pack.offer then "BUY SINGLY"
 			elseif self.pending == key then "..." else `{pack.price} R$`
-		Ui.paint(c.buy, if not pack.offer or self.pending then Ui.PANEL2 else Ui.GREEN)
+		paintPill(c.buy)
 		c.onBuy = function()
 			if pack.offer then self:request(key, { action = "buy", kind = "pack", id = pack.id }) end
 		end
@@ -256,7 +326,7 @@ function ShopScreen.refreshClothing(self: any, packs: { any })
 			end
 			local pkey = "piece:" .. p.id
 			pc.buy.Text = if p.owned then "OWNED" elseif p.credit then "CLAIM (PAID)" elseif self.pending == pkey then "..." else `{p.price} R$`
-			Ui.paint(pc.buy, if p.owned or self.pending then Ui.PANEL2 else Ui.GREEN)
+			paintPill(pc.buy)
 			pc.onBuy = function()
 				if not p.owned then self:request(pkey, { action = "buy", kind = "piece", id = p.id }) end
 			end
@@ -271,23 +341,26 @@ function ShopScreen.buildOdds(self: any)
 	local o = Ui.make("Frame", self.panel, { Name = "OddsPanel", BackgroundColor3 = Ui.PANEL, BackgroundTransparency = 0,
 		BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), Visible = false, ZIndex = 10 })
 	Ui.corner(o, 12)
-	local t = Ui.text(o, "ODDS & DETAILS  ·  FORGE CRATE", 22, Ui.TEXT, Ui.DISPLAY, true)
-	t.Name, t.ZIndex, t.TextXAlignment = "Title", 11, Enum.TextXAlignment.Left
-	t.Position, t.Size = UDim2.fromOffset(16, 10), UDim2.new(1, -32, 0, 30)
+	-- a window like every other: the title on a band across its top
+	local band = Ui.band(o, Ui.BLUE, 44, "OddsBand")
+	band.ZIndex = 11
+	local t = Ui.faceText(band, "ODDS & DETAILS  ·  FORGE CRATE", 22, Ui.BLUE)
+	t.Name, t.ZIndex, t.TextXAlignment = "Title", 12, Enum.TextXAlignment.Left
+	t.Position, t.Size = UDim2.fromOffset(16, 0), UDim2.new(1, -32, 1, 0)
 	local now = Ui.button(o, "THIS OPENING", Ui.BLUE, function() self:showOdds(false) end, { size = 13, small = true })
 	now.Name, now.ZIndex = "Now", 11
-	now.Position, now.Size = UDim2.fromOffset(16, 46), UDim2.fromOffset(150, 28)
+	now.Position, now.Size = UDim2.fromOffset(16, 56), UDim2.fromOffset(150, 30)
 	local gua = Ui.button(o, "GUARANTEED OPENING", Ui.PANEL2, function() self:showOdds(true) end, { size = 13, small = true })
 	gua.Name, gua.ZIndex = "Guaranteed", 11
-	gua.Position, gua.Size = UDim2.fromOffset(174, 46), UDim2.fromOffset(190, 28)
+	gua.Position, gua.Size = UDim2.fromOffset(174, 56), UDim2.fromOffset(190, 30)
 	local list = Ui.make("ScrollingFrame", o, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
-		Position = UDim2.fromOffset(16, 82), Size = UDim2.new(1, -32, 1, -136), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(16, 96), Size = UDim2.new(1, -32, 1, -162), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-	local foot = Ui.text(o, "Odds are rounded to four digits past the first non-zero one, so shown odds may not add to exactly 100%. Each Forge Key opens one Forge Crate. Paid keys keep their own guarantee count.", 12, Ui.SUB, nil, true)
+	local foot = Ui.text(o, "Shown odds are rounded, so they may not add to exactly 100%. Each Forge Key opens one Forge Crate. Paid keys keep their own guarantee count.", 12, Ui.SUB, nil, true)
 	foot.Name, foot.ZIndex, foot.TextWrapped, foot.TextXAlignment = "Footer", 11, true, Enum.TextXAlignment.Left
 	foot.AnchorPoint = Vector2.new(0, 1)
-	foot.Position, foot.Size = UDim2.new(0, 16, 1, -8), UDim2.new(1, -120, 0, 44)
+	foot.Position, foot.Size = UDim2.new(0, 16, 1, -10), UDim2.new(1, -136, 0, 44)
 	local back = Ui.button(o, "BACK", Ui.PANEL2, function() o.Visible = false end, { size = 16 })
 	back.Name, back.ZIndex = "Back", 12
 	back.AnchorPoint = Vector2.new(1, 1)

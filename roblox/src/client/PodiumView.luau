@@ -150,12 +150,19 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 		local place = text(card, 0, rh * 0.1, s.card.w, rh * 1.1, string.upper(Podium.ordinal(self.places[i])), rt * 0.95, Color3.new(1, 1, 1), Enum.TextXAlignment.Center)
 		place.Name = "Place"
 		place.Font = Ui.DISPLAY
-		if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
-		if Ui.light(if first then GOLD else colour) > 0.62 then place.TextColor3 = Ui.INK end
+		-- on its band: white outlined in the band's own shade (a toned theme), or ink on a pale band
+		local bandColour = if first then GOLD else colour
+		if Ui.lightPanels() then
+			Ui.outline(place, math.max(2, math.floor(rh * 0.08)), Ui.tone(bandColour))
+		else
+			if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
+			if Ui.light(bandColour) > 0.62 then place.TextColor3 = Ui.INK end
+		end
 		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, if LIGHT then -0.3 else 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
-		if not Ui.flat() then Ui.outline(name, 2) end
+		-- (dark words on a pale card are never outlined: the outline closes their counters up)
+		if not Ui.flat() and not LIGHT then Ui.outline(name, 2) end
 		for k, stat in Podium.STATS do
 			-- one row pitch on every card, from the same baseline, so the four compare row by row
 			local y = rh * 2.1 + (k - 1) * pitch
@@ -163,7 +170,7 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 			local v = text(card, s.card.w * 0.5, y, s.card.w * 0.5 - pad, rh, tostring(Podium.statValue(row, stat[2])), rt * 0.72, VALUE, Enum.TextXAlignment.Right)
 			v.Name = `Value{k}`
 			v.Font = Ui.DISPLAY
-			if not Ui.flat() then Ui.outline(v, 2) end
+			if not Ui.flat() and not LIGHT then Ui.outline(v, 2) end
 		end
 		self.cards[i] = card
 	end

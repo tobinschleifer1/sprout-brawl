@@ -192,7 +192,8 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	}, LockerScreen)
 	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallLocker", ResetOnSpawn = false, Enabled = false, DisplayOrder = 20 })
 	self.root = root
-	local panel = Ui.panel(root, "Locker", Ui.PURPLE, "LOCKER", 40)
+	local HEAD = if Ui.lightPanels() then 60 else 40       -- the title band (a heavier header in the arcade theme)
+	local panel = Ui.panel(root, "Locker", Ui.PURPLE, "LOCKER", HEAD)
 	panel.AnchorPoint = Vector2.new(0.5, 0.5)
 	panel.Position, panel.Size = UDim2.fromScale(0.5, 0.52), UDim2.new(1, -24, 1, -90)
 	Ui.make("UISizeConstraint", panel, { MaxSize = Vector2.new(940, 620) })
@@ -200,8 +201,19 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	local close = Ui.button(panel, "X", Ui.RED, function() self:close() end, { size = 18 })
 	close.Name = "Close"
 	close.AnchorPoint = Vector2.new(1, 0)
-	close.Position, close.Size, close.ZIndex = UDim2.new(1, -6, 0, 4), UDim2.fromOffset(34, 32), 3
+	close.Position, close.Size, close.ZIndex = UDim2.new(1, -10, 0, (HEAD - 34) / 2), UDim2.fromOffset(38, 34), 3
+	-- the balance: currency pills with the pixel kit's gem and key in a light theme (the line below
+	-- stays as the plain record of it, shown in the dark themes)
+	if Ui.lightPanels() then
+		local sp, sv = Ui.currency(panel, "gem", "0")
+		local kp, kv = Ui.currency(panel, "key", "0")
+		sp.AnchorPoint, kp.AnchorPoint = Vector2.new(1, 0.5), Vector2.new(1, 0.5)
+		kp.Position, kp.Size, kp.ZIndex = UDim2.new(1, -58, 0, HEAD / 2), UDim2.fromOffset(84, 32), 3
+		sp.Position, sp.Size, sp.ZIndex = UDim2.new(1, -150, 0, HEAD / 2), UDim2.fromOffset(120, 32), 3
+		self.sparksPill, self.keysPill = sv, kv
+	end
 	local balance = Ui.text(panel, "", 14, Ui.GOLD)
+	balance.Visible = not Ui.lightPanels()
 	balance.Name = "Balance"
 	balance.AnchorPoint = Vector2.new(1, 0)
 	balance.Position, balance.Size, balance.ZIndex = UDim2.new(1, -48, 0, 8), UDim2.new(0.6, 0, 0, 24), 3
@@ -212,12 +224,12 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	for i, t in { { "locker", "LOCKER" }, { "crates", "CRATES" }, { "workshop", "WORKSHOP" } } do
 		local b = Ui.button(panel, t[2], Ui.PANEL2, function() self:show(t[1]) end, { size = 16 })
 		b.Name = "Tab_" .. t[1]
-		b.Position, b.Size = UDim2.fromOffset(12 + (i - 1) * 132, 48), UDim2.fromOffset(124, 34)
+		b.Position, b.Size = UDim2.fromOffset(12 + (i - 1) * 132, HEAD + 8), UDim2.fromOffset(124, 34)
 		self.tabs[t[1]] = b
 	end
 	local function body(name: string): any
 		local f = Ui.make("Frame", panel, { Name = name, BackgroundTransparency = 1, BorderSizePixel = 0,
-			Position = UDim2.fromOffset(12, 90), Size = UDim2.new(1, -24, 1, -128), Visible = false })
+			Position = UDim2.fromOffset(12, HEAD + 50), Size = UDim2.new(1, -24, 1, -(HEAD + 88)), Visible = false })
 		return f
 	end
 	local function grid(parent: Instance, cell: Vector2): any
@@ -507,6 +519,10 @@ end
 function LockerScreen.refresh(self: any)
 	local e = self.economy
 	self.balance.Text = if e then `{LockerScreen.number(e.sparks or 0)} Sparks   ·   {e.keys and e.keys.forge or 0} Forge Keys` else ""
+	if self.sparksPill then
+		self.sparksPill.Text = LockerScreen.number(e and e.sparks or 0)
+		self.keysPill.Text = tostring(e and e.keys and e.keys.forge or 0)
+	end
 	for id, b in self.tabs do Ui.paint(b, if id == self.tab then Ui.PURPLE else Ui.PANEL2) end
 	for id, b in self.lockerChips do Ui.paint(b, if id == self.filter then Ui.BLUE else Ui.PANEL2) end
 	for id, b in self.workshopChips do Ui.paint(b, if id == self.workshopFilter then Ui.BLUE else Ui.PANEL2) end
@@ -554,26 +570,31 @@ function LockerScreen.buildOverlays(self: any)
 	self.opening = { frame = opening, title = title, strip = strip, result = result, detail = detail, collect = collect, tiles = {} }
 	-- Odds & Details
 	local odds = cover("OddsPanel", Ui.PANEL)
-	local oTitle = Ui.text(odds, "ODDS & DETAILS", 22, Ui.TEXT, Ui.DISPLAY, Ui.lightPanels())
-	oTitle.Name, oTitle.Position, oTitle.Size, oTitle.ZIndex = "Title", UDim2.fromOffset(16, 10), UDim2.new(1, -80, 0, 30), 11
+	-- a window like every other: the title on a band across its top
+	local oBand = Ui.band(odds, Ui.BLUE, 44, "OddsBand")
+	oBand.ZIndex = 11
+	local oTitle = Ui.faceText(oBand, "ODDS & DETAILS", 22, Ui.BLUE)
+	oTitle.Name, oTitle.Position, oTitle.Size, oTitle.ZIndex = "Title", UDim2.fromOffset(16, 0), UDim2.new(1, -32, 1, 0), 12
 	oTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local sub = Ui.text(odds, "", 13, Ui.SUB, nil, true)
-	sub.Name, sub.Position, sub.Size, sub.ZIndex = "Sub", UDim2.fromOffset(16, 40), UDim2.new(1, -32, 0, 18), 11
+	local sub = Ui.text(odds, "", 14, Ui.SUB, nil, true)
+	sub.Name, sub.Position, sub.Size, sub.ZIndex = "Sub", UDim2.fromOffset(16, 52), UDim2.new(1, -32, 0, 18), 11
 	sub.TextXAlignment = Enum.TextXAlignment.Left
 	local now = Ui.button(odds, "THIS OPENING", Ui.BLUE, function() self:showOdds(self.oddsCrate, false) end, { size = 13, small = true })
 	now.Name, now.ZIndex = "Now", 11
-	now.Position, now.Size = UDim2.fromOffset(16, 64), UDim2.fromOffset(150, 28)
+	now.Position, now.Size = UDim2.fromOffset(16, 76), UDim2.fromOffset(150, 30)
 	local gua = Ui.button(odds, "GUARANTEED OPENING", Ui.PANEL2, function() self:showOdds(self.oddsCrate, true) end, { size = 13, small = true })
 	gua.Name, gua.ZIndex = "Guaranteed", 11
-	gua.Position, gua.Size = UDim2.fromOffset(174, 64), UDim2.fromOffset(190, 28)
+	gua.Position, gua.Size = UDim2.fromOffset(174, 76), UDim2.fromOffset(190, 30)
 	local list = Ui.make("ScrollingFrame", odds, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
-		Position = UDim2.fromOffset(16, 100), Size = UDim2.new(1, -32, 1, -150), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(16, 116), Size = UDim2.new(1, -32, 1, -182), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
 	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-	local foot = Ui.text(odds, "Odds are rounded to four digits past the first non-zero one, so shown odds may not add to exactly 100%. Every item in a rarity is equally likely. Duplicates are kept: salvage them for Sparks.", 12, Ui.SUB, nil, true)
+	-- its own row under the list, wrapped clear of BACK
+	local foot = Ui.text(odds, "Shown odds are rounded, so they may not add to exactly 100%. Every item in a rarity is equally likely. Duplicates are kept: salvage them for Sparks.", 12, Ui.SUB, nil, true)
 	foot.Name, foot.ZIndex, foot.TextWrapped = "Footer", 11, true
+	foot.TextXAlignment = Enum.TextXAlignment.Left
 	foot.AnchorPoint = Vector2.new(0, 1)
-	foot.Position, foot.Size = UDim2.new(0, 16, 1, -8), UDim2.new(1, -120, 0, 40)
+	foot.Position, foot.Size = UDim2.new(0, 16, 1, -10), UDim2.new(1, -136, 0, 44)
 	local back = Ui.button(odds, "BACK", Ui.PANEL2, function() odds.Visible = false end, { size = 16 })
 	back.Name, back.ZIndex = "Back", 12
 	back.AnchorPoint = Vector2.new(1, 1)

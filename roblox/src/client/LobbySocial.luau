@@ -32,11 +32,12 @@ local LIGHT = Ui.lightPanels()
 local INK = Color3.fromRGB(15, 18, 24)
 -- the panels' buttons and rows: pale with dark words in a light theme
 local PANEL2 = if LIGHT then Ui.PANEL2 else Color3.fromRGB(46, 52, 63)
-local TEXT = Color3.fromRGB(230, 225, 214)        -- words over the dark chat log
+-- words in the chat log: light over its dark body, or dark on a pale one (a light theme)
+local TEXT = if LIGHT then Ui.TEXT else Color3.fromRGB(230, 225, 214)
 local ON_PANEL = if LIGHT then Ui.TEXT else TEXT  -- words on a panel
 local DIM = if LIGHT then Ui.SUB else Color3.fromRGB(138, 148, 166)
-local PINK = Color3.fromRGB(200, 100, 60)
-local CYAN = Color3.fromRGB(127, 168, 184)
+local PINK = if LIGHT then Color3.fromRGB(176, 70, 36) else Color3.fromRGB(200, 100, 60)
+local CYAN = if LIGHT then Color3.fromRGB(0, 110, 170) else Color3.fromRGB(127, 168, 184)
 local AMBER = Color3.fromRGB(232, 162, 74)
 
 -- The button bar: { panel, key, word, colour }.
@@ -160,7 +161,8 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	-- The log, bottom left.
 	-- (a window like the rest, see-through enough to keep the roofs behind it in view)
 	local log = Ui.panel(gui, "Log", if LIGHT then Ui.SKY else Ui.PANEL2, "CHAT", 30)
-	log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3
+	-- (a pale window like the people list in a light theme, not a dark one beside it)
+	if not LIGHT then log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3 end
 	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 42)
 	self.logFrame = log
 	self.logLines = {}

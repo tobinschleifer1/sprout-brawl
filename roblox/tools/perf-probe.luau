@@ -86,7 +86,7 @@ function Probe:load(path)
 	local directory = string.match(path, "^(.*)/[^/]+$")
 	local env = {
 		Instance = { new = self.new }, Color3 = Rbx.Color3, Vector2 = Rbx.Vector2,
-		UDim2 = Rbx.UDim2, UDim = Rbx.UDim, Enum = Rbx.Enum,
+		UDim2 = Rbx.UDim2, UDim = Rbx.UDim, Enum = Rbx.Enum, ColorSequence = Rbx.ColorSequence,
 		math = self.math,
 		os = setmetatable({ clock = function() return self.now end }, { __index = os }),
 		game = { GetService = function(_, name)

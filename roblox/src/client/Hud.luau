@@ -37,6 +37,29 @@ local FLOAT_W, FLOAT_EDGE = 170, 26
 -- secondary words on a card (the weapon, SHIELD): the theme's own on a pale card
 local DIM = if Ui.lightPanels() then Ui.SUB else Color3.fromRGB(198, 204, 214)
 local SHIELD_UP = if Ui.lightPanels() then Color3.fromRGB(0, 120, 200) else Color3.fromRGB(120, 220, 255)
+
+-- WCAG contrast of two colours (relative luminance), for the card percent below.
+local function contrast(a: Color3, b: Color3): number
+	local function lum(c: Color3): number
+		local function ch(v: number): number return if v <= 0.03928 then v / 12.92 else ((v + 0.055) / 1.055) ^ 2.4 end
+		return 0.2126 * ch(c.R) + 0.7152 * ch(c.G) + 0.0722 * ch(c.B)
+	end
+	local x, y = lum(a), lum(b)
+	return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05)
+end
+-- The damage percent on a player's card: the shared damage ramp (HudColors), deepened step by step
+-- on a pale card until it reads at 4.5:1 - white at 0% would vanish on cream. Over the world (the
+-- floating label) and on a dark card the ramp is drawn as it is.
+function Hud.cardPercent(p: number): Color3
+	local c = HudColors.percent(p)
+	if not Ui.lightPanels() then return c end
+	local k = 0
+	while contrast(c, Ui.PANEL) < 4.5 and k < 12 do
+		c = Ui.shade(c, -0.1)
+		k += 1
+	end
+	return c
+end
 local PANEL = Ui.PANEL
 local GOLD = Ui.GOLD                            -- a timed link's colour (FxPlayer.PERFECT)
 local BROKE = Color3.fromRGB(150, 156, 168)
@@ -250,7 +273,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 23),
 			string.upper(chars[i] and chars[i].name or entry.weapon), 11, DIM)
 		weapon.TextTruncate = Enum.TextTruncate.AtEnd
-		local pct = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", if compact then 22 else 30, Color3.new(1, 1, 1))
+		local pct, pctOutline = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", if compact then 22 else 30, Hud.cardPercent(0))
+		-- (dark on a pale card: bare, as every dark word on a window)
+		if Ui.lightPanels() then pctOutline.Enabled = false end
 		-- Stocks as pixel blocks in the player's colour, right-aligned, capped at eight.
 		local pips = {}
 		for k = 1, 8 do
@@ -529,7 +554,7 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 		else
 			local pct = math.floor(st.percent + 0.5)
 			write(tile.pct, "Text", `{pct}%`)
-			write(tile.pct, "TextColor3", HudColors.percent(st.percent))
+			write(tile.pct, "TextColor3", Hud.cardPercent(st.percent))
 			-- Stocks as pips, capped: past eight the count stops being readable at a glance and
 			-- the number would be better, but no mode here goes past a handful.
 			-- weapon drops: both weapons on the tile, the one in hand in gold, written when it changes

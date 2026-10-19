@@ -105,6 +105,8 @@ local function tile(parent: Instance, name: string, onClick: () -> (), colour: C
 	lip.Position, lip.Size = UDim2.new(0, 0, 1, -3), UDim2.new(1, 0, 0, 3)
 	lip.Parent = b
 	if Ui.flat() then lip.BackgroundTransparency = 1 end
+	-- (a card in a light theme: an outline in its own colour darkened, as every box wears)
+	if Ui.lightPanels() then Ui.stroke(b, Ui.tone(colour), 2) end
 	b.Activated:Connect(onClick)
 	return b
 end
@@ -206,7 +208,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	local top = Ui.band(panel, HEADER, 56, "Top")
 	self.top = top
 	-- (white on the blue bar: gold on it is barely there)
-	local title = if LIGHT then (Ui.faceText(top, "CHARACTER STUDIO", 18, HEADER)) else Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
+	local title = if LIGHT then (Ui.faceText(top, "CHARACTER STUDIO", 16, HEADER, Ui.TITLE)) else Ui.text(top, "CHARACTER STUDIO", 18, TEXT, Ui.DISPLAY)
 	title.Name = "Title"
 	title.TextXAlignment = Enum.TextXAlignment.Left
 	title.Position, title.Size = UDim2.fromOffset(18, 0), UDim2.new(0, 230, 1, 0)
@@ -236,6 +238,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	-- Preview: the real fighter, posed, with its controls.
 	-- (the character stands on a sky-blue stage in a light theme, as the plaza's sky)
 	local preview = frame(panel, "Preview", if LIGHT then Color3.fromRGB(196, 228, 255) else INK, 0)
+	if LIGHT then
+		-- a sky behind the character, deeper at the top, as the plaza's
+		Ui.gradient(preview, Color3.fromRGB(150, 205, 255), Color3.new(1, 1, 1))
+		Ui.stroke(preview, Ui.tone(Color3.fromRGB(150, 205, 255)), 2)
+	end
 	corner(preview, 12)
 	Ui.stroke(preview, LINE, 2)
 	self.preview = preview
@@ -279,7 +286,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 		self:refreshFooter()
 	end)
 	self.nameBox = nameBox
-	local count = label(preview, "Count", "", 9, DIM)
+	local count = label(preview, "Count", "", if LIGHT then 11 else 9, if LIGHT then TEXT else DIM)
 	count.TextXAlignment = Enum.TextXAlignment.Center
 	count.TextWrapped = false
 	count.TextTruncate = Enum.TextTruncate.AtEnd
@@ -329,9 +336,11 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	pad.PaddingTop, pad.PaddingLeft, pad.PaddingRight, pad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8), UDim.new(0, 8)
 	pad.Parent = grid
 	-- "more below": a chip on the grid's lower edge while its tiles run past what it shows
+	-- (a dark pill straddling the grid's border, like the shop's price pills: over the frame, not a name)
 	local more = Ui.make("TextLabel", editor, { Name = "More", Text = "SCROLL FOR MORE  ▼", Font = Ui.LABEL, TextSize = Ui.px(11),
-		TextColor3 = Ui.INK, BackgroundColor3 = AMBER, BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 1), ZIndex = 5, Visible = false })
-	Ui.corner(more, 0)
+		TextColor3 = if LIGHT then Ui.WHITE else Ui.INK, BackgroundColor3 = if LIGHT then Color3.fromRGB(35, 27, 51) else AMBER,
+		BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 0.5), ZIndex = 5, Visible = false })
+	if LIGHT then Ui.make("UICorner", more, { CornerRadius = UDim.new(1, 0) }) else Ui.corner(more, 0) end
 	self.moreChip = more
 	local gridLayout = Instance.new("UIGridLayout")
 	gridLayout.CellPadding = UDim2.fromOffset(8, 8)
@@ -457,7 +466,7 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	tileH = math.min(tileH, math.max(60, math.max(80, gridH) - 14))
 	self.gridLayout.CellSize = UDim2.fromOffset(tile, tileH)
 	self.gridCols, self.gridTileH, self.gridShownH = cols, tileH, math.max(80, gridH)
-	self.moreChip.Position = UDim2.fromOffset(ew - 14, gridTop + math.max(80, gridH) - 8)
+	self.moreChip.Position = UDim2.fromOffset(ew - 24, gridTop + math.max(80, gridH))
 	self.moreChip.Size = UDim2.fromOffset(Ui.textWidth(self.moreChip.Text, 11, Ui.LABEL) + 20, 22)
 	self:updateMore()
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
@@ -929,11 +938,11 @@ function AvatarEditor.rebuildTiles(self: any)
 		for i, e in entries do
 			local b = tile(self.grid, e.kind .. e.id, function()
 				if e.kind == "Preset_" then self:applyPreset(e.id) else self:pick(self.category, e.id) end
-			end, PANEL2)
+			end, if LIGHT then Ui.PANEL else PANEL2)
 			b.LayoutOrder = i
 			local thumb = frame(b, "Thumb")
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
-			local name = label(b, "Label", string.upper(e.name), 10, if LIGHT then TEXT else Ui.KEY)
+			local name = label(b, "Label", string.upper(e.name), if LIGHT then 12 else 10, if LIGHT then TEXT else Ui.KEY)
 			if e.locked then b.BackgroundTransparency = 0.5 end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			name.Position, name.Size = UDim2.new(0, 2, 1, -22), UDim2.new(1, -4, 0, 20)
@@ -988,12 +997,13 @@ function AvatarEditor.rebuildColours(self: any)
 		local c = AvatarKit.colourSlot(slot)
 		local holder = frame(self.colourBar, "Row_" .. slot)
 		holder.Position, holder.Size = UDim2.fromOffset(0, (row - 1) * 64), UDim2.fromOffset(w, 60)
-		local name = label(holder, "Label", string.upper(c.name), 11, DIM)
+		local name = label(holder, "Label", string.upper(c.name), 12, DIM)
 		name.Position, name.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(w, 14)
 		local sw = frame(holder, "Swatches")
-		sw.Position, sw.Size = UDim2.fromOffset(0, 16), UDim2.fromOffset(w, 44)
 		local perRow = math.ceil(#c.list / 2)
 		local cell = math.clamp(math.floor((w - (perRow - 1) * 4) / perRow), 12, 30)
+		-- exactly half the palette a row: the full width let one more fit and left one alone below
+		sw.Position, sw.Size = UDim2.fromOffset(0, 16), UDim2.fromOffset(perRow * (cell + 4) - 4, 44)
 		local g = Instance.new("UIGridLayout")
 		g.CellSize = UDim2.fromOffset(cell, 20)
 		g.CellPadding = UDim2.fromOffset(4, 4)

@@ -132,6 +132,9 @@ local grid = find(find(root, "LockerTab"), "Grid")
 local first = find(grid, "Card1")
 assert(first and find(first, "Name").Text == "Dragon's Breath" and drawn > 0, "the first card is not the rarest, or nothing was drawn")
 assert(string.find(find(root, "Balance").Text, "300 Sparks", 1, true), "the balance is not shown")
+-- (the arcade theme shows it as currency pills, the gem and the key)
+assert(find(find(root, "Currency_gem"), "Value").Text == "300" and find(find(root, "Currency_key"), "Value").Text == tostring(economyView.keys.forge),
+	"the currency pills do not show the balance")
 -- wear / take off
 local function cardFor(name)
 	for _, c in grid:GetChildren() do if find(c, "Name") and find(c, "Name").Text == name and c.Visible then return c end end

@@ -181,7 +181,8 @@ function Plaza2D.new(parent: Instance): any
 	character.Position, character.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42)
 	self.characterButton = character
 	-- The Locker (also L): cosmetics, crates and the Workshop, stacked over CHARACTER.
-	local locker = Ui.keyButton(gui, "L", "LOCKER", Ui.shade(Ui.GOLD, -0.35), function()
+	-- (the Locker window's own purple; the old olive read as a disabled button beside SHOP and CHARACTER)
+	local locker = Ui.keyButton(gui, "L", "LOCKER", if Ui.lightPanels() then Ui.PURPLE else Ui.shade(Ui.GOLD, -0.35), function()
 		if self.active and not self.blocked and self.onLocker then self.onLocker() end
 	end, 42)
 	locker.Name = "LockerButton"
@@ -946,7 +947,9 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.prompt.Visible = not (self.social and self.social.anyOpen and self.social:anyOpen())
 	-- the card fits its words, so a short line is not a long bar and a long one does not leave a
 	-- word alone on a second line
-	self.prompt.Size = UDim2.new(0, math.min(math.max(gw - 32, 200), Ui.textWidth(self.prompt.Text, if action then 20 else 13)
+	-- (centred, it stays clear of the button column at the right on both sides: on a phone a long
+	-- tip wraps onto its second line rather than running under SHOP and LOCKER)
+	self.prompt.Size = UDim2.new(0, math.min(math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200), Ui.textWidth(self.prompt.Text, if action then 20 else 13)
 		+ (if action then 64 else 16) + 24), 0, 50)
 	-- an action (the E key, gold words, a gold rim) or a tip (soft words, no key)
 	if self.promptAction ~= action then

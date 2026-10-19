@@ -83,20 +83,23 @@ function ParkourView.new(parent: Instance, opts: any): any
 	gui.Parent = parent
 	self.gui = gui
 	-- the run's readout in one window (made first, so it sits behind the words placed over it)
-	-- (a coloured card in a light theme - its outlined light words read on it - a dark window otherwise)
-	local plate = if Ui.lightPanels() then Ui.card(gui, "Readout", Ui.SKY) else Ui.panel(gui, "Readout")
+	-- (a light theme: a pale window with a sky-blue title band - the title white on the band, the
+	-- lines dark on the window, as every window; a dark window otherwise)
+	local LIGHT = Ui.lightPanels()
+	local plate = if LIGHT then Ui.panel(gui, "Readout", Ui.SKY, "", 34) else Ui.panel(gui, "Readout")
 	plate.BackgroundTransparency = 0
 	plate.Position, plate.Size = UDim2.fromOffset(8, TOP - 6), UDim2.fromOffset(490, 146)
 	self.readout = plate
-	local title = text(gui, "Title", "SKYLINE CLIMB", 22, AMBER)
-	display(title, 2)
+	local title = text(gui, "Title", "SKYLINE CLIMB", if LIGHT then 18 else 22, if LIGHT then Ui.WHITE else AMBER)
+	local titleOutline = display(title, 2)
+	if LIGHT then title.Font, titleOutline.Color = Ui.TITLE, Ui.tone(Ui.SKY) end
 	-- This ScreenGui ignores the inset (so world labels line up with the canvas), which puts its top
 	-- 58 px under Roblox's own top bar and its top right under the player list: seen in Studio, the
 	-- SKIP button could not be clicked there. So the HUD text starts below the bar, and every button
 	-- lives in a column at the bottom right, where Roblox draws nothing.
 	title.Position, title.Size = UDim2.fromOffset(16, TOP), UDim2.fromOffset(400, 28)
 	self.checkpointLabel = text(gui, "Checkpoint", "", 12)
-	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, TOP + 30), UDim2.fromOffset(500, 20)
+	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, TOP + 32), UDim2.fromOffset(470, 20)
 	-- the clock in a pill (behind it, not its parent, so the label stays placed on the screen)
 	local pill = Ui.pill(gui, "TimerPill", Ui.EDGE)
 	pill.Position, pill.Size = UDim2.fromOffset(16, TOP + 52), UDim2.fromOffset(180, 34)
@@ -111,9 +114,12 @@ function ParkourView.new(parent: Instance, opts: any): any
 	-- the lines under the title sit on a bright sky: an ink outline, not the soft stroke, keeps them
 	for _, t in { self.checkpointLabel, self.fallsLabel, self.bestLabel } do
 		t.TextStrokeTransparency = 1
-		Ui.outline(t, 2)
+		if not LIGHT then Ui.outline(t, 2) end
 	end
-	self.fallsLabel.TextColor3, self.bestLabel.TextColor3 = Color3.fromRGB(214, 224, 240), Color3.fromRGB(214, 224, 240)
+	-- (dark on the pale window, bare; light and outlined on the dark one)
+	self.checkpointLabel.TextColor3 = if LIGHT then Ui.TEXT else TEXT
+	local lines = if LIGHT then Ui.SUB else Color3.fromRGB(214, 224, 240)
+	self.fallsLabel.TextColor3, self.bestLabel.TextColor3 = lines, lines
 	local banner = text(gui, "Banner", "", 30, AMBER)
 	self.bannerOutline = display(banner, 4)
 	banner.AnchorPoint, banner.TextXAlignment = Vector2.new(0.5, 0), Enum.TextXAlignment.Center

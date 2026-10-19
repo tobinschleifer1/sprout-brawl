@@ -21,7 +21,8 @@ local s, tile, float = S.states[1], h.tiles[1], h.floats[1]
 s.percent, s.stocks, s.ultCharge, s.state = 116.6, 2, 20, "shield"
 draw()
 assert(tile.pct.Text == "117%" and string.find(float.Text, "117%%"), "percent labels stayed cached")
-assert(tile.pct.TextColor3 == Colours.percent(116.6) and float.TextColor3 == tile.pct.TextColor3, "damage colour stayed cached")
+local HudModule = P:load("src/client/Hud")
+assert(tile.pct.TextColor3 == HudModule.cardPercent(116.6) and float.TextColor3 == Colours.percent(116.6), "damage colour stayed cached")
 for i, pip in tile.pips do assert(pip.Visible == (i <= 2), "stock pip stayed cached") end
 for _, block in tile.ult do assert(block.BackgroundColor3 == Ui.GOLD, "ready meter failed to turn gold") end
 assert(tile.shield.Text == "SHIELD UP", "shield text stayed cached")

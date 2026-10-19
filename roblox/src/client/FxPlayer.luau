@@ -28,13 +28,14 @@ export type Item = {
 }
 
 function FxPlayer.new(): any
-	return { items = {} :: { Item }, flash = 0, flashColour = "#FFFFFF", seed = 0, glows = {} }
+	return { items = {} :: { Item }, flash = 0, flashColour = "#FFFFFF", seed = 0, glows = {}, emotes = {} }
 end
 
 function FxPlayer.clear(P: any)
 	table.clear(P.items)
 	P.flash = 0
 	table.clear(P.glows)
+	table.clear(P.emotes)
 end
 
 -- `size` is the drawing's width in studs. `dur` seconds plays the whole flipbook once.
@@ -303,7 +304,11 @@ FxPlayer.SPAWN_STYLES = {
 -- Effects would draw over it (see FightScene.spawn).
 function FxPlayer.spawn(P: any, e: any, states: { any }, chars: { any }): boolean
 	local t = e.type
-	if t == "respawn" then
+	if t == "emote" then
+		local old = P.emotes[e.fighter]
+		if not old or e.start >= old.start then P.emotes[e.fighter] = e end
+		return true
+	elseif t == "respawn" then
 		-- the reappearing fighter's spawn effect, if they wear one
 		local s = stateOf(states, e.fighter)
 		local char = if e.fighter ~= nil then chars[e.fighter + 1] else nil

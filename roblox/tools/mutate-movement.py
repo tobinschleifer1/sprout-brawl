@@ -186,7 +186,7 @@ lockerui = [
 ]
 shop = [
     ('featured differs by server', 'server/Shop', 'local s = (day * 7919 + 104729) % 2147483647', 'local s = (day * 7919 + math.floor(os.clock() * 1000003)) % 2147483647', 'disagree'),
-    ('featured any rarity', 'server/Shop', 'if it.source == "crate" and it.rarity == rarity then', 'if it.source == "crate" then', 'crate item at its price'),
+    ('featured any rarity', 'server/Shop', 'if (it.source == "crate" or it.source == "shop") and it.rarity == rarity then', 'if it.source == "crate" or it.source == "shop" then', 'crate item at its price'),
     ('keys shown to the restricted', 'server/Shop', 'if not restricted then\n\t\tfor _, b in Products.KEYS', 'if true then\n\t\tfor _, b in Products.KEYS', 'offered Forge Keys'),
     ('policy fails open', 'server/Shop', 'return not ok or r ~= false', 'return ok and r == true', 'failed policy'),
     ('unpriced keys prompted', 'server/Shop', 'if b.id == 0 then return false, "Forge Keys are not on sale yet" end', '', 'id 0 was prompted'),
@@ -251,7 +251,71 @@ shopui = [
     ('refusal silent', 'ShopScreen', 'self:say(`Could not do that: {e.error}`, Ui.RED)', 'self:say("", Ui.RED)', 'refusal was not shown'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary)]:
+emotes = [
+    ('duplicate catalogue silhouette', 'Emotes', 'function Emotes.sample', 'Emotes.CLIPS.emote_shrug = Emotes.CLIPS.emote_wave\nfunction Emotes.sample', 'two catalogue poses share a silhouette'),
+    ('missing free entitlement', 'shared/Inventory', 'if it.source == "free" then owned[it.id] = true end', 'if false then owned[it.id] = true end', 'free item not owned by everyone'),
+    ('stored free instance', 'shared/Inventory', 'and item(inst.i).source ~= "free" then', 'then', 'free item has transferable instance'),
+    ('migrated free instance', 'shared/Inventory', 'and item(id).source ~= "free" and n <', 'and n <', 'free item has transferable instance'),
+    ('mint free copies', 'shared/Inventory', 'if not item(id) or item(id).source == "free" then return nil end', 'if not item(id) then return nil end', 'free item can be minted'),
+    ('lost VIP grant', 'shared/Products', ', "emote_vip"', '', 'VIP emote not granted by pass'),
+    ('exclusive items never sold', 'server/Shop', '(it.source == "crate" or it.source == "shop")', '(it.source == "crate")', 'shop-only poses never offered'),
+    ('exclusive item in crate', 'shared/Cosmetics', 'type = "emote", name = "En Garde", rarity = "Rare", source = "shop"', 'type = "emote", name = "En Garde", rarity = "Rare", source = "crate"', 'phase six catalogue distribution'),
+    ('crate emote not craftable', 'shared/Loot', 'if not item or item.source ~= "crate" then return nil end', 'if not item or item.type == "emote" or item.source ~= "crate" then return nil end', 'crate emote is not craftable'),
+    ('wrong direction fallback', 'shared/Inventory', 'neutral = "emote_wave"', 'neutral = "emote_cheer"', 'direction defaults changed'),
+    ('missing directional slots', 'shared/Inventory', 'for _, slot in Inventory.EMOTE_SLOTS do TYPE_OF[slot] = "emote" end', 'for _, slot in {} do TYPE_OF[slot] = "emote" end', 'owned pose slots lost on sanitize'),
+    ('worn unowned emote', 'shared/Inventory', 'if equipped[slot] and not inv.owned[equipped[slot]] then', 'if false then', 'unowned or misplaced emote survives sanitize'),
+    ('wrong slot type accepted', 'shared/Inventory', 'if item(src[slot], t) then', 'if item(src[slot]) then', 'unowned or misplaced emote survives sanitize'),
+    ('lost chosen slot', 'shared/Inventory', 's = slot\n', 's = Inventory.SLOTS[it.type]\n', 'emote direction did not equip'),
+    ('uncleared direction', 'shared/Inventory', 'if slot and TYPE_OF[slot] then inv.equipped[slot] = nil; return true end', 'if slot and TYPE_OF[slot] then return true end', 'emote direction did not come off'),
+    ('invalid slot accepted', 'shared/Inventory', 'TYPE_OF[slot] ~= "emote"', 'TYPE_OF[slot] == "invalid"', 'emote accepted invalid slot'),
+    ('unowned emote allowed', 'shared/Inventory', 'if not owns(id) then return false, "not owned" end', 'if false then return false, "not owned" end', 'unowned emote equipped'),
+    ('old directional gear stays after removal', 'shared/Inventory', 'for slot in TYPE_OF do if inv.equipped[slot] == inst.i then inv.equipped[slot] = nil end end', 'for slot in {} do if inv.equipped[slot] == inst.i then inv.equipped[slot] = nil end end', 'last copy left an emote equipped'),
+    ('preset restores unowned direction', 'server/Locker', 'for key in Inventory.SLOT_TYPES do', 'for _, key in Inventory.SLOTS do', 'preset restores unowned directional emote'),
+    ('locker drops slot', 'server/Locker', 'end, if type(msg.slot) == "string" then msg.slot else nil)', 'end)', 'locker dropped chosen emote direction'),
+    ('showcase discards chosen emote', 'server/Locker', 'out.skins, out.hit, out.ko, out.trail = table.clone(Locker.SHOWCASE.skins), Locker.SHOWCASE.hit, Locker.SHOWCASE.ko, Locker.SHOWCASE.trail', 'return Inventory.cleanLoadout(Locker.SHOWCASE)', 'Studio showcase discarded chosen emote'),
+    ('facing ignored', 'server/EmoteEvents', 'input.x * facing > 0.5', 'input.x > 0.5', 'server sent wrong emote slot or facing'),
+    ('up direction lost', 'server/EmoteEvents', 'if input.y > 0.5 then return "up" end', 'if input.y > 0.5 then return "neutral" end', 'server sent wrong emote slot or facing'),
+    ('down direction lost', 'server/EmoteEvents', 'if input.y < -0.5 then return "down" end', 'if input.y < -0.5 then return "up" end', 'server sent wrong emote slot or facing'),
+    ('server never observes taunts', 'server/MatchService', 'EmoteEvents.observe(self.emotes, m)', '-- no presentation observation', 'server sent wrong emote slot or facing'),
+    ('event repeats every frame', 'server/EmoteEvents', 'if not old or old.start ~= start then', 'if true then', 'holding direction repeats or changes emote event'),
+    ('cancelled event survives', 'server/EmoteEvents', 'active[f.index] = nil', 'local _ = old', 'cancelled taunt kept active event'),
+    ('join loses emote', 'server/MatchService', 'for _, e in self.emotes do table.insert(list, e) end', 'for _, e in {} do table.insert(list, e) end', 'late join lost active emote'),
+    ('event lost on client', 'FxPlayer', 'if not old or e.start >= old.start then P.emotes[e.fighter] = e end', 'if false then P.emotes[e.fighter] = e end', 'emote event lost or allocated effect sprites'),
+    ('old event overwrites newer', 'FxPlayer', 'if not old or e.start >= old.start then', 'if true then', 'late event overwrote current taunt'),
+    ('match reset leaves events', 'FxPlayer', 'table.clear(P.emotes)', '-- stale', 'new match retains emote events'),
+    ('receiver queues behind view', 'client/init.client', '\t\t\tFxPlayer.spawn(fxPlayer, e, {}, {})', '\t\t\ttable.insert(pendingFx, { frame = frame or 0, e = e })', 'client receiver delays emote behind interpolation'),
+    ('join receiver loses events', 'client/init.client', 'for _, e in cfg.emotes or {} do FxPlayer.spawn(fxPlayer, e, {}, {}) end', '-- no active emotes', 'client join did not restore active emote'),
+    ('scene loses emote table', 'FightScene', 'Fighter2D.emotes = if S.player then S.player.emotes else nil', 'Fighter2D.emotes = nil', 'live scene ignores emote event'),
+    ('scene leaks into previews', 'FightScene', 'Fighter2D.emotes = nil\n', '-- retained\n', 'live scene leaks emote events to previews'),
+    ('cancellation ignored', 'Emotes', 'if s.state ~= "taunt" then return nil end', 'if false then return nil end', 'cancelled emote still poses fighter'),
+    ('entry identity ignored', 'Emotes', 'math.abs((s.frameCount - s.stateFrame) - event.start) < 0.01', 'true', 'stale event animates next taunt'),
+    ('worn direction ignored', 'Emotes', 'local id = worn and worn[key]', 'local id = nil', 'client ignored equipped directional emote'),
+    ('wrong fallback pose', 'Emotes', 'else Inventory.DEFAULT_POSE', 'else "pose_star"', 'invalid podium pose lacks fallback'),
+    ('sampler freezes between keys', 'Emotes', 'local k = u * u * (3 - 2 * u)', 'local k = if u < 1 then 0 else 1', 'pose jumps between keyframes'),
+    ('sampler never settles', 'Emotes', '{ Config.TAUNT_FRAMES :: any, Emotes.STANCE }', '{ Config.TAUNT_FRAMES :: any, pose(b) }', 'emote does not end at stance'),
+    ('height discontinuity', 'Emotes', 'math.abs(p.legL) * (1 - p.kneeL)', 'if p.kneeL < 0.05 then math.abs(p.legL) else 0', 'applied pose height jumps'),
+    ('floating support foot', 'Posture', 'y = -ch.bob + h * 0.26 * leg[2],', 'y = -ch.bob + h * 0.26 * leg[2] + 0.1,', 'emote support foot floats'),
+    ('detached rear weapon', 'Posture', 'offX, offY = bx, by', 'offX, offY = bx + 0.1, by', 'emote second grip detached'),
+    ('fighter skips override', 'Fighter2D', 'if emote then Emotes.apply(ch, wpose, emote, char) end', '-- no emote override', 'Fighter2D skipped emote override'),
+    ('extra body sprite', 'KitBody', 'kitPiece("head", PW)', 'kitPiece("head", PW)\n\tif ch.emote then kitPiece("head", PW) end', 'emote adds body sprites beyond pose budget'),
+    ('generic thumbnail', 'ItemArt', 'if it.type == "emote" or it.type == "victory_pose" then return "pose",', 'if false then return "pose",', 'thumbnail not the item key frame'),
+    ('thumbnail wrong still', 'ItemArt', 'frame = Emotes.KEY_FRAME', 'frame = 0', 'thumbnail not the item key frame'),
+    ('locker picker does not advance', 'LockerScreen', 'c.slotIndex = c.slotIndex % #Inventory.EMOTE_ORDER + 1', 'c.slotIndex = 1', 'Locker button sends wrong direction'),
+    ('locker wear omits direction', 'LockerScreen', 'slot = if m.type == "emote" then slot else nil', 'slot = nil', 'Locker button sends wrong direction'),
+    ('locker clears wrong direction', 'LockerScreen', 'if m.type == "emote" then msg.slot = slot end', 'if m.type == "emote" then msg.slot = "emoteNeutral" end', 'Locker button clears wrong direction'),
+    ('podium ignores worn item', 'PodiumView', 'if won then st.victoryPose = Emotes.poseFor(char.cosmetics) end', 'if won then st.victoryPose = Emotes.poseFor(nil) end', 'podium did not use each winners worn pose'),
+    ('losers use victory item', 'PodiumView', 'if won then st.victoryPose = Emotes.poseFor(char.cosmetics) end', 'st.victoryPose = Emotes.poseFor(char.cosmetics)', 'loser uses victory cosmetic'),
+]
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--suite', action='append', help='Run only this suite (repeatable); default all')
+args = parser.parse_args()
+selected = 0
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes)]:
+    if args.suite and suite not in args.suite:
+        continue
+    selected += len(faults)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
     for name, module, old, new, expected in faults:
         # 'shared/Loot' reaches src/shared; a bare name is a client module
@@ -270,4 +334,4 @@ for suite, faults in [('movement', movement), ('posture', posture), ('overlap', 
         finally:
             path.write_bytes(source)
     subprocess.run(['lune', 'run', f'tests/{suite}'], check=True)
-print(f'All {len(movement) + len(posture) + len(overlap) + len(dual) + len(kicks) + len(loot) + len(cosmetics) + len(economy) + len(lockerui) + len(shopui) + len(shop) + len(avatarstore) + len(secondary)} independent mutations rejected; sources restored.')
+print(f'All {selected} independent mutations rejected; sources restored.')

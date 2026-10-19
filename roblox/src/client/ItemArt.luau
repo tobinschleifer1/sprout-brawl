@@ -13,6 +13,10 @@ local CosmeticArt = require(Shared.CosmeticArt)
 local Canvas2D = require(script.Parent.Canvas2D)
 local Weapons2D = require(script.Parent.Weapons2D)
 local FxArt = require(script.Parent.FxArt)
+local Emotes = require(script.Parent.Emotes)
+local Fighter2D = require(script.Parent.Fighter2D)
+local PosedFighter = require(script.Parent.PosedFighter)
+local Loadout = require(Shared.Loadout)
 local ItemArt = {}
 
 -- The drawing each effect's tile shows: a kind, a flipbook frame and a ramp. A recolouring hit
@@ -36,6 +40,7 @@ function ItemArt.plan(id: string): (string, any)
 	if it.type == "weapon_skin" then return "weapon", `{it.weapon}@{id}` end
 	if it.type == "swing_trail" then return "trail", Weapons2D.TRAILS[id] or { "#FFFFFF" } end
 	if it.type == "title" then return "title", it.name end
+	if it.type == "emote" or it.type == "victory_pose" then return "pose", { id = id, victory = it.type == "victory_pose", frame = Emotes.KEY_FRAME } end
 	local fx: { any } = ItemArt.FX[id] or { "pop", 2 :: any, it.ramp or (Loot.RARITY[it.rarity] or Loot.RARITY.Common).colour }
 	return "fx", fx
 end
@@ -57,7 +62,14 @@ end
 -- Draw `id` on a tile canvas `w` x `h` pixels.
 function ItemArt.draw(c: any, id: string, w: number, h: number)
 	local kind, arg = ItemArt.plan(id)
-	if kind == "weapon" then
+	if kind == "pose" then
+		local char = table.clone(Loadout.build("Classic", "Sword"))
+		char.cosmetics = { skins = {}, emoteNeutral = arg.id, pose = arg.id }
+		local s = PosedFighter.posed(char, -1, if arg.victory then "victory" else "taunt", arg.frame)
+		local ppu = math.min(w / 12, h / 8.5)
+		Canvas2D.setTransform(c, ppu, 0, 0, -ppu, w * 0.48, h * 0.94)
+		Fighter2D.draw(c, s, char, 0, nil)
+	elseif kind == "weapon" then
 		local cx, cy, ppu = Weapons2D.fit(arg, w, h, 6)
 		Canvas2D.setTransform(c, ppu, 0, 0, -ppu, w / 2 - cx * ppu, h / 2 + cy * ppu)
 		Weapons2D.draw(c, arg, Weapons2D.skinPalette(string.match(arg, "@(.+)$")) or {}, { angle = 0, ox = 0, oy = 0, scale = 1, charge = 0 })

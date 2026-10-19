@@ -5,6 +5,7 @@ local fs, luau, Rbx = require("@lune/fs"), require("@lune/luau"), require("@lune
 local Loader = require("./loader")
 local Posture = Loader.loadFrom("src/client/", "Posture")
 local Movement = Loader.loadFrom("src/client/", "Movement")
+local Emotes = Loader.loadFrom("src/client/", "Emotes")
 local Art = Loader.loadFrom("src/client/", "PostureArt")
 local Compose = Loader.loadFrom("src/client/", "AvatarCompose")
 local Channels = Loader.loadFrom("src/client/", "Channels")
@@ -28,9 +29,12 @@ end
 local function posture(s, char, t)
 	local move = Fighter.moveOf(char, s.moveId)
 	local ch = Channels.For(s, char, move, t)
+	local wp = WeaponPose.For(s, char, move, t)
+	local emote = Emotes.For(s, char)
+	if emote then Emotes.apply(ch, wp, emote, char) end
 	-- View-only means no edits even to the channel bag handed to the layer.
 	table.freeze(ch.armL); table.freeze(ch.armR); table.freeze(ch)
-	local p = Posture.For(ch, s, char, WeaponPose.For(s, char, move, t), move, t)
+	local p = Posture.For(ch, s, char, wp, move, t)
 	return p, ch
 end
 local char = Loadout.build("Classic", "Sword")
@@ -189,6 +193,10 @@ local function check(s, ch, t)
 				local move = Fighter.moveOf(ch, s.moveId)
 				local wp = WeaponPose.For(s, ch, move, t)
 				local raw = Channels.For(s, ch, move, t)
+				-- Taunts and podiums now use the Roblox-only authored pose; their grip must
+				-- still match the independently transformed anchor exactly.
+				local emote = Emotes.For(s, ch)
+				if emote then Emotes.apply(raw, wp, emote, ch) end
 				local ext = if raw.armR.ext ~= 0 then raw.armR.ext else 1
 				local ref = canvas(scale)
 				Canvas.translate(ref, s.x + raw.shakeX, s.y + raw.yOff)

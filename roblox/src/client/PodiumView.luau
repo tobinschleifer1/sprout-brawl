@@ -9,6 +9,7 @@ local PosedFighter = require(script.Parent.PosedFighter)
 local Podium = require(script.Parent.Podium)
 local HudColors = require(script.Parent.HudColors)
 local Ui = require(script.Parent.Ui)
+local Emotes = require(script.Parent.Emotes)
 
 local PodiumView = {}
 PodiumView.__index = PodiumView
@@ -176,6 +177,7 @@ function PodiumView.draw(self: any, clock: number)
 		if char then
 			local won = if self.res.teams then row.team == self.res.winnerTeam else i == 1
 			local st = PodiumView.posed(char, row.index, if won then "victory" else "defeat", sf)
+			if won then st.victoryPose = Emotes.poseFor(char.cosmetics) end
 			local ppu = s.figureH / char.height
 			Canvas2D.setTransform(c, ppu, 0, 0, -ppu, s.cx, s.top)
 			pcall(Fighter2D.draw, c, st, char, t, nil)

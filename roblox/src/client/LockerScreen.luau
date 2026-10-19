@@ -26,7 +26,7 @@ LockerScreen.__index = LockerScreen
 
 LockerScreen.TYPE_LABEL = {
 	weapon_skin = "Weapon skin", hit_effect = "Hit effect", ko_effect = "KO effect", swing_trail = "Swing trail",
-	step_trail = "Step trail", spawn_effect = "Spawn effect", shield_skin = "Shield skin", title = "Title",
+	step_trail = "Step trail", spawn_effect = "Spawn effect", shield_skin = "Shield skin", title = "Title", emote = "Emote", victory_pose = "Victory pose",
 } :: { [string]: string }
 LockerScreen.FILTERS = { { "all", "ALL" }, { "weapon_skin", "SKINS" }, { "hit_effect", "HITS" }, { "ko_effect", "KOS" },
 	{ "swing_trail", "TRAILS" }, { "other", "MORE" } }
@@ -75,6 +75,10 @@ end
 local function worn(wearing: any, it: any): boolean
 	if not wearing then return false end
 	if it.type == "weapon_skin" then return wearing.skins and wearing.skins[it.weapon] == it.id end
+	if it.type == "emote" then
+		for _, key in Inventory.EMOTE_SLOTS do if wearing[key] == it.id then return true end end
+		return false
+	end
 	local slot = Inventory.SLOTS[it.type]
 	return slot ~= nil and wearing[slot] == it.id
 end
@@ -99,7 +103,7 @@ function LockerScreen.cards(locker: any, economy: any, filter: string?): { any }
 			local lowest = nil
 			for _, inst in list do if (inst.serial or 0) > 0 then lowest = inst.serial; break end end
 			table.insert(out, {
-				id = id, name = it.name, rarity = it.rarity, type = it.type, weapon = it.weapon,
+				id = id, name = it.name, rarity = it.rarity, type = it.type, weapon = it.weapon, source = it.source,
 				copies = #list, serial = lowest, exist = if list[1] then list[1].copies else nil,
 				uids = (function() local u = {}; for i = #list, 1, -1 do table.insert(u, list[i].uid) end; return u end)(),
 				worn = worn(locker and locker.wearing, it),
@@ -235,7 +239,7 @@ function LockerScreen.new(parent: Instance, opts: any): any
 	end
 	self.lockerBody = body("LockerTab")
 	self.lockerChips = filters(self.lockerBody, function(f) self.filter = f; self:refresh() end)
-	self.lockerGrid = grid(self.lockerBody, Vector2.new(168, 206))
+	self.lockerGrid = grid(self.lockerBody, Vector2.new(168, 218))
 	-- saved outfits, at the end of the filter row: a number puts that outfit on; SAVE, then a number,
 	-- saves what you wear into it
 	self.saveMode = false
@@ -343,6 +347,9 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	meta.Name, meta.Position, meta.Size = "Meta", UDim2.fromOffset(6, 112), UDim2.new(1, -12, 0, 16)
 	local extra = Ui.text(f, "", 12, Ui.DIM)
 	extra.Name, extra.Position, extra.Size = "Extra", UDim2.fromOffset(6, 128), UDim2.new(1, -12, 0, 16)
+	local direction = Ui.button(f, "", Ui.PANEL2, nil, { size = 11, small = true })
+	direction.Visible = false
+	direction.Name, direction.Position, direction.Size = "Direction", UDim2.fromOffset(6, 126), UDim2.new(1, -12, 0, 20)
 	local primary = Ui.button(f, "", Ui.BLUE, nil, { size = 14, small = true })
 	primary.Name = "Primary"
 	primary.Position, primary.Size = UDim2.new(0, 6, 1, -64), UDim2.new(1, -12, 0, 28)
@@ -350,7 +357,11 @@ local function card(self: any, pool: { any }, grid: Instance, i: number): any
 	secondary.Name = "Secondary"
 	secondary.Position, secondary.Size = UDim2.new(0, 6, 1, -32), UDim2.new(1, -12, 0, 26)
 	c = { frame = f, edge = edge, band = band, thumb = thumb, name = name, meta = meta, extra = extra,
-		primary = primary, secondary = secondary, onPrimary = nil, onSecondary = nil }
+		primary = primary, secondary = secondary, direction = direction, slotIndex = 1, onPrimary = nil, onSecondary = nil }
+	direction.Activated:Connect(function()
+		c.slotIndex = c.slotIndex % #Inventory.EMOTE_ORDER + 1
+		self:refreshLocker()
+	end)
 	primary.Activated:Connect(function() if c.onPrimary then c.onPrimary() end end)
 	secondary.Activated:Connect(function() if c.onSecondary then c.onSecondary() end end)
 	pool[i] = c
@@ -368,7 +379,16 @@ function LockerScreen.refreshLocker(self: any)
 		local serial = LockerScreen.serialText(m)
 		c.meta.Text = `{m.rarity}{if serial ~= "" then "  ·  " .. serial else ""}`
 		c.meta.TextColor3 = col
-		c.extra.Text = if m.copies == 0 then "Studio: on loan" else LockerScreen.existence(m.exist)
+		c.extra.Text = if m.source == "free" then "Free for everyone" elseif m.copies == 0 then "Studio: on loan" else LockerScreen.existence(m.exist)
+		if c.itemId ~= m.id then c.itemId, c.slotIndex = m.id, 1 end
+		c.direction.Visible, c.extra.Visible = m.type == "emote", m.type ~= "emote"
+		local slot = Inventory.EMOTE_SLOTS[Inventory.EMOTE_ORDER[c.slotIndex]]
+		c.direction.Text = "SLOT: " .. string.upper(Inventory.EMOTE_ORDER[c.slotIndex]) .. " >"
+		if m.type == "emote" then
+			m.worn = self.locker.wearing and self.locker.wearing[slot] == m.id
+			c.edge.Color = if m.worn then Ui.GOLD else Ui.EDGE
+			if m.source == "free" then c.meta.Text ..= " · Free" end
+		end
 		self:drawArt(c.thumb, m.id, 150, 78)
 		c.primary.Text = if m.worn then "TAKE OFF" else "WEAR"
 		Ui.paint(c.primary, if m.worn then Ui.PANEL2 else Ui.BLUE)
@@ -376,13 +396,14 @@ function LockerScreen.refreshLocker(self: any)
 			if m.worn then
 				local msg: any = { action = "remove" }
 				if m.type == "weapon_skin" then msg.weapon = m.weapon else msg.slot = Inventory.SLOTS[m.type] end
+				if m.type == "emote" then msg.slot = slot end
 				self.opts.sendLocker(msg)
 			else
-				self.opts.sendLocker({ action = "equip", id = m.id })
+				self.opts.sendLocker({ action = "equip", id = m.id, slot = if m.type == "emote" then slot else nil })
 			end
 		end
 		local uid = m.uids[1]
-		c.secondary.Visible = uid ~= nil
+		c.secondary.Visible = uid ~= nil and m.source ~= "free"
 		c.secondary.Text = `SALVAGE  +{Loot.dupe(m.rarity)}`
 		c.onSecondary = function()
 			if uid and self:armed("salvage:" .. uid, `Press SALVAGE again to turn {m.name}{if m.serial then "" else ""} into {Loot.dupe(m.rarity)} Sparks`) then

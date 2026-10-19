@@ -40,6 +40,13 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	-- Rocket Boots kick (Kicks): the legs strike, the hips drop for a sweep
 	local kick = Kicks.For(s, char, move, ch.bob)
 	if kick then motion.feet, motion.hipY = kick.feet, -kick.drop end
+	if ch.emote then
+		motion.feet = {}
+		for i, leg in { { ch.legL, ch.kneeL, -r * 0.30 }, { ch.legR, ch.kneeR, r * 0.30 } } do
+			motion.feet[i] = { x = leg[3] - math.sin(leg[1]) * h * 0.34 * (1 - leg[2] * 0.5),
+				y = -ch.bob + h * 0.26 * leg[2], len = h * 0.34 }
+		end
+	end
 	local hip, trunk = h * 0.34 + motion.hipY, h * 0.36
 	local idle = s.state == "idle"
 	local running = s.state == "run"
@@ -80,7 +87,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	-- A small scapular rise as the hand goes overhead. No scale is inherited by either arm.
 	frontY += h * 0.012 * math.sin(armAng)
 	backY -= h * 0.006 * math.sin(armAng)
-	local frontBend = math.rad(8 + 48 * math.max(0, (ch.armR.bend or 0) - 0.2))
+	local frontBend = math.rad(if ch.emote then ch.emote.frontBend else 8 + 48 * math.max(0, (ch.armR.bend or 0) - 0.2))
 	local backSwing = ch.armL.z + ch.armL.x
 	-- Free support arms hang and counter-swing; keep authored reaches in ledge hangs, grabs,
 	-- celebrations and airborne reactions, where the hand has an actual job to do.
@@ -89,11 +96,16 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	end
 	if motion.back then backSwing = motion.back end
 	local backAng = -math.pi / 2 + backSwing - ch.lean * 0.35
-	local backBend = math.rad(8 + math.min(16, math.abs(backSwing) * 14))
+	local backBend = math.rad(if ch.emote then ch.emote.backBend else 8 + math.min(16, math.abs(backSwing) * 14))
+	if ch.emote then motion.armLength *= ch.emote.backExt end
 	local bx, by = backX + math.cos(backAng) * h * motion.armLength, backY + math.sin(backAng) * h * motion.armLength
 	local fx, fy = gx, gy
 	local offX, offY
-	if dual and dual.off then
+	if dual and dual.off and ch.emote then
+		-- The second weapon follows the authored rear hand, rather than replacing it with a guard.
+		offX, offY = bx, by
+		dual.off.angle = backAng + ch.lean
+	elseif dual and dual.off then
 		offX, offY = Posture.torsoPoint(ch, h, dual.off.x, dual.off.y)
 		if dual.off.hand == "back" then
 			bx, by, backBend = offX, offY, math.rad(dual.off.bend)

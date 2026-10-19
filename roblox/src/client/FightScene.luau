@@ -114,6 +114,7 @@ function FightScene.draw(c: any, S: any): any
 		HitReact.draw(c, S.states, S.chars, S.t)
 	end)
 	Fighter2D.glows = if S.player then S.player.glows else nil
+	Fighter2D.emotes = if S.player then S.player.emotes else nil
 	for _, st in S.states do
 		local char = S.chars[st.index + 1]
 		if char and not (cine and cine.active and st == caster) then
@@ -222,6 +223,7 @@ function FightScene.draw(c: any, S: any): any
 		end)
 		c:world(view.x, view.y, view.ppu, S.shakeX, S.shakeY)
 	end
+	Fighter2D.emotes = nil
 	Fighter2D.startStocks = nil
 	return banner
 end

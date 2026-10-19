@@ -58,7 +58,7 @@ end
 function Locker.loadout(self: any, userId: number): any
 	local out = Inventory.loadout(self:inventory(userId))
 	if self.studio and next(out.skins) == nil and out.hit == nil and out.ko == nil and out.trail == nil then
-		return Inventory.cleanLoadout(Locker.SHOWCASE)
+		out.skins, out.hit, out.ko, out.trail = table.clone(Locker.SHOWCASE.skins), Locker.SHOWCASE.hit, Locker.SHOWCASE.ko, Locker.SHOWCASE.trail
 	end
 	return out
 end
@@ -71,7 +71,7 @@ function Locker.apply(self: any, userId: number, msg: any): (boolean, string?)
 	local inv = self:inventory(userId)
 	local ok, why
 	if msg.action == "equip" and type(msg.id) == "string" then
-		ok, why = Inventory.equip(inv, msg.id, function(id) return self:owns(userId, id) end)
+		ok, why = Inventory.equip(inv, msg.id, function(id) return self:owns(userId, id) end, if type(msg.slot) == "string" then msg.slot else nil)
 	elseif msg.action == "remove" then
 		ok, why = Inventory.equip(inv, nil, function() return false end,
 			if type(msg.slot) == "string" then msg.slot else nil, if type(msg.weapon) == "string" then msg.weapon else nil)
@@ -89,8 +89,7 @@ function Locker.apply(self: any, userId: number, msg: any): (boolean, string?)
 			-- only what is still owned is put on; the rest of the slot is left as it is
 			local wear = Inventory.cleanLoadout(p)
 			for weapon, id in wear.skins do if not self:owns(userId, id) then wear.skins[weapon] = nil end end
-			for slot in Inventory.SLOTS do
-				local key = Inventory.SLOTS[slot]
+			for key in Inventory.SLOT_TYPES do
 				if wear[key] and not self:owns(userId, wear[key]) then wear[key] = nil end
 			end
 			inv.equipped = wear

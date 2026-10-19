@@ -472,6 +472,7 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 	ult = nil
 	fx.parts, fx.rings, fx.shake, fx.shields, fx.flash = {}, {}, 0, {}, 0
 	FxPlayer.clear(fxPlayer)
+	for _, e in cfg.emotes or {} do FxPlayer.spawn(fxPlayer, e, {}, {}) end
 	pendingFx = {}
 	confirm = HitConfirm.new()
 	viewSnap, viewSeen, lastStates = nil, nil, {}
@@ -650,7 +651,12 @@ Net.remote("Events").OnClientEvent:Connect(function(events: { any }, frame: numb
 		elseif e.type == "go" then
 			print("[Blockfall] GO")
 		end
-		table.insert(pendingFx, { frame = frame or 0, e = e })
+		if e.type == "emote" then
+			-- Retain now, even ahead of the interpolated view; Emotes matches its entry identity.
+			FxPlayer.spawn(fxPlayer, e, {}, {})
+		else
+			table.insert(pendingFx, { frame = frame or 0, e = e })
+		end
 	end
 end)
 

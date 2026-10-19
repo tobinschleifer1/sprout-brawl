@@ -11,11 +11,12 @@
 --   "mastery" earned by playing a weapon, never sold, never in a crate
 --   "season"  on a season track (free or premium)
 --   "shop"    sold directly in the featured shop, never random
+--   "free"    permanently owned by everyone, no inventory instance or trading
 --   "pass"    granted by a game pass
 -- `crates` lists which crates it can come out of when source is "crate".
 local Cosmetics = {}
 
-Cosmetics.TYPES = { "weapon_skin", "hit_effect", "ko_effect", "swing_trail", "step_trail", "spawn_effect", "shield_skin", "title" }
+Cosmetics.TYPES = { "weapon_skin", "hit_effect", "ko_effect", "swing_trail", "step_trail", "spawn_effect", "shield_skin", "title", "emote", "victory_pose" }
 Cosmetics.RARITIES = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic" }
 
 export type Item = {
@@ -160,6 +161,44 @@ add({ id = "title_vip", type = "title", name = "VIP", rarity = "Epic", source = 
 -- VIP's Series 1 cosmetic, and its respawn sparkle (Products.PASS_ITEMS): kept forever, not random.
 add({ id = "trail_vipgold", type = "swing_trail", name = "VIP Gold Rush", rarity = "Epic", source = "pass" })
 add({ id = "spawn_vipsparkle", type = "spawn_effect", name = "VIP Sparkle", rarity = "Epic", source = "pass" })
+
+-- Emotes and podium poses are Roblox-only presentation; Emotes owns their keyframes.
+add({ id = "emote_wave", type = "emote", name = "Hello There", rarity = "Common", source = "free",
+	blurb = "A high, open wave with the free arm." })
+add({ id = "emote_challenge", type = "emote", name = "Your Move", rarity = "Common", source = "free",
+	blurb = "Lean forward and beckon with your weapon." })
+add({ id = "emote_cheer", type = "emote", name = "Raise the Roof", rarity = "Common", source = "free",
+	blurb = "Both arms high, feet wide." })
+add({ id = "emote_bow", type = "emote", name = "Good Match", rarity = "Common", source = "free",
+	blurb = "A deep bow with the weapon swept behind." })
+add({ id = "emote_shrug", type = "emote", name = "Who, Me?", rarity = "Common", source = "crate",
+	blurb = "Two palms up and a tilted head." })
+add({ id = "emote_salute", type = "emote", name = "Reporting In", rarity = "Uncommon", source = "crate",
+	blurb = "A crisp salute with a straight back." })
+add({ id = "emote_balance", type = "emote", name = "One Foot Ahead", rarity = "Rare", source = "crate",
+	blurb = "Balance on one foot with both arms spread." })
+add({ id = "emote_disco", type = "emote", name = "Disco Point", rarity = "Epic", source = "crate",
+	blurb = "Point high, then low, with a rocking stance." })
+add({ id = "emote_flex", type = "emote", name = "Iron Will", rarity = "Legendary", source = "crate",
+	blurb = "A wide double flex, elbows held high." })
+add({ id = "emote_crane", type = "emote", name = "Sky Crane", rarity = "Mythic", source = "crate",
+	blurb = "Lift a knee and sweep both wings overhead." })
+add({ id = "emote_lunge", type = "emote", name = "En Garde", rarity = "Rare", source = "shop",
+	blurb = "A low theatrical lunge, weapon out front." })
+add({ id = "emote_vip", type = "emote", name = "Royal Welcome", rarity = "Epic", source = "pass",
+	blurb = "An expansive royal wave, then hand to heart." })
+add({ id = "pose_champion", type = "victory_pose", name = "Champion", rarity = "Common", source = "free",
+	blurb = "Weapon raised high in a steady winning stance." })
+add({ id = "pose_hero", type = "victory_pose", name = "Hero Landing", rarity = "Uncommon", source = "crate",
+	blurb = "Knees bent, shoulders square, ready for an encore." })
+add({ id = "pose_sentinel", type = "victory_pose", name = "Sentinel", rarity = "Rare", source = "crate",
+	blurb = "Stand tall with the weapon upright beside you." })
+add({ id = "pose_star", type = "victory_pose", name = "Star Power", rarity = "Epic", source = "crate",
+	blurb = "Arms stretched wide to claim the whole podium." })
+add({ id = "pose_thinker", type = "victory_pose", name = "Master Plan", rarity = "Legendary", source = "crate",
+	blurb = "Head inclined over a raised hand, one knee tucked." })
+add({ id = "pose_duelist", type = "victory_pose", name = "Final Flourish", rarity = "Epic", source = "shop",
+	blurb = "A sweeping sideways salute with a proud tilt." })
 
 Cosmetics.LIST = LIST
 local BY_ID: { [string]: Item } = {}

@@ -43,7 +43,7 @@ function Shop.featured(day: number): { any }
 	for _, rarity in Shop.FEATURED_RARITIES do
 		local pool = {}
 		for _, it in Cosmetics.LIST do
-			if it.source == "crate" and it.rarity == rarity then table.insert(pool, it.id) end
+			if (it.source == "crate" or it.source == "shop") and it.rarity == rarity then table.insert(pool, it.id) end
 		end
 		table.sort(pool)
 		local t = Products.FEATURED[rarity]

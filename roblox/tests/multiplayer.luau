@@ -70,7 +70,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" then return Loader.loadFrom("src/server/", name) end
+	if name == "EmoteEvents" or name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}

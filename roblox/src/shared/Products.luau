@@ -42,7 +42,7 @@ Products.CLOTHING = {
 Products.PASSES = {
 	{ id = "vip", name = "VIP", price = 199, pass = 0, available = true, perks = {
 		"Gold name and [VIP] chat tag", "+10% Sparks from drops", "A VIP cosmetic every season",
-		"A gold sparkle when you respawn", "Double Sparks for your first win each day", "Five saved outfits" } },
+		"A gold sparkle when you respawn", "Double Sparks for your first win each day", "Five saved outfits", "Royal Welcome emote" } },
 	{ id = "wardrobe", name = "Wardrobe", price = 79, pass = 0, available = true, perks = {
 		"16 saved characters instead of 8" } },
 	{ id = "studio", name = "Character Studio+", price = 149, pass = 0, available = false, perks = {
@@ -54,7 +54,7 @@ Products.PASSES = {
 
 -- What a pass grants into the Locker the moment it is owned (kept forever, never tradeable).
 Products.PASS_ITEMS = {
-	vip = { "title_vip", "trail_vipgold", "spawn_vipsparkle" },
+	vip = { "title_vip", "trail_vipgold", "spawn_vipsparkle", "emote_vip" },
 } :: { [string]: { string } }
 
 function Products.keyBundle(bundle: any): any

@@ -17,6 +17,7 @@ local Expressions = require(script.Parent.Expressions)
 local Movement = require(script.Parent.Movement)
 local DualWield = require(script.Parent.DualWield)
 local KickFx = require(script.Parent.KickFx)
+local Emotes = require(script.Parent.Emotes)
 local KIT_PARTS = PostureArt.parts
 local Fighter = require(game:GetService("ReplicatedStorage").Shared.Fighter)
 
@@ -40,6 +41,7 @@ Fighter2D.startStocks = nil :: number?
 -- A brief flash over a fighter by index - a timed link's gold (FxPlayer.glows) - drawn the way the
 -- hit flash is, as the fighter's own silhouette in the colour. Set each frame by FightScene.
 Fighter2D.glows = nil :: any
+Fighter2D.emotes = nil :: any
 -- Overlapping action on a held blade (Roblox only): the blade trails the hand by this fraction of
 -- where the hand was LAG frames ago, so it drags into a swing and settles after the hand stops,
 -- and dips as the body rises in a run. It turns about the grip: the hand never leaves it, and the
@@ -71,14 +73,14 @@ end
 function Fighter2D.bladeLag(s: any, char: any, move: any, t: number, wpose: any): number
 	local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]
 	-- an ultimate's cinematic holds its move frame while time runs on: nothing is moving to lag
-	if not k or wpose.hide or (move and move.id == "Ultimate") then return 0 end
+	if not k or wpose.hide or wpose.emote or (move and move.id == "Ultimate") then return 0 end
 	local was = past(s)
 	return lagOf(k, s, char, was, wrap(WeaponPose.For(was, char, move, t - LAG / 60).angle - wpose.angle))
 end
 -- The same for the second of a pair (DualWield): it trails where ITS hand was LAG frames ago.
 function Fighter2D.offLag(s: any, char: any, move: any, t: number, wpose: any, off: any): number
 	local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]
-	if not k or not off or off.empty or wpose.hide or (move and move.id == "Ultimate") then return 0 end
+	if not k or wpose.emote or not off or off.empty or wpose.hide or (move and move.id == "Ultimate") then return 0 end
 	local was = past(s)
 	local before = DualWield.For(was, char, move, WeaponPose.For(was, char, move, t - LAG / 60), 0, 0)
 	-- (the past is rebuilt from the same move, so the same hand holds it then as now)
@@ -115,6 +117,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local glow = if Fighter2D.glows then Fighter2D.glows[s.index] else nil
 	if glow and not ch.tint then ch.tint = glow.colour end     -- the pose's own flash wins
 	local wpose = WeaponPose.For(s, char, move, t)
+	local emote = Emotes.For(s, char, Fighter2D.emotes and Fighter2D.emotes[s.index])
+	if emote then Emotes.apply(ch, wpose, emote, char) end
 	local wid = if char.weapon then char.weapon.id else nil
 	if not ch.visible then
 		return

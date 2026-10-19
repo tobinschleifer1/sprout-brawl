@@ -26,6 +26,7 @@ local SnapshotCodec = require(Shared.SnapshotCodec)
 local SceneCodec = require(Shared.SceneCodec)
 local Stage = require(Shared.Stage)
 local RemoteInput = require(script.Parent.RemoteInput)
+local EmoteEvents = require(script.Parent.EmoteEvents)
 
 local FRAME = Config.FRAME
 
@@ -55,6 +56,7 @@ function MatchService.new(audience: any?, generation: number?): any
 	self.generation = generation or 0
 	self.audience = audience
 	self.fightFrames = {}
+	self.emotes = {}
 	self.inputEpochs = {} :: { [number]: number }
 	self.onFinished = nil :: ((any, any) -> ())?
 	self.sources = {} :: { [number]: string }   -- userId -> input source key
@@ -180,6 +182,7 @@ function MatchService.description(self: any): any
 		timeLimit = self.match.timeLimit,
 		weaponDrops = self.match.dropsOn,
 		fighters = self:roster(),
+		emotes = (function() local list = {}; for _, e in self.emotes do table.insert(list, e) end; return list end)(),
 	}
 end
 
@@ -245,6 +248,7 @@ function MatchService.stop(self: any)
 	self.userIds = {}
 	self.cosmetics = {}
 	self.fightFrames = {}
+	self.emotes = {}
 	self.inputEpochs = {}
 	self.input = RemoteInput.new()
 end
@@ -323,6 +327,7 @@ function MatchService.tick(self: any, dt: number)
 			end
 		end
 		Match.step(m)
+		EmoteEvents.observe(self.emotes, m)
 	end
 	if steps > 0 then self:measure((os.clock() - t0) / steps) end
 	if self.accum >= FRAME then

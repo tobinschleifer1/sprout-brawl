@@ -24,10 +24,16 @@ Inventory.VERSION = 2
 -- The slots a loadout carries, by item type. Weapon skins are per weapon (`skins`).
 Inventory.SLOTS = {
 	hit_effect = "hit", ko_effect = "ko", swing_trail = "trail", step_trail = "steps",
-	spawn_effect = "spawn", shield_skin = "shield", title = "title",
+	spawn_effect = "spawn", shield_skin = "shield", title = "title", victory_pose = "pose", emote = "emoteNeutral",
 } :: { [string]: string }
+Inventory.EMOTE_SLOTS = { neutral = "emoteNeutral", forward = "emoteForward", up = "emoteUp", down = "emoteDown" } :: { [string]: string }
+Inventory.EMOTE_ORDER = { "neutral", "forward", "up", "down" }
+Inventory.DEFAULT_EMOTES = { neutral = "emote_wave", forward = "emote_challenge", up = "emote_cheer", down = "emote_bow" } :: { [string]: string }
+Inventory.DEFAULT_POSE = "pose_champion"
 local TYPE_OF: { [string]: string } = {}
 for t, slot in Inventory.SLOTS do TYPE_OF[slot] = t end
+for _, slot in Inventory.EMOTE_SLOTS do TYPE_OF[slot] = "emote" end
+Inventory.SLOT_TYPES = TYPE_OF
 Inventory.MAX_OWNED = 2000
 Inventory.RECEIPTS = 50                -- purchase ids granted inside the record (Purchases keeps every one too)
 Inventory.MAX_PRESETS = 5              -- saved cosmetic loadouts (VIP: five; everyone else: one)
@@ -74,6 +80,7 @@ end
 local function reindex(inv: any)
 	local owned: { [string]: boolean } = {}
 	for _, inst in inv.items do owned[inst.i] = true end
+	for _, it in Cosmetics.LIST do if it.source == "free" then owned[it.id] = true end end
 	inv.owned = owned
 end
 
@@ -87,7 +94,7 @@ function Inventory.sanitize(raw: any): any
 	if type(src.items) == "table" then
 		for uid, inst in src.items do
 			if n >= Inventory.MAX_OWNED then break end
-			if type(uid) == "string" and #uid <= 17 and type(inst) == "table" and item(inst.i) then
+			if type(uid) == "string" and #uid <= 17 and type(inst) == "table" and item(inst.i) and item(inst.i).source ~= "free" then
 				items[uid] = { i = inst.i, s = integer(inst.s, Inventory.MAX_INTEGER), p = inst.p ~= false, t = integer(inst.t, Inventory.MAX_INTEGER),
 					src = if type(inst.src) == "string" and Inventory.SOURCES[inst.src] then inst.src else "grant" }
 				n += 1
@@ -97,7 +104,7 @@ function Inventory.sanitize(raw: any): any
 		end
 	elseif type(src.owned) == "table" then
 		for id, v in src.owned do
-			if v == true and item(id) and n < Inventory.MAX_OWNED then
+			if v == true and item(id) and item(id).source ~= "free" and n < Inventory.MAX_OWNED then
 				items["u" .. seq] = { i = id, s = 0, p = false, t = 0, src = "migrated" }
 				seq += 1; n += 1
 			end
@@ -180,7 +187,7 @@ end
 
 -- Add an owned copy; returns its uid, or nil when the inventory is full.
 function Inventory.add(inv: any, id: string, serial: number, paid: boolean, src: string, now: number): string?
-	if not item(id) then return nil end
+	if not item(id) or item(id).source == "free" then return nil end
 	local n = 0
 	for _ in inv.items do n += 1 end
 	if n >= Inventory.MAX_OWNED or inv.seq >= Inventory.MAX_INTEGER then return nil end
@@ -220,6 +227,10 @@ function Inventory.equip(inv: any, id: string?, owns: (string) -> boolean, slot:
 		return true
 	end
 	local s = Inventory.SLOTS[it.type]
+	if it.type == "emote" then
+		if not slot or TYPE_OF[slot] ~= "emote" then return false, "choose an emote direction" end
+		s = slot
+	end
 	if not s then return false, "cannot be worn" end
 	inv.equipped[s] = id
 	return true

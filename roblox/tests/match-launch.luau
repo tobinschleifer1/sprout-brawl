@@ -14,7 +14,7 @@ local Service = luau.load(fs.readFile("src/server/MatchService.luau"), { environ
 		if name == "ReplicatedStorage" then return { Shared = shared } end
 		return { PostSimulation = { Connect = function() return { Disconnect = function() end } end } }
 	end },
-	script = { Parent = { RemoteInput = "RemoteInput" } },
+	script = { Parent = { RemoteInput = "RemoteInput", EmoteEvents = "EmoteEvents" } },
 	require = function(name)
 		if name == "Net" then return { remote = function(remote)
 			return {
@@ -25,7 +25,7 @@ local Service = luau.load(fs.readFile("src/server/MatchService.luau"), { environ
 				FireClient = function(_, player, data) table.insert(sent, { remote = remote, player = player, data = data }) end,
 			}
 		end } end
-		if name == "RemoteInput" then return Loader.loadFrom("src/server/", name) end
+		if name == "RemoteInput" or name == "EmoteEvents" then return Loader.loadFrom("src/server/", name) end
 		if name == "Stages" then return Loader.load("Data/Stages") end
 		return Loader.load(name)
 	end,

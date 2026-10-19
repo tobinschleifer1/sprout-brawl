@@ -172,6 +172,7 @@ lune run tests/dual-wield
 lune run tests/kicks
 lune run tests/loot
 lune run tests/cosmetics
+lune run tests/emotes
 lune run tests/economy
 lune run tests/economy-security
 lune run tests/locker-ui

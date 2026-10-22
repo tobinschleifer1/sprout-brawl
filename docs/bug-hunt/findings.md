@@ -41,3 +41,20 @@ not draw truncation); the results podium's hammer (it rests on the pillar's slab
 the HUD's stock squares over the weapon name at 9 stocks (stocks top out at 5).
 
 The phone sizes that broke are now in `tools/ui-lint.sh` (28 screens), so check.sh keeps them fixed.
+
+## Part 3: long fuzzed matches (`tools/fuzz-matches.luau`)
+
+`lune run tools/fuzz-matches <matches> <first seed>` plays random bot matches on the real server
+simulation - any mode, 2-6 fighters, any weapons, avatars, bot levels, items, weapon drops,
+disasters, stage - for up to 8 minutes each, checking every frame: no Lua error; positions,
+velocities and damage finite; damage 0-999; stocks never negative; nobody alive past the blast zone
+for a second; nobody's body inside a solid platform for half a second; every match ends.
+`FUZZ_TRACE=seed:fighter:frame` prints that fighter's last 40 frames. 400 matches (970 minutes of
+fights) take 2.5 minutes. No errors, no NaN, no damage or stock faults, nobody stranded past the
+blast zone.
+
+| # | Finding | Status |
+|---|---|---|
+| 15 | **Fighters pass up through solid platforms.** A fighter who bumps their head under a solid is placed exactly at its underside (`y = bottom - h`); next frame the check `py + h <= sp.bottom` fails by a rounding error (-11.2 + 5.2 is not exactly -6.0), so a rising move - an up-special, a double jump - carries them through, inside the stage. 35 of 400 fuzzed matches. Found on Ashfall Summit, seed 2: fall off the edge, drift under, jump, recover. Fix: `py + h <= sp.bottom + 0.001` (tested: removes those 35). **Shared simulation**: `roblox/src/shared/Stage.luau:372` mirrors `web/src/engine/stage.js` `collide`, so the fix belongs in both builds (parity), and the owner's rule is no web changes - needs your call. | open (decision) |
+| 16 | **A grab drops the grabbed fighter inside a solid.** The grab snaps the victim to the grabber's front with no collision; beside Saltflat's bunker (a solid block on the floor) that puts them inside it, and they walk out through it. Seed 131 frame 2799 (`FUZZ_TRACE=131:3:2803`). About 15 of 400 matches. Also shared simulation (Combat's grab), same decision as #15. | open (decision) |
+| 17 | Stock team matches can run past 8 minutes: two impossible bots (Blasters vs Chakram, Faultline) traded for 8 minutes with one KO at 166-200%; a 5-stock 2v2 on Undertow still going. Balance/AI rather than a bug, but there is no clock on a stock match, so nothing ends it. | design |

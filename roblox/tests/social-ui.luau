@@ -132,6 +132,19 @@ local count = 0
 for _, r in rows do if r.ClassName == "Frame" then count += 1 end end
 assert(count == 4, `four rows, got {count}`)
 assert(find(find(s.gui, "Member_1"), "Name").Text == "Me (YOU)", "you are marked")
+-- your row's ring is heavier than the others' (a later line used to reset it), and a name shrinks to
+-- one line rather than wrapping onto the place line under it
+do
+	local function ring(row)
+		for _, ch in row:GetChildren() do
+			for _, g in (ch.GetChildren and ch:GetChildren() or {}) do if g.ClassName == "UIStroke" then return g end end
+			if ch.ClassName == "UIStroke" then return ch end
+		end
+	end
+	local mine, theirs = ring(find(s.gui, "Member_1")), ring(find(s.gui, "Member_7"))
+	assert(mine and theirs and mine.Thickness > theirs.Thickness, `your row's ring is {mine and mine.Thickness} px, like the others' {theirs and theirs.Thickness}`)
+	assert(find(find(s.gui, "Member_1"), "Name").TextScaled == true, "a member's name wraps rather than fitting its line")
+end
 assert(not find(find(s.gui, "Member_1"), "WarpTo") and not find(find(s.gui, "Member_8"), "WarpTo") and not find(find(s.gui, "Member_9"), "WarpTo"),
 	"no WARP to yourself, into a room, or into a fight")
 find(find(s.gui, "Member_7"), "WarpTo").Activated:Fire()

@@ -384,11 +384,24 @@ studiobars = [
     ('chip gutter gone', 'AvatarEditor', 'local CHIP = if LIGHT then (if short then 26 else 30) else 0', 'local CHIP = 0', 'the chip'),
     ('pose gap 4', 'AvatarEditor', 'local G = if LIGHT then AvatarEditor.BAR_GAP else 4', 'local G = 4', 'TURN and FACE are'),
     ('pose list gap 4', 'AvatarEditor', 'poseList.CellPadding = UDim2.fromOffset(if LIGHT then AvatarEditor.BAR_GAP else 4, 4)', 'poseList.CellPadding = UDim2.fromOffset(4, 4)', 'pose buttons are'),
+    ('palettes stacked on a phone', 'AvatarEditor', 'self.paletteStrip = short and LIGHT and colourRows > 0', 'self.paletteStrip = false', 'past the editor'),
     ('studio tabs 6 apart', 'AvatarEditor', 'AvatarEditor.BAR_GAP = if LIGHT then Ui.GAP else 6', 'AvatarEditor.BAR_GAP = 6', 'apart between strokes'),
     ('studio tab share rounded down', 'AvatarEditor', '-math.ceil(AvatarEditor.BAR_GAP * (#KIT.groups - 1) / #KIT.groups), 1, 0)', '-math.floor(AvatarEditor.BAR_GAP * (#KIT.groups - 1) / #KIT.groups), 1, 0)', 'row is'),
 ]
 
+itemart = [
+    ('titles draw nothing', 'ItemArt', '\telseif kind == "title" then', '\telseif kind == "title-off" then', 'draws nothing'),
+    ('fx fitted by width', 'ItemArt', 'FxArt.draw(c, art, w / 2 - (art.cols / 2 - art.ax) * pw, h / 2 - (art.ay - art.rows / 2) * pw, pw * art.ppu)', 'FxArt.draw(c, art, w / 2, h / 2, FxArt.sized(art, math.min(w, h) * 0.85))', 'outside its tile'),
+]
+
+huntui = [
+    ('you ring reset', 'LobbySocial', 'edge.Thickness = if m.userId == self.localId and LIGHT then 3 else 2', 'edge.Thickness = 2', "like the others'"),
+    ('member names wrap', 'LobbySocial', '\t\tUi.fit(name, 9)\n', '', 'wraps rather than'),
+]
+
 selectui = [
+    ('roster gap falls back', 'SelectScreen', 'cell, gap = math.min(cell, fits), math.max(gap, Ui.CHOSEN_GAP)', 'cell = math.min(cell, fits)', 'portraits are'),
+    ('compact gap tight', 'SelectScreen', '\t\t\tgap = 12\n', '\t\t\tgap = 8\n', 'portraits are'),
     ('picked tile bare', 'SelectScreen', 'if c.marks then c.marks.Visible = hand ~= nil end', 'local _ = hand', 'wears no brackets'),
     ('every tile bracketed', 'SelectScreen', 'if c.marks then c.marks.Visible = hand ~= nil end', 'if c.marks then c.marks.Visible = true end', 'do not hold wears the brackets'),
 ]
@@ -442,7 +455,7 @@ clothingshop = [
     ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui), ('select-screen', selectui), ('locker-ui', gaps), ('shop-ui', shoptabs), ('records-ui', records), ('ui-kit', mounts), ('locker-ui', crates), ('plaza-view', plazaphone), ('creator-ui', studiobars)]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui), ('select-screen', selectui), ('locker-ui', gaps), ('shop-ui', shoptabs), ('records-ui', records), ('ui-kit', mounts), ('locker-ui', crates), ('plaza-view', plazaphone), ('creator-ui', studiobars), ('item-art', itemart), ('social-ui', huntui), ('ui-kit', [('pill fixed width', 'Ui', 'if need > p.Size.X.Offset then p.Size = UDim2.fromOffset(math.ceil(need), p.Size.Y.Offset) end', '', 'for a value that needs more')])]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

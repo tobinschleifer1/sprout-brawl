@@ -603,8 +603,8 @@ function LockerScreen.refresh(self: any)
 	local e = self.economy
 	self.balance.Text = if e then `{LockerScreen.number(e.sparks or 0)} Sparks   ·   {e.keys and e.keys.forge or 0} Forge Keys` else ""
 	if self.sparksPill then
-		self.sparksPill.Text = LockerScreen.number(e and e.sparks or 0)
-		self.keysPill.Text = tostring(e and e.keys and e.keys.forge or 0)
+		Ui.setCurrency(self.sparksPill, LockerScreen.number(e and e.sparks or 0))
+		Ui.setCurrency(self.keysPill, tostring(e and e.keys and e.keys.forge or 0))
 	end
 	-- (one selected face everywhere: tabs, filters and the odds' toggles alike)
 	for id, b in self.tabs do Ui.paint(b, if id == self.tab then Ui.SELECTED else Ui.PANEL2) end

@@ -640,6 +640,16 @@ function Ui.currency(parent: Instance?, kind: string, value: string): (any, any)
 	return p, t
 end
 
+-- A currency pill's new value, the pill widened to hold it (it grows leftward when anchored at its
+-- right, never shrinks): 999,999,999 ran out of a 100 px pill into the key pill beside it.
+function Ui.setCurrency(t: any, value: string)
+	t.Text = value
+	local p = t.Parent
+	if not p then return end
+	local need = t.Position.X.Offset + Ui.textWidth(value, 15, Ui.DISPLAY) + 12
+	if need > p.Size.X.Offset then p.Size = UDim2.fromOffset(math.ceil(need), p.Size.Y.Offset) end
+end
+
 -- A card's secondary line (rarity, serial, price) on its face: white outlined in the face's shade on a
 -- mid or deep face; on a pale one (gold, light green, grey) bare, in the face's own deep shade - white
 -- there leaned wholly on a 1 px outline at 13 px.

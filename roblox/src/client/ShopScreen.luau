@@ -289,8 +289,8 @@ function ShopScreen.refresh(self: any)
 		g.layout.CellSize = ShopScreen.cell(cols[name] or g.cols, h)
 	end
 	if self.sparksPill then
-		self.sparksPill.Text = LockerScreen.number(self.view.sparks or 0)
-		self.keysPill.Text = tostring(self.view.keys and self.view.keys.forge or 0)
+		Ui.setCurrency(self.sparksPill, LockerScreen.number(self.view.sparks or 0))
+		Ui.setCurrency(self.keysPill, tostring(self.view.keys and self.view.keys.forge or 0))
 	end
 	-- featured
 	self.featuredHead.Text = `FEATURED  ·  new items in {ShopScreen.wait(shop.resetsIn or 0)}`

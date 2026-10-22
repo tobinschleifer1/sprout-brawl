@@ -55,6 +55,17 @@ function ItemArt.plan(id: string): (string, any)
 	return "fx", fx
 end
 
+-- A title's nameplate, in art pixels (x, y, w, h, colour; "c" is the rarity's colour): a plaque on two
+-- posts with a ribbon's tails, and three lines of "lettering".
+ItemArt.NAMEPLATE = {
+	{ 0, 3, 3, 4, "#3A2A1E" }, { 25, 3, 3, 4, "#3A2A1E" },              -- the ribbon's tails, dark
+	{ 1, 4, 2, 2, "c" }, { 25, 4, 2, 2, "c" },
+	{ 3, 1, 22, 10, "#3A2A1E" },                                      -- the plaque's edge
+	{ 4, 2, 20, 8, "c" },                                             -- its face
+	{ 4, 8, 20, 2, "#FFFFFF", 0.35 },                                 -- the light along its top
+	{ 7, 6, 14, 1, "#FFFFFF" }, { 9, 4, 10, 1, "#FFFFFF", 0.8 },      -- the lettering
+} :: { { any } }
+
 local function fitRects(c: any, rects: { any }, w: number, h: number, pad: number)
 	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
 	for _, r in rects do
@@ -92,7 +103,18 @@ function ItemArt.draw(c: any, id: string, w: number, h: number)
 		-- effects are drawn y-up, as in a fight
 		Canvas2D.setTransform(c, 1, 0, 0, -1, 0, h)
 		local art = FxArt.get(arg[1], arg[2], arg[3], nil, 1)
-		FxArt.draw(c, art, w / 2, h / 2, FxArt.sized(art, math.min(w, h) * 0.85))
+		-- fitted by both sides around the art's own box, not by its width at its anchor: a tall pillar
+		-- (Ghost Rise) drew 349 px past a 190 px tile, a cyclone 61 px, and the tiles do not clip
+		local pw = math.min(w * 0.85 / art.cols, h * 0.85 / art.rows)
+		FxArt.draw(c, art, w / 2 - (art.cols / 2 - art.ax) * pw, h / 2 - (art.ay - art.rows / 2) * pw, pw * art.ppu)
+	elseif kind == "title" then
+		-- a title is words; its tile shows a pixel nameplate in its rarity's colour (it drew nothing)
+		local it = Cosmetics.get(id)
+		local col = (Loot.RARITY[it and it.rarity or "Common"] or Loot.RARITY.Common).colour
+		local rects = {}
+		-- (fitRects works in studs, at whole multiples of 8 px a stud: the plate is in eighths)
+		for _, r in ItemArt.NAMEPLATE do table.insert(rects, { r[1] / 8, r[2] / 8, r[3] / 8, r[4] / 8, if r[5] == "c" then col else r[5], r[6] }) end
+		fitRects(c, rects, w, h, 8)
 	elseif kind == "trail" then
 		Canvas2D.screen(c)
 		local n = 12

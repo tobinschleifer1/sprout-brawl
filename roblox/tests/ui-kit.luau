@@ -304,6 +304,15 @@ do
 			fail("a fitted label does not shrink to its box between its own size and the least")
 		end
 	end
+	-- a currency pill widens to hold its value (999,999,999 ran out of a 100 px pill)
+	do
+		local pill, value = Ui.currency(new("Frame"), "gem", "0")
+		pill.Size = Rbx.UDim2.fromOffset(100, 32)
+		Ui.setCurrency(value, "999,999,999")
+		if value.Text ~= "999,999,999" or pill.Size.X.Offset < value.Position.X.Offset + Ui.textWidth("999,999,999", 15, Ui.DISPLAY) then
+			fail(`a currency pill is {pill.Size.X.Offset} px for a value that needs more`)
+		end
+	end
 	-- repainting a band recolours its title's outline too
 	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)
 	Ui.paintBand(pb, Ui.RED)

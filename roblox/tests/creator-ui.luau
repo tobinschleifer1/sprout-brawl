@@ -473,6 +473,17 @@ do
 	end
 	assert(rows > 0, "no palette rows were checked")
 end
+-- on a phone (844 x 390) every tab's colours fit the editor: the outfit tab's two palettes side by
+-- side, each scrolling sideways (stacked, they ran 60 px into the save buttons)
+do
+	ed:layout(Rbx.Vector2.new(844, 390))
+	for _, group in { "body", "hair", "outfit" } do
+		ed:selectGroup(group)
+		local bottom = ed.colourBar.Position.Y.Offset + ed.colourBar.Size.Y.Offset
+		assert(bottom <= ed.editor.Size.Y.Offset, `{group} on a phone: the colours end at {bottom}, past the editor's {ed.editor.Size.Y.Offset}`)
+	end
+	ed:layout(Rbx.Vector2.new(1280, 720))
+end
 -- The scroll chip has its own gutter: under the grid, above the colours, clear of the footer (it once
 -- landed on SAVE on the presets tab); and the pose row's buttons keep 8 px between their strokes.
 do

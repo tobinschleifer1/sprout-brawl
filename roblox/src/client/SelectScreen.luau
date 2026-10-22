@@ -77,7 +77,20 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local cell = math.floor(math.clamp(math.min(W * (0.064 - 0.001 * perRow), H * 0.1), 34, 84))
 	-- (at least Ui.CHOSEN_GAP in a light theme: a picked portrait's brackets need it clear of the next)
 	local gap = math.floor(cell * 0.22)
-	if Ui.lightPanels() and perRow * cell + (perRow - 1) * Ui.CHOSEN_GAP <= W - 40 then gap = math.max(gap, Ui.CHOSEN_GAP) end
+	local compact = false
+	-- (where the full gap does not fit, the portraits shrink rather than the gap: at 844 px wide the
+	-- fallback gap left their rings 2 px apart and a picked one's brackets on its neighbour)
+	if Ui.lightPanels() then
+		local fits = math.floor((W - 40 - (perRow - 1) * Ui.CHOSEN_GAP) / perRow)
+		if fits >= 34 then
+			cell, gap = math.min(cell, fits), math.max(gap, Ui.CHOSEN_GAP)
+		else
+			-- compact (a 667 px phone): no brackets, 2 px rings 12 apart, the portraits as large as fit
+			compact = true
+			gap = 12
+			cell = math.min(cell, math.floor((W - 40 - (perRow - 1) * gap) / perRow))
+		end
+	end
 	local rosterW = perRow * cell + (perRow - 1) * gap
 	local rosterTop = math.floor(84 * s)
 	local roster = {}
@@ -98,7 +111,8 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local n = math.max(1, #order)
 	local buttonsY = H - math.floor(62 * s)
 	local cardH = math.floor(math.clamp(H * 0.24, 96, 190))
-	local cardY = buttonsY - math.floor(18 * s) - cardH
+	-- (at least Ui.GAP above the button row: scaled down on a phone, 18 * s left READY 3 px from the cards)
+	local cardY = buttonsY - math.max(math.floor(18 * s), if Ui.lightPanels() then Ui.GAP else 0) - cardH
 	local vsGap = math.floor(56 * s)
 	local cardW = math.floor(math.min(250 * s, (W - 40 - vsGap) / n - 14))
 	local total = n * cardW + (n - 1) * 14 + vsGap
@@ -150,7 +164,7 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 		rules[i] = { id = id, x = W / 2 - rowW / 2 + (i - 1) * (ruleW + 16), y = voteTop, w = ruleW, h = ruleH,
 			panelH = math.min(ruleH * 0.75, math.floor(196 * s)) }
 	end
-	return { s = s, cell = cell, roster = roster, rosterBottom = rosterBottom, pedestals = pedestals, vsX = vsX,
+	return { s = s, cell = cell, compact = compact, roster = roster, rosterBottom = rosterBottom, pedestals = pedestals, vsX = vsX,
 		buttonsY = buttonsY, W = W, H = H, maps = maps, nameH = nameH, rules = rules, voteTop = voteTop, stripY = stripY }
 end
 
@@ -340,7 +354,7 @@ function SelectScreen.build(self: any, L: any)
 		local b = make("TextButton", self.pickPage, { Name = "Pick" .. r.id, Text = "", BackgroundTransparency = 1, AutoButtonColor = false })
 		place(b, r.x - L.cell / 2, r.y - L.cell / 2, L.cell, L.cell)
 		corner(b, math.floor(L.cell / 2))
-		local ring = stroke(b, Color3.fromRGB(214, 228, 250), 3)
+		local ring = stroke(b, Color3.fromRGB(214, 228, 250), if L.compact then 2 else 3)
 		local name = text(self.pickPage, SelectScreen.tileName(Weapons.LIST[i].name), 11 * s, WHITE)
 		Ui.outline(name, 1)
 		name.Name = "Name" .. r.id
@@ -350,7 +364,7 @@ function SelectScreen.build(self: any, L: any)
 		name.TextSize = SelectScreen.fitSize(name.Text, 11 * s, L.cell - 4)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
 		-- a picked weapon wears the stepped brackets the vote cards do: one mark for "chosen" everywhere
-		local marks = if LIGHT then Ui.brackets(b, GOLD) else nil
+		local marks = if LIGHT and not L.compact then Ui.brackets(b, GOLD) else nil
 		self.cells[i] = { button = b, ring = ring, name = name, id = r.id, marks = marks }
 		table.insert(self.tags, name)
 	end
@@ -434,8 +448,11 @@ function SelectScreen.build(self: any, L: any)
 			end, true)
 			chip.Name = "Difficulty" .. d
 			chip.TextSize = Ui.px(12 * s)
-			local cw = (p.cardW * 0.76 - 8 * s) / 3
-			place(chip, p.cardW * 0.12 + (k - 1) * (cw + 4 * s), 82 * s, cw, 26 * s)
+			Ui.fit(chip, 8)
+			-- (Ui.GAP apart and under ADD BOT in a light theme: scaled gaps left their outlines touching)
+			local CG = if LIGHT then Ui.GAP else 4 * s
+			local cw = math.floor((p.cardW * 0.76 - 2 * CG) / 3)
+			place(chip, p.cardW * 0.12 + (k - 1) * (cw + CG), if LIGHT then 36 * s + 38 * s + Ui.GAP else 82 * s, cw, 26 * s)
 			chips[d] = chip
 		end
 		-- a running vote on this slot: the question, the time left, the tally and your ballot
@@ -444,15 +461,20 @@ function SelectScreen.build(self: any, L: any)
 		local question = text(vote, "", math.floor(16 * s), ASK, DISPLAY)
 		question.Name = "Question"
 		place(question, 6 * s, 2 * s, p.cardW - 12 * s, 22 * s)
+		-- (both lines shrink to the card: on a 667 px phone they ran past its edges)
+		Ui.fit(question, 9)
 		local tally = text(vote, "", math.floor(12 * s), TEXT)
 		tally.Name = "Tally"
 		place(tally, 6 * s, 26 * s, p.cardW - 12 * s, 16 * s)
+		Ui.fit(tally, 8)
 		local yes = button(vote, "YES", GREEN, function() self:send("ballot", true) end)
 		yes.Name = "Yes"
-		place(yes, p.cardW * 0.1, 50 * s, p.cardW * 0.38, 34 * s)
+		-- (Ui.GAP apart in a light theme: 4% of the card left their outlines 2 px apart, or overlapping)
+		local VG = if LIGHT then Ui.GAP / 2 else p.cardW * 0.02
+		place(yes, p.cardW * 0.1, 50 * s, p.cardW * 0.4 - VG, 34 * s)
 		local no = button(vote, "NO", RED, function() self:send("ballot", false) end)
 		no.Name = "No"
-		place(no, p.cardW * 0.52, 50 * s, p.cardW * 0.38, 34 * s)
+		place(no, p.cardW * 0.5 + VG, 50 * s, p.cardW * 0.4 - VG, 34 * s)
 		-- a bot's own card: who it is, and the vote to take it out
 		local remove = button(card, "REMOVE BOT", Ui.RED, function() self:send("bot", false, p.slot) end)
 		remove.Name = "RemoveBot"
@@ -614,7 +636,7 @@ function SelectScreen.render(self: any)
 		local hand = if mine and mine.weapon == c.id then 1 elseif mine and mine.weapon2 == c.id then 2 else nil
 		-- (gold only without brackets: the brackets are the mark, and gold marks you)
 		c.ring.Color = if hand and not c.marks then GOLD else Color3.fromRGB(214, 228, 250)
-		c.ring.Thickness = if hand and not c.marks then 5 else 3
+		c.ring.Thickness = if L.compact then 2 elseif hand and not c.marks then 5 else 3
 		if c.marks then c.marks.Visible = hand ~= nil end
 		-- (white over the sky, outlined in ink, as every word over the world; gold for your two)
 		c.name.TextColor3 = if hand then GOLD elseif LIGHT then WHITE else DIM

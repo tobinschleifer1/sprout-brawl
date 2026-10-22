@@ -225,3 +225,5 @@ echo "== parity: WeaponPose vs web/src/render2d/weapons2d.js =="
 lune run tests/weapon-parity
 echo "== ui lint: every screen recorded, no outlined buttons closer than 8 px between strokes =="
 tools/ui-lint.sh
+echo "== item art: every cosmetic and crate picture draws inside its tile =="
+lune run tests/item-art

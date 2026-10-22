@@ -99,13 +99,27 @@ local Screen = luau.load(fs.readFile("src/client/SelectScreen.luau"), { debugNam
 local function overlap(a: any, b: any): boolean
 	return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
 end
-for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 }, { 2560, 1080 }, { 1280, 560 }, { 1280, 400 }, { 640, 320 } } do
+local Ui = Loader.loadFrom("src/client/", "Ui")
+for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 }, { 667, 375 }, { 844, 390 }, { 2560, 1080 }, { 1280, 560 }, { 1280, 400 }, { 640, 320 } } do
 	for _, n in { 2, 4, 6 } do
 		local sw, sh = size[1], size[2]
 		local slots = {}
 		for i = 1, n do slots[i] = { team = (i - 1) % 2 } end
 		local L = Screen.layout(sw, sh, slots)
 		local where = `{sw}x{sh}, {n} slots`
+		-- neighbouring portraits keep 8 px between their rings' outer edges (3 px rings, or 2 px compact),
+		-- and with brackets, room for those too (2 px apart at 844 wide before)
+		do
+			local ring = if L.compact then 2 else 3
+			local marks = if L.compact then 0 else Ui.BRACKET_OUT + Ui.BRACKET_INK - ring
+			for k = 2, #L.roster do
+				local a, b = L.roster[k - 1], L.roster[k]
+				if a.y == b.y then
+					local clear = (b.x - a.x) - L.cell - 2 * ring - math.max(0, marks)
+					if clear < 8 - 0.01 then fail(`{where}: the {a.id} and {b.id} portraits are {clear} px apart`) end
+				end
+			end
+		end
 		local cells = {}
 		for _, r in L.roster do
 			local box = { x = r.x - L.cell / 2, y = r.y - L.cell / 2, w = L.cell, h = L.cell }

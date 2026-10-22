@@ -25,6 +25,10 @@ local Input = Loader.load("Input")
 local Products = Loader.load("Products")
 local AvatarKit = Loader.load("AvatarKit")
 local shapes = Recorder.install(Canvas)
+-- BF_EXTREME=1: the largest values a player can have - 20-character names (Roblox's most), 999%
+-- damage, a 999,999,999 balance - to find what overflows (the bug hunt, 2026-10-22)
+local EXTREME = process.env.BF_EXTREME == "1"
+local LONG = "xXDragonSlayer2009Xx"
 
 local screen = process.args[2] or "plaza"
 local W = tonumber(process.args[3] or "1280") or 1280
@@ -119,7 +123,7 @@ elseif screen == "hud" then
 	local Loadout = Loader.load("Loadout")
 	local hud = Hud.new(playerGui)
 	local roster, chars = {}, {}
-	local names = { "etondes", "Rival", "CPU", "Ally" }
+	local names = if EXTREME then { LONG, "BigBrawlerBob_12345", "CPU", "TheUltimateAlly_777" } else { "etondes", "Rival", "CPU", "Ally" }
 	local weapons = { "Scythe", "Sword", "Hammer", "Daggers" }
 	for i = 1, 4 do
 		roster[i] = { index = i - 1, team = (i - 1) % 2, name = names[i], weapon = weapons[i] }
@@ -129,7 +133,7 @@ elseif screen == "hud" then
 	local countdown = variant == "countdown"
 	local states = {}
 	for i = 1, 4 do
-		states[i] = { index = i - 1, percent = ({ 0, 47, 112, 168 })[i], stocks = ({ 3, 2, 3, 1 })[i], alive = true,
+		states[i] = { index = i - 1, percent = if EXTREME then 999 else ({ 0, 47, 112, 168 })[i], stocks = if EXTREME then 9 else ({ 3, 2, 3, 1 })[i], alive = true,
 			ultCharge = ({ 20, 9, 4, 0 })[i], state = if i == 1 then "idle" else "run", onGround = true, x = 0, y = 0 }
 	end
 	if countdown then for _, st in states do st.percent, st.ultCharge = 0, 0 end end
@@ -152,7 +156,7 @@ elseif screen == "results" then
 		chars[i] = Loadout.build(code, ({ "Sword", "Scythe", "Hammer", "Daggers" })[i])
 	end
 	for i, idx in { 0, 2, 1, 3 } do
-		table.insert(rows, { index = idx, name = ({ "etondes", "Rival", "Ally", "CPU" })[idx + 1], team = idx % 2,
+		table.insert(rows, { index = idx, name = (if EXTREME then { LONG, "BigBrawlerBob_12345", "TheUltimateAlly_777", "CPU" } else { "etondes", "Rival", "Ally", "CPU" })[idx + 1], team = idx % 2,
 			score = 5 - i, kos = 4 - i, falls = i, sds = 0, damage = 120 * (5 - i), taken = 80 * i })
 	end
 	frameCanvas = c
@@ -167,7 +171,7 @@ elseif screen == "results" then
 elseif screen == "records" then
 	local Records = load("ClimbRecords")
 	local r = Records.new(playerGui, { localId = 2, now = function() return 1000 end })
-	local names = { "ada", "etondes", "bo", "cy", "dee", "eve", "fox" }
+	local names = if EXTREME then { LONG, "BigBrawlerBob_12345", "TheUltimateAlly_777", "cy", "dee", "eve", "fox" } else { "ada", "etondes", "bo", "cy", "dee", "eve", "fox" }
 	local speed, levels = {}, {}
 	for i, n in names do
 		table.insert(speed, { rank = i, userId = i, name = n, frames = 60 * (55 + i * 9) })
@@ -189,7 +193,7 @@ elseif screen == "people" then
 	local social = Social.new(playerGui, { localId = 1, clock = function() return 0 end, send = function() end })
 	social:setEnabled(true)
 	social:toggle("People")
-	social:setMembers({ { userId = 1, name = "etondes", where = "Skyhold Bazaar", place = "market", x = 0 },
+	social:setMembers({ { userId = 1, name = if EXTREME then LONG else "etondes", where = "Skyhold Bazaar", place = "market", x = 0 },
 		{ userId = 2, name = "Rival", where = "In a fight · 2v2", place = "fight" },
 		{ userId = 3, name = "ada", where = "Skyhold Bazaar", place = "market", x = 40 },
 		{ userId = 4, name = "bo", where = "Room · 3v3", place = "room" } })
@@ -213,7 +217,7 @@ elseif screen == "locker" then
 	s:open()
 	s:setLocker({ owned = { "sword_starforged", "hit_sakura", "ko_dragonsbreath", "trail_ember", "daggers_neontwins", "pike_eventide", "frost_snowline_beanie", "neon_circuit_bomber" },
 		wearing = { skins = { Sword = "sword_starforged" }, hit = "hit_sakura" } })
-	local econ = { sparks = 2340, crates = { scrap = 3, forge = 1 }, keys = { forge = 2 }, meter = 2, guarantees = { scrap = 18, forge = 33 },
+	local econ = { sparks = if EXTREME then 999999999 else 2340, crates = { scrap = if EXTREME then 999 else 3, forge = 1 }, keys = { forge = if EXTREME then 999 else 2 }, meter = 2, guarantees = { scrap = 18, forge = 33 },
 		items = { { uid = "u1", id = "sword_starforged", serial = 57, copies = 1240 }, { uid = "u2", id = "hit_sakura", serial = 312, copies = 8800 },
 			{ uid = "u3", id = "ko_dragonsbreath", serial = 4, copies = 96 }, { uid = "u4", id = "trail_ember", serial = 1021, copies = 9100 },
 			{ uid = "u5", id = "daggers_neontwins", serial = 77, copies = 5400 }, { uid = "u6", id = "daggers_neontwins", serial = 901, copies = 5400 },
@@ -250,7 +254,7 @@ elseif screen == "shop" then
 	local inv = Inventory.sanitize(nil)
 	inv.owned.candy_sugarstripe_tee, inv.owned.neon_circuit_bomber = true, true
 	local clothing = Loader.loadFrom("src/server/", "Shop").clothing(inv)
-	s:setEconomy({ sparks = 2340, keys = { forge = 2 }, shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes, clothing = clothing,
+	s:setEconomy({ sparks = if EXTREME then 999999999 else 2340, keys = { forge = if EXTREME then 999 else 2 }, shop = { restricted = restricted, resetsIn = 26000, keys = keys, passes = passes, clothing = clothing,
 		featured = { { id = "hammer_cobblestone", price = 29, owned = false }, { id = "sword_frostbite", price = 49, owned = true },
 			{ id = "daggers_venomfang", price = 99, owned = false, credit = true }, { id = "sword_starforged", price = 199, owned = false } } } })
 	if variant == "odds" then s:showOdds(false) end

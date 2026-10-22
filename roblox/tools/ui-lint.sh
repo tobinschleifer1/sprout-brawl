@@ -29,10 +29,14 @@ locker-workshop|locker|1280|720|workshop
 shop|shop|1280|720|
 shop-odds|shop|1280|720|odds
 shop-phone|shop|390|844|
+studio-outfit-phone|studio|844|390|clothing
+studio-outfit-small|studio|1024|600|clothing
 LIST
-for s in "select-pick|1v1|pick" "select-map|2v2|map" "select-rules|3v3|rules"; do
-  IFS='|' read -r name fmt phase <<< "$s"
-  lune run tools/render-select "$OUT/$name.json" 1280 720 "$fmt" "$phase" > /dev/null
+# (and the select screen on phones: its roster and bot-vote cards crowded at 667 and 844 wide)
+for s in "select-pick|1v1|pick|1280|720" "select-map|2v2|map|1280|720" "select-rules|3v3|rules|1280|720" \
+         "select-pick3-se|3v3|pick|667|375" "select-pick3-phone|3v3|pick|844|390" "select-map-phone|2v2|map|844|390"; do
+  IFS='|' read -r name fmt phase w h <<< "$s"
+  lune run tools/render-select "$OUT/$name.json" "$w" "$h" "$fmt" "$phase" > /dev/null
 done
 node tools/ui-lint.mjs "$OUT"/*.json
 echo "ui lint: $(ls "$OUT"/*.json | wc -l | tr -d ' ') screens, no outlined buttons closer than 8 px"

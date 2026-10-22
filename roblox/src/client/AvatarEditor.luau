@@ -61,6 +61,8 @@ AvatarEditor.SWATCH_GAP = if LIGHT then Ui.CHOSEN_GAP else 4
 -- the swatches start this far under their palette's name: a light theme leaves the picked one's
 -- brackets (5 px outside it) room under the name, which they covered at 16
 AvatarEditor.SWATCH_TOP = if LIGHT then 22 else 16
+-- the strip's height: a swatch (20) with room above and below for the picked one's brackets
+AvatarEditor.STRIP_H = 20 + 2 * (Ui.BRACKET_OUT + Ui.BRACKET_INK + 1)
 function AvatarEditor.swatchRow(rows: number): number
 	return AvatarEditor.SWATCH_TOP + rows * 20 + (rows - 1) * AvatarEditor.SWATCH_GAP + 8
 end
@@ -243,16 +245,16 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	-- (inset in the bar, with room between them)
 	-- (8 px from the bar's top, so its foot clears the tab row's strokes; Ui.GAP apart)
 	local GP = AvatarEditor.BAR_GAP
-	tools.Position, tools.Size = UDim2.new(1, -14, 0, 8), UDim2.fromOffset(AvatarEditor.TOOLS_W, 34)
+	tools.Position, tools.Size = UDim2.new(1, -14, 0, 6), UDim2.fromOffset(AvatarEditor.TOOLS_W, 32)
 	local undo = button(tools, "Undo", "UNDO", function() self:undo() end, PANEL2)
-	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 34)
+	undo.Position, undo.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(58, 32)
 	local redo = button(tools, "Redo", "REDO", function() self:redo() end, PANEL2)
-	redo.Position, redo.Size = UDim2.fromOffset(58 + GP, 0), UDim2.fromOffset(58, 34)
+	redo.Position, redo.Size = UDim2.fromOffset(58 + GP, 0), UDim2.fromOffset(58, 32)
 	local rand = button(tools, "Random", "RANDOM", function() self:randomize() end, Ui.PURPLE)
-	rand.Position, rand.Size = UDim2.fromOffset(2 * (58 + GP), 0), UDim2.fromOffset(80, 34)
+	rand.Position, rand.Size = UDim2.fromOffset(2 * (58 + GP), 0), UDim2.fromOffset(80, 32)
 	local close = button(tools, "Close", "X", function() self:close() end, Ui.RED)
 	-- (the same red X as every window's: Ui.closeButton's size and lettering)
-	close.Position, close.Size = UDim2.fromOffset(2 * (58 + GP) + 80 + GP, 0), UDim2.fromOffset(38, 34)
+	close.Position, close.Size = UDim2.fromOffset(2 * (58 + GP) + 80 + GP, 0), UDim2.fromOffset(38, 32)
 	close.Font, close.TextSize = Ui.DISPLAY, Ui.px(18, Ui.DISPLAY)
 	self.undoButton, self.redoButton = undo, redo
 
@@ -427,8 +429,8 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	-- (the saved characters start after the title's own width: the pixel title ran under them)
 	local chipsX = if W < 640 then 12 elseif LIGHT then 30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE) + 16 else 250
 	-- (on the tools' line and at their height: 44 tall, the chips' strokes met the tab row's)
-	self.chipBar.Position = UDim2.fromOffset(chipsX, 8)
-	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - chipsX - AvatarEditor.TOOLS_W - 22), 34)
+	self.chipBar.Position = UDim2.fromOffset(chipsX, 6)
+	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - chipsX - AvatarEditor.TOOLS_W - 22), 32)
 	local pw, ph, ex, ey, ew, eh
 	if wide then
 		pw = math.clamp(W * 0.34, 260, 470)
@@ -482,7 +484,10 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.randPartButton.Position, self.randPartButton.Size = UDim2.fromOffset(ew - 136, catY), UDim2.fromOffset(136, 34)
 	local colourRows = if self.group == "presets" then 0 else #self:paintSlots()
 	self.paletteRows = if short then 1 else 2
-	local colourH = colourRows * AvatarEditor.swatchRow(self.paletteRows)
+	-- (a short screen in a light theme: every palette side by side in one strip, each scrolling sideways;
+	-- stacked, the outfit tab's two ran 60 px into the save buttons on a phone)
+	self.paletteStrip = short and LIGHT and colourRows > 0
+	local colourH = if self.paletteStrip then AvatarEditor.STRIP_H else colourRows * AvatarEditor.swatchRow(self.paletteRows)
 	-- (8 px clear between the parts row's strokes and the grid well's 2 px edge)
 	local gridTop = catY + 34 + (if LIGHT then 3 + 8 + 2 else 6)
 	-- (a light theme reserves a 30 px gutter under the grid for the scroll chip: outside the grid with
@@ -1040,7 +1045,39 @@ function AvatarEditor.rebuildColours(self: any)
 	for _, child in self.colourBar:GetChildren() do child:Destroy() end
 	self.swatches = {}
 	local w = self.editor.Size.X.Offset
-	for row, slot in self:paintSlots() do
+	local slots = self:paintSlots()
+	if self.paletteStrip then
+		local sg, n = AvatarEditor.SWATCH_GAP, #slots
+		local m = Ui.BRACKET_OUT + Ui.BRACKET_INK + 1
+		local hw = math.floor((w - (n - 1) * Ui.GAP) / n)
+		for row, slot in slots do
+			local c = AvatarKit.colourSlot(slot)
+			local holder = frame(self.colourBar, "Row_" .. slot)
+			holder.Position, holder.Size = UDim2.fromOffset((row - 1) * (hw + Ui.GAP), 0), UDim2.fromOffset(hw, AvatarEditor.STRIP_H)
+			local lw = Ui.textWidth(string.upper(c.name), 12) + 8
+			local name = label(holder, "Label", string.upper(c.name), 12, DIM)
+			name.Position, name.Size = UDim2.fromOffset(0, 0), UDim2.fromOffset(lw, AvatarEditor.STRIP_H)
+			local sw = Instance.new("ScrollingFrame")
+			sw.Name, sw.BackgroundTransparency, sw.BorderSizePixel = "Swatches", 1, 0
+			sw.Position, sw.Size = UDim2.fromOffset(lw, 0), UDim2.fromOffset(hw - lw, AvatarEditor.STRIP_H)
+			sw.ScrollingDirection, sw.ScrollBarThickness = Enum.ScrollingDirection.X, 3
+			sw.CanvasSize = UDim2.fromOffset(#c.list * (22 + sg) - sg + 2 * m, 0)
+			sw.Parent = holder
+			Ui.make("UIPadding", sw, { PaddingLeft = UDim.new(0, m), PaddingTop = UDim.new(0, m) })
+			local l = Instance.new("UIListLayout")
+			l.FillDirection, l.Padding, l.SortOrder, l.Parent = Enum.FillDirection.Horizontal, UDim.new(0, sg), Enum.SortOrder.LayoutOrder, sw
+			for i, hex in c.list do
+				local b = tile(sw, `Swatch_{slot}_{i - 1}`, function() self:paint(slot, i - 1) end, Canvas2D.hex(hex, INK))
+				b.LayoutOrder, b.Size = i, UDim2.fromOffset(22, 20)
+				local pick = Ui.brackets(b, nil, 7, 2)
+				pick.Visible = false
+				self.swatches[`{slot}_{i - 1}`] = pick
+			end
+		end
+		self:renderColours()
+		return
+	end
+	for row, slot in slots do
 		local c = AvatarKit.colourSlot(slot)
 		local holder = frame(self.colourBar, "Row_" .. slot)
 		local rows = self.paletteRows or 2
@@ -1077,6 +1114,13 @@ function AvatarEditor.renderColours(self: any)
 		local slot, i = string.match(key, "^(.-)_(%d+)$")
 		local on = slot ~= nil and self.spec.colours[slot] == tonumber(i)
 		if pick.ClassName == "UIStroke" then pick.Enabled = on else pick.Visible = on end
+		-- (in a sideways strip, scrolled so the picked colour is in view: it could sit past the edge)
+		local sw = pick.Parent and pick.Parent.Parent
+		if on and self.paletteStrip and sw and sw.ClassName == "ScrollingFrame" then
+			local m = Ui.BRACKET_OUT + Ui.BRACKET_INK + 1
+			local x = m + (tonumber(i) or 0) * (22 + AvatarEditor.SWATCH_GAP)
+			sw.CanvasPosition = Vector2.new(math.max(0, x - sw.Size.X.Offset / 2), 0)
+		end
 	end
 end
 
@@ -1087,7 +1131,8 @@ function AvatarEditor.rebuildChips(self: any)
 	self.chips = {}
 	local count = math.max(#self.slots, self.editing)
 	-- (as tall as the bar's tools in a light theme, so their row clears the tabs below)
-	local CH = if LIGHT then 34 else 44
+	-- (32 at 6 px down: the editing slot's brackets, 5 px below it, stay 8 px clear of the tabs)
+	local CH = if LIGHT then 32 else 44
 	for i = 1, count do
 		local slot = self.slots[i]
 		local b = tile(self.chipBar, "Slot_" .. i, function() self:openSlot(i) end,

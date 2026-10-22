@@ -319,7 +319,9 @@ function LobbySocial.setMembers(self: any, list: any)
 		-- its frame drawn inside it, so the scrolling list cannot clip one side of it away
 		-- (you: an ink ring a pixel heavier on a pale row, where gold measured 1.0:1)
 		local _, edge = Ui.rim(row, if m.userId == self.localId then (if LIGHT then Ui.INK else Ui.GOLD) else Ui.INK, if m.userId == self.localId and LIGHT then 3 else 2, 0)
-		edge.Thickness = 2              -- (whatever the theme does with rims: this one says who is you)
+		-- (whatever the theme does with rims: this one says who is you - 3 px for you on a pale row, which
+		-- this line used to reset to 2 like every other row's)
+		edge.Thickness = if m.userId == self.localId and LIGHT then 3 else 2
 		local face = Instance.new("Frame")
 		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
 		-- a kit code, or a preset (drawn as its kit): the head in the member list
@@ -330,6 +332,8 @@ function LobbySocial.setMembers(self: any, list: any)
 		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
 		name.Font = Ui.DISPLAY
 		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
+		-- (one line, shrinking to fit: a 20-letter name and (YOU) wrapped onto the place line below)
+		Ui.fit(name, 9)
 		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then (if LIGHT then Color3.fromRGB(165, 28, 28) else Color3.fromRGB(255, 150, 150))
 			elseif m.place == "room" then (if LIGHT then Color3.fromRGB(150, 60, 0) else AMBER) else (if LIGHT then Ui.SUB else Color3.fromRGB(192, 203, 220)))
 		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)

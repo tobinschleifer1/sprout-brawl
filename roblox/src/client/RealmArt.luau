@@ -54,18 +54,43 @@ local function lum(hex: string): number
 	return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
 end
 RealmArt.lum = lum
--- A background colour put behind the play space: hazed toward the realm's mid sky (between the far
--- ridge and the deep sky, not the pale horizon - toward the horizon, haze made daylight landmarks
--- lighter) and never lighter than the island's lit rock, so the island is always the brightest
--- solid thing in the fight
+-- hue, saturation and value of a hex colour, and back
+local function hsv(hex: string): (number, number, number)
+	local r, g, b = rgb(hex)
+	r, g, b = r / 255, g / 255, b / 255
+	local mx, mn = math.max(r, g, b), math.min(r, g, b)
+	local d = mx - mn
+	local h = 0
+	if d > 0 then
+		if mx == r then h = ((g - b) / d) % 6 elseif mx == g then h = (b - r) / d + 2 else h = (r - g) / d + 4 end
+	end
+	return h / 6, if mx > 0 then d / mx else 0, mx
+end
+local function fromHsv(h: number, sat: number, v: number): string
+	local i = math.floor(h * 6) % 6
+	local f = h * 6 - math.floor(h * 6)
+	local p, q, t = v * (1 - sat), v * (1 - f * sat), v * (1 - (1 - f) * sat)
+	local r, g, b = v, t, p
+	if i == 1 then r, g, b = q, v, p elseif i == 2 then r, g, b = p, v, t elseif i == 3 then r, g, b = p, q, v
+	elseif i == 4 then r, g, b = t, p, v elseif i == 5 then r, g, b = v, p, q end
+	return string.format("#%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
+end
+RealmArt.hsv = hsv
+-- A background colour put behind the play space: hazed a little toward the realm's mid sky, then
+-- held under the island - no more saturated than its rock body, and no brighter - by lowering
+-- saturation and value, keeping the hue (mixed toward the blue sky instead, the hall's gold roof went
+-- grey; capped by the lit band instead of the body, the hall stood at twice the island's brightness)
 function RealmArt.backdrop(realm: any, hex: string, amount: number): string
 	local target = mix(realm.far, realm.sky[1], 0.5)
 	local c = mix(hex, target, amount)
-	local cap = lum(realm.rock[4])
-	local k = amount
-	while lum(c) > cap and k < 0.95 do
-		k += 0.1
-		c = mix(hex, target, k)
+	local cap = lum(realm.rock[3])
+	local _, capS = hsv(realm.rock[3])
+	local h, sat, v = hsv(c)
+	sat = math.min(sat, capS)
+	c = fromHsv(h, sat, v)
+	while lum(c) > cap and v > 0.02 do
+		v *= 0.94
+		c = fromHsv(h, sat, v)
 	end
 	return c
 end
@@ -227,7 +252,10 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 			local c = courseOf[y] -- the course this row is in (nil below the third)
 			if c then
 				v = if c % 2 == 1 then R[3] else R[2]
-				if seamRow[y] and y > 3 * k then v = R[2] end
+				-- the seam closing a course one tone darker than it (in R[2] under an R[2] course, half
+				-- the seams were invisible), and a few lit chips along each course's top
+				if seamRow[y] and y > 3 * k then v = if c % 2 == 1 then R[2] else R[1] end
+				if courseOf[y - 1] ~= c and hash(x // (2 * k), c, seed) > 0.86 then v = R[4] end
 				-- the joints, in the top course only (each one splits every row it crosses, and in all three
 				-- the fight's warm-up built a sprite over its per-tick budget): a soft column every 10-18
 				-- cells, so the top course reads as blocks and the rest as strata
@@ -308,10 +336,6 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 	local RB, RS = ink(realm.rock[4]), ink(realm.rock[5])
 	local g = PixelGrid.new(W + margin * 2, top + capR + 5)
 	for x = 0, W - 1 do
-		put(g, x + margin, top + capR, RS)
-		put(g, x + margin, top + capR + 1, RB); put(g, x + margin, top + capR + 2, RB)
-	end
-	for x = 0, W - 1 do
 		local gx = x + margin
 		for k = 0, capR - 1 do
 			-- (the top row lit almost to white: the light band a UI button wears)
@@ -340,6 +364,18 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 		put(g, margin - 1, top + k, T[2]); put(g, margin + W, top + k, T[2])
 	end
 	PixelGrid.rim(g, O)
+	-- the rock's band after the outline, so no ink line runs under it (with one, the band read as a
+	-- board laid on the rock, not the rock's own light band); only where nothing hangs over it
+	for x = 0, W - 1 do
+		-- (two rows of the lit tone, no shine row: the shine there outshone the walking face above it on
+		-- the dark realms, and the top read as two stacked trims)
+		local _ = RS
+		for k, v in { RB, RB } do
+			if get(g, x + margin, top + capR + k - 1) == 0 or get(g, x + margin, top + capR + k - 1) == O then
+				put(g, x + margin, top + capR + k - 1, v)
+			end
+		end
+	end
 	return compile(key, g, list, margin, top)
 end
 
@@ -440,8 +476,8 @@ function RealmArt.shelf(realm: any, width: number, thick: number, style: string?
 			PixelGrid.rect(g, bx + 1, y0 + T + 3, 1, 2, S1)
 		end
 	elseif kind == "iron" then
-		PixelGrid.rect(g, m, y0 + 1, W, 1, S1)
-		for x = 0, W - 1, 6 do put(g, m + x + 2, y0 + 1, S3) end
+		-- (the light band kept, rivets on it: a dark row over it left the girder a thin line)
+		for x = 0, W - 1, 6 do put(g, m + x + 2, y0 + 1, S1) end
 		for x = 0, W - 1 do
 			local d = x % 8
 			if T > 4 then put(g, m + x, y0 + 2 + math.min(d, 7 - d) * (T - 4) // 4, S1) end
@@ -535,7 +571,10 @@ local function farIsland(g: PixelGrid.Grid, cx: number, cy: number, w: number, b
 		local u = (x - (cx - w / 2)) / w
 		local prof = (1 - math.abs(2 * u - 1)) ^ 0.7
 		local depth = math.floor(3 + w * 0.45 * prof + (hash(x, 1, seed) - 0.5) * 3 * prof)
-		for y = 0, depth do put(g, x % SW, cy + y, if y == 0 then topC elseif y == 1 then lit else body) end
+		-- (one flat tone: with a lit row and a surface colour, a distant island under a landmark read
+		-- as more stage - on TheSpan flush with the deck, on Foundry joining two platforms into a floor)
+		local _ = lit; local _ = topC
+		for y = 0, depth do put(g, x % SW, cy + y, body) end
 	end
 end
 
@@ -590,8 +629,7 @@ landmarks.rainbow = function(g, ink, realm, base)
 			put(g, x, y + k, v); put(g, x + 1, y + k, v)
 		end
 	end
-	farIsland(g, 34, base + 6, 40, ink(realm.near), ink(mix(realm.rock[4], realm.sky[3], 0.3)), ink(mix(realm.top[2], realm.sky[3], 0.3)), 5)
-	farIsland(g, 206, base + 8, 36, ink(realm.near), ink(mix(realm.rock[4], realm.sky[3], 0.3)), ink(mix(realm.top[2], realm.sky[3], 0.3)), 6)
+	-- (no flanking islands: they sat flush with the deck and read as more stage)
 end
 
 landmarks.forge = function(g, ink, realm, base)
@@ -713,7 +751,8 @@ landmarks.volcano = function(g, ink, realm, base)
 	PixelGrid.rect(g, 104, base - 68, 33, 3, hot)
 	for _, path in { { 110, 0.7 }, { 128, -0.5 } } do
 		local x = path[1]
-		for y = base - 65, base + 8 do
+		-- (down the upper cone only: to its foot, the streaks ran behind the centre platform)
+		for y = base - 65, base - 34 do
 			put(g, math.floor(x), y, lava)
 			x += path[2] * 0.4 + (hash(y, 1, 9) - 0.5) * 0.8
 		end
@@ -767,9 +806,13 @@ local function layer(realm: any, which: string): Art
 		-- heads), and all above the band the fight is seen against
 		local h = 0
 		for k = 1, #realm.id do h = (h * 37 + string.byte(realm.id, k)) % 9973 end
-		cloud(g, 20 + (h % 60), 30 + (h % 11), 9, C, 1)
-		cloud(g, 110 + (h % 50), 18 + (h % 7), 11, C, 2)
-		cloud(g, 190 + (h % 40), 44 + (h % 9), 7, C, 3)
+		-- (sizes and rows varied per realm too: one triad shifted sideways read as the same sky; three,
+		-- since a fourth cloud took the fight's warm-up over its per-tick budget)
+		local n = 3
+		for k = 1, n do
+			local x = math.floor((k - 0.5 + (hash(k, 31, h) - 0.5) * 0.6) * SW / n)
+			cloud(g, x, 16 + math.floor(hash(k, 32, h) * 32), 6 + math.floor(hash(k, 33, h) * 7), C, k)
+		end
 	end
 	return compile(key, g, list, 0, 0)
 end

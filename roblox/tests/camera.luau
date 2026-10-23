@@ -98,6 +98,20 @@ for _, size in { { 1280, 720 }, { 1920, 1080 } } do
 	if under > h - bottom + 0.5 then fail(`{w}x{h}: two studs under the floor are at {under}, behind the cards (from {h - bottom})`) end
 	checked += 2
 end
+-- the main floor stays above the cards while the fight is on the platforms over it: framed by bodies
+-- alone, Foundry's floor sat wholly under the cards in the maps' round 2 renders (my first test of this
+-- stood the fighters on the floor, where the padding already showed it, and missed the case)
+for _, size in { { 1280, 720 }, { 1920, 1080 } } do
+	local w, h = size[1], size[2]
+	local bottom = 94 * h / 720
+	local cam = Camera2D.new()
+	Camera2D.setHudBand(cam, bottom, h, 92 * h / 720)
+	Camera2D.setFloor(cam, 0)
+	Camera2D.snapTo(cam, { body(-8, 9), body(8, 9), body(0, 20) }, { X = w, Y = h } :: any)
+	local _, floorY = screen(cam, w, h, 0, 0)
+	if floorY > h - bottom - 8 then fail(`{w}x{h}: the main floor is drawn at {floorY}, under the cards (from {h - bottom})`) end
+	checked += 1
+end
 -- the same framing at every 16:9 resolution: the unit is screen pixels, scaled to the window
 local a, b = frame(close, 1920, 1080), frame(close, 1280, 720)
 if math.abs(a.ppu / 1080 - b.ppu / 720) > 1e-9 then fail("1080p and 720p frame a fight differently") end

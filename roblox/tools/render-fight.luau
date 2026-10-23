@@ -129,6 +129,7 @@ for frame = 0, last do
 		local cam = Camera2D.new()
 		-- (with the HUD's one row of cards along the bottom, as the client sets it: 94 px at 720)
 		Camera2D.setHudBand(cam, 94 * H / 720, H, 92 * H / 720)
+		Camera2D.setFloor(cam, match.stage.main.top)
 		Camera2D.snapTo(cam, bodies, { X = W, Y = H })
 		local ppu = cam.ppu
 		if wide then cam.x, cam.y, ppu = 0, 8, H / 52 end

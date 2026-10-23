@@ -39,6 +39,12 @@ end
 
 -- The HUD's card band, `px` screen pixels tall on a `viewportY`-tall screen, in the backbuffer units
 -- safeBottom is kept in.
+-- The main island's walking surface, kept in frame when the fight is within FLOOR_REACH studs above it
+Camera2D.FLOOR_REACH = 16
+function Camera2D.setFloor(self: any, y: number?)
+	self.floorY = y
+end
+
 function Camera2D.setHudBand(self: any, px: number, viewportY: number, topPx: number?)
 	self.safeBottom = if viewportY > 0 then px * BH / viewportY else 0
 	-- (and the clock, key hints and banner along the top: a fighter launched high went behind them)
@@ -64,6 +70,11 @@ function Camera2D.update(self: any, bodies: { any }, dt: number, viewport: Vecto
 	end
 	if x0 == math.huge then
 		x0, x1, y0, y1 = 0, 0, 0, 10
+	end
+	-- the main floor in frame while the fight is within reach of it (fighters on the platforms over
+	-- it): framed by bodies alone, Foundry's and Saltflat's floors sat wholly under the HUD's cards
+	if self.floorY and y0 > self.floorY - 1 and y0 - self.floorY < Camera2D.FLOOR_REACH then
+		y0 = self.floorY - 1
 	end
 
 	-- The web backbuffer is 480x270 and its width varies with the window; here the width that

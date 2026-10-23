@@ -233,6 +233,16 @@ export class StageRuntime {
     return x;
   }
 
+  // A fighter moved directly (a pull) whose feet end just under a solid's top - inside its footing,
+  // within half a stud - stands on it: a whip's pull caught a victim stepping off an edge and put them
+  // back over the island 0.12 below the surface, where no landing catches you, and they fell through.
+  liftOnto(x, y, r) {
+    for (const sp of this.solids) {
+      if (x + r * 0.6 > sp.x1 && x - r * 0.6 < sp.x2 && y < sp.top && y > sp.top - 0.5) return sp.top;
+    }
+    return y;
+  }
+
   // Is the fighter still supported by its platform?
   supported(f) {
     const p = f.platform;

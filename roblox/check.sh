@@ -229,3 +229,5 @@ echo "== item art: every cosmetic and crate picture draws inside its tile =="
 lune run tests/item-art
 echo "== solid ground: the fuzzed matches that found fighters inside solids =="
 lune run tests/solid-ground
+echo "== pull ground: a pulled victim lands on the surface it is pulled over =="
+lune run tests/pull-ground

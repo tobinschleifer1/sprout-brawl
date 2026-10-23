@@ -1310,7 +1310,14 @@ function methods.applyHit(self, hit: any)
 	self.hitstun = Knockback.hitstun(stun) + (hit.extraHitstun or 0)
 	if hit.pull then
 		local ax = if hit.attackerX ~= nil then hit.attackerX else self.x
+		local wasX = self.x
 		self.x += -hit.facing * math.min(hit.pull, math.abs(self.x - ax))
+		local stage = self._match and self._match.stage
+		if stage then
+			-- (onto the surface first - the pull brought them in - and only then out of any solid)
+			self.y = stage:liftOnto(self.x, self.y, self.r)
+			self.x = stage:clearX(self.x, self.y, self.r, self.h, wasX)
+		end
 	end
 	-- Two hitboxes can land on the SAME frame. Taking the last one meant the weaker of the pair
 	-- decided where the victim went. The bigger hit wins; both still do damage.

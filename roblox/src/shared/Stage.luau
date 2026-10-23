@@ -403,6 +403,16 @@ function Stage.clearX(self: Stage, x: number, y: number, r: number, h: number, f
 	return x
 end
 
+-- A fighter moved directly (a pull) whose feet end just under a solid's top - inside its footing,
+-- within half a stud - stands on it (stage.js liftOnto): a whip's pull put a victim stepping off an
+-- edge back over the island 0.12 below the surface, where no landing catches you, and they fell through.
+function Stage.liftOnto(self: Stage, x: number, y: number, r: number): number
+	for _, sp in self.solids do
+		if x + r * 0.6 > sp.x1 and x - r * 0.6 < sp.x2 and y < sp.top and y > sp.top - 0.5 then return sp.top end
+	end
+	return y
+end
+
 function Stage.supported(self: Stage, f: any): boolean
 	local p = f.platform
 	if not p then

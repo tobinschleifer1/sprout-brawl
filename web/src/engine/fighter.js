@@ -923,7 +923,13 @@ export class Fighter {
     // Deep water eats knockback. It is why the tide is a refuge at high percent as well as a trap.
     if (this.env.damp < 1) { launch *= this.env.damp; stun *= this.env.damp; }
     this.hitstun = hitstunFor(stun) + (hit.extraHitstun || 0);
-    if (hit.pull) { this.x += -hit.facing * Math.min(hit.pull, Math.abs(this.x - (hit.attackerX ?? this.x))); }
+    if (hit.pull) {
+      const wasX = this.x;
+      this.x += -hit.facing * Math.min(hit.pull, Math.abs(this.x - (hit.attackerX ?? this.x)));
+      const stage = this._match && this._match.stage;
+      // (onto the surface first - the pull brought them in - and only then out of any solid)
+      if (stage) { this.y = stage.liftOnto(this.x, this.y, this.r); this.x = stage.clearX(this.x, this.y, this.r, this.h, wasX); }
+    }
     // Two hitboxes can land on the SAME frame - a greatsword and the crater it opens, a burst
     // inside a swing. Taking the last one meant the weaker of the pair decided where the victim
     // went: Colossus's 176-launch blade was being overwritten by its own 109-launch shockwave,

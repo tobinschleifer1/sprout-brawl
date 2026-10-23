@@ -39,8 +39,10 @@ end
 
 -- The HUD's card band, `px` screen pixels tall on a `viewportY`-tall screen, in the backbuffer units
 -- safeBottom is kept in.
-function Camera2D.setHudBand(self: any, px: number, viewportY: number)
+function Camera2D.setHudBand(self: any, px: number, viewportY: number, topPx: number?)
 	self.safeBottom = if viewportY > 0 then px * BH / viewportY else 0
+	-- (and the clock, key hints and banner along the top: a fighter launched high went behind them)
+	self.safeTop = if viewportY > 0 then (topPx or 0) * BH / viewportY else 0
 end
 
 -- `bodies` is a list of { x, y, h, alive }. `viewport` is the canvas size in pixels.
@@ -71,12 +73,13 @@ function Camera2D.update(self: any, bodies: { any }, dt: number, viewport: Vecto
 
 	local w = math.max(MIN_W, x1 - x0 + PAD * 2)
 	local band = math.clamp(self.safeBottom, 0, BH * 0.45)
-	local usable = BH - band
+	local topBand = math.clamp(self.safeTop or 0, 0, BH * 0.3)
+	local usable = BH - band - topBand
 	local hgt = math.max(MIN_H, y1 - y0 + PAD)
 	local ppu = math.clamp(math.min(BW / w, usable / hgt), ZOOM_MIN, ZOOM_MAX)
 
 	local tx = (x0 + x1) / 2
-	local ty = (y0 + y1) / 2 + 2 - band / (2 * ppu)
+	local ty = (y0 + y1) / 2 + 2 - band / (2 * ppu) + topBand / (2 * ppu)
 	ppu *= (if viewport.Y > 0 then viewport.Y else BH) / BH     -- backbuffer -> screen pixels
 	-- Frame-rate independent smoothing: the same 0.0025-per-second constant the web build uses, so
 	-- the camera has the same weight at 60 and at 144.

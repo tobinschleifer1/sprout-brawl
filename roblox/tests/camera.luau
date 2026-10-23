@@ -76,6 +76,28 @@ for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 } } do
 	if feet > h - band then fail(`{w}x{h}: a fighter on the floor is drawn at {feet}, behind the HUD's cards (from {h - band})`) end
 	checked += 1
 end
+-- the top band too: a fighter launched high stays below the clock and key hints (they went behind them)
+-- and a fight on the floor keeps two studs of the island in view above the cards (the camera's own
+-- padding holds it: a floor rule added for it changed nothing, and went)
+for _, size in { { 1280, 720 }, { 1920, 1080 } } do
+	local w, h = size[1], size[2]
+	local bottom, top = 94 * h / 720, 92 * h / 720
+	local cam = Camera2D.new()
+	Camera2D.setHudBand(cam, bottom, h, top)
+	Camera2D.snapTo(cam, { body(-6, 0), body(5, 0), body(2, 36) }, { X = w, Y = h } :: any)
+	local _, head = screen(cam, w, h, 2, 36 + H)
+	-- (clear of the clock, the hints and the ULTIMATE READY banner under them: 128 px at 720)
+	local banner = 128 * h / 720
+	if head < banner then fail(`{w}x{h}: a fighter launched high is drawn at {head}, behind the top of the HUD (to {banner})`) end
+	local floor = Camera2D.new()
+	Camera2D.setHudBand(floor, bottom, h, top)
+	-- (two just over it, mid-hop, and one launched high pulling the camera up: framed by their bodies
+	-- alone, the floor fell under the cards)
+	Camera2D.snapTo(floor, { body(-4, 0.5), body(4, 1), body(2, 28) }, { X = w, Y = h } :: any)
+	local _, under = screen(floor, w, h, 0, -2)
+	if under > h - bottom + 0.5 then fail(`{w}x{h}: two studs under the floor are at {under}, behind the cards (from {h - bottom})`) end
+	checked += 2
+end
 -- the same framing at every 16:9 resolution: the unit is screen pixels, scaled to the window
 local a, b = frame(close, 1920, 1080), frame(close, 1280, 720)
 if math.abs(a.ppu / 1080 - b.ppu / 720) > 1e-9 then fail("1080p and 720p frame a fight differently") end

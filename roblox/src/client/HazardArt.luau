@@ -48,6 +48,9 @@ DRAW.vents = function(c, v, stage, realm, t)
 		-- the grate: an iron frame with glowing slots
 		Canvas2D.rect(c, x - w / 2 - 0.2, top - 0.2, w + 0.4, 0.9, INK)
 		Canvas2D.rect(c, x - w / 2, top, w, 0.6, iron)
+		-- (a shine along its top edge, as every walking surface has: the bare iron frame measured
+		-- 1.2-2.8:1 against the forge's smoke)
+		Canvas2D.rect(c, x - w / 2, top + 0.45, w, 0.15, hex(realm.shelfRamp[3]))
 		for k = 0, 4 do
 			local sx = x - w / 2 + 0.5 + k * (w - 1) / 4
 			Canvas2D.rect(c, sx, top + 0.1, 0.35, 0.4, if live then hex(HOT) else slot, if live then 1 else 0.8)

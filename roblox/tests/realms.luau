@@ -167,7 +167,8 @@ for _, data in Stages.LIST do
 			end
 			if reach < size[1] / s - 1e-6 then fail(`{data.id} {key}: tiles stop at {reach}, the screen is {size[1] / s} wide`) end
 		end
-		if n ~= 4 then fail(`{data.id}: {n} sky layers drawn, not 4`) end
+		-- (three: the near floating islands went in the maps' round 2 - they read as platforms)
+		if n ~= 3 then fail(`{data.id}: {n} sky layers drawn, not 3`) end
 	end
 	local skyCost = 0
 	for _, which in { "far", "landmark", "near", "clouds" } do skyCost += #RealmArt.layer(realm, which).rects end
@@ -201,7 +202,8 @@ do
 	for _, sp in sprites do layers[sp.key] = true end
 	local n = 0
 	for _ in layers do n += 1 end
-	if n ~= 3 then fail(`the lobby sky drew {n} layers, want 3`) end
+	-- (two: the far ridge and the clouds - no landmark, and no near islands since the maps' round 2)
+	if n ~= 2 then fail(`the lobby sky drew {n} layers, want 2`) end
 	table.clear(sprites)
 	local art = RealmArt.paving(lobby, 40, 10, 1)
 	RealmArt.draw(canvas(), art, -20, 2, 1 / RealmArt.BODY_PPU)
@@ -216,4 +218,4 @@ do
 end
 
 print(`PASS realms: nine stages each in a realm of its own name, paint only; {placed} islands and platforms drawn exactly on their geometry`)
-print(`  skies cover every width in four parallax layers; most expensive stage {worstStage} rectangles ({worstStageWhere}), sky {worstSky} ({worstSkyWhere})`)
+print(`  skies cover every width in three parallax layers; most expensive stage {worstStage} rectangles ({worstStageWhere}), sky {worstSky} ({worstSkyWhere})`)

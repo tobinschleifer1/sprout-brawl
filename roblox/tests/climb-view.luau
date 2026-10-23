@@ -142,7 +142,8 @@ for _, size in { { 390, 844 }, { 1280, 720 }, { 1920, 1080 } } do
 		assert(#c.stack == 0, "the climb leaves no transforms behind")
 		assert(body(pieces) == sprites, `the climber is one whole body of their character, drew {table.concat(pieces, ",")}`)
 		assert(weapons == 1, `and holds the course's weapon, one sprite, drew {weapons}`)
-		assert(sky >= 3, `the sky behind the course is drawn ({sky} layer tiles)`)
+		-- (the lobby's sky: its far ridge and clouds - the near islands went in the maps' round 2)
+		assert(sky >= 2, `the sky behind the course is drawn ({sky} layer tiles)`)
 		peak = math.max(peak, c.drawn)
 	end
 end

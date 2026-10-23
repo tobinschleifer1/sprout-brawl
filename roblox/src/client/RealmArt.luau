@@ -44,6 +44,32 @@ end
 RealmArt.mix = mix
 
 -- A drawing's own palette: colours are interned to small numbers, which is what a grid holds.
+-- WCAG relative luminance of a hex colour
+local function lum(hex: string): number
+	local r, g, b = rgb(hex)
+	local function ch(v: number): number
+		local c = v / 255
+		return if c <= 0.03928 then c / 12.92 else ((c + 0.055) / 1.055) ^ 2.4
+	end
+	return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b)
+end
+RealmArt.lum = lum
+-- A background colour put behind the play space: hazed toward the realm's mid sky (between the far
+-- ridge and the deep sky, not the pale horizon - toward the horizon, haze made daylight landmarks
+-- lighter) and never lighter than the island's lit rock, so the island is always the brightest
+-- solid thing in the fight
+function RealmArt.backdrop(realm: any, hex: string, amount: number): string
+	local target = mix(realm.far, realm.sky[1], 0.5)
+	local c = mix(hex, target, amount)
+	local cap = lum(realm.rock[4])
+	local k = amount
+	while lum(c) > cap and k < 0.95 do
+		k += 0.1
+		c = mix(hex, target, k)
+	end
+	return c
+end
+
 local function inks(): ((string, number?) -> number, { { any } })
 	local list: { { any } } = {}
 	local index: { [string]: number } = {}
@@ -171,6 +197,17 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 	local hangR = 13
 	local g = PixelGrid.new(W + margin * 2, wallR + taperR + hangR)
 	local bottoms = table.create(W, 0)
+	-- the courses under the lit band: three, each 3-6 rows deep at 2 cells a stud (scaled to P)
+	local courseOf, seamRow = {}, {}
+	do
+		local y, c = math.floor(3 * P / 2), 1
+		while c <= 3 and y < wallR do
+			local depth = math.floor((3 + math.floor(hash(c, 20, seed) * 4)) * P / 2)
+			for yy = y, math.min(wallR, y + depth - 1) do courseOf[yy] = c end
+			seamRow[y + depth - 1] = true
+			y += depth; c += 1
+		end
+	end
 	for x = 0, W - 1 do
 		-- the underside steps a whole stud (two cells) at a time: as jagged to the eye, and runs
 		-- that match their neighbour merge, where a profile changing every cell cannot
@@ -180,26 +217,35 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 		local jag = ((noise(xs / 4, seed) - 0.5) * 4 + (hash(xs // 2, 1, seed) - 0.5) * 2) * prof
 		local bottom = wallR + math.floor(taperR * prof + jag)
 		bottoms[x + 1] = bottom
-		-- (the UI's anatomy and the fighters' shading, in rock: a lit band along the top with a shine
-		-- row, strata in two tones down the wall, a dithered turn into the dark belly, a dark lip)
+		-- (the UI's anatomy and the fighters' shading, in rock: a shine row and a lit band along the top,
+		-- then three courses of blocks - seams in the soft tone, depths and joints varied so it reads as
+		-- stone, not planks - and plain rock below them into a dark belly and lip; scaled to the density)
+		local k = P / 2
 		local belly = wallR + math.floor(taperR * prof * 0.55)
 		for y = 0, bottom do
 			local v = R[3]
-			-- the strata: courses 3-5 cells deep, alternating tone, a darker seam under each
-			-- (the courses step every 8 cells, not every 2: their rows merge into long runs)
-			local wob = math.floor(noise((x - x % 8) / 14, seed + 5) * 3)
-			local course = (y + wob) // 4
-			if course % 2 == 1 then v = R[3] else v = R[2] end
-			if (y + wob) % 4 == 3 and y > 3 then v = R[1] end
-			if y == 0 then v = R[5]                               -- the shine along the top
-			elseif y <= 2 then v = R[4]                           -- the lit band under the surface
-			elseif y >= bottom - 1 then v = R[1]                  -- the dark lip at the foot
-			elseif y > belly then
-				-- the belly: a mid-dark step, then dark (a dither here broke the rows into single
-				-- cells, and the fight's first frame went over its build budget)
-				v = if y > belly + 2 then R[1] else R[2]
+			local c = courseOf[y] -- the course this row is in (nil below the third)
+			if c then
+				v = if c % 2 == 1 then R[3] else R[2]
+				if seamRow[y] and y > 3 * k then v = R[2] end
+				-- the joints, in the top course only (each one splits every row it crosses, and in all three
+				-- the fight's warm-up built a sprite over its per-tick budget): a soft column every 10-18
+				-- cells, so the top course reads as blocks and the rest as strata
+				if c == 1 then
+					local pitch = math.floor((10 + hash(c, 21, seed) * 8) * k)
+					local off = math.floor(hash(c, 22, seed) * pitch)
+					if (x + off) % pitch == 0 and not seamRow[y] then v = R[2] end
+				end
 			end
-			if x <= 1 and y > 0 then v = R[4] elseif x >= W - 2 and y > 0 then v = R[1] end
+			if y < k then v = R[5]                                 -- the shine along the top
+			elseif y < 3 * k then v = R[4]                         -- the lit band under the surface
+			elseif y >= bottom - k then v = R[1]                   -- the dark lip at the foot
+			elseif y > belly then
+				-- the belly: a mid-dark step, then dark (a dither here broke rows into single cells,
+				-- and the fight's first frame went over its build budget)
+				v = if y > belly + 2 * k then R[1] else R[2]
+			end
+			if x < k and y >= k then v = R[4] elseif x >= W - k and y >= k then v = R[1] end
 			put(g, x + margin, y, v)
 		end
 	end
@@ -257,7 +303,14 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 	local mat = realm.material
 	local capR = if mat == "planks" then 4 else 3      -- (the shine replaces the top row: a row more cost the fight's Frame budget)
 	local SHINE = ink(mix(realm.top[3], "#FFFFFF", 0.45))
+	-- the rock's lit band and shine right under the cap, drawn here at full density (the fighters'
+	-- pixel size) rather than in the half-density body: it is the rock a player sees most
+	local RB, RS = ink(realm.rock[4]), ink(realm.rock[5])
 	local g = PixelGrid.new(W + margin * 2, top + capR + 5)
+	for x = 0, W - 1 do
+		put(g, x + margin, top + capR, RS)
+		put(g, x + margin, top + capR + 1, RB); put(g, x + margin, top + capR + 2, RB)
+	end
 	for x = 0, W - 1 do
 		local gx = x + margin
 		for k = 0, capR - 1 do
@@ -679,23 +732,25 @@ local function layer(realm: any, which: string): Art
 	local g = PixelGrid.new(SW, SH)
 	local base = 96
 	if which == "far" then
-		local col, lit = ink(mix(realm.far, realm.sky[3], 0.35)), ink(mix(realm.far, realm.sky[4], 0.6))
+		-- (through RealmArt.backdrop, as every layer behind the fight: hazed to the mid sky, never lighter
+		-- than the island's lit rock; one flat tone - its lit edge cost a rectangle a step, and the fight's
+		-- warm-up went over its per-tick budget)
+		local col = ink(RealmArt.backdrop(realm, realm.far, 0.2))
 		for x = 0, SW - 1 do
 			local y = math.floor(ridge(x, 3, base - 6, 14))
 			for yy = y, SH - 1 do put(g, x, yy, col) end
-			put(g, x, y, lit)
 		end
 	elseif which == "landmark" then
-		-- hazed toward the sky (40%): the landmark is scenery, and drawn at full strength it was the
-		-- brightest thing on screen, brighter than the island the fight is on
+		-- hazed (RealmArt.backdrop): the landmark is scenery, and at full strength - or hazed toward the
+		-- pale horizon - it was the brightest thing on screen, brighter than the island the fight is on
 		local fn = landmarks[realm.landmark]
-		local haze = function(hex: string, a: number?): number return ink(mix(hex, realm.sky[3], 0.4), a) end
+		local haze = function(hex: string, a: number?): number return ink(RealmArt.backdrop(realm, hex, 0.35), a) end
 		if fn then fn(g, haze, realm, base + 8) end
 	elseif which == "near" then
-		local body, lit, topC = ink(realm.near), ink(mix(realm.rock[4], realm.sky[3], 0.15)), ink(mix(realm.top[2], realm.sky[3], 0.15))
-		farIsland(g, 30, 64, 30, body, lit, topC, 1)
-		farIsland(g, 205, 52, 24, body, lit, topC, 2)
-		farIsland(g, 150, 88, 18, body, lit, topC, 3)
+		-- (none now: drawn as islands they read as platforms at play height, the same three in all nine
+		-- skies; as hazed silhouettes they hung behind the high platforms. The far ridge and the
+		-- landmark carry the depth.)
+		local _ = farIsland
 	elseif which == "storm" then
 		-- a lid of storm cloud across the top of the sky: the realm's own cloud colours, darkened,
 		-- for a disaster that comes from above (DisasterArt)
@@ -708,10 +763,13 @@ local function layer(realm: any, which: string): Art
 		for k = 0, 7 do cloud(g, 15 + k * 30, 30 + (k % 3) * 4, 6 + (k % 2) * 2, C, 30 + k) end
 	elseif which == "clouds" then
 		local C = { ink(realm.cloud[1]), ink(realm.cloud[2]), ink(realm.cloud[3]) }
-		cloud(g, 40, 40, 9, C, 1)
-		cloud(g, 150, 26, 11, C, 2)
-		cloud(g, 210, 70, 7, C, 3)
-		cloud(g, 100, 78, 6, C, 4)
+		-- placed by the realm (the same four clouds were in all nine skies, one behind the fighters'
+		-- heads), and all above the band the fight is seen against
+		local h = 0
+		for k = 1, #realm.id do h = (h * 37 + string.byte(realm.id, k)) % 9973 end
+		cloud(g, 20 + (h % 60), 30 + (h % 11), 9, C, 1)
+		cloud(g, 110 + (h % 50), 18 + (h % 7), 11, C, 2)
+		cloud(g, 190 + (h % 40), 44 + (h % 9), 7, C, 3)
 	end
 	return compile(key, g, list, 0, 0)
 end
@@ -719,7 +777,8 @@ RealmArt.layer = layer
 
 -- name, parallax (backbuffer units per stud of camera), drift (units a second)
 local tiles: (any, Art, number, number) -> ()
-local LAYERS: { { any } } = { { "far", 0.03, 0 }, { "landmark", 0.06, 0 }, { "near", 0.1, 0.6 }, { "clouds", 0.15, 2.4 } }
+-- (no "near" floating islands: see layer)
+local LAYERS: { { any } } = { { "far", 0.03, 0 }, { "landmark", 0.06, 0 }, { "clouds", 0.15, 2.4 } }
 
 -- One sky layer tiled across the screen, shifted `shift` backbuffer units, in backbuffer units with
 -- y up from the bottom of the screen.

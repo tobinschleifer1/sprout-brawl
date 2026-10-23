@@ -231,3 +231,5 @@ echo "== solid ground: the fuzzed matches that found fighters inside solids =="
 lune run tests/solid-ground
 echo "== pull ground: a pulled victim lands on the surface it is pulled over =="
 lune run tests/pull-ground
+echo "== map values: nothing behind the fight lighter than its island =="
+lune run tests/map-values

@@ -28,6 +28,8 @@ local DisasterShapes = require(script.Parent.DisasterShapes)
 local PodiumView = require(script.Parent.PodiumView)
 local Ui = require(script.Parent.Ui)
 local Hud = {}
+-- the screen pixels along the top the clock and the key hints take, for the camera (Camera2D.safeTop)
+Hud.TOP_HEIGHT = 92
 Hud.__index = Hud
 
 -- The look is the shared pixel kit's (Ui): outlined pixel numbers, square ink-framed cards, key caps.

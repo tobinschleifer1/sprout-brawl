@@ -31,10 +31,16 @@ Camera2D.ZOOM_MIN, Camera2D.ZOOM_MAX, Camera2D.BH = ZOOM_MIN, ZOOM_MAX, BH
 function Camera2D.new(): any
 	local self = setmetatable({}, Camera2D)
 	self.x, self.y, self.ppu = 0, 10, 16
-	self.safeBottom = 0        -- backbuffer pixels the HUD covers, set by the HUD
+	self.safeBottom = 0        -- backbuffer pixels the HUD covers, set by the HUD (setHudBand)
 	self.shake = 0
 	self.shakeX, self.shakeY = 0, 0
 	return self
+end
+
+-- The HUD's card band, `px` screen pixels tall on a `viewportY`-tall screen, in the backbuffer units
+-- safeBottom is kept in.
+function Camera2D.setHudBand(self: any, px: number, viewportY: number)
+	self.safeBottom = if viewportY > 0 then px * BH / viewportY else 0
 end
 
 -- `bodies` is a list of { x, y, h, alive }. `viewport` is the canvas size in pixels.

@@ -87,3 +87,8 @@ positions, empty-sized text or buttons off screen.
 
 Still to do in Studio: drive each screen (Shop, Locker crate opening, Studio, select, a CPU match to
 the results) and read their trees.
+
+| # | Finding | Status |
+|---|---|---|
+| 25 | **The fight camera never left room for the HUD's player cards.** Camera2D has the web's fix (`safeBottom`, "set by the HUD") but nothing set it, so whenever one fighter was launched high, the fighters on the floor were framed behind the cards. The HUD now reports its band (`Hud.bandHeight`) and the client passes it each frame (`Camera2D.setHudBand`). Found rendering the maps with the HUD over them. | fixed |
+| 26 | The top of the HUD (clock, key hints, ULTIMATE READY - about 130 px) still covers a fighter launched very high: the camera reserves only the bottom. | open |

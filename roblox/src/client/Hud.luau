@@ -247,6 +247,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 	if compact then H = 84 end
 	local total = columns * W + (columns - 1) * GAP
 	self.layoutWidth = self.gui.AbsoluteSize.X
+	-- the screen pixels the card rows cover from the bottom edge, for the camera (Camera2D.safeBottom):
+	-- left at 0, it framed fighters on the floor behind these cards whenever someone was launched high
+	self.bandHeight = 14 + math.ceil(n / columns) * (H + GAP)
 	for i, entry in roster do
 		-- In a team match the tile wears the team's colour, as the web's does.
 		local colour = if self.teamsOn then HudColors.TEAM[((entry.team or 0) % 2) + 1] else HudColors.PLAYER[(entry.index % 8) + 1]

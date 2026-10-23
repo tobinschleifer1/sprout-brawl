@@ -63,6 +63,19 @@ for _, size in { { 1920, 1080 }, { 1280, 720 }, { 2560, 1080 }, { 812, 375 }, { 
 	end
 	checked += 1
 end
+-- with the HUD's card band set, fighters on the floor stay above it when someone is launched high
+-- (nothing set the band, so a floor fight went behind the HUD's cards whenever one fighter flew)
+for _, size in { { 1280, 720 }, { 1920, 1080 }, { 812, 375 } } do
+	local w, h = size[1], size[2]
+	local band = 94 * h / 720
+	local cam = Camera2D.new()
+	Camera2D.setHudBand(cam, band, h)
+	local bodies = { body(-6, 0), body(5, 0), body(2, 34) }
+	Camera2D.snapTo(cam, bodies, { X = w, Y = h } :: any)
+	local _, feet = screen(cam, w, h, -6, 0)
+	if feet > h - band then fail(`{w}x{h}: a fighter on the floor is drawn at {feet}, behind the HUD's cards (from {h - band})`) end
+	checked += 1
+end
 -- the same framing at every 16:9 resolution: the unit is screen pixels, scaled to the window
 local a, b = frame(close, 1920, 1080), frame(close, 1280, 720)
 if math.abs(a.ppu / 1080 - b.ppu / 720) > 1e-9 then fail("1080p and 720p frame a fight differently") end

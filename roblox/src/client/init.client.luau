@@ -909,6 +909,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 	end
 	if #bodies > 0 then
 		cam2d.shake = fx.shake * canvas:viewport().Y / 270
+		-- (room for the HUD's cards along the bottom: nothing set it, and floor fights went behind them)
+		cam2d:setHudBand(if hud and hud.bandHeight then hud.bandHeight else 0, canvas:viewport().Y)
 		cam2d:update(bodies, dt, canvas:viewport())
 	end
 

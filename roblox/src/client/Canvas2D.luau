@@ -455,6 +455,9 @@ local function imageFor(rects: { any }, cols: number, rows: number, flip: boolea
 			return { image = img, content = Content.fromObject(img) }
 		end)
 		entry[side] = if ok then content else false
+		-- one refusal ends images for the session: without the experience's EditableImage permission
+		-- every picture's attempt failed and logged Roblox's warning, a console flood all game long
+		if not ok then Canvas2D.IMAGES = false end
 	end
 	return entry[side] or nil
 end

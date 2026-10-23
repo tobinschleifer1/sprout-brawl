@@ -160,6 +160,16 @@ local rs = c.sprites["refused#1"] or fail("no refused sprite")
 if rs.frame.ClassName ~= "Frame" or #rs.frame.children ~= 1 then fail("a refused image did not fall back to Frames") end
 refuse = false
 Canvas2D.finish(c)
+-- and that one refusal ends images for the session: every later picture asked again and logged
+-- Roblox's warning, a console flood all game long without the permission
+do
+	local before = images
+	local third = { { 0, 0, 1, 1, "#654321", 1 } }
+	Canvas2D.sprite(c, "after", third, 0, 1, 1, 1, 1, 1)
+	if images ~= before or Canvas2D.IMAGES ~= false then fail(`a picture after a refused image asked for another image ({images - before})`) end
+	Canvas2D.IMAGES = true
+	Canvas2D.finish(c)
+end
 
 -- and the switch off: Frames everywhere
 Canvas2D.IMAGES = false

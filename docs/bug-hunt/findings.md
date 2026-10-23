@@ -73,3 +73,17 @@ The owner approved changing the shared simulation in both builds. With #15 and #
 
 `tests/solid-ground` replays the seven seeds that found these with every invariant checked each
 frame, in check.sh; each fix's removal makes it fail (mutation-checked).
+
+## Part 4: in Studio (2026-10-23)
+
+Played the place with this branch synced. The plaza's live GUI: 2,777 objects shown, none with NaN
+positions, empty-sized text or buttons off screen.
+
+| # | Finding | Status |
+|---|---|---|
+| 22 | **"EditableImage is not accessible" flooded the console all game** (hundreds within a minute). Without the experience's EditableImage permission every new picture tried for an image, was refused, and Roblox logged the warning; the start-up probe does not always catch it (Roblox gives the game's scripts a mix). One refusal now turns images off for the session. In Studio: 10 warnings at start, none in the 15 s after (it had kept climbing). | fixed |
+| 23 | The EditableImage permission itself is off for this experience, so every sprite is drawn as Frames, which costs more. Turning it on is the owner's setting (Experience Settings, Security). | owner |
+| 24 | `rbxassetid://203785492 failed due to: Asset type does not match` (three times). Nothing in the project references that asset - the game uses no asset ids - so it comes from outside the game (Roblox or a Studio plugin). | not ours |
+
+Still to do in Studio: drive each screen (Shop, Locker crate opening, Studio, select, a CPU match to
+the results) and read their trees.

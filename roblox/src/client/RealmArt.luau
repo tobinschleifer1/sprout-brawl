@@ -180,20 +180,35 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 		local jag = ((noise(xs / 4, seed) - 0.5) * 4 + (hash(xs // 2, 1, seed) - 0.5) * 2) * prof
 		local bottom = wallR + math.floor(taperR * prof + jag)
 		bottoms[x + 1] = bottom
+		-- (the UI's anatomy and the fighters' shading, in rock: a lit band along the top with a shine
+		-- row, strata in two tones down the wall, a dithered turn into the dark belly, a dark lip)
+		local belly = wallR + math.floor(taperR * prof * 0.55)
 		for y = 0, bottom do
 			local v = R[3]
-			if y <= 1 then v = R[4]                               -- the sunlit lip under the surface
-			elseif y >= bottom - 1 then v = R[1]
-			elseif y >= bottom - 3 or y > wallR + math.floor(taperR * prof * 0.55) then v = R[2] end  -- the shaded belly
-			if x == 0 then v = R[4] elseif x == W - 1 then v = R[2] end
+			-- the strata: courses 3-5 cells deep, alternating tone, a darker seam under each
+			-- (the courses step every 8 cells, not every 2: their rows merge into long runs)
+			local wob = math.floor(noise((x - x % 8) / 14, seed + 5) * 3)
+			local course = (y + wob) // 4
+			if course % 2 == 1 then v = R[3] else v = R[2] end
+			if (y + wob) % 4 == 3 and y > 3 then v = R[1] end
+			if y == 0 then v = R[5]                               -- the shine along the top
+			elseif y <= 2 then v = R[4]                           -- the lit band under the surface
+			elseif y >= bottom - 1 then v = R[1]                  -- the dark lip at the foot
+			elseif y > belly then
+				-- the belly: a mid-dark step, then dark (a dither here broke the rows into single
+				-- cells, and the fight's first frame went over its build budget)
+				v = if y > belly + 2 then R[1] else R[2]
+			end
+			if x <= 1 and y > 0 then v = R[4] elseif x >= W - 2 and y > 0 then v = R[1] end
 			put(g, x + margin, y, v)
 		end
 	end
-	-- cracks: short dark seams through the rock, each with a lit edge above it
-	for k = 0, math.max(2, W // 14) do
+	-- cracks: only the lava realms' glowing seams now (the strata carry the rock's texture, and the
+	-- plain dark cracks and lit stones they replace cost their rectangles twice over)
+	for k = 0, if realm.hang == "lava" then math.max(2, W // 14) else -1 do
 		local x = math.floor(hash(k, 3, seed) * (W - 6)) + 3
 		local y = 3 + math.floor(hash(k, 4, seed) * math.max(1, wallR))
-		local glowing = realm.hang == "lava" and k % 2 == 0
+		local glowing = k % 2 == 0
 		for _ = 1, 4 + math.floor(hash(k, 5, seed) * 6) do
 			if y >= bottoms[math.clamp(x + 1, 1, W)] - 2 then break end
 			put(g, x + margin, y, if glowing then GLOW else R[1])
@@ -204,8 +219,8 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 			x = math.clamp(x, 1, W - 2)
 		end
 	end
-	-- a few lit stones
-	for k = 0, W // 10 do
+	-- (no lit stones: see the cracks)
+	for k = 0, -1 do
 		local x = math.floor(hash(k, 6, seed) * (W - 4)) + 2
 		local y = 3 + math.floor(hash(k, 7, seed) * math.max(1, bottoms[x + 1] - 6))
 		put(g, x + margin, y, R[4]); put(g, x + margin + 1, y, R[4]); put(g, x + margin, y + 1, R[5])
@@ -240,12 +255,14 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 	local margin = 2
 	local top = 2
 	local mat = realm.material
-	local capR = if mat == "planks" then 4 else 3
+	local capR = if mat == "planks" then 4 else 3      -- (the shine replaces the top row: a row more cost the fight's Frame budget)
+	local SHINE = ink(mix(realm.top[3], "#FFFFFF", 0.45))
 	local g = PixelGrid.new(W + margin * 2, top + capR + 5)
 	for x = 0, W - 1 do
 		local gx = x + margin
 		for k = 0, capR - 1 do
-			local v = if k == 0 then T[3] elseif k < capR - 1 then T[2] else T[1]
+			-- (the top row lit almost to white: the light band a UI button wears)
+			local v = if k == 0 then SHINE elseif k < capR - 1 then T[2] else T[1]
 			if mat == "planks" and x % 9 == 0 and k > 0 then v = T[1] end
 			if mat == "flagstone" and (x + (if k > 1 then 5 else 0)) % 11 == 0 and k > 0 then v = T[1] end
 			if (mat == "ash" or mat == "cavestone") and k > 0 and hash(x, k, seed) > 0.93 then v = GLOW end
@@ -322,14 +339,19 @@ function RealmArt.shelf(realm: any, width: number, thick: number, style: string?
 	local S1, S2, S3 = ink(realm.shelfRamp[1]), ink(realm.shelfRamp[2]), ink(realm.shelfRamp[3])
 	local A, GLOW = ink(realm.accent), ink(realm.glow)
 	local W = math.floor(width * P + 0.5)
-	local T = math.max(4, math.floor(thick * P + 0.5))
+	-- (at least 6 rows: a face, a light band and shine over it, a dark lip under it - a UI button's
+	-- anatomy - where 4 rows read as a thin stick against the sky)
+	-- (a forge's iron girders stay thin: their truss pattern grows a row of rectangles with every row)
+	local T = math.max(if kind == "iron" then 4 else 6, math.floor(thick * P + 0.5))
 	local m = 2
 	local below = 9
 	local g = PixelGrid.new(W + m * 2, 1 + T + below)
 	local y0 = 1
+	local SH, LIP = ink(mix(realm.shelfRamp[3], "#FFFFFF", 0.4)), ink(mix(realm.shelfRamp[1], "#000000", 0.25))
 	PixelGrid.rect(g, m, y0, W, T, S2)
-	PixelGrid.rect(g, m, y0, W, 1, S3)
-	PixelGrid.rect(g, m, y0 + T - 1, W, 1, S1)
+	PixelGrid.rect(g, m, y0, W, 1, SH)
+	PixelGrid.rect(g, m, y0 + 1, W, 1, S3)
+	PixelGrid.rect(g, m, y0 + T - 1, W, 1, LIP)
 	if kind == "wood" or kind == "minecart" then
 		for x = 0, W - 1 do
 			if (x + (x // 23)) % 8 == 0 then
@@ -664,8 +686,11 @@ local function layer(realm: any, which: string): Art
 			put(g, x, y, lit)
 		end
 	elseif which == "landmark" then
+		-- hazed toward the sky (40%): the landmark is scenery, and drawn at full strength it was the
+		-- brightest thing on screen, brighter than the island the fight is on
 		local fn = landmarks[realm.landmark]
-		if fn then fn(g, ink, realm, base + 8) end
+		local haze = function(hex: string, a: number?): number return ink(mix(hex, realm.sky[3], 0.4), a) end
+		if fn then fn(g, haze, realm, base + 8) end
 	elseif which == "near" then
 		local body, lit, topC = ink(realm.near), ink(mix(realm.rock[4], realm.sky[3], 0.15)), ink(mix(realm.top[2], realm.sky[3], 0.15))
 		farIsland(g, 30, 64, 30, body, lit, topC, 1)

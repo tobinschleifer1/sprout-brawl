@@ -179,8 +179,16 @@ export class StageRuntime {
     const bodyBottom = Math.min(py, ny), bodyTop = Math.max(py, ny) + h;
     for (const sp of this.solids) {
       if (!(bodyBottom < sp.top - 0.05 && bodyTop > sp.bottom)) continue;
+      // (from outside the footing band - 0.6 r, the overhang a fighter may stand at - not only from fully
+      // outside: falling past a top corner put a fighter in the band below the top, where neither this nor
+      // the landing caught them, and they moved on into the solid)
+      // (the band only for a fighter whose feet were below its top last frame: one standing at the edge
+      // of a rising foothold is on it, not entering it)
+      const below = py < sp.top - sp.dy - 0.05;
       if (px <= sp.x1 - r + 0.001 && x > sp.x1 - r) { x = sp.x1 - r; wall = true; }
       else if (px >= sp.x2 + r - 0.001 && x < sp.x2 + r) { x = sp.x2 + r; wall = true; }
+      else if (below && px <= sp.x1 - r * 0.6 + 0.001 && x > sp.x1 - r && x >= px) { x = sp.x1 - r; wall = true; }
+      else if (below && px >= sp.x2 + r * 0.6 - 0.001 && x < sp.x2 + r && x <= px) { x = sp.x2 + r; wall = true; }
       else if (sp.dx && x > sp.x1 - r && x < sp.x2 + r && py < sp.top - sp.dy - 0.05) {
         // Only for a solid that MOVED this frame: it drove into a fighter who never moved into it,
         // so nothing above catches it. Eject out the nearer face. Restricted to moving solids
@@ -205,10 +213,24 @@ export class StageRuntime {
     } else if (f.vy > 0) {
       for (const sp of this.solids) {
         const inside = x + r * 0.6 > sp.x1 && x - r * 0.6 < sp.x2;
-        if (inside && py + h <= sp.bottom && y + h > sp.bottom) { y = sp.bottom - h; bumped = true; break; }
+        // (+0.001: a fighter bumped to exactly the underside sits a rounding error above it next frame,
+        // and without it a rising move carried them up through the solid)
+        if (inside && py + h <= sp.bottom + 0.001 && y + h > sp.bottom) { y = sp.bottom - h; bumped = true; break; }
       }
     }
     return { x, y, landed, wall, bumped };
+  }
+
+  // Where a fighter placed at x (a held or thrown one) may stand without being inside a solid: out of
+  // any solid its body overlaps, on the side nearer `fromX` (the one placing it). A grab beside a block
+  // on the floor put its victim inside the block.
+  clearX(x, y, r, h, fromX) {
+    for (const sp of this.solids) {
+      if (x + r > sp.x1 && x - r < sp.x2 && y < sp.top - 0.05 && y + h > sp.bottom + 0.05) {
+        x = fromX < (sp.x1 + sp.x2) / 2 ? sp.x1 - r : sp.x2 + r;
+      }
+    }
+    return x;
   }
 
   // Is the fighter still supported by its platform?

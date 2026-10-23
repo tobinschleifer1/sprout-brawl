@@ -336,10 +336,21 @@ function Stage.collide(self: Stage, f: any, px: number, py: number, nx: number, 
 	local bodyBottom, bodyTop = math.min(py, ny), math.max(py, ny) + h
 	for _, sp in self.solids do
 		if bodyBottom < sp.top - 0.05 and bodyTop > sp.bottom then
+			-- (from outside the footing band - 0.6 r - not only from fully outside: falling past a top corner
+			-- put a fighter in the band below the top, and they moved on into the solid; stage.js)
+			-- (the band only for a fighter whose feet were below its top last frame: one standing at the edge of
+			-- a rising foothold is on it, not entering it)
+			local below = py < sp.top - sp.dy - 0.05
 			if px <= sp.x1 - r + 0.001 and x > sp.x1 - r then
 				x = sp.x1 - r
 				wall = true
 			elseif px >= sp.x2 + r - 0.001 and x < sp.x2 + r then
+				x = sp.x2 + r
+				wall = true
+			elseif below and px <= sp.x1 - r * 0.6 + 0.001 and x > sp.x1 - r and x >= px then
+				x = sp.x1 - r
+				wall = true
+			elseif below and px >= sp.x2 + r * 0.6 - 0.001 and x < sp.x2 + r and x <= px then
 				x = sp.x2 + r
 				wall = true
 			elseif sp.dx ~= 0 and x > sp.x1 - r and x < sp.x2 + r and py < sp.top - sp.dy - 0.05 then
@@ -369,7 +380,9 @@ function Stage.collide(self: Stage, f: any, px: number, py: number, nx: number, 
 	elseif f.vy > 0 then
 		for _, sp in self.solids do
 			local inside = x + r * 0.6 > sp.x1 and x - r * 0.6 < sp.x2
-			if inside and py + h <= sp.bottom and y + h > sp.bottom then
+			-- (+0.001: a fighter bumped to exactly the underside sits a rounding error above it next frame,
+			-- and without it a rising move carried them up through the solid)
+			if inside and py + h <= sp.bottom + 0.001 and y + h > sp.bottom then
 				y = sp.bottom - h
 				bumped = true
 				break
@@ -377,6 +390,17 @@ function Stage.collide(self: Stage, f: any, px: number, py: number, nx: number, 
 		end
 	end
 	return { x = x, y = y, landed = landed, wall = wall, bumped = bumped }
+end
+
+-- Where a fighter placed at x (a held or thrown one) may stand without being inside a solid: out of
+-- any solid its body overlaps, on the side nearer `fromX` (the one placing it) - stage.js clearX.
+function Stage.clearX(self: Stage, x: number, y: number, r: number, h: number, fromX: number): number
+	for _, sp in self.solids do
+		if x + r > sp.x1 and x - r < sp.x2 and y < sp.top - 0.05 and y + h > sp.bottom + 0.05 then
+			x = if fromX < (sp.x1 + sp.x2) / 2 then sp.x1 - r else sp.x2 + r
+		end
+	end
+	return x
 end
 
 function Stage.supported(self: Stage, f: any): boolean

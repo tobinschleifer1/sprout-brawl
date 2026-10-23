@@ -1231,6 +1231,8 @@ export class Fighter {
       const k = 1 / Math.max(1, h.reel);
       v.x += (tx - v.x) * k; v.y += (ty - v.y) * k; h.reel--;
     } else { v.x = tx; v.y = ty; }
+    const stage = this._match && this._match.stage;
+    if (stage) v.x = stage.clearX(v.x, v.y, v.r, v.h, this.x);
     v.facing = -this.facing; v.onGround = this.onGround; v.vx = 0; v.vy = 0;
   }
   _stepHolding(ctx) {

@@ -55,6 +55,21 @@ blast zone.
 
 | # | Finding | Status |
 |---|---|---|
-| 15 | **Fighters pass up through solid platforms.** A fighter who bumps their head under a solid is placed exactly at its underside (`y = bottom - h`); next frame the check `py + h <= sp.bottom` fails by a rounding error (-11.2 + 5.2 is not exactly -6.0), so a rising move - an up-special, a double jump - carries them through, inside the stage. 35 of 400 fuzzed matches. Found on Ashfall Summit, seed 2: fall off the edge, drift under, jump, recover. Fix: `py + h <= sp.bottom + 0.001` (tested: removes those 35). **Shared simulation**: `roblox/src/shared/Stage.luau:372` mirrors `web/src/engine/stage.js` `collide`, so the fix belongs in both builds (parity), and the owner's rule is no web changes - needs your call. | open (decision) |
-| 16 | **A grab drops the grabbed fighter inside a solid.** The grab snaps the victim to the grabber's front with no collision; beside Saltflat's bunker (a solid block on the floor) that puts them inside it, and they walk out through it. Seed 131 frame 2799 (`FUZZ_TRACE=131:3:2803`). About 15 of 400 matches. Also shared simulation (Combat's grab), same decision as #15. | open (decision) |
+| 15 | **Fighters passed up through solid platforms.** A fighter who bumps their head under a solid is placed exactly at its underside (`y = bottom - h`); next frame the check `py + h <= sp.bottom` fails by a rounding error (-11.2 + 5.2 is not exactly -6.0), so a rising move - an up-special, a double jump - carries them through, inside the stage. 35 of 400 fuzzed matches. Found on Ashfall Summit, seed 2: fall off the edge, drift under, jump, recover. Fix: `py + h <= sp.bottom + 0.001` (tested: removes those 35). **Shared simulation**: `roblox/src/shared/Stage.luau:372` mirrors `web/src/engine/stage.js` `collide`, so the fix belongs in both builds (parity), and the owner's rule is no web changes - the owner approved the web change (2026-10-23). | fixed |
+| 16 | **A grab drops the grabbed fighter inside a solid.** The grab snaps the victim to the grabber's front with no collision; beside Saltflat's bunker (a solid block on the floor) that puts them inside it, and they walk out through it. Seed 131 frame 2799 (`FUZZ_TRACE=131:3:2803`). About 15 of 400 matches. Shared simulation: `Stage.clearX` in both builds now places a held or thrown fighter out of any solid, on the holder's side. | fixed |
 | 17 | Stock team matches can run past 8 minutes: two impossible bots (Blasters vs Chakram, Faultline) traded for 8 minutes with one KO at 166-200%; a 5-stock 2v2 on Undertow still going. Balance/AI rather than a bug, but there is no clock on a stock match, so nothing ends it. | design |
+
+### Part 3, continued: fixing the ways into solid ground (2026-10-23)
+
+The owner approved changing the shared simulation in both builds. With #15 and #16 fixed, the fuzzer
+(now measuring the body as the game's own footing test does: 0.6 of the radius) found three more:
+
+| # | Finding | Status |
+|---|---|---|
+| 18 | **Corner tunnelling.** Falling diagonally past a solid's top corner, a fighter's body slid into the band beside it while the feet were still above the top; the landing missed (centre too far out) and the side check only stops a fighter coming from fully outside, so they moved on into the solid (Saltflat's bunker, seed 137). The side check now also catches one entering from outside the footing band, if their feet were below the top last frame (not one standing at the edge of a rising foothold - the web climb test caught that). Both builds. | fixed |
+| 19 | **Redline Reversal (Rocket Boots' ultimate) ran straight through a block standing on its platform** - it moves the kicker a fixed step a frame and clamped only to the platform's ends. Roblox-only code. | fixed |
+| 20 | **A vortex ultimate dragged its victim through solids**, and the Rundown ultimate could land its user inside one beside the target. Both builds, through `clearX`. | fixed |
+| 21 | 3 of 1,200 fresh fuzzed matches still end up inside a solid (seeds 1254, 1302 and one in 3000-3399), down from about 1 in 8. Not traced yet. | open |
+
+`tests/solid-ground` replays the seven seeds that found these with every invariant checked each
+frame, in check.sh; each fix's removal makes it fail (mutation-checked).

@@ -1757,6 +1757,8 @@ function methods._positionHeld(self)
 	else
 		v.x = tx; v.y = ty
 	end
+	local stage = self._match and self._match.stage
+	if stage then v.x = stage:clearX(v.x, v.y, v.r, v.h, self.x) end
 	v.facing = -self.facing; v.onGround = self.onGround; v.vx = 0; v.vy = 0
 end
 

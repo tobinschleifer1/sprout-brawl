@@ -340,6 +340,7 @@ export class Combat {
     let facing = attacker.facing;
     if (td.behind) { facing = -attacker.facing; if (!td.keepFacing && !attacker.move) attacker.facing = facing; }
     victim.x = attacker.x + facing * (attacker.r + victim.r + 0.5); victim.y = attacker.y + 0.3;
+    victim.x = this.match.stage.clearX(victim.x, victim.y, victim.r, victim.h, attacker.x);
     victim.holder = null;
     const mul = attacker.launchMul || 1;
     const launch = launchSpeed(td.base, td.growth, damage, victim.percent + damage, victim.weight) * mul;
@@ -423,6 +424,7 @@ export class Combat {
   teamThrow(f, v, dir) {
     v.holder = null; v.onGround = false; v.platform = null;
     v.x = f.x + f.facing * (f.r + v.r + 0.5); v.y = f.y + 0.3;
+    v.x = this.match.stage.clearX(v.x, v.y, v.r, v.h, f.x);
     if (dir === 'up') {
       const B = TEAM.boost;
       v.vx = f.facing * B.vx; v.vy = B.vy;
@@ -601,8 +603,10 @@ export class Combat {
           // Enough mashing turns the pull negative and the victim starts drifting back out.
           const rate = (V.pullSpeed - (v.ultEscape || 0) * V.escapeBite) * FRAME;
           const step = rate >= 0 ? Math.min(d, rate) : rate;
+          const wasX = v.x;
           v.x += (dx / d) * step + v.input.x * V.diPerFrame;
           v.y += (dy / d) * step + v.input.y * V.diPerFrame;
+          v.x = this.match.stage.clearX(v.x, v.y, v.r, v.h, wasX);   // (dragged up to a solid, not through it)
           v.vx = 0; v.vy = 0; v.onGround = false; v.platform = null;
           v.hitstun = Math.max(v.hitstun, 3);
           if (v.state !== 'hitstun') v.setState('hitstun');
@@ -698,6 +702,7 @@ export class Combat {
       if (!target) return;
       const side = Math.sign(f.x - target.x) || 1;
       f.x = target.x + side * R.standoff;
+      f.x = this.match.stage.clearX(f.x, target.y, f.r, f.h, target.x);   // (never inside a solid beside them)
       f.y = target.y;
       f.facing = -side;
       f.vx = 0; f.vy = 0;

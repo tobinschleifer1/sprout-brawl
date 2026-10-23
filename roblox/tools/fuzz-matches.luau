@@ -31,8 +31,13 @@ local function rng(seed)
 end
 
 local failures, played, frames = {}, 0, 0
-for k = 0, N - 1 do
-	local seed = SEED0 + k
+local seeds = {}
+if process.env.FUZZ_SEEDS then
+	for v in string.gmatch(process.env.FUZZ_SEEDS, "%d+") do table.insert(seeds, tonumber(v)) end
+else
+	for k = 0, N - 1 do table.insert(seeds, SEED0 + k) end
+end
+for _, seed in seeds do
 	local r = rng(seed * 7919)
 	local mode = MODES[r(#MODES)]
 	local n = if string.find(mode, "Teams") then 2 * r(3) else 1 + r(5)
@@ -62,7 +67,7 @@ for k = 0, N - 1 do
 		if pre and f > TA - 40 and f <= TA then
 			local solids = {}
 			for i, q in m.stage.solids do table.insert(solids, string.format("#%d %.1f..%.1f y %.2f..%.2f%s", i, q.x1, q.x2, q.bottom, q.top, if q.dy ~= 0 or q.dx ~= 0 then string.format(" moving %.2f,%.2f", q.dx, q.dy) else "")) end
-			print(string.format("f%d (%.2f, %.2f %s) -> (%.2f, %.2f) feet..head %.2f..%.2f v %.1f,%.1f %s | %s", f, px, py, pst, pre.x, pre.y, pre.y, pre.y + pre.h, pre.vx, pre.vy, pre.state, table.concat(solids, "; ")))
+			print(string.format("f%d (%.2f, %.2f %s) -> (%.2f, %.2f) feet..head %.2f..%.2f r %.2f v %.1f,%.1f %s %s | %s", f, px, py, pst, pre.x, pre.y, pre.y, pre.y + pre.h, pre.r, pre.vx, pre.vy, pre.state, tostring(pre.move and pre.move.id), table.concat(solids, "; ")))
 		end
 		f += 1
 		if not stepped then problem = `frame {f}: step ERROR {err}`; break end
@@ -83,7 +88,8 @@ for k = 0, N - 1 do
 				-- (the body's box, a quarter-stud in from its edges, against the solid's: a fighter's centre
 				-- point missed one walking along the floor through a block standing on it)
 				for _, p in m.stage.solids do
-					if ft.x + ft.r - 0.25 > p.x1 and ft.x - ft.r + 0.25 < p.x2 and ft.y < p.top - 0.25 and ft.y + ft.h > p.bottom + 0.25 then stuck = true end
+					-- (0.6 of the radius, as the game's own footing test: an edge may be overhung by 40%)
+					if ft.x + ft.r * 0.6 > p.x1 + 0.05 and ft.x - ft.r * 0.6 < p.x2 - 0.05 and ft.y < p.top - 0.25 and ft.y + ft.h > p.bottom + 0.25 then stuck = true end
 				end
 			end
 			inside[ft] = if stuck then (inside[ft] or 0) + 1 else 0
@@ -100,3 +106,5 @@ for k = 0, N - 1 do
 end
 print(string.format("%d matches, %.1f minutes of fights, %d problems", played, frames / 3600, #failures))
 for _, x in failures do print("  " .. x) end
+-- FUZZ_SEEDS=a,b,c plays exactly those seeds; FUZZ_STRICT=1 fails on any problem (tests/solid-ground)
+if process.env.FUZZ_STRICT == "1" and #failures > 0 then error(`{#failures} fuzzed matches broke an invariant`, 0) end

@@ -512,6 +512,7 @@ function Combat.resolveThrow(self, attacker: any, victim: any, td: any, tangle: 
 	end
 	victim.x = attacker.x + facing * (attacker.r + victim.r + 0.5)
 	victim.y = attacker.y + 0.3
+	victim.x = self.match.stage:clearX(victim.x, victim.y, victim.r, victim.h, attacker.x)
 	victim.holder = nil
 	local mul = attacker.launchMul or 1
 	local after = victim.percent + damage
@@ -626,6 +627,7 @@ function Combat.teamThrow(self, f: any, v: any, dir: string)
 	v.platform = nil
 	v.x = f.x + f.facing * (f.r + v.r + 0.5)
 	v.y = f.y + 0.3
+	v.x = self.match.stage:clearX(v.x, v.y, v.r, v.h, f.x)
 	if dir == "up" then
 		local B = Config.TEAM.boost
 		v.vx = f.facing * B.vx
@@ -850,7 +852,9 @@ function Combat.stepRedline(_self, f: any, m: any)
 			local nx = f.x + f.facing * w[3] / (w[2] - w[1] + 1)
 			local pl = f.platform
 			if pl then nx = math.clamp(nx, pl.x1 + 0.6, pl.x2 - 0.6) end
-			f.x = nx
+			-- (and stopped at a solid standing on it - Saltflat's bunker - which it ran straight through)
+			local stage = _self.match and _self.match.stage      -- (none in the client's predictor)
+			f.x = if stage then stage:clearX(nx, f.y, f.r, f.h, f.x) else nx
 		end
 	end
 end
@@ -963,8 +967,10 @@ function Combat.onMoveActiveFrame(self, f: any, m: any)
 					-- Enough mashing turns the pull negative and the victim drifts back out.
 					local rate = (V.pullSpeed - (v.ultEscape or 0) * V.escapeBite) * FRAME
 					local stepLen = if rate >= 0 then math.min(d, rate) else rate
+					local wasX = v.x
 					v.x += (dx / d) * stepLen + v.input.x * V.diPerFrame
 					v.y += (dy / d) * stepLen + v.input.y * V.diPerFrame
+					v.x = self.match.stage:clearX(v.x, v.y, v.r, v.h, wasX)   -- (dragged up to a solid, not through it)
 					v.vx = 0; v.vy = 0; v.onGround = false; v.platform = nil
 					v.hitstun = math.max(v.hitstun, 3)
 					if v.state ~= "hitstun" then
@@ -1086,6 +1092,7 @@ function Combat.onMoveActiveFrame(self, f: any, m: any)
 		end
 		local side = sign(f.x - target.x)
 		f.x = target.x + side * R.standoff
+		f.x = self.match.stage:clearX(f.x, target.y, f.r, f.h, target.x)   -- (never inside a solid beside them)
 		f.y = target.y
 		f.facing = -side
 		f.vx = 0; f.vy = 0

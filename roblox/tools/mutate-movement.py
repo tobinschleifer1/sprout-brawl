@@ -399,6 +399,14 @@ huntui = [
     ('member names wrap', 'LobbySocial', '\t\tUi.fit(name, 9)\n', '', 'wraps rather than'),
 ]
 
+solidground = [
+    ('ceiling by a hair', 'shared/Stage', 'if inside and py + h <= sp.bottom + 0.001 and y + h > sp.bottom then', 'if inside and py + h <= sp.bottom and y + h > sp.bottom then', 'inside solid ground'),
+    ('held into a block', 'shared/Fighter', 'if stage then v.x = stage:clearX(v.x, v.y, v.r, v.h, self.x) end', 'local _ = stage', 'inside solid ground'),
+    ('corner band open', 'shared/Stage', '\t\t\telseif below and px >= sp.x2 + r * 0.6 - 0.001 and x < sp.x2 + r and x <= px then', '\t\t\telseif false then', 'inside solid ground'),
+    ('redline through blocks', 'shared/Combat', 'f.x = if stage then stage:clearX(nx, f.y, f.r, f.h, f.x) else nx', 'f.x = nx', 'inside solid ground'),
+    ('vortex through blocks', 'shared/Combat', 'v.x = self.match.stage:clearX(v.x, v.y, v.r, v.h, wasX)   -- (dragged up to a solid, not through it)', 'local _ = wasX', 'inside solid ground'),
+]
+
 selectui = [
     ('roster gap falls back', 'SelectScreen', 'cell, gap = math.min(cell, fits), math.max(gap, Ui.CHOSEN_GAP)', 'cell = math.min(cell, fits)', 'portraits are'),
     ('compact gap tight', 'SelectScreen', '\t\t\tgap = 12\n', '\t\t\tgap = 8\n', 'portraits are'),
@@ -455,7 +463,7 @@ clothingshop = [
     ('forget forgets nothing', 'server/Shop', 'self.intents[userId], self.pieceIntents[userId], self.packIntents[userId] = nil, nil, nil', 'local _ = userId', 'kept after they left'),
 ]
 
-for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui), ('select-screen', selectui), ('locker-ui', gaps), ('shop-ui', shoptabs), ('records-ui', records), ('ui-kit', mounts), ('locker-ui', crates), ('plaza-view', plazaphone), ('creator-ui', studiobars), ('item-art', itemart), ('social-ui', huntui), ('ui-kit', [('pill fixed width', 'Ui', 'if need > p.Size.X.Offset then p.Size = UDim2.fromOffset(math.ceil(need), p.Size.Y.Offset) end', '', 'for a value that needs more')])]:
+for suite, faults in [('movement', movement), ('posture', posture), ('overlap', overlap), ('dual-wield', dual), ('kicks', kicks), ('loot', loot), ('cosmetics', cosmetics), ('economy', economy), ('locker-ui', lockerui), ('shop-ui', shopui), ('kit-k2', kitk2), ('clothing-ui', clothingui), ('clothing-shop', clothingshop), ('shop', shop), ('avatar-store', avatarstore), ('secondary', secondary), ('emotes', emotes), ('ui-kit', uikit), ('hud-writes', hudwrites), ('social-ui', socialui), ('select-screen', selectui), ('locker-ui', gaps), ('shop-ui', shoptabs), ('records-ui', records), ('ui-kit', mounts), ('locker-ui', crates), ('plaza-view', plazaphone), ('creator-ui', studiobars), ('item-art', itemart), ('solid-ground', solidground), ('social-ui', huntui), ('ui-kit', [('pill fixed width', 'Ui', 'if need > p.Size.X.Offset then p.Size = UDim2.fromOffset(math.ceil(need), p.Size.Y.Offset) end', '', 'for a value that needs more')])]:
     if args.suite and suite not in args.suite:
         continue
     selected += len(faults)

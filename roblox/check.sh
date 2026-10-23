@@ -227,3 +227,5 @@ echo "== ui lint: every screen recorded, no outlined buttons closer than 8 px be
 tools/ui-lint.sh
 echo "== item art: every cosmetic and crate picture draws inside its tile =="
 lune run tests/item-art
+echo "== solid ground: the fuzzed matches that found fighters inside solids =="
+lune run tests/solid-ground

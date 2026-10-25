@@ -223,6 +223,21 @@ DRAW.tide = function(c, v, stage, realm, t)
 	end
 end
 
+-- The same sea behind the island, so what shows under its belly is the water and not the sky's far
+-- sea (round 5: a grey column the width of the island, between two saturated seas). Drawn before
+-- the stage, whole tiles from the left edge's water onward, so it continues that side's pattern.
+local BACK: { [string]: (any, any, any, any, number) -> () } = {}
+BACK.tide = function(c, v, stage, realm, t)
+	local W = waterOf(realm)
+	local art = DisasterArt.liquid("water", math.floor(t * 6) % 8, W)
+	Canvas2D.rect(c, -v.edge, stage.blast.bottom, v.edge * 2, v.level - 9 - stage.blast.bottom, hex(W[2]), 0.92)
+	local x = -v.edge
+	while x < v.edge do
+		DisasterArt.draw(c, art, x, v.level + 1, 1 / P, 0.92)
+		x += TILE
+	end
+end
+
 DRAW.roguewave = function(c, v, stage, realm, t)
 	local W = waterOf(realm)
 	local y = if stage.visual and stage.visual.tide then stage.visual.tide.level else stage.main.top
@@ -287,6 +302,14 @@ function HazardArt.draw(c: any, visual: any, stage: any, realm: any, t: number)
 	for _, name in HazardArt.ORDER do
 		local v = visual[name]
 		if v then DRAW[name](c, v, stage, realm, t) end
+	end
+end
+
+-- What a hazard draws behind the stage (only the tide, so far).
+function HazardArt.back(c: any, visual: any, stage: any, realm: any, t: number)
+	for name, fn in BACK do
+		local v = visual[name]
+		if v then fn(c, v, stage, realm, t) end
 	end
 end
 

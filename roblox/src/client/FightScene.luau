@@ -86,6 +86,12 @@ function FightScene.draw(c: any, S: any): any
 		-- a function of stage time and `sinking` is a function of who is standing on it, and only
 		-- the server knows the second.
 		Stage.applyDynamicState(S.stage, S.platforms)
+		if S.scene and S.scene.hazards then
+			local backRealm = Realms.of(S.stage.data and S.stage.data.id) or Realms.LIST[1]
+			guard(-6, "the hazards failed to draw", function()
+				HazardArt.back(c, S.scene.hazards, S.stage, backRealm, S.scene.frame * FRAME)
+			end)
+		end
 		Stage2D.draw(c, S.stage)
 	end
 	-- Natural disasters, in the realm's pixel art (DisasterArt): the body behind the fighters, the

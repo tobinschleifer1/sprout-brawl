@@ -31,7 +31,7 @@ for _, realm in Realms.LIST do
 					topStep = math.min(topStep, (L + 0.05) / (RealmArt.lum(tone) + 0.05))
 				end
 			end
-			local sCap = if day then math.max(capS, select(2, RealmArt.hsv(realm.sky[2])) * 0.5) else capS
+			local sCap = math.max(capS, select(2, RealmArt.hsv(realm.sky[2])) * (if day then 0.5 else 0.75))
 			if ratio < 1.5 - 0.03 or topStep < 1.2 - 0.03 or S > sCap + 0.02 then      -- (1.5 here, not the code's constant: a test that reads it moves with it)
 				off += a
 				worst = worst or string.format("%s (L %.3f, S %.2f: %.2f:1 %s from the rock's L %.3f, S %.2f)", r[5], L, S, ratio, if day then "lighter" else "darker", body, capS)
@@ -40,18 +40,50 @@ for _, realm in Realms.LIST do
 		end
 		-- a landmark keeps its own shading: hazed colour by colour it went flat (a ghost hall, a
 		-- one-tone pyramid, about 1.1:1); its tones must still span 1.2:1
+		-- (by area, 10th to 90th percentile: the darkest and lightest pixel anywhere let a landmark pass on
+		-- an accent or a storm lid while 92% of it was two tones 1.05:1 apart - round 5)
 		if which == "landmark" then
-			local lo, hi = math.huge, -math.huge
+			local ls, total = {}, 0
 			for _, r in RealmArt.layer(realm, which).rects do
-				local L = RealmArt.lum(r[5]); lo = math.min(lo, L); hi = math.max(hi, L)
+				table.insert(ls, { RealmArt.lum(r[5]), r[3] * r[4] }); total += r[3] * r[4]
 			end
-			if hi ~= -math.huge and (hi + 0.05) / (lo + 0.05) < 1.2 then
-				fail(`{realm.id} landmark: its tones span only {string.format("%.2f", (hi + 0.05) / (lo + 0.05))}:1 - hazed flat`)
+			table.sort(ls, function(a, b) return a[1] < b[1] end)
+			local function pct(p: number): number
+				local acc = 0
+				for _, e in ls do acc += e[2]; if acc >= p * total then return e[1] end end
+				return ls[#ls][1]
+			end
+			if total > 0 and (pct(0.9) + 0.05) / (pct(0.1) + 0.05) < 1.2 then
+				fail(`{realm.id} landmark: by area its tones span only {string.format("%.2f", (pct(0.9) + 0.05) / (pct(0.1) + 0.05))}:1 (10th to 90th percentile) - hazed flat`)
 			end
 		end
-		local allowed = if which == "landmark" then 0.08 else 0
+		-- (a rainbow is its landmark's whole shape and its colour is the point: a named exception)
+		local allowed = if which == "landmark" then (if realm.landmark == "rainbow" then 0.95 else 0.08) else 0
 		if area > 0 and off / area > allowed + 1e-9 then
 			fail(`{realm.id} {which}: {string.format("%.1f", 100 * off / area)}% of its area breaks the value rule (allowed {allowed * 100}%), e.g. {worst}`)
+		end
+	end
+end
+-- the depth ladder: far ridge, then landmark, then island - the ridge beyond the landmark, lighter than
+-- (nearly) all of it on a daylight realm and darker on a dark one (the landmark sat on the wrong side of
+-- the ridge on every realm, round 5); weighted by area, so a small accent does not count
+for _, realm in Realms.LIST do
+	local farRects = RealmArt.layer(realm, "far").rects
+	local landRects = RealmArt.layer(realm, "landmark").rects
+	if #farRects > 0 and #landRects > 0 then
+		local farL = RealmArt.lum(farRects[1][5])
+		local ls, total = {}, 0
+		for _, r in landRects do table.insert(ls, { RealmArt.lum(r[5]), r[3] * r[4] }); total += r[3] * r[4] end
+		table.sort(ls, function(a, b) return a[1] < b[1] end)
+		local function pct(p)
+			local acc = 0
+			for _, e in ls do acc += e[2]; if acc >= p * total then return e[1] end end
+			return ls[#ls][1]
+		end
+		if RealmArt.daylight(realm) then
+			if farL <= pct(0.9) then fail(`{realm.id}: the far ridge (L {string.format("%.3f", farL)}) is not lighter than its landmark (90% at L {string.format("%.3f", pct(0.9))})`) end
+		else
+			if farL >= pct(0.1) then fail(`{realm.id}: the far ridge (L {string.format("%.3f", farL)}) is not darker than its landmark (10% at L {string.format("%.3f", pct(0.1))})`) end
 		end
 	end
 end

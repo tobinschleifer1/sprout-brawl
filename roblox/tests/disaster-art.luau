@@ -64,7 +64,7 @@ Canvas.sprite = function(c: any, key: string, list: any, x0: number, y1: number,
 	local wx, wy = world(c, x0 + cols * pw / 2, y1 - rows * ph / 2)
 	local colours = {}
 	for _, r in list do colours[r[5]] = true end
-	table.insert(sprites, { key = key, x = wx, y = wy, w = cols * pw, h = rows * ph, colours = colours })
+	table.insert(sprites, { key = key, x = wx, y = wy, w = cols * pw, h = rows * ph, colours = colours, seq = #sprites + 1 })
 end
 local function canvas(): any
 	return setmetatable({ used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 },
@@ -230,13 +230,24 @@ for _, data in Stages.LIST do
 		end
 		local tide = visual and visual.tide
 		if tide then
-			-- the sea stays outside the island: no water tile reaches over it
+			-- the sea stays outside the island: no water tile reaches over it. One drawn before the
+			-- island, behind it, is the sea showing under its belly (without it a grey column of the
+			-- sky's far sea showed there, round 5) - and there must be one
+			local island = find("|island|")
+			local firstIsland = math.huge
+			for _, s in island do firstIsland = math.min(firstIsland, s.seq) end
+			if firstIsland == math.huge then fail("the tide's stage drew no island") end
+			local behind = 0
 			for _, s in find("^disaster|water|") do
 				local lo, hi = s.x - s.w / 2, s.x + s.w / 2
 				if hi > -tide.edge + 1e-6 and lo < tide.edge - 1e-6 then
-					fail(`the tide lapped over the island: a tile spans {lo}..{hi}, the island {-tide.edge}..{tide.edge}`)
+					if s.seq > firstIsland then
+						fail(`the tide lapped over the island: a tile spans {lo}..{hi}, the island {-tide.edge}..{tide.edge}`)
+					end
+					behind += 1
 				end
 			end
+			if behind == 0 then fail("no sea behind the island: its belly hangs over the sky's far sea") end
 		end
 		local arc = visual and visual.antennaarc
 		if arc then

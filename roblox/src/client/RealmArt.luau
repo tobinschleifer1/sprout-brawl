@@ -90,6 +90,62 @@ function RealmArt.accent(realm: any, hex: string): string
 	return c
 end
 
+-- A landmark's colours mapped as a set: each hazed (RealmArt.backdrop's rules), then the set's
+-- luminances spread back over a band - above the day floor on a daylight realm, under the ceiling on a
+-- dark one - in their original order, hue and saturation kept (saturation within the rock's)
+function RealmArt.landmarkMap(realm: any, fn: any, base: number): (string) -> string
+	local seen: { [string]: boolean } = {}
+	local list: { string } = {}
+	if fn then
+		local probe = PixelGrid.new(TILE_W // SKY_PX, TILE_H // SKY_PX)      -- (the sky tile: SW, SH are declared below)
+		fn(probe, function(hex: string, _a: number?, accent: boolean?): number
+			if not accent and not seen[hex] then seen[hex] = true; table.insert(list, hex) end
+			return 1
+		end, realm, base)
+	end
+	local lo, hi = math.huge, -math.huge
+	for _, hex in list do local L = lum(hex); lo = math.min(lo, L); hi = math.max(hi, L) end
+	local day = RealmArt.daylight(realm)      -- (through the module: daylight is declared below)
+	local body = lum(realm.rock[3])
+	local _, capS = hsv(realm.rock[3])
+	local floorL, topL
+	-- (a little inside each limit: the walk to a luminance stops within 0.004 of it)
+	if day then
+		floorL = RealmArt.dayFloor(realm) + 0.01
+		topL = math.min(0.92, floorL + 0.28)
+	else
+		topL = (body + 0.05) / RealmArt.BACKDROP_STEP - 0.05 - 0.008
+		floorL = topL * 0.6      -- (room for the landmark's own shading: at 0.7 TheSpan's rainbow spanned 1.26:1)
+	end
+	local memo: { [string]: string } = {}
+	return function(hex: string): string
+		local hit = memo[hex]
+		if hit then return hit end
+		local u = if hi > lo then (lum(hex) - lo) / (hi - lo) else 0.5
+		local want = floorL + u * (topL - floorL)
+		-- (a daylight realm's distance leans toward its horizon's hue, and may keep up to half the sky's
+		-- saturation: capped at the dull rock's, scenery went to grey cut-outs under a saturated sky)
+		local h, sat, v = hsv(mix(hex, if day then realm.sky[3] else mix(realm.far, realm.sky[1], 0.5), if day then 0.3 else 0.15))
+		local _, skyS = hsv(realm.sky[2])
+		sat = math.min(sat, if day then math.max(capS, skyS * 0.5) else capS)
+		local c = fromHsv(h, sat, v)
+		-- walk the value to the wanted luminance, hue and saturation kept (saturation eased off if the
+		-- value cannot climb further)
+		local n = 0
+		while math.abs(lum(c) - want) > 0.004 and n < 200 do
+			if lum(c) < want then
+				if v < 1 then v = math.min(1, v + 0.01) else sat *= 0.97 end
+			else
+				v = math.max(0, v - 0.01)
+			end
+			c = fromHsv(h, sat, v)
+			n += 1
+		end
+		memo[hex] = c
+		return c
+	end
+end
+
 -- How far a background colour must sit from the island's rock body: 1.5:1 either way, so the island
 -- separates by value and not only by its one-pixel rim (capped at the body's own value, every layer
 -- landed on it: Rooftops' ridge 1.06:1, Foundry's hall 1.02:1)
@@ -99,6 +155,16 @@ local function daylight(realm: any): boolean
 	return lum(realm.sky[2]) > lum(realm.rock[3])
 end
 RealmArt.daylight = daylight
+-- A daylight realm's lightest-needed background value: 1.5:1 over the rock body, and 1.3:1 over the
+-- tones a player reads at the top of the island (1.2:1) - the walking face and the lit band (pushed only past
+-- the body, Foundry's hall landed on the grass at 1.08:1 and Saltflat's pyramid on the sand band)
+function RealmArt.dayFloor(realm: any): number
+	local body = lum(realm.rock[3])
+	local top = math.max(lum(realm.top[2]), lum(realm.rock[4]))
+	-- (1.2 over the top tones, not more: on Saltflat's pale sand 1.3 pushed the pyramid to white, with no
+	-- room left for its own shading)
+	return math.min(0.9, math.max(RealmArt.BACKDROP_STEP * (body + 0.05) - 0.05, 1.2 * (top + 0.05) - 0.05))
+end
 -- A background colour put behind the play space, kept apart from the island's rock body: on a
 -- daylight realm lighter and paler than it (atmospheric distance: value raised, saturation lowered,
 -- hue kept - mixed toward the sky, the hall's gold roof went grey); on a dark realm darker than it.
@@ -111,8 +177,8 @@ function RealmArt.backdrop(realm: any, hex: string, amount: number): string
 	local h, sat, v = hsv(c)
 	local step = RealmArt.BACKDROP_STEP
 	if daylight(realm) then
-		local need = math.min(0.9, step * (body + 0.05) - 0.05)
-		sat = math.min(sat, capS * 0.6)
+		local need = RealmArt.dayFloor(realm)
+		sat = math.min(sat, capS)
 		c = fromHsv(h, sat, v)
 		local n = 0
 		while lum(c) < need and n < 80 do
@@ -127,6 +193,15 @@ function RealmArt.backdrop(realm: any, hex: string, amount: number): string
 		while lum(c) > need and v > 0.02 do
 			v *= 0.94
 			c = fromHsv(h, sat, v)
+		end
+		-- and not sunk to near-black either: lifted to at least 85% of the ceiling, so a dark outfit
+		-- still has something behind it (Ashfall's volcano at L 0.022 put a black suit at 1.12:1)
+		local floor = need * 0.85
+		local n = 0
+		while lum(c) < floor and n < 60 do
+			v = math.min(1, v + 0.01)
+			c = fromHsv(h, sat, v)
+			n += 1
 		end
 	end
 	return c
@@ -449,6 +524,9 @@ function RealmArt.surface(realm: any, width: number, seed: number, thick: number
 						end
 					end
 					if x < 2 and v ~= R[1] then v = R[4] elseif x >= W - 2 then v = R[1] end
+					-- the lava realms' glowing seams, over the courses (painted over, they were lost)
+					-- (thin, a pixel wide: in six-pixel chunks they read as orange bricks)
+					if realm.hang == "lava" and cc and hash(x, cc, seed + 40) > 0.975 and not seamRow[row] then v = GLOW end
 					put(g, gx, gy, v)
 				end
 			end
@@ -502,7 +580,9 @@ function RealmArt.shelfRamp(realm: any): { string }
 	if hit then return hit end
 	local ramp = { realm.shelfRamp[1], realm.shelfRamp[2], realm.shelfRamp[3] }
 	if daylight(realm) then
-		local need = (lum(realm.sky[2]) + 0.05) / 3 - 0.05
+		-- (against the sky a quarter of the way from sky[2] to its top, where the high platforms are:
+		-- against sky[2] they read 2.2:1; against the top itself wood went near-black)
+		local need = (lum(mix(realm.sky[2], realm.sky[1], 0.25)) + 0.05) / 3 - 0.05
 		local k = 1
 		while lum(ramp[2]) > need and k > 0.2 do
 			k *= 0.95
@@ -822,6 +902,8 @@ landmarks.crystals = function(g, ink, realm, base)
 		PixelGrid.poly(g, { { cx - w, base + 6 }, { cx - w, base - h + w }, { cx, base - h }, { cx + w, base - h + w }, { cx + w, base + 6 } }, body)
 		PixelGrid.poly(g, { { cx - w, base + 6 }, { cx - w, base - h + w }, { cx, base - h }, { cx - w * 0.3, base + 6 } }, lit)
 		PixelGrid.line(g, cx + w, base - h + w, cx + w, base + 6, dark)
+		-- one glowing facet edge each, through the accent (hazed whole, the mine lost its glow)
+		PixelGrid.line(g, cx, base - h + 1, cx, base - h + math.floor(h * 0.45), ink(col, nil, true))
 	end
 	spire(80, 62, 9, "#3AC8E8")
 	spire(98, 40, 6, "#9A6AFF")
@@ -851,7 +933,8 @@ landmarks.volcano = function(g, ink, realm, base)
 	local cone, lit = ink(mix("#2A1414", realm.sky[3], 0.1)), ink(mix("#5A2A22", realm.sky[3], 0.1))
 	PixelGrid.poly(g, { { 30, base + 10 }, { 104, base - 66 }, { 136, base - 66 }, { 210, base + 10 } }, cone)
 	PixelGrid.poly(g, { { 30, base + 10 }, { 104, base - 66 }, { 112, base - 66 }, { 70, base + 10 } }, lit)
-	local lava, hot = ink("#FF6A2A", nil, true), ink("#FFD27A", nil, true)
+	-- (the rim in the lava's orange: a pale yellow darkened to the cap went mustard)
+	local lava, hot = ink("#FF6A2A", nil, true), ink("#FF8A3A", nil, true)
 	PixelGrid.rect(g, 104, base - 68, 33, 3, hot)
 	for _, path in { { 110, 0.7 }, { 128, -0.5 } } do
 		local x = path[1]
@@ -889,8 +972,11 @@ local function layer(realm: any, which: string): Art
 		local fn = landmarks[realm.landmark]
 		-- (a landmark's emissive accents - lava, a forge's glow, gold, the rainbow - pass `true` and keep
 		-- their colour, capped only in value: through the haze they went to mud; RealmArt.accent)
+		-- (as one set, keeping the landmark's own shading: hazed colour by colour, every tone was pushed to
+		-- the same value and the landmark went flat - a ghost hall, a one-colour pyramid)
+		local map = RealmArt.landmarkMap(realm, fn, base + 8)
 		local haze = function(hex: string, a: number?, accent: boolean?): number
-			return ink(if accent then RealmArt.accent(realm, hex) else RealmArt.backdrop(realm, hex, 0.35), a)
+			return ink(if accent then RealmArt.accent(realm, hex) else map(hex), a)
 		end
 		if fn then fn(g, haze, realm, base + 8) end
 	elseif which == "near" then
@@ -910,7 +996,9 @@ local function layer(realm: any, which: string): Art
 		for k = 0, 7 do cloud(g, 15 + k * 30, 30 + (k % 3) * 4, 6 + (k % 2) * 2, C, 30 + k) end
 	elseif which == "clouds" then
 		-- (mixed 30% toward the mid sky: white or ember-saturated, clouds were the loudest masses on screen)
-		local C = { ink(mix(realm.cloud[1], realm.sky[2], 0.3)), ink(mix(realm.cloud[2], realm.sky[2], 0.3)), ink(mix(realm.cloud[3], realm.sky[2], 0.3)) }
+		-- (half way on a daylight realm, so the sun stays the lightest thing in its sky)
+		local ck = if daylight(realm) then 0.5 else 0.3
+		local C = { ink(mix(realm.cloud[1], realm.sky[2], ck)), ink(mix(realm.cloud[2], realm.sky[2], ck)), ink(mix(realm.cloud[3], realm.sky[2], ck)) }
 		-- placed by the realm (the same four clouds were in all nine skies, one behind the fighters'
 		-- heads), and all above the band the fight is seen against
 		local h = 0
@@ -991,7 +1079,9 @@ function RealmArt.sky(c: any, realm: any, camX: number, t: number?)
 	-- (on a daylight realm hazed toward the sky and its halo faint: near-white, it was the brightest
 	-- thing on screen and platforms crossing it read at 1.5:1)
 	local day = daylight(realm)
-	local disc = if day then mix(sun.colour, realm.sky[2], 0.45) else sun.colour
+	-- (a daylight sun hazed toward its own glow - toward the sky it read as a pale blue moon - and a dark
+	-- realm's moon a little toward its sky, which it outshone as the brightest thing in the scene)
+	local disc = if day then mix(sun.colour, sun.glow, 0.3) else mix(sun.colour, realm.sky[2], 0.2)
 	local ga, gb = if day then 0.08 else 0.18, if day then 0.15 else 0.3
 	Canvas2D.ellipse(c, sx, sy, r * 1.4 * s, r * 1.4 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), ga)
 	Canvas2D.ellipse(c, sx, sy, r * 1.2 * s, r * 1.2 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), gb)

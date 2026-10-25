@@ -23,11 +23,31 @@ for _, realm in Realms.LIST do
 			local L = RealmArt.lum(r[5])
 			local ratio = if day then (L + 0.05) / (body + 0.05) else (body + 0.05) / (L + 0.05)
 			local _, S = RealmArt.hsv(r[5])
-			if ratio < 1.5 - 0.03 or S > capS + 0.02 then      -- (1.5 here, not the code's constant: a test that reads it moves with it)
+			-- (on a daylight realm also 1.2:1 over the walking face and the lit band, the tones that meet
+			-- the scenery at the island's top: pushed past the body alone, it landed on them at 1.00-1.14:1)
+			local topStep = math.huge
+			if day then
+				for _, tone in { realm.top[2], realm.rock[4] } do
+					topStep = math.min(topStep, (L + 0.05) / (RealmArt.lum(tone) + 0.05))
+				end
+			end
+			local sCap = if day then math.max(capS, select(2, RealmArt.hsv(realm.sky[2])) * 0.5) else capS
+			if ratio < 1.5 - 0.03 or topStep < 1.2 - 0.03 or S > sCap + 0.02 then      -- (1.5 here, not the code's constant: a test that reads it moves with it)
 				off += a
 				worst = worst or string.format("%s (L %.3f, S %.2f: %.2f:1 %s from the rock's L %.3f, S %.2f)", r[5], L, S, ratio, if day then "lighter" else "darker", body, capS)
 			end
 			checked += 1
+		end
+		-- a landmark keeps its own shading: hazed colour by colour it went flat (a ghost hall, a
+		-- one-tone pyramid, about 1.1:1); its tones must still span 1.2:1
+		if which == "landmark" then
+			local lo, hi = math.huge, -math.huge
+			for _, r in RealmArt.layer(realm, which).rects do
+				local L = RealmArt.lum(r[5]); lo = math.min(lo, L); hi = math.max(hi, L)
+			end
+			if hi ~= -math.huge and (hi + 0.05) / (lo + 0.05) < 1.2 then
+				fail(`{realm.id} landmark: its tones span only {string.format("%.2f", (hi + 0.05) / (lo + 0.05))}:1 - hazed flat`)
+			end
 		end
 		local allowed = if which == "landmark" then 0.08 else 0
 		if area > 0 and off / area > allowed + 1e-9 then

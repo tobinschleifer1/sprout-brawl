@@ -103,7 +103,7 @@ local LIST: { Realm } = {
 	{
 		id = "FreightLift", name = "Crystal Mines", tagline = "Deep enough to glow.",
 		sky = { "#1E1846", "#3A2874", "#563A98", "#7A4AB0" },
-		sun = { x = 0.5, y = 0.12, r = 10, colour = "#E8D8FF", glow = "#B48AFF" },
+		sun = { x = 0.78, y = 0.2, r = 10, colour = "#E8D8FF", glow = "#B48AFF" },
 		cloud = { "#2E2058", "#4A3684", "#7A5AB8" }, far = "#2A1E52", near = "#1C1440",
 		landmark = "crystals",
 		rock = { "#2A2448", "#463E70", "#665C96", "#8A80B8", "#B4AADA" },

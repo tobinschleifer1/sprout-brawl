@@ -20,10 +20,14 @@ for stage in $(printf 'local L = require("./tests/loader")\nfor _, s in L.load("
   lune run tools/render-fight "$TMP/$stage-wide.json" Sword 40 Classic "$stage" 1 7 right wide > /dev/null
   node tools/compose-shot.mjs "$TMP/$stage-wide.json" <(echo '{"w":1280,"h":720,"nodes":[]}') "$TMP/$stage-wide-c.json"
   node tools/gui-svg.mjs "$TMP/$stage-wide-c.json" "$OUT/$stage-wide.svg" > /dev/null
-  # the fight camera, a brawl under way, the HUD over it
-  lune run tools/render-fight "$TMP/$stage-fight.json" Sword 140 Classic "$stage" 3 7 right brawl > /dev/null
-  node tools/compose-shot.mjs "$TMP/$stage-fight.json" "$TMP/hud.json" "$TMP/$stage-fight-c.json"
-  node tools/gui-svg.mjs "$TMP/$stage-fight-c.json" "$OUT/$stage-fight.svg" > /dev/null
+  # the fight camera with the HUD over it, twice: a close exchange (frame 50 of a brawl, the usual
+  # view) and a spread one (frame 140, someone launched high, the camera at its widest)
+  for shot in "fight|50" "spread|140"; do
+    IFS='|' read -r name frame <<< "$shot"
+    lune run tools/render-fight "$TMP/$stage-$name.json" Sword "$frame" Classic "$stage" 3 7 right brawl > /dev/null
+    node tools/compose-shot.mjs "$TMP/$stage-$name.json" "$TMP/hud.json" "$TMP/$stage-$name-c.json"
+    node tools/gui-svg.mjs "$TMP/$stage-$name-c.json" "$OUT/$stage-$name.svg" > /dev/null
+  done
 done
 if [ -x "$CHROME" ]; then for f in "$OUT"/*.svg; do png "$f"; done; fi
 echo "rendered $(ls "$OUT"/*.svg | wc -l | tr -d ' ') map shots into $OUT"

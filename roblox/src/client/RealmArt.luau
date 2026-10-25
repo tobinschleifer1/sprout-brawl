@@ -76,21 +76,58 @@ local function fromHsv(h: number, sat: number, v: number): string
 	return string.format("#%02X%02X%02X", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
 end
 RealmArt.hsv = hsv
--- A background colour put behind the play space: hazed a little toward the realm's mid sky, then
--- held under the island - no more saturated than its rock body, and no brighter - by lowering
--- saturation and value, keeping the hue (mixed toward the blue sky instead, the hall's gold roof went
--- grey; capped by the lit band instead of the body, the hall stood at twice the island's brightness)
-function RealmArt.backdrop(realm: any, hex: string, amount: number): string
-	local target = mix(realm.far, realm.sky[1], 0.5)
-	local c = mix(hex, target, amount)
-	local cap = lum(realm.rock[3])
-	local _, capS = hsv(realm.rock[3])
-	local h, sat, v = hsv(c)
-	sat = math.min(sat, capS)
-	c = fromHsv(h, sat, v)
+-- A landmark's emissive accent (lava, a forge's glow, gold trim, a rainbow band): its hue and
+-- saturation kept, its value lowered only until no brighter than the island's lit rock. Small shapes,
+-- so they cannot take the scene (tests/map-values allows them a few percent of a landmark's area).
+function RealmArt.accent(realm: any, hex: string): string
+	local cap = lum(realm.rock[4])
+	local h, sat, v = hsv(hex)
+	local c = hex
 	while lum(c) > cap and v > 0.02 do
 		v *= 0.94
 		c = fromHsv(h, sat, v)
+	end
+	return c
+end
+
+-- How far a background colour must sit from the island's rock body: 1.5:1 either way, so the island
+-- separates by value and not only by its one-pixel rim (capped at the body's own value, every layer
+-- landed on it: Rooftops' ridge 1.06:1, Foundry's hall 1.02:1)
+RealmArt.BACKDROP_STEP = 1.5
+-- Is this realm's sky lighter than its rock? Then distance reads lighter (daylight); else darker.
+local function daylight(realm: any): boolean
+	return lum(realm.sky[2]) > lum(realm.rock[3])
+end
+RealmArt.daylight = daylight
+-- A background colour put behind the play space, kept apart from the island's rock body: on a
+-- daylight realm lighter and paler than it (atmospheric distance: value raised, saturation lowered,
+-- hue kept - mixed toward the sky, the hall's gold roof went grey); on a dark realm darker than it.
+-- Never more saturated than the rock (the crystals and the lava took the eye).
+function RealmArt.backdrop(realm: any, hex: string, amount: number): string
+	local target = mix(realm.far, realm.sky[1], 0.5)
+	local c = mix(hex, target, amount)
+	local body = lum(realm.rock[3])
+	local _, capS = hsv(realm.rock[3])
+	local h, sat, v = hsv(c)
+	local step = RealmArt.BACKDROP_STEP
+	if daylight(realm) then
+		local need = math.min(0.9, step * (body + 0.05) - 0.05)
+		sat = math.min(sat, capS * 0.6)
+		c = fromHsv(h, sat, v)
+		local n = 0
+		while lum(c) < need and n < 80 do
+			v = math.min(1, v + 0.02); sat *= 0.97
+			c = fromHsv(h, sat, v)
+			n += 1
+		end
+	else
+		local need = (body + 0.05) / step - 0.05
+		sat = math.min(sat, capS)
+		c = fromHsv(h, sat, v)
+		while lum(c) > need and v > 0.02 do
+			v *= 0.94
+			c = fromHsv(h, sat, v)
+		end
 	end
 	return c
 end
@@ -207,7 +244,7 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 	-- every time and rebuilt the island - and handed Canvas2D a new table, which rebuilt its sprite -
 	-- every frame: 17ms a frame in the lobby, found with PerfMonitor's sections.)
 	local hit = cache[key]
-	if hit then return hit, RealmArt.surface(realm, width, seed) end
+	if hit then return hit, RealmArt.surface(realm, width, seed, thick) end
 	local P = BODY_PPU
 	local ink, list = inks()
 	local O = ink(OUTLINE)
@@ -249,7 +286,8 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 		local belly = wallR + math.floor(taperR * prof * 0.55)
 		for y = 0, bottom do
 			local v = R[3]
-			local c = courseOf[y] -- the course this row is in (nil below the third)
+			-- (the courses are drawn at full density in the surface sprite, over this; plain here)
+			local c = if false then courseOf[y] else nil
 			if c then
 				v = if c % 2 == 1 then R[3] else R[2]
 				-- the seam closing a course one tone darker than it (in R[2] under an R[2] course, half
@@ -310,13 +348,13 @@ function RealmArt.island(realm: any, width: number, thick: number, seed: number)
 		x += 4 + math.floor(hash(x, 13, seed) * 6)
 	end
 	local body = compile(key, g, list, margin, 0)
-	return body, RealmArt.surface(realm, width, seed)
+	return body, RealmArt.surface(realm, width, seed, thick)
 end
 
 -- The walking surface of an island: the realm's material, a lip over each end, and the grass that
 -- hangs over the rock below it. Full density; anchored at the left end of the surface.
-function RealmArt.surface(realm: any, width: number, seed: number): Art
-	local key = `realm|{realm.id}|surface|{width}|{seed}`
+function RealmArt.surface(realm: any, width: number, seed: number, thick: number?): Art
+	local key = `realm|{realm.id}|surface|{width}|{seed}|{thick or 0}`
 	local hit = cache[key]
 	if hit then return hit end
 	local P = RealmArt.PPU
@@ -330,11 +368,14 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 	local top = 2
 	local mat = realm.material
 	local capR = if mat == "planks" then 4 else 3      -- (the shine replaces the top row: a row more cost the fight's Frame budget)
-	local SHINE = ink(mix(realm.top[3], "#FFFFFF", 0.45))
+	local SHINE = ink(mix(realm.top[3], "#FFFFFF", if daylight(realm) then 0.12 else 0.45))
 	-- the rock's lit band and shine right under the cap, drawn here at full density (the fighters'
 	-- pixel size) rather than in the half-density body: it is the rock a player sees most
 	local RB, RS = ink(realm.rock[4]), ink(realm.rock[5])
-	local g = PixelGrid.new(W + margin * 2, top + capR + 5)
+	-- the rock's courses at full density too, down to the wall's foot (a given thickness): drawn in the
+	-- half-density body their cells were twice the fighters' pixels, the clearest "other hand" up close
+	local wallRows = if thick then math.floor(thick * P + 0.5) else 0
+	local g = PixelGrid.new(W + margin * 2, math.max(top + capR + 5, top + capR + wallRows + 1))
 	for x = 0, W - 1 do
 		local gx = x + margin
 		for k = 0, capR - 1 do
@@ -376,6 +417,44 @@ function RealmArt.surface(realm: any, width: number, seed: number): Art
 			end
 		end
 	end
+	if wallRows > 0 then
+		local R = {}
+		for i, hex in realm.rock do R[i] = ink(hex) end
+		-- the lit band runs to 1.5 studs under the surface, then three courses, each 1.5-3 studs deep
+		-- (the depths the body used, from the same seed), seams one tone darker than their course, lit
+		-- chips along each course's top and joints in the first; the ink sides continue down
+		local bandEnd = math.floor(1.5 * P)
+		local courseOf, seamRow, y, c = {}, {}, bandEnd, 1
+		while c <= 3 and y < wallRows do
+			local depth = (3 + math.floor(hash(c, 20, seed) * 4)) * P // 2
+			for yy = y, math.min(wallRows - 1, y + depth - 1) do courseOf[yy] = c end
+			seamRow[y + depth - 1] = true
+			y += depth; c += 1
+		end
+		local last = y
+		for row = 2, math.min(last, wallRows) - 1 do
+			for x = 0, W - 1 do
+				local gx, gy = x + margin, top + capR + row
+				if get(g, gx, gy) == 0 or get(g, gx, gy) == O then
+					local v = R[4]
+					local cc = courseOf[row]
+					if cc then
+						v = if cc % 2 == 1 then R[3] else R[2]
+						if seamRow[row] then v = if cc % 2 == 1 then R[2] else R[1] end
+						if courseOf[row - 1] ~= cc and hash(x // P, cc, seed) > 0.86 then v = R[4] end
+						if cc == 1 and not seamRow[row] then
+							local pitch = math.floor((10 + hash(cc, 21, seed) * 8) * P / 2)
+							local off = math.floor(hash(cc, 22, seed) * pitch)
+							if (x + off) % pitch == 0 then v = R[2] end
+						end
+					end
+					if x < 2 and v ~= R[1] then v = R[4] elseif x >= W - 2 then v = R[1] end
+					put(g, gx, gy, v)
+				end
+			end
+			put(g, margin - 1, top + capR + row, O); put(g, margin + W, top + capR + row, O)
+		end
+	end
 	return compile(key, g, list, margin, top)
 end
 
@@ -415,6 +494,27 @@ function RealmArt.paving(realm: any, width: number, depth: number, seed: number)
 end
 
 -- ------------------------------------------------------------------ platforms ----
+-- A realm's platform ramp, on a daylight realm darkened (hue kept) until its face stands 3:1 under the
+-- sky behind it: Foundry's wood at L 0.19 read at 1.6-2.3:1 against its sky
+local shelfRamps: { [any]: { string } } = setmetatable({}, { __mode = "k" }) :: any
+function RealmArt.shelfRamp(realm: any): { string }
+	local hit = shelfRamps[realm]
+	if hit then return hit end
+	local ramp = { realm.shelfRamp[1], realm.shelfRamp[2], realm.shelfRamp[3] }
+	if daylight(realm) then
+		local need = (lum(realm.sky[2]) + 0.05) / 3 - 0.05
+		local k = 1
+		while lum(ramp[2]) > need and k > 0.2 do
+			k *= 0.95
+			for i = 1, 3 do
+				local h, sat, v = hsv(realm.shelfRamp[i])
+				ramp[i] = fromHsv(h, sat, v * k)
+			end
+		end
+	end
+	shelfRamps[realm] = ramp
+	return ramp
+end
 -- A drop-through platform `width` studs across and `thick` deep, in the realm's style. The anchor
 -- is its left end at the walking surface.
 function RealmArt.shelf(realm: any, width: number, thick: number, style: string?): Art
@@ -425,18 +525,22 @@ function RealmArt.shelf(realm: any, width: number, thick: number, style: string?
 	local P = RealmArt.PPU
 	local ink, list = inks()
 	local O = ink(OUTLINE)
-	local S1, S2, S3 = ink(realm.shelfRamp[1]), ink(realm.shelfRamp[2]), ink(realm.shelfRamp[3])
+	local ramp = RealmArt.shelfRamp(realm)
+	local S1, S2, S3 = ink(ramp[1]), ink(ramp[2]), ink(ramp[3])
 	local A, GLOW = ink(realm.accent), ink(realm.glow)
 	local W = math.floor(width * P + 0.5)
 	-- (at least 6 rows: a face, a light band and shine over it, a dark lip under it - a UI button's
 	-- anatomy - where 4 rows read as a thin stick against the sky)
-	-- (a forge's iron girders stay thin: their truss pattern grows a row of rectangles with every row)
-	local T = math.max(if kind == "iron" then 4 else 6, math.floor(thick * P + 0.5))
+	-- (6 rows for every kind; a forge girder's truss is drawn at its old 4-row depth so its rectangles do
+	-- not grow with the extra rows - thin, the girder read as a line)
+	local T = math.max(6, math.floor(thick * P + 0.5))
 	local m = 2
 	local below = 9
 	local g = PixelGrid.new(W + m * 2, 1 + T + below)
 	local y0 = 1
-	local SH, LIP = ink(mix(realm.shelfRamp[3], "#FFFFFF", 0.4)), ink(mix(realm.shelfRamp[1], "#000000", 0.25))
+	-- (on a daylight realm the shine is a small step up inside the face: toward white it went toward the
+	-- sky, and the top read at 1.1-1.4:1 against it)
+	local SH, LIP = ink(mix(ramp[3], "#FFFFFF", if daylight(realm) then 0.15 else 0.4)), ink(mix(ramp[1], "#000000", 0.25))
 	PixelGrid.rect(g, m, y0, W, T, S2)
 	PixelGrid.rect(g, m, y0, W, 1, SH)
 	PixelGrid.rect(g, m, y0 + 1, W, 1, S3)
@@ -480,7 +584,7 @@ function RealmArt.shelf(realm: any, width: number, thick: number, style: string?
 		for x = 0, W - 1, 6 do put(g, m + x + 2, y0 + 1, S1) end
 		for x = 0, W - 1 do
 			local d = x % 8
-			if T > 4 then put(g, m + x, y0 + 2 + math.min(d, 7 - d) * (T - 4) // 4, S1) end
+			put(g, m + x, y0 + 2 + math.min(d, 7 - d) // 4, S1)
 		end
 		-- chains up from each end: a girder hung from the forge's cranes
 		for _, bx in { m + 2, m + W - 3 } do
@@ -579,13 +683,13 @@ local function farIsland(g: PixelGrid.Grid, cx: number, cy: number, w: number, b
 end
 
 -- Each landmark is drawn into the middle of its tile, standing on y = base.
-local landmarks: { [string]: (PixelGrid.Grid, (string, number?) -> number, any, number) -> () } = {}
+local landmarks: { [string]: (PixelGrid.Grid, (string, number?, boolean?) -> number, any, number) -> () } = {}
 
 landmarks.hall = function(g, ink, realm, base)
 	local isle = ink(mix(realm.far, realm.sky[3], 0.2))
 	farIsland(g, 120, base, 120, isle, ink(mix(realm.rock[4], realm.sky[3], 0.3)), ink(mix(realm.top[2], realm.sky[3], 0.3)), 4)
-	local wood, gold, goldL, dark = ink(mix("#7A4A2A", realm.sky[3], 0.25)), ink(mix("#E8A61C", realm.sky[3], 0.2)),
-		ink(mix("#FFE07A", realm.sky[3], 0.2)), ink(mix("#3A2416", realm.sky[3], 0.25))
+	local wood, gold, goldL, dark = ink(mix("#7A4A2A", realm.sky[3], 0.25)), ink("#E8A61C"),
+		ink("#FFE07A", nil, true), ink(mix("#3A2416", realm.sky[3], 0.25))
 	-- a great hall: timber walls, a golden roof with crossed gable horns, shields along the wall
 	PixelGrid.rect(g, 78, base - 26, 84, 26, wood)
 	for x = 80, 160, 6 do PixelGrid.rect(g, x, base - 26, 1, 26, dark) end
@@ -636,7 +740,7 @@ landmarks.forge = function(g, ink, realm, base)
 	local mount, lit = ink(mix("#2A1418", realm.sky[3], 0.15)), ink(mix("#5A2A2A", realm.sky[3], 0.15))
 	PixelGrid.poly(g, { { 50, base + 20 }, { 104, base - 52 }, { 124, base - 46 }, { 146, base - 58 }, { 196, base + 20 } }, mount)
 	PixelGrid.line(g, 104, base - 52, 124, base - 46, lit); PixelGrid.line(g, 124, base - 46, 146, base - 58, lit)
-	local door, hot = ink("#FF8A3A"), ink("#FFE0A0")
+	local door, hot = ink("#FF8A3A", nil, true), ink("#FFE0A0", nil, true)
 	for _, dx in { 100, 136 } do
 		PixelGrid.ellipse(g, dx, base - 6, 6, 8, door)
 		PixelGrid.rect(g, dx - 6, base - 6, 13, 9, door)
@@ -747,7 +851,7 @@ landmarks.volcano = function(g, ink, realm, base)
 	local cone, lit = ink(mix("#2A1414", realm.sky[3], 0.1)), ink(mix("#5A2A22", realm.sky[3], 0.1))
 	PixelGrid.poly(g, { { 30, base + 10 }, { 104, base - 66 }, { 136, base - 66 }, { 210, base + 10 } }, cone)
 	PixelGrid.poly(g, { { 30, base + 10 }, { 104, base - 66 }, { 112, base - 66 }, { 70, base + 10 } }, lit)
-	local lava, hot = ink("#FF6A2A"), ink("#FFD27A")
+	local lava, hot = ink("#FF6A2A", nil, true), ink("#FFD27A", nil, true)
 	PixelGrid.rect(g, 104, base - 68, 33, 3, hot)
 	for _, path in { { 110, 0.7 }, { 128, -0.5 } } do
 		local x = path[1]
@@ -783,7 +887,11 @@ local function layer(realm: any, which: string): Art
 		-- hazed (RealmArt.backdrop): the landmark is scenery, and at full strength - or hazed toward the
 		-- pale horizon - it was the brightest thing on screen, brighter than the island the fight is on
 		local fn = landmarks[realm.landmark]
-		local haze = function(hex: string, a: number?): number return ink(RealmArt.backdrop(realm, hex, 0.35), a) end
+		-- (a landmark's emissive accents - lava, a forge's glow, gold, the rainbow - pass `true` and keep
+		-- their colour, capped only in value: through the haze they went to mud; RealmArt.accent)
+		local haze = function(hex: string, a: number?, accent: boolean?): number
+			return ink(if accent then RealmArt.accent(realm, hex) else RealmArt.backdrop(realm, hex, 0.35), a)
+		end
 		if fn then fn(g, haze, realm, base + 8) end
 	elseif which == "near" then
 		-- (none now: drawn as islands they read as platforms at play height, the same three in all nine
@@ -801,7 +909,8 @@ local function layer(realm: any, which: string): Art
 		end
 		for k = 0, 7 do cloud(g, 15 + k * 30, 30 + (k % 3) * 4, 6 + (k % 2) * 2, C, 30 + k) end
 	elseif which == "clouds" then
-		local C = { ink(realm.cloud[1]), ink(realm.cloud[2]), ink(realm.cloud[3]) }
+		-- (mixed 30% toward the mid sky: white or ember-saturated, clouds were the loudest masses on screen)
+		local C = { ink(mix(realm.cloud[1], realm.sky[2], 0.3)), ink(mix(realm.cloud[2], realm.sky[2], 0.3)), ink(mix(realm.cloud[3], realm.sky[2], 0.3)) }
 		-- placed by the realm (the same four clouds were in all nine skies, one behind the fighters'
 		-- heads), and all above the band the fight is seen against
 		local h = 0
@@ -876,9 +985,17 @@ function RealmArt.sky(c: any, realm: any, camX: number, t: number?)
 	local sun = realm.sun
 	local sx = (sun.x * width - camX * 0.01) * s
 	local sy = sun.y * vp.Y
-	Canvas2D.ellipse(c, sx, sy, sun.r * 2.4 * s, sun.r * 2.4 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), 0.22)
-	Canvas2D.ellipse(c, sx, sy, sun.r * 1.5 * s, sun.r * 1.5 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), 0.35)
-	Canvas2D.ellipse(c, sx, sy, sun.r * s, sun.r * s, Canvas2D.hex(sun.colour, Color3.new(1, 1, 1)), 1)
+	-- (smaller, its halo tighter: at full size the sun was the brightest thing on the daylight realms,
+	-- its halo reaching 155 px, with a fighter sometimes inside it)
+	local r = sun.r * 0.75
+	-- (on a daylight realm hazed toward the sky and its halo faint: near-white, it was the brightest
+	-- thing on screen and platforms crossing it read at 1.5:1)
+	local day = daylight(realm)
+	local disc = if day then mix(sun.colour, realm.sky[2], 0.45) else sun.colour
+	local ga, gb = if day then 0.08 else 0.18, if day then 0.15 else 0.3
+	Canvas2D.ellipse(c, sx, sy, r * 1.4 * s, r * 1.4 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), ga)
+	Canvas2D.ellipse(c, sx, sy, r * 1.2 * s, r * 1.2 * s, Canvas2D.hex(sun.glow, Color3.new(1, 1, 1)), gb)
+	Canvas2D.ellipse(c, sx, sy, r * s, r * s, Canvas2D.hex(disc, Color3.new(1, 1, 1)), 1)
 	for _, L in LAYERS do
 		tiles(c, layer(realm, L[1]), camX * L[2] + now * L[3], 1)
 	end

@@ -159,7 +159,7 @@ Realms.LOBBY = {
 -- them. The data's own names are the web's and stay there.
 Realms.PLACES = {
 	tailor = "Tailor's Terrace", square = "Champions' Square", arcade = "The Arcade Grove",
-	gates = "Fighters' Gates", climb = "Sky Climb", lounge = "The War Room",
+	gates = "Fighters' Gates", climb = "Climbers' Yard", lounge = "The War Room",
 }
 function Realms.place(id: string?, fallback: string): string
 	return (if id then Realms.PLACES[id] else nil) or fallback

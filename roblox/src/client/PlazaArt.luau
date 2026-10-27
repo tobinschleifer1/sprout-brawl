@@ -22,7 +22,8 @@ local C: { [string]: string } = {
 	ink = "#120E16", night = "#2C3A58", slate = "#8C7B66", slateHi = "#B8A68A", tar = "#A89A86", tarHi = "#C4B8A2",
 	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
 	pink = "#E04848", pinkDk = "#8E2424", cyan = "#3A8AD8", cyanDk = "#1E4A8A", amber = "#FFC83A", amberDk = "#C47A1A",
-	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
+	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66",
+	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
 PlazaArt.C = C
 
@@ -102,8 +103,7 @@ function PlazaArt.stallBack(stripeA: string, stripeB: string): any
 		b.r(i * 8 + 2, 60, 4, 4, if i % 2 == 0 then stripeA else stripeB)  -- scalloped edge
 	end
 	b.r(0, 76, W, 2, C.ink, 0.6)
-	b.r(20, 76, 56, 16, C.ink)                                             -- sign board (text is a label)
-	b.r(21, 77, 54, 14, C.night)                                           -- (wide and tall enough for its name at 14 px on a phone)
+	-- (no board for the name: it is a kit sign, Plaza2D.placeSign, hung over the awning)
 	for _, lx in { 18, 48, 78 } do                                         -- paper lanterns
 		b.r(lx, 52, 1, 8, C.ink)
 		b.r(lx - 3, 44, 7, 8, C.lantern)
@@ -237,10 +237,11 @@ function PlazaArt.canopy(span: number): any
 		local x = math.floor(i * (span - 8) / posts)
 		b.r(x, 0, 8, 110, C.steel); b.r(x + 2, 0, 2, 110, C.steelHi)
 	end
-	-- the beam in the kit's anatomy - a teal face, a light band on top, a dark lip under - for the
-	-- arcade's sign to sit on (an ink bar with two pin stripes read as a rail across the sky)
-	b.r(0, 106, W, 3, C.tealDk); b.r(0, 109, W, 8, C.teal); b.r(0, 115, W, 2, C.tealHi)
-	for x = 6, W - 6, 24 do b.r(x, 111, 4, 3, C.lanternHi) end              -- bulbs along it
+	-- the beam in the kit's anatomy - a deep indigo face, a light band on top, a dark lip under, teal
+	-- bulbs - for the arcade's teal sign to stand out on (on a teal beam the sign was 1.4:1; an ink bar
+	-- with two pin stripes read as a rail across the sky)
+	b.r(0, 106, W, 3, C.indigoDk); b.r(0, 109, W, 8, C.indigo); b.r(0, 115, W, 2, C.indigoHi)
+	for x = 6, W - 6, 24 do b.r(x, 111, 4, 3, C.teal) end                  -- bulbs along it
 	return b.done(true)
 end
 
@@ -252,13 +253,22 @@ function PlazaArt.cabinetPair(): any
 		local function sx(x: number, w: number): number
 			return if side < 0 then 32 - x - w else 32 + x
 		end
-		b.r(sx(0, 20), 0, 20, 22, C.night)                                   -- body
+		local art = if side < 0 then C.pink else C.cyan
+		local artDk = if side < 0 then C.pinkDk else C.cyanDk
+		-- the side in the kit: a coloured panel with a light band and a dark lip, so a pair reads as two
+		-- arcade machines and not a navy locker
+		b.r(sx(0, 20), 0, 20, 22, artDk)                                     -- body
+		b.r(sx(2, 16), 2, 16, 16, art); b.r(sx(2, 16), 16, 16, 2, C.white, 0.35)
+		b.r(sx(0, 20), 0, 20, 2, C.ink, 0.5)                                 -- its lip
 		b.r(sx(20, 6), 18, 6, 6, C.slateHi)                                  -- control panel, out toward the seat
-		b.r(sx(21, 4), 23, 4, 1, C.pink)                                     -- buttons
-		b.r(sx(2, 18), 24, 18, 20, C.night)                                  -- screen housing
-		b.r(sx(16, 3), 26, 3, 16, C.cyan, 0.85)                              -- screen glow seen edge-on
+		b.r(sx(21, 1), 24, 1, 3, C.ink); b.r(sx(20, 3), 26, 3, 2, C.pink)    -- a stick
+		b.r(sx(23, 3), 23, 3, 1, C.amber)                                    -- buttons
+		b.r(sx(2, 18), 22, 18, 22, C.night)                                  -- screen housing
+		b.r(sx(6, 13), 25, 13, 16, C.glass)                                  -- the screen, lit
+		b.r(sx(8, 9), 27, 9, 12, art, 0.75)
+		b.r(sx(8, 9), 37, 9, 2, C.white, 0.5)
 		b.r(sx(0, 20), 44, 20, 10, C.ink)                                    -- marquee
-		b.r(sx(2, 16), 46, 16, 6, if side < 0 then C.pink else C.cyan, 0.9)
+		b.r(sx(2, 16), 46, 16, 6, art, 0.9)
 		b.r(sx(0, 2), 0, 2, 54, C.slate)                                     -- the seam between them
 	end
 	return b.done(true)
@@ -278,7 +288,11 @@ function PlazaArt.lift(colour: string): any
 	b.r(8, 0, 35, 84, C.steel); b.r(45, 0, 35, 84, C.steel)                 -- doors
 	b.r(43, 0, 2, 84, C.ink)
 	for i = 0, 5 do b.r(10, 8 + i * 13, 31, 1, C.slate); b.r(47, 8 + i * 13, 31, 1, C.slate) end
-	b.r(0, 86, W, 2, colour); b.r(0, 0, 2, 96, colour); b.r(W - 2, 0, 2, 96, colour)
+	b.r(0, 0, 2, 96, colour); b.r(W - 2, 0, 2, 96, colour)
+	-- its header in the kit: the lift's colour, a light band on top and a dark lip under (bare, an
+	-- ink header over grey doors read as a plain elevator)
+	b.r(0, 84, W, 12, colour); b.r(0, 84, W, 2, C.ink, 0.45); b.r(0, 94, W, 2, C.white, 0.45)
+	b.r(8, 82, 72, 2, C.steelHi)                                            -- the doors' lit top
 	b.r(26, 96, 36, 8, C.ink); b.r(28, 98, 32, 4, colour, 0.9)             -- the floor light
 	return b.done(true)
 end

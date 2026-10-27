@@ -558,17 +558,17 @@ do
 	hub.gui.AbsoluteSize = { X = 812, Y = 375 }
 	local narrow = canvas(812, 375)
 	hub:draw(narrow, 1/60)
-	-- each stall's name stays on its sign board on a phone (it spilled past the board's ends)
+	-- each stall's name, now a kit sign over its awning, stays within its stall's width on a phone
 	do
 		local Ui = Loader.loadFrom("src/client/", "Ui")
 		local signs = 0
 		for _, st in Plaza2D.STALLS do
-			local t = hub.pool["stall" .. st.sign]
-			if t and t.Visible ~= false then
-				local y = 18.8 * PLAZA.depth + 10.5
-				local span = math.abs(narrow:project(st.x + Plaza2D.SIGN_W / 2, y).X - narrow:project(st.x - Plaza2D.SIGN_W / 2, y).X)
-				local size = t.TextSize / Ui.SCALE
-				assert(Ui.textWidth(t.Text, math.floor(size)) <= span + 1, `{st.sign} is {Ui.textWidth(t.Text, math.floor(size))} px wide on a {span} px sign`)
+			local sg = hub.signs and hub.signs["stall" .. st.sign]
+			if sg and sg.card.Visible then
+				local y = 18.8 * PLAZA.depth + 10.4
+				local span = math.abs(narrow:project(st.x + 6, y).X - narrow:project(st.x - 6, y).X)
+				assert(sg.card.Size.X.Offset <= span, `{st.sign}'s sign is {sg.card.Size.X.Offset} px wide over a {span} px stall`)
+				assert(sg.card.BackgroundColor3 == Rbx.Color3.fromHex(st.a), `{st.sign}'s sign is not in its awning's colour`)
 				signs += 1
 			end
 		end
@@ -593,16 +593,6 @@ do
 		assert(right <= 812 / 2 - Plaza2D.FIGHTER_CLEAR, `on a narrow screen the prompt reaches x {right}, over your fighter`)
 		assert(bottom <= 375 - 10 - Plaza2D.ICON - 14 + 0.01 and p.Position.Y.Scale == 1, `on a narrow screen the prompt's foot is at {bottom}, not above the dock`)
 	end
-	-- each stall's lettering reads at 4.5:1 on its board's face
-	do
-		local Ui = Loader.loadFrom("src/client/", "Ui")
-		local Art = Loader.loadFrom("src/client/", "PlazaArt")
-		local face = require("@lune/roblox").Color3.fromHex(Art.SIGN_FACE)
-		for _, st in Plaza2D.STALLS do
-			local t = hub.pool["stall" .. st.sign]
-			if t then assert(Ui.contrast(t.TextColor3, face) >= 4.5, `{st.sign} reads at {Ui.contrast(t.TextColor3, face)}:1 on its board`) end
-		end
-	end
 	hub.active, hub.blocked = wasActive, wasBlocked
 end
 -- The top row sits below Roblox's top bar, and follows it when the bar's height arrives late (it is
@@ -616,6 +606,98 @@ do
 	hub:draw(canvas(1280, 720), 1/60)
 	assert(hub.title.Position.Y.Offset == 12, "the top row did not follow the bar's height on the next frame")
 end
+-- 11. Round 2 of the lobby's review: every station named on a sign, each sign the same gap over what it
+--     names and clear of the title card, the tip goes on every screen, a lounge in view whole, and the
+--     roofs' ends inked.
+do
+	hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
+	local function plateBottom(): number
+		return hub.plate.Position.Y.Offset + hub.plate.Size.Y.Offset
+	end
+	-- every market station that is a place to go has its name up, and no sign meets the title card
+	for _, st in PLAZA.market.stations do
+		if st.kind == "Cabinet" then continue end
+		-- (from the front of the roof: the camera rides lowest there, so the signs stand highest)
+		hub.model:setScene(hub.model.data, { x = st.x, z = 2 })
+		hub.camX = st.x
+		hub:draw(canvas(1280, 720), 1/60)
+		if st.kind == "Members" or st.kind == "Warp" or st.kind == "Format" then
+			local sg = hub.signs and hub.signs["st" .. st.id]
+			assert(sg and sg.card.Visible, `the market's {st.id} has no sign`)
+		end
+		local px1 = hub.plate.Position.X.Offset
+		local px2 = px1 + hub.plate.Size.X.Offset
+		for id, sg in hub.signs or {} do
+			local x1 = sg.card.Position.X.Offset
+			local x2 = x1 + sg.card.Size.X.Offset
+			-- (only a sign under the card: one off the screen's side is nowhere near it)
+			if sg.card.Visible and x2 > px1 and x1 < px2 and x1 < 1280 and x2 > 0 then
+				assert(sg.card.Position.Y.Offset >= plateBottom() + 2, `at {st.id} the {id} sign (top {sg.card.Position.Y.Offset}) meets the title card (bottom {plateBottom()})`)
+			end
+		end
+	end
+	-- in a lounge: each station's sign the same gap over its own top, and the whole room in view
+	hub.model:warp("arcade")
+	hub:setRoom({ id = 12, format = "Triples", stage = "FoundryFloor", slots = { { userId = 1, team = 0 } } })
+	local real = Plaza2D.placeSign
+	local ys: { [string]: number } = {}
+	Plaza2D.placeSign = function(self, c, id, value, x, y, ...)
+		ys[id] = y
+		return real(self, c, id, value, x, y, ...)
+	end
+	local gaps: { number } = {}
+	for _, st in hub.model.data.stations do
+		if st.kind == "Exit" then continue end
+		stand(st)
+		hub.camX = st.x
+		hub:draw(canvas(1280, 720), 1/60)
+		local top = Plaza2D.stationArt(canvas(1280, 720), st, false, hub.room, nil)
+		table.insert(gaps, ys["st" .. st.id] - ((st.z + 1) * PLAZA.depth + top * 0.7))
+	end
+	Plaza2D.placeSign = real
+	for _, g in gaps do
+		assert(math.abs(g - gaps[1]) < 1e-6, `the lounge's signs hang at different gaps over their stations ({g} and {gaps[1]})`)
+	end
+	do
+		local c = canvas(1280, 720)
+		hub:draw(c, 1/60)
+		local b = hub.model.data.bounds
+		local l, r = c:project(b.x1, 0).X, c:project(b.x2, 0).X
+		-- (the camera eases toward its target: settle it first)
+		for _ = 1, 200 do hub:draw(c, 1/60) end
+		l, r = c:project(b.x1, 0).X, c:project(b.x2, 0).X
+		assert(l >= -1 and r <= 1281, `the lounge runs off the screen ({l} to {r} of 1280)`)
+	end
+	assert(hub.district ~= "lounge", "a lounge's district banner repeats the title card's name")
+	hub:setRoom({ left = true })
+	-- the tip goes after a few seconds on a wide screen too
+	hub.model:setScene(hub.model.data, { x = 0, z = 8 })
+	hub.camX = 0
+	hub:draw(canvas(1280, 720), 1/60)
+	assert(hub.prompt.Visible and string.find(hub.prompt.Text, "Walk", 1, true), "no tip on a wide screen")
+	hub.promptAt -= Plaza2D.TIP_SECONDS + 1
+	hub:draw(canvas(1280, 720), 1/60)
+	assert(not hub.prompt.Visible, "the tip never goes on a wide screen")
+	-- each roof's ends are inked: an ink rect hard against each end of every roof in view
+	do
+		local inked: { [number]: boolean } = {}
+		Canvas.rect = function(c, x, _y, w, _h, colour, ...)
+			if colour == Rbx.Color3.fromRGB(15, 18, 24) then inked[math.floor((x + w) * 1000 + 0.5)] = true; inked[math.floor(x * 1000 + 0.5)] = true end
+			c.used += 1
+		end
+		local scene = hub.model.data
+		hub:drawGround(canvas(1280, 720), scene, -1e9, 1e9)
+		Canvas.rect = primitive
+		local roofs = 0
+		for _, r in scene.floor do
+			if r.bridge then continue end
+			assert(inked[math.floor(r.x1 * 1000 + 0.5)] and inked[math.floor(r.x2 * 1000 + 0.5)], `the roof from {r.x1} to {r.x2} has an end with no ink`)
+			roofs += 1
+		end
+		assert(roofs > 0, "no roofs checked")
+	end
+end
+
 -- 10. Every outlined prop has an ink line round its silhouette, but not under its base: bare, the
 --     props were flat colour on the pale paving with no edge, beside fighters drawn in ink.
 do

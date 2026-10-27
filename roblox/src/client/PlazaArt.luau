@@ -22,7 +22,7 @@ local C: { [string]: string } = {
 	ink = "#120E16", night = "#2C3A58", slate = "#8C7B66", slateHi = "#B8A68A", tar = "#A89A86", tarHi = "#C4B8A2",
 	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
 	pink = "#E04848", pinkDk = "#8E2424", cyan = "#3A8AD8", cyanDk = "#1E4A8A", amber = "#FFC83A", amberDk = "#C47A1A",
-	lantern = "#FF7A3A", lanternHi = "#FFD27A", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
+	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
 PlazaArt.C = C
 
@@ -33,10 +33,56 @@ local function builder(w: number, h: number)
 		if rw <= 0 or rh <= 0 then return end
 		table.insert(list, { x, h - y - rh, rw, rh, hex, alpha or 1 } :: { any })
 	end
-	function b.done(): any
-		return { rects = list, w = w, h = h }
+	-- `outlined`: an ink line a cell wide round the prop's silhouette, as the fighters and the
+	-- islands have (and not under its base, which stands on the paving). Bare, the props were flat
+	-- colour on the pale paving and sky with no edge - a second hand beside the outlined fighters.
+	function b.done(outlined: boolean?): any
+		if not outlined then return { rects = list, w = w, h = h } end
+		return PlazaArt.outline({ rects = list, w = w, h = h })
 	end
 	return b
+end
+
+-- A prop's silhouette outlined in ink: one cell all round but the bottom, the prop moved in by a cell
+-- and the outline merged into runs along each row. Cells under a mostly see-through rectangle (a
+-- glow, a shadow) are not silhouette.
+function PlazaArt.outline(prop: any): any
+	local W, H = prop.w, prop.h
+	local solid: { [number]: boolean } = {}
+	for _, r in prop.rects do
+		if (r[6] or 1) >= 0.8 then
+			for y = r[2], r[2] + r[4] - 1 do
+				for x = r[1], r[1] + r[3] - 1 do solid[y * W + x] = true end
+			end
+		end
+	end
+	local function at(x: number, y: number): boolean
+		return x >= 0 and y >= 0 and x < W and y < H and solid[y * W + x] == true
+	end
+	local out: { any } = {}
+	-- (rows top-down; the new sprite is a cell wider each side and a cell taller on top)
+	for y = -1, H - 1 do
+		local x = -1
+		while x <= W do
+			local edge = not at(x, y) and (at(x - 1, y) or at(x + 1, y) or at(x, y - 1) or at(x, y + 1))
+			if edge then
+				local run = 1
+				while x + run <= W do
+					local nx = x + run
+					if at(nx, y) or not (at(nx - 1, y) or at(nx + 1, y) or at(nx, y - 1) or at(nx, y + 1)) then break end
+					run += 1
+				end
+				table.insert(out, { x + 1, y + 1, run, 1, C.ink, 1 } :: { any })
+				x += run
+			else
+				x += 1
+			end
+		end
+	end
+	for _, r in prop.rects do
+		table.insert(out, { r[1] + 1, r[2] + 1, r[3], r[4], r[5], r[6] } :: { any })
+	end
+	return { rects = out, w = W + 2, h = H + 1 }
 end
 
 -- -------------------------------------------------------------------- stalls ----
@@ -64,7 +110,7 @@ function PlazaArt.stallBack(stripeA: string, stripeB: string): any
 		b.r(lx - 2, 45, 5, 6, C.lanternHi, 0.7)
 		b.r(lx - 1, 43, 3, 1, C.ink)
 	end
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.stallFront(goods: string): any
@@ -89,7 +135,7 @@ function PlazaArt.stallFront(goods: string): any
 	else
 		for i = 0, 3 do b.r(12 + i * 20, 25, 12, 5, C.steel); b.r(14 + i * 20, 27, 8, 2, C.cyan, 0.8) end
 	end
-	return b.done()
+	return b.done(true)
 end
 
 -- ------------------------------------------------------------------ fixtures ----
@@ -105,7 +151,7 @@ function PlazaArt.billboard(): any
 	b.r(0, 52, W, 2, C.pink); b.r(0, 148, W, 2, C.pink)
 	b.r(0, 52, 2, 98, C.pink); b.r(W - 2, 52, 2, 98, C.pink)
 	for i = 0, 8 do b.r(12 + i * 30, 146, 6, 4, C.amber) end                -- bulbs along the top
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.kiosk(): any
@@ -115,7 +161,7 @@ function PlazaArt.kiosk(): any
 	b.r(12, 12, 40, 6, C.steel); b.r(24, 18, 16, 26, C.steel); b.r(26, 18, 4, 26, C.steelHi)
 	b.r(16, 44, 32, 6, C.ink); b.r(18, 46, 28, 3, C.cyan)                  -- the projector dish
 	b.r(4, 4, 56, 2, C.cyan, 0.6)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.waterTower(): any
@@ -127,7 +173,7 @@ function PlazaArt.waterTower(): any
 	for i = 0, 5 do b.r(2, 52 + i * 8, 68, 2, C.woodDk) end
 	b.r(6, 48, 4, 50, C.wood, 0.5)
 	b.r(0, 98, W, 4, C.woodDk); b.r(8, 102, 56, 6, C.rust); b.r(26, 108, 20, 4, C.woodDk)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.acUnit(): any
@@ -136,7 +182,7 @@ function PlazaArt.acUnit(): any
 	b.r(0, 0, W, 24, C.steel); b.r(0, 22, W, 4, C.steelHi)
 	b.r(4, 4, 18, 16, C.ink); for i = 0, 3 do b.r(5, 6 + i * 4, 16, 1, C.steel) end
 	b.r(26, 6, 10, 12, C.slate)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.noticeBoard(): any
@@ -147,7 +193,7 @@ function PlazaArt.noticeBoard(): any
 	local papers: { { any } } = { { 5, 38, C.paper }, { 17, 32, C.amber }, { 29, 40, C.paper }, { 41, 30, C.cyan }, { 50, 38, C.pink }, { 8, 25, C.paper }, { 31, 24, C.paper } }
 	for _, p in papers do b.r(p[1], p[2], 10, 12, p[3]); b.r(p[1] + 4, p[2] + 10, 2, 2, C.lantern) end
 	b.r(0, 56, W, 4, C.woodHi)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.mapSign(): any
@@ -162,7 +208,7 @@ function PlazaArt.mapSign(): any
 		b.r(d[1], 36, if i == 2 then 14 else 10, 12, d[2], 0.85)
 		if i < 4 then b.r(d[1] + (if i == 2 then 14 else 10), 41, 3, 2, C.paper, 0.7) end
 	end
-	return b.done()
+	return b.done(true)
 end
 
 -- Strung lights between two poles `span` cells apart, sagging in the middle.
@@ -191,9 +237,11 @@ function PlazaArt.canopy(span: number): any
 		local x = math.floor(i * (span - 8) / posts)
 		b.r(x, 0, 8, 110, C.steel); b.r(x + 2, 0, 2, 110, C.steelHi)
 	end
-	b.r(0, 106, W, 10, C.ink); b.r(0, 110, W, 2, C.pink); b.r(0, 106, W, 2, C.cyan)
-	b.r(0, 116, W, 4, C.slate)
-	return b.done()
+	-- the beam in the kit's anatomy - a teal face, a light band on top, a dark lip under - for the
+	-- arcade's sign to sit on (an ink bar with two pin stripes read as a rail across the sky)
+	b.r(0, 106, W, 3, C.tealDk); b.r(0, 109, W, 8, C.teal); b.r(0, 115, W, 2, C.tealHi)
+	for x = 6, W - 6, 24 do b.r(x, 111, 4, 3, C.lanternHi) end              -- bulbs along it
+	return b.done(true)
 end
 
 -- A pair of arcade cabinets back to back, seen from the side: each faces out toward its seat.
@@ -213,13 +261,13 @@ function PlazaArt.cabinetPair(): any
 		b.r(sx(2, 16), 46, 16, 6, if side < 0 then C.pink else C.cyan, 0.9)
 		b.r(sx(0, 2), 0, 2, 54, C.slate)                                     -- the seam between them
 	end
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.stool(): any
 	local b = builder(12, 16)
 	b.r(0, 12, 12, 3, C.pink); b.r(5, 0, 2, 12, C.steel); b.r(2, 0, 8, 2, C.steel)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.lift(colour: string): any
@@ -232,7 +280,7 @@ function PlazaArt.lift(colour: string): any
 	for i = 0, 5 do b.r(10, 8 + i * 13, 31, 1, C.slate); b.r(47, 8 + i * 13, 31, 1, C.slate) end
 	b.r(0, 86, W, 2, colour); b.r(0, 0, 2, 96, colour); b.r(W - 2, 0, 2, 96, colour)
 	b.r(26, 96, 36, 8, C.ink); b.r(28, 98, 32, 4, colour, 0.9)             -- the floor light
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.boutique(): any
@@ -247,7 +295,7 @@ function PlazaArt.boutique(): any
 	b.r(8, 0, 30, 4, C.steelHi); b.r(98, 0, 30, 4, C.steelHi)               -- mannequin plinths
 	b.r(4, 82, 128, 2, C.steelHi)                                           -- rail
 	for i = 0, 7 do b.r(10 + i * 16, 74, 1, 8, C.steelHi); b.r(6 + i * 16, 64, 9, 10, ({ C.pink, C.cyan, C.amber, C.green })[i % 4 + 1], 0.8) end
-	return b.done()
+	return b.done(true)
 end
 
 -- The foot of the Skyline Climb: a scaffold tower with a ladder and a flag at the top.
@@ -291,21 +339,21 @@ function PlazaArt.recordBoard(): any
 	end
 	b.r(0, 72, W, 4, C.steelHi)
 	b.r(0, 0, W, 2, C.ink, 0.6)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.couch(colour: string): any
 	local b = builder(56, 22)
 	b.r(0, 0, 56, 12, colour); b.r(0, 12, 56, 8, colour); b.r(0, 12, 4, 10, C.ink, 0.4); b.r(52, 12, 4, 10, C.ink, 0.4)
 	b.r(4, 10, 48, 2, C.ink, 0.35); b.r(2, 0, 4, 2, C.woodDk); b.r(50, 0, 4, 2, C.woodDk)
-	return b.done()
+	return b.done(true)
 end
 
 function PlazaArt.plant(): any
 	local b = builder(20, 30)
 	b.r(4, 0, 12, 9, C.rust); b.r(3, 8, 14, 2, C.woodDk)
 	b.r(8, 10, 3, 12, "#2E6B3E"); b.r(2, 14, 8, 6, "#3E8A4E"); b.r(10, 18, 9, 7, "#3E8A4E"); b.r(6, 24, 7, 6, "#4FA05E")
-	return b.done()
+	return b.done(true)
 end
 
 -- A stamp (Data/Plaza stamps) as sprite rectangles: each row cut into runs of one colour. Rows

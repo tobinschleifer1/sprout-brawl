@@ -205,8 +205,11 @@ do
 	-- Cabinet 1 by where it is drawn: every cabinet shares one sprite, and the back row (drawn
 	-- first) stands at the same x.
 	local D = PLAZA.depth
+	-- (where PlazaArt.draw puts the pair's top-left, from its own size: outlined, it grew a cell)
+	local pair = Loader.loadFrom("src/client/", "PlazaArt").cabinetPair()
+	local cell = 1 / 8
 	Canvas.sprite = function(c: any, key: string, _list: any, x0: number, y1: number, ...: any)
-		if key == "prop|cab" and math.abs(x0 - (cab.x - 4)) < 1e-6 and math.abs(y1 - (cab.z * D + 7)) < 1e-6 then
+		if key == "prop|cab" and math.abs(x0 - (cab.x - pair.w * cell / 2)) < 1e-6 and math.abs(y1 - (cab.z * D + pair.h * cell)) < 1e-6 then
 			table.insert(order, "cab")
 		end
 		if string.sub(key, 1, 2) == "k1" then table.insert(order, "person:" .. string.match(key, "^(k1%w+)")) end
@@ -235,6 +238,25 @@ do
 	assert(tonumber(behind[2]) and tonumber(behind[1]) and tonumber(behind[2]) < tonumber(behind[1]), "a player behind cabinet 1 must be drawn before it")
 	local infront = drawWith(cab.z - 1.5)
 	assert(tonumber(infront[2]) > tonumber(infront[1]), "a player in front of cabinet 1 must be drawn after it")
+	-- a name tag is outlined whole in ink (at a 0.55 stroke a name over the sky was grey on grey)
+	local tag = hub.pool["name2"]
+	assert(tag and tag.Visible and tag.TextStrokeTransparency == 0, "the guest's name tag is not outlined")
+	-- each cabinet's number sits on its own marquee (rows 44-54 of the pair's 56), not over it, where the
+	-- front row's numbers landed on the back row's cabinets
+	do
+		local real = Plaza2D.placeSign
+		local at: { [string]: number } = {}
+		Plaza2D.placeSign = function(self, c, id, value, x, y, ...)
+			at[id] = y
+			return real(self, c, id, value, x, y, ...)
+		end
+		hub:draw(canvas(1280, 720), 1/60)
+		Plaza2D.placeSign = real
+		local y = at["cab" .. cab.number]
+		assert(y, "cabinet 1 has no number sign")
+		local rel = (y - cab.z * D) / cell
+		assert(rel >= 44 and rel <= 55, `cabinet 1's number is at row {rel} of its art, not on its marquee`)
+	end
 	hub:setPeers({}, 1)
 	Canvas.sprite = function(c: any, key: string, _list: any, ...: any)
 		table.insert(sprites, key)
@@ -470,6 +492,37 @@ do
 		hub:draw(canvas(1280, 720), 1/60)
 		assert(hub.gui.attributes.NearbyStation == st.id, `lounge station {st.id} not offered where it stands`)
 	end
+	-- each station's name on a sign in the UI's kit, in its own colour (bare amber words floated over
+	-- the roof in round 0), and its desk a kit box: an ink outline round a face
+	for _, st in PLAZA.rooms.Doubles.stations do
+		if st.kind == "Exit" then continue end
+		stand(st)
+		hub.camX = st.x
+		hub:draw(canvas(1280, 720), 1/60)
+		local sg = hub.signs and hub.signs["st" .. st.id]
+		assert(sg and sg.card.Visible, `the {st.id} station has no sign`)
+		assert(sg.card.BackgroundColor3 == Plaza2D.STATION_COLOURS[st.kind], `the {st.id} sign is not in its station's colour`)
+		assert(sg.text.Text == st.name, `the {st.id} sign reads {sg.text.Text}`)
+		local bare = hub.pool["st" .. st.id]
+		assert(not bare or bare.Visible == false, `the {st.id} station's name still floats as bare words`)
+	end
+	do
+		local rects: { any } = {}
+		Canvas.rect = function(c, x, y, w, h, colour, ...)
+			table.insert(rects, { x, y, w, h, colour })
+			c.used += 1
+		end
+		local st = stations.Rules
+		Plaza2D.stationArt(canvas(1280, 720), st, false, room, nil)
+		Canvas.rect = primitive
+		local o = Plaza2D.KIT_INK
+		local outlined = false
+		for _, r in rects do
+			if math.abs(r[1] - (st.x - 6 - o)) < 1e-6 and math.abs(r[2] + o) < 1e-6 and math.abs(r[3] - (12 + 2 * o)) < 1e-6
+				and r[5] == Rbx.Color3.fromRGB(15, 18, 24) then outlined = true end
+		end
+		assert(o > 0 and outlined, "the station's desk has no ink outline round it")
+	end
 	hub:setPeers({ { userId = 2, area = 0, name = "Outsider", avatar = "Classic", weapon = "Sword", x = 0, z = 8, facing = 1 } }, 1)
 	assert(not hub.peers[2], "people on Neon Row must not appear in a lounge")
 end
@@ -563,4 +616,37 @@ do
 	hub:draw(canvas(1280, 720), 1/60)
 	assert(hub.title.Position.Y.Offset == 12, "the top row did not follow the bar's height on the next frame")
 end
+-- 10. Every outlined prop has an ink line round its silhouette, but not under its base: bare, the
+--     props were flat colour on the pale paving with no edge, beside fighters drawn in ink.
+do
+	local Art = Loader.loadFrom("src/client/", "PlazaArt")
+	local inkHex = Art.C.ink
+	local checked = 0
+	for _, name in { "billboard", "kiosk", "waterTower", "acUnit", "noticeBoard", "mapSign", "cabinetPair", "stool",
+		"boutique", "recordBoard", "plant" } do
+		local prop = Art[name]()
+		local solid, ink = {}, {}
+		for _, r in prop.rects do
+			for y = r[2], r[2] + r[4] - 1 do
+				for x = r[1], r[1] + r[3] - 1 do
+					if r[5] == inkHex and r[6] >= 1 then ink[y * 4096 + x] = true end
+					if (r[6] or 1) >= 0.8 and r[5] ~= inkHex then solid[y * 4096 + x] = true end
+				end
+			end
+		end
+		local missing = 0
+		for key in solid do
+			local x, y = key % 4096, key // 4096
+			for _, d in { { 1, 0 }, { -1, 0 }, { 0, -1 }, { 0, 1 } } do
+				local nx, ny = x + d[1], y + d[2]
+				local nk = ny * 4096 + nx
+				if ny < prop.h and not solid[nk] and not ink[nk] then missing += 1 end
+			end
+		end
+		assert(missing == 0, `{name}: {missing} silhouette edges with no ink`)
+		checked += 1
+	end
+	assert(checked >= 10, "no props checked")
+end
+
 print(`PASS lobby view: walking in depth, stations offered where they stand, modal/chat guards, {visits} finite bounded draws (peak {peak} primitives), depth order, wardrobe, CHARACTER button, district banners, lounges show the room`)

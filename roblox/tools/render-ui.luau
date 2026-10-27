@@ -92,14 +92,33 @@ if screen == "plaza" then
 	local cfg = Loader.load("MatchConfig").default()
 	for _, p in KIT.presets do if p.id == "knight" then cfg.slots[1].avatarId = p.code end end
 	hub:show(cfg)
-	-- "x,z": where you stand (beside a station shows its prompt)
-	local x, z = 0, 8
+	-- "x,z[,crowd][,room]": where you stand (beside a station shows its prompt), how many other
+	-- players are about, and a lounge's format (Duel, Doubles, Triples) to stand in a room instead
+	local x, z, crowd, room = 0, 8, 0, nil
 	if variant and string.find(variant, ",") then
-		local a, b = string.match(variant, "^([%-%d%.]+),([%-%d%.]+)$")
-		x, z = tonumber(a) or 0, tonumber(b) or 8
+		local parts = string.split(variant, ",")
+		x, z = tonumber(parts[1]) or 0, tonumber(parts[2]) or 8
+		crowd = tonumber(parts[3] or "0") or 0
+		room = parts[4]
+	end
+	if room then
+		-- a room mid-setup: you not ready, a ready teammate, an open place and a bot, voting on maps
+		hub:setRoom({ id = 1, format = room, stage = "FoundryFloor", mapChoice = "host", mode = "stock", stocks = 3, time = 180,
+			slots = { { userId = 1, team = 0, ready = false, vote = "Undertow" }, { userId = 2, team = 1, ready = true, vote = "Undertow" },
+				{ team = 0 }, { team = 1, bot = "easy" } } })
 	end
 	hub.model:setScene(hub.model.data, { x = x, z = z })
 	hub.camX = x
+	if crowd > 0 then
+		local list = {}
+		for i = 1, crowd do
+			local p = KIT.presets[(i * 3) % #KIT.presets + 1]
+			table.insert(list, { userId = 100 + i, name = p.name, avatar = p.code, weapon = "Sword",
+				x = x - 20 + (i * 37 % 41), z = 2 + (i * 5 % 15), y = 0, facing = if i % 2 == 0 then 1 else -1, moving = i % 3 == 0 })
+		end
+		hub:setPeers(list, 1)
+		for _, peer in hub.peers do peer.x, peer.z = peer.target.x, peer.target.z end
+	end
 	for _ = 1, 20 do table.clear(shapes); hub:step(1 / 60, false); hub:draw(c, 1 / 60) end
 elseif screen == "studio" then
 	local Editor = load("AvatarEditor")

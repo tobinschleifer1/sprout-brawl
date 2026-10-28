@@ -697,15 +697,30 @@ do
 		local _ = l + r
 	end
 	assert(hub.district ~= "lounge", "a lounge's district banner repeats the title card's name")
+	-- framed on its stations: the floor under its front edge an eighth of the screen or less (framed
+	-- as the market, a quarter was empty floor and island)
+	do
+		local c = canvas(1280, 720)
+		for _ = 1, 200 do hub:draw(c, 1/60) end
+		local front = math.huge
+		for _, r in hub.model.data.floor do front = math.min(front, r.z1 * PLAZA.depth) end
+		local railY = c:project(0, front).Y
+		assert(railY >= 720 * 0.86, `the lounge's front edge is at y {railY}: the rest of the screen is empty floor`)
+	end
 	hub:setRoom({ left = true })
-	-- the tip goes after a few seconds on a wide screen too
+	-- on a wide screen there is no tip card over the roof at all (it cut the legs off people at the
+	-- front): the title card's directions say where things are; the card is only ever an action
 	hub.model:setScene(hub.model.data, { x = 0, z = 8 })
 	hub.camX = 0
 	hub:draw(canvas(1280, 720), 1/60)
-	assert(hub.prompt.Visible and string.find(hub.prompt.Text, "Walk", 1, true), "no tip on a wide screen")
-	hub.promptAt -= Plaza2D.TIP_SECONDS + 1
+	assert(not hub.prompt.Visible, "a tip card shows over the roof on a wide screen")
+	assert(string.find(hub.directions.Text, "East", 1, true) and string.find(hub.directions.Text, "West", 1, true),
+		`the title card does not say which way things are: {hub.directions.Text}`)
+	local board
+	for _, st in PLAZA.market.stations do if st.kind == "Members" then board = st end end
+	stand(board)
 	hub:draw(canvas(1280, 720), 1/60)
-	assert(not hub.prompt.Visible, "the tip never goes on a wide screen")
+	assert(hub.prompt.Visible and hub.promptKey.Visible, "beside a station on a wide screen the action card does not show")
 	-- each roof's ends are inked: an ink rect hard against each end of every roof in view
 	do
 		local inked: { [number]: boolean } = {}
@@ -768,6 +783,31 @@ do
 		end
 	end
 	assert(checked > 0, "no pale sign checked")
+	-- and an ink word has no halo: the olive outline closed its counters (the UI's yellows have none)
+	for id, sg in hub.signs do
+		if sg.pale then assert(sg.outline.Enabled == false, `the {id} sign's ink words carry a halo`) end
+	end
+	-- the arcade's back row drawn smaller than the front (as well as darker), and its canopy low over
+	-- the machines, not a band of empty sky above them
+	do
+		local Art = Loader.loadFrom("src/client/", "PlazaArt")
+		local scales: { [string]: number } = {}
+		local was = Canvas.sprite
+		Canvas.sprite = function(c: any, key: string, list: any, x0: number, y1: number, pw: number, ...: any)
+			scales[key] = pw
+			return was(c, key, list, x0, y1, pw, ...)
+		end
+		hub.model:warp("arcade")
+		hub:draw(canvas(1280, 720), 1/60)
+		Canvas.sprite = was
+		assert(scales["prop|cabFar"] and scales["prop|cab"] and scales["prop|cabFar"] < scales["prop|cab"] * 0.95,
+			"the arcade's back row is no smaller than the front")
+		local D = PLAZA.depth
+		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
+		local backTop = 0
+		for _, cab in PLAZA.cabinets do backTop = math.max(backTop, cab.z * D + 56 * Art.CELL * (if cab.z > Plaza2D.CAB_BACK then Plaza2D.CAB_FAR_SCALE else 1)) end
+		assert(beam - backTop <= 6, `{beam - backTop} studs of empty sky between the arcade's canopy and its cabinets`)
+	end
 	-- a cabinet counting down shows it on a kit tag, not bare words
 	hub.model:warp("arcade")
 	hub:setCabinets({ { number = 1, state = "countdown", startsIn = 3, seats = {} } }, 1)

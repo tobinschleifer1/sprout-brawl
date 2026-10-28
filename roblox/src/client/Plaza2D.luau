@@ -70,6 +70,10 @@ Plaza2D.SIGN_W = 52 * PlazaArt.CELL
 Plaza2D.KIT_INK, Plaza2D.KIT_BAND = 0.3, 0.5
 -- cabinets deeper than this are the arcade's back row, drawn in their dark shades
 Plaza2D.CAB_BACK = 10
+Plaza2D.CAB_FAR_SCALE = 0.8
+-- the arcade canopy's height in PlazaArt cells (its beam's foot is 14 under it)
+Plaza2D.CANOPY_H = 84
+Plaza2D.LOUNGE_LIFT = 3
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
 -- A stall's lettering: its awning colour, lightened until it reads at 4.5:1 on the board's dark face
@@ -313,7 +317,9 @@ Plaza2D.PALE_FACE = 2
 function Plaza2D.letterSign(sg: any, face: Color3)
 	local pale = Ui.contrast(Ui.WHITE, face) < Plaza2D.PALE_FACE
 	sg.text.TextColor3 = if pale then Ui.INK else Ui.WHITE
+	-- (disabled, not only transparent: an ink word wants no halo at all, as the UI's yellows have none)
 	sg.outline.Transparency = if pale then 1 else 0
+	sg.outline.Enabled = not pale
 	sg.pale = pale
 end
 
@@ -442,7 +448,7 @@ function Plaza2D.setRoom(self: any, room: any)
 	else
 		self.title.Text = string.upper(Realms.LOBBY.name)
 		-- (short: the long line grew the card to 81% of the screen's width)
-		self.directions.Text = "1v1 at the cabinets  ·  rooms at the gates  ·  your look at the tailor's"
+		self.directions.Text = "East: 1v1 at the cabinets, rooms at the gates, the climb  ·  West: your look at the tailor's"
 	end
 end
 
@@ -785,18 +791,20 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 	end
 	-- The arcade: its canopy, and the cabinets, each pair with its stools and number.
 	add(20.5, function()
-		local canopy = PlazaArt.get("canopy", function() return PlazaArt.canopy(88 * 8) end)
+		-- (low, over the cabinets: at 15 studs a band of empty sky and posts lay between beam and machines)
+		local canopy = PlazaArt.get("canopy", function() return PlazaArt.canopy(88 * 8, Plaza2D.CANOPY_H) end)
 		PlazaArt.draw(c, "canopy", canopy, 140, 20.5 * D)
 		-- (on the canopy's beam: over it, the sign sat behind the district's title as you walked in. Its
 		-- flicker is in its words: recolouring the card repaints its gradient, border and lip)
 		-- (what it is for, not its name again: THE ARCADE sat under THE ARCADE GROVE)
-		self:placeSign(c, "arcade", "1v1 CABINETS", 140, 20.5 * D + 13.3, 16, Ui.TEAL)
+		self:placeSign(c, "arcade", "1v1 CABINETS", 140, 20.5 * D + (Plaza2D.CANOPY_H - 14) * PlazaArt.CELL + 0.05, 16, Ui.TEAL)
 		self.signs.arcade.text.TextTransparency = if math.floor(clock * 7) % 23 == 0 then 0.5 else 0
 	end)
 	for _, cab in PLAZA.cabinets do
 		add(cab.z, function()
 			if cab.z > Plaza2D.CAB_BACK then
-				PlazaArt.draw(c, "cabFar", PlazaArt.get("cabFar", function() return PlazaArt.cabinetPair(true) end), cab.x, cab.z * D)
+				-- (smaller as well as darker: the same size at the same x, the two rows read as one locker)
+				PlazaArt.draw(c, "cabFar", PlazaArt.get("cabFar", function() return PlazaArt.cabinetPair(true) end), cab.x, cab.z * D, Plaza2D.CAB_FAR_SCALE)
 			else
 				PlazaArt.draw(c, "cab", PlazaArt.get("cab", PlazaArt.cabinetPair), cab.x, cab.z * D)
 			end
@@ -804,7 +812,9 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			Canvas.rect(c, cab.x - 2.2, cab.z * D + 3.3, 0.3, 2, CYAN, 0.25 * flick)
 			Canvas.rect(c, cab.x + 1.9, cab.z * D + 3.3, 0.3, 2, PINK, 0.25 * flick)
 			-- (on its own marquee: above it, the front row's numbers sat on the back row's cabinets)
-			self:placeSign(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x, cab.z * D + 5.6, 14, Ui.INDIGO)
+			local far = cab.z > Plaza2D.CAB_BACK
+			self:placeSign(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x,
+				cab.z * D + (if far then 44 * PlazaArt.CELL * Plaza2D.CAB_FAR_SCALE else 5.6), if far then 12 else 14, Ui.INDIGO)
 			-- What the cabinet is doing: a countdown, a fight (and who is watching), the streak.
 			local view = self.cabinets[cab.number]
 			if view then
@@ -1064,7 +1074,9 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.camX += (target - self.camX) * math.min(1, dt * 6)
 	RealmArt.sky(c, Realms.LOBBY, self.camX, clock)
 	-- Framed on the plaza, not the island under it: the underside is a strip at the bottom.
-	c:world(self.camX, 12.5 + p.z * D * 0.3, ppu, 0, 0)
+	-- (a lounge framed higher on its stations: framed as the market, a quarter of the screen under its
+	-- rail was empty floor and island)
+	c:world(self.camX, 12.5 + p.z * D * 0.3 + (if scene.kind ~= "plaza" then Plaza2D.LOUNGE_LIFT else 0), ppu, 0, 0)
 	local left, right = self.camX - half - 12, self.camX + half + 12
 	self:drawGround(c, scene, left, right)
 
@@ -1160,8 +1172,10 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.prompt.Active = action
 	-- (a tip - not an action - goes after a few seconds: it sat over your own fighter on a phone)
 	if self.promptLast ~= self.prompt.Text then self.promptLast, self.promptAt = self.prompt.Text, clock end
-	-- (on every screen now: on a wide one the tip never went and cut the legs off people at the front)
-	local tipDone = not action and clock - (self.promptAt or clock) > Plaza2D.TIP_SECONDS
+	-- (on every screen now: on a wide one the tip never went and cut the legs off people at the front.
+	-- On a wide screen there is no tip at all - the title card's directions say the same - so the card
+	-- at the bottom is only ever an action; a narrow one keeps it, for a few seconds)
+	local tipDone = not action and (not self.bannerNarrow or clock - (self.promptAt or clock) > Plaza2D.TIP_SECONDS)
 	self.prompt.Visible = not (self.social and self.social.anyOpen and self.social:anyOpen()) and not tipDone
 	-- the card fits its words, so a short line is not a long bar and a long one does not leave a
 	-- word alone on a second line

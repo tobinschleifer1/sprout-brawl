@@ -244,7 +244,8 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 					node.gradient = { from = hex(k[1].Value), to = hex(k[#k].Value), vertical = (ch.Rotation or 0) == 90 }
 				end
 				-- (a 0 px stroke draws nothing in Roblox: recording it made the SVG draw a default one)
-				if ch.ClassName == "UIStroke" and ch.Enabled ~= false and (ch.Thickness or 1) > 0 then
+				-- (nor does a fully transparent one)
+				if ch.ClassName == "UIStroke" and ch.Enabled ~= false and (ch.Thickness or 1) > 0 and (ch.Transparency or 0) < 1 then
 					if tostring(ch.ApplyStrokeMode) == "ApplyStrokeMode.Border" or tostring(ch.ApplyStrokeMode) == "Border" then
 						node.stroke, node.strokeW = hex(ch.Color), ch.Thickness
 					elseif cls ~= "Frame" then

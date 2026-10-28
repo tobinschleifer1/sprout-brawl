@@ -229,19 +229,19 @@ function PlazaArt.stringLights(span: number): any
 end
 
 -- The arcade's canopy: posts and a roof beam across the whole district. (The sign is a label.)
-function PlazaArt.canopy(span: number): any
-	local W, H = span, 120
+function PlazaArt.canopy(span: number, height: number?): any
+	local W, H = span, height or 120
 	local b = builder(W, H)
 	local posts = math.floor(span / 160)
 	for i = 0, posts do
 		local x = math.floor(i * (span - 8) / posts)
-		b.r(x, 0, 8, 110, C.steel); b.r(x + 2, 0, 2, 110, C.steelHi)
+		b.r(x, 0, 8, H - 10, C.steel); b.r(x + 2, 0, 2, H - 10, C.steelHi)
 	end
 	-- the beam in the kit's anatomy - a deep indigo face, a light band on top, a dark lip under, teal
 	-- bulbs - for the arcade's teal sign to stand out on (on a teal beam the sign was 1.4:1; an ink bar
 	-- with two pin stripes read as a rail across the sky)
-	b.r(0, 106, W, 3, C.indigoDk); b.r(0, 109, W, 8, C.indigo); b.r(0, 115, W, 2, C.indigoHi)
-	for x = 6, W - 6, 24 do b.r(x, 111, 4, 3, C.teal) end                  -- bulbs along it
+	b.r(0, H - 14, W, 3, C.indigoDk); b.r(0, H - 11, W, 8, C.indigo); b.r(0, H - 5, W, 2, C.indigoHi)
+	for x = 6, W - 6, 24 do b.r(x, H - 9, 4, 3, C.teal) end                -- bulbs along it
 	return b.done(true)
 end
 

@@ -23,7 +23,7 @@ local C: { [string]: string } = {
 	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
 	pink = "#E04848", pinkDk = "#8E2424", pinkDeep = "#4E1620", cyan = "#3A8AD8", cyanDk = "#1E4A8A", cyanDeep = "#14284E", amber = "#FFC83A", amberDk = "#C47A1A",
 	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66",
-	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
+	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", indigoWall = "#353870", violet = "#9668FF", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
 PlazaArt.C = C
 
@@ -248,16 +248,67 @@ end
 -- The arcade's marquee board, standing on its canopy's beam: an indigo kit panel ringed with bulbs, a
 -- joystick at each end, on two struts (its name is a kit sign, Plaza2D).
 function PlazaArt.arcadeMarquee(): any
-	local W, H = 200, 52
+	-- (an arcade's stepped marquee, not a billboard: a wide flat slab copied the square's)
+	local W, H = 150, 64
 	local b = builder(W, H)
-	b.r(30, 0, 6, 10, C.steel); b.r(W - 36, 0, 6, 10, C.steel)              -- struts
-	b.r(0, 10, W, 42, C.indigoDk)                                           -- its lip
-	b.r(0, 13, W, 37, C.indigo)
-	b.r(0, 46, W, 4, C.indigoHi)                                            -- its light band
-	for x = 4, W - 8, 12 do b.r(x, 15, 4, 3, if (x // 12) % 2 == 0 then C.amber else C.teal) end
-	for x = 4, W - 8, 12 do b.r(x, 41, 4, 3, if (x // 12) % 2 == 0 then C.teal else C.amber) end
-	for _, x in { 12, W - 24 } do                                           -- a joystick each end
-		b.r(x, 21, 12, 5, C.ink); b.r(x + 5, 26, 2, 8, C.ink); b.r(x + 3, 33, 6, 5, C.pink)
+	b.r(24, 0, 6, 10, C.steel); b.r(W - 30, 0, 6, 10, C.steel)              -- struts
+	b.r(0, 10, W, 36, C.indigoDk); b.r(0, 13, W, 31, C.indigo)               -- the board
+	b.r(20, 44, W - 40, 16, C.indigoDk); b.r(20, 46, W - 40, 12, C.indigo)   -- its stepped crown
+	b.r(20, 56, W - 40, 2, C.indigoHi); b.r(0, 41, W, 3, C.indigoHi)
+	-- chase bulbs all round
+	for x = 3, W - 6, 8 do b.r(x, 14, 3, 2, if (x // 8) % 2 == 0 then C.amber else C.teal) end
+	for x = 23, W - 26, 8 do b.r(x, 52, 3, 2, if (x // 8) % 2 == 0 then C.teal else C.amber) end
+	for y = 18, 38, 6 do b.r(3, y, 2, 3, C.amber); b.r(W - 5, y, 2, 3, C.teal) end
+	-- two fighters squaring up, either side of the name
+	local function fighter(x: number, dir: number, col: string)
+		b.r(x, 18, 8, 3, C.ink); b.r(x + 1, 21, 6, 10, col); b.r(x + 2, 31, 4, 4, col)
+		b.r(x + (if dir > 0 then 7 else -4), 25, 5, 2, col)                -- a fist out
+		b.r(x + 2, 32, 1, 1, C.ink)
+	end
+	fighter(12, 1, C.pink)
+	fighter(W - 20, -1, C.cyan)
+	return b.done(true)
+end
+
+-- Pennants on a sagging line, `w` x `h` cells, falling from its left end (h up) to its right (0 up),
+-- for the arcade's marquee to the canopy's ends. Mirror it for the other side.
+function PlazaArt.bunting(w: number, h: number, flip: boolean?): any
+	local H = h + 16
+	local b = builder(w, H)
+	local colours = { C.pink, C.cyan, C.amber, C.teal }
+	local n = math.floor(w / 6)
+	for i = 0, n - 1 do
+		local t = i / n
+		local x = math.floor(if flip then w - 6 - t * (w - 6) else t * (w - 6))
+		local y = math.floor(12 + h * (1 - t) - math.sin(t * math.pi) * 8)
+		b.r(x, y, 6, 1, C.ink)
+		if i % 2 == 0 then
+			b.r(x + 1, y - 7, 5, 7, C.ink); b.r(x + 2, y - 6, 3, 5, colours[(i // 2) % #colours + 1])
+		end
+	end
+	return b.done()
+end
+
+-- A lounge's back wall, `w` x `h` cells: a kit wall (ink top, light band, deep indigo face, dark lip)
+-- with `windows` tall windows onto the sky and pennants in the stations' colours along its top.
+function PlazaArt.loungeWall(w: number, h: number, windows: number, sky: string): any
+	local b = builder(w, h)
+	b.r(0, 0, w, h, C.indigoDk)
+	b.r(0, 3, w, h - 7, C.indigoWall)
+	b.r(0, h - 7, w, 3, C.indigoHi)
+	local pitch = w / windows
+	for i = 0, windows - 1 do
+		local cx = math.floor((i + 0.5) * pitch)
+		b.r(cx - 26, 18, 53, h - 36, C.ink)
+		b.r(cx - 24, 20, 49, h - 40, sky)
+		b.r(cx - 24, 20 + math.floor((h - 40) * 0.55), 49, 2, C.ink)
+		b.r(cx - 1, 20, 2, h - 40, C.ink)
+	end
+	local colours = { C.cyan, C.lantern, C.violet, C.green, C.pink }
+	local n = 0
+	for x = 12, w - 12, 24 do
+		n += 1
+		b.r(x - 5, h - 20, 10, 13, C.ink); b.r(x - 4, h - 19, 8, 11, colours[(n - 1) % #colours + 1])
 	end
 	return b.done(true)
 end

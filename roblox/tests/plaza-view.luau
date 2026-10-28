@@ -726,6 +726,20 @@ do
 		local _ = l + r
 	end
 	assert(hub.district ~= "lounge", "a lounge's district banner repeats the title card's name")
+	-- the lounge is a room: its back wall stands behind the stations (its upper fifth was empty sky)
+	do
+		local keys: { [string]: boolean } = {}
+		local was = Canvas.sprite
+		Canvas.sprite = function(c: any, key: string, ...: any)
+			keys[key] = true
+			return was(c, key, ...)
+		end
+		hub:draw(canvas(1280, 720), 1/60)
+		Canvas.sprite = was
+		local wall = false
+		for k in keys do if string.find(k, "^prop|wall") then wall = true end end
+		assert(wall, "the lounge has no back wall")
+	end
 	-- framed on its stations: the floor under its front edge an eighth of the screen or less (framed
 	-- as the market, a quarter was empty floor and island)
 	do
@@ -789,8 +803,12 @@ do
 			local x1 = sg.card.Position.X.Offset
 			local x2 = x1 + sg.card.Size.X.Offset
 			if sg.card.Visible and x2 > bx1 and x1 < bx2 then
-				assert(sg.card.Position.Y.Offset >= bottom + 4, `at {w.id} the {id} sign (top {sg.card.Position.Y.Offset}) meets the district title (bottom {bottom})`)
+				assert(sg.card.Position.Y.Offset >= bottom + 16, `at {w.id} the {id} sign (top {sg.card.Position.Y.Offset}) meets the district title (bottom {bottom})`)
 			end
+		end
+		-- and the station you walked in for keeps its sign up under the title, clear of it
+		if w.id == "tailor" then
+			assert(hub.signs.wardrobe and hub.signs.wardrobe.card.Visible, "the wardrobe's sign is hidden under the district title")
 		end
 	end
 	-- a pale face is lettered in ink, a deep one in white (white on the gold lift measured 1.17:1)
@@ -832,6 +850,12 @@ do
 		assert(scales["prop|cabFar"] and scales["prop|cab"] and scales["prop|cabFar"] < scales["prop|cab"] * 0.95,
 			"the arcade's back row is no smaller than the front")
 		assert(scales["prop|marquee"], "no marquee board over the arcade's canopy: a quarter of the screen of empty sky")
+		hub.bannerAt = -1e9          -- (long after walking in: under the district's title it steps aside)
+		hub.camX = hub.model.p.x
+		hub:draw(canvas(1280, 720), 1/60)
+		local arcadeSign = hub.signs.arcade
+		assert(arcadeSign and arcadeSign.card.Visible and arcadeSign.text.Text == "1v1 CABINETS", "the arcade's marquee carries no sign")
+		assert(scales["prop|buntL"] and scales["prop|buntR"], "no pennants either side of the arcade's marquee")
 		local D = PLAZA.depth
 		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
 		local backTop = 0
@@ -848,6 +872,37 @@ do
 	local bare = hub.pool["cabT1"]
 	assert(not bare or bare.Visible == false, "cabinet 1's countdown is bare words")
 	hub:setCabinets({}, 1)
+	-- in a crowd no two name tags' words meet (nine sat on two baselines and read as one line)
+	do
+		local list = {}
+		for i = 1, 12 do
+			local p = KIT.presets[(i * 3) % #KIT.presets + 1]
+			-- (shoulder to shoulder in two rows, so untreated their tags would collide)
+			table.insert(list, { userId = 100 + i, name = p.name, avatar = p.code, weapon = "Sword",
+				x = -9 + ((i - 1) % 6) * 3, z = if i <= 6 then 6 else 6.4, y = 0, facing = 1 })
+		end
+		hub:setPeers(list, 1)
+		for _, peer in hub.peers do peer.x, peer.z = peer.target.x, peer.target.z end
+		hub.model:setScene(hub.model.data, { x = 0, z = 8 })
+		hub.camX = 0
+		hub:draw(canvas(1280, 720), 1/60)
+		local boxes = {}
+		for id, t in hub.pool do
+			if string.sub(id, 1, 4) == "name" and t.Visible then
+				local w = Ui.textWidth(t.Text, 12)
+				local cx, cy = t.Position.X.Offset + t.Size.X.Offset / 2, t.Position.Y.Offset + t.Size.Y.Offset / 2
+				table.insert(boxes, { cx - w / 2, cy - 8, cx + w / 2, cy + 8, t.Text })
+			end
+		end
+		assert(#boxes >= 10, `only {#boxes} tags in the crowd`)
+		for i = 1, #boxes do
+			for j = i + 1, #boxes do
+				local a, b = boxes[i], boxes[j]
+				assert(not (a[1] < b[3] and b[1] < a[3] and a[2] < b[4] and b[2] < a[4]), `the name tags overlap: {a[5]} and {b[5]}`)
+			end
+		end
+		hub:setPeers({}, 1)
+	end
 	-- a name tag over a cabinet's number hides the number (Corsair's sat on 06's, one baseline)
 	do
 		local cab
@@ -882,10 +937,10 @@ do
 			for id, sg in hub.signs do
 				local c = sg.card
 				local x1, w = c.Position.X.Offset, c.Size.X.Offset
-				-- (all of its words on the screen, or none: a marquee 62% on read "5" for 05)
-				local pad = Plaza2D.SIGN_PAD
+				-- (the whole card on the screen, or none of it: a marquee 62% on read "5" for 05, and with
+				-- its pad allowed off NOTICE BOARD lost its frame)
 				if c.Visible then
-					assert(x1 + pad >= 0 and x1 + w - pad <= 812, `the {id} sign's words run off the screen ({x1 + pad} to {x1 + w - pad} of 812)`)
+					assert(x1 >= 0 and x1 + w <= 812, `the {id} sign's card runs off the screen ({x1} to {x1 + w} of 812)`)
 					seen += 1
 				end
 			end
@@ -935,6 +990,21 @@ do
 		end
 		assert(stone > 0 and light / stone < 0.05, `{math.floor(light / stone * 100)}% of the paving is a stone white names read under 2:1 on`)
 	end
+end
+
+-- 13. Your reflection in the tailor's mirror reads as one: glass over it at 0.3 or more (at 0.1 the
+--     knight in the mirror read as a second player in the doorway)
+do
+	local glass = 0
+	Canvas.rect = function(c, _x, _y, w, h, _colour, alpha)
+		if math.abs(w - 4.8) < 1e-6 and math.abs(h - 8.7) < 1e-6 then glass = math.max(glass, alpha or 1) end
+		c.used += 1
+	end
+	local wardrobe
+	for _, st in PLAZA.market.stations do if st.kind == "Wardrobe" then wardrobe = st end end
+	hub:drawWardrobe(canvas(1280, 720), wardrobe, 0)
+	Canvas.rect = primitive
+	assert(glass >= 0.3, `the mirror's glass is {glass} over your reflection`)
 end
 
 -- 10. Every outlined prop has an ink line round its silhouette, but not under its base: bare, the

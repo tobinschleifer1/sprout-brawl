@@ -71,14 +71,18 @@ Plaza2D.KIT_INK, Plaza2D.KIT_BAND = 0.3, 0.5
 -- cabinets deeper than this are the arcade's back row, drawn in their dark shades
 Plaza2D.CAB_BACK = 10
 Plaza2D.CAB_FAR_SCALE = 0.8
+Plaza2D.BANNER_CLEAR = 16
+Plaza2D.MIRROR_GLASS = 0.4
 -- the arcade canopy's height in PlazaArt cells (its beam's foot is 14 under it)
 Plaza2D.CANOPY_H = 52
 -- where the arcade's sign stands on its marquee board (cells up from the beam's top)
-Plaza2D.MARQUEE_FOOT = 14
+Plaza2D.MARQUEE_FOOT = 17
 Plaza2D.LOUNGE_LIFT = 3
 -- (0.7: larger, the lounge's camera fits the wider room and draws everyone smaller - the sky over the
 -- stations stays the same, 174-176 px)
 Plaza2D.STATION_SCALE = 0.7
+-- the lounge's back wall: its depth (behind everything), its height in studs, its windows
+Plaza2D.WALL_Z, Plaza2D.WALL_H, Plaza2D.WALL_WINDOWS = 19.5, 15, 6
 Plaza2D.SHORT_SCREEN, Plaza2D.SHORT_LIFT, Plaza2D.SHORT_STUDS = 450, 1.5, 46
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
@@ -338,7 +342,8 @@ function Plaza2D.clearBanner(self: any)
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 1280
 	local tw = Ui.textWidth(banner.Text, 40, Ui.DISPLAY)
 	local x1, x2 = gw / 2 - tw / 2 - 12, gw / 2 + tw / 2 + 12
-	local bottom = banner.Position.Y.Offset + banner.Size.Y.Offset + 4
+	-- (16 px under it at least: 9 px under, the wardrobe's card read as the title's second line)
+	local bottom = banner.Position.Y.Offset + banner.Size.Y.Offset + Plaza2D.BANNER_CLEAR
 	for _, sg in self.signs do
 		local c = sg.card
 		if c.Visible and c.Position.Y.Offset < bottom and c.Position.X.Offset + c.Size.X.Offset > x1 and c.Position.X.Offset < x2 then
@@ -350,6 +355,25 @@ end
 -- A name tag over a cabinet's number rises above the number (Corsair's sat on 06's on one baseline;
 -- hiding the number left that cabinet with none).
 function Plaza2D.clearTags(self: any)
+	-- tags against each other first: one whose words meet another's rises 14 px, back to front (nine
+	-- names on two baselines read as one line of text in a crowd)
+	local tags: { any } = {}
+	for id, t in self.pool do
+		if string.sub(id, 1, 4) == "name" and t.Visible then table.insert(tags, t) end
+	end
+	table.sort(tags, function(a, b) return a.Position.Y.Offset > b.Position.Y.Offset end)
+	for i, t in tags do
+		local w = Ui.textWidth(t.Text, 12) + 8
+		local cx = t.Position.X.Offset + t.Size.X.Offset / 2
+		for j = 1, i - 1 do
+			local o = tags[j]
+			local ow = Ui.textWidth(o.Text, 12) + 8
+			local ocx = o.Position.X.Offset + o.Size.X.Offset / 2
+			if math.abs(cx - ocx) < (w + ow) / 2 and math.abs(t.Position.Y.Offset - o.Position.Y.Offset) < 18 then
+				t.Position = UDim2.fromOffset(t.Position.X.Offset, o.Position.Y.Offset - 18)
+			end
+		end
+	end
 	if not self.signs then return end
 	for id, t in self.pool do
 		if string.sub(id, 1, 4) == "name" and t.Visible then
@@ -378,8 +402,9 @@ function Plaza2D.clearEdges(self: any, gw: number)
 	if gw <= 0 then return end
 	for _, sg in self.signs or {} do
 		local c = sg.card
-		local x1 = c.Position.X.Offset + Plaza2D.SIGN_PAD
-		local x2 = c.Position.X.Offset + c.Size.X.Offset - Plaza2D.SIGN_PAD
+		-- (the whole card: its pad allowed off, NOTICE BOARD lost its left frame)
+		local x1 = c.Position.X.Offset
+		local x2 = c.Position.X.Offset + c.Size.X.Offset
 		if c.Visible and (x1 < 0 or x2 > gw) then c.Visible = false end
 	end
 	for _, id in { "billboard", "billboard2" } do
@@ -854,8 +879,14 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local board = PlazaArt.get("marquee", PlazaArt.arcadeMarquee)
 		local beamTop = 20.5 * D + Plaza2D.CANOPY_H * PlazaArt.CELL
 		PlazaArt.draw(c, "marquee", board, 140, beamTop)
+		-- pennants strung from the board's corners out along the canopy, so the sky either side is not bare
+		local half = board.w * PlazaArt.CELL / 2
+		local span = math.floor((43 - half) / PlazaArt.CELL)
+		local left = PlazaArt.get("buntL", function() return PlazaArt.bunting(span, 34) end)
+		local right = PlazaArt.get("buntR", function() return PlazaArt.bunting(span, 34, true) end)
+		PlazaArt.draw(c, "buntL", left, 140 - half - span * PlazaArt.CELL / 2, beamTop)
+		PlazaArt.draw(c, "buntR", right, 140 + half + span * PlazaArt.CELL / 2, beamTop)
 		self:placeSign(c, "arcade", "1v1 CABINETS", 140, beamTop + Plaza2D.MARQUEE_FOOT * PlazaArt.CELL, 22, Ui.TEAL)
-		self.signs.arcade.text.TextTransparency = if math.floor(clock * 7) % 23 == 0 then 0.5 else 0
 	end)
 	for _, cab in PLAZA.cabinets do
 		add(cab.z, function()
@@ -1022,6 +1053,18 @@ Plaza2D.stationArt = stationArt
 
 function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), clock: number)
 	local near = self.model:nearest()
+	-- The room's back wall, behind everything: a kit wall (ink top, light band, a deep indigo face)
+	-- with tall windows onto the sky and a pennant in each station's colour, so the lounge reads as a
+	-- room and its upper fifth is not empty sky (larger stations could not fill it: the camera fits
+	-- the room's width).
+	add(Plaza2D.WALL_Z, function()
+		local b = self.model.data.bounds
+		local cells = math.floor((b.x2 - b.x1) / PlazaArt.CELL + 0.5)
+		local wall = PlazaArt.get("wall" .. cells, function()
+			return PlazaArt.loungeWall(cells, math.floor(Plaza2D.WALL_H / PlazaArt.CELL), Plaza2D.WALL_WINDOWS, Realms.LOBBY.sky[2])
+		end)
+		PlazaArt.draw(c, "wall" .. cells, wall, (b.x1 + b.x2) / 2, Plaza2D.WALL_Z * D)
+	end)
 	add(18.4, function()
 		local lights = PlazaArt.get("lights", function() return PlazaArt.stringLights(640) end)
 		PlazaArt.draw(c, "lights", lights, 0, 18.4 * D)
@@ -1083,11 +1126,14 @@ function Plaza2D.drawWardrobe(self: any, c: any, s: any, clock: number)
 		r.onGround = p.y <= 0.01
 		Fighter2D.draw(c, r, self.char, clock, baseY + 0.6)
 	end
-	Canvas.rect(c, s.x - 2.4, baseY + 0.9, 4.8, 8.7, CYAN, 0.10)
+	-- (the glass over your reflection, strong enough that it reads as one: at 0.1 the knight in the
+	-- mirror read as a second player standing in the doorway)
+	Canvas.rect(c, s.x - 2.4, baseY + 0.9, 4.8, 8.7, Canvas.hex(Realms.LOBBY.sky[3], WHITE), Plaza2D.MIRROR_GLASS)
 	Canvas.rect(c, s.x - 1.6, baseY + 6.8, 0.25, 2.2, WHITE, 0.25)
 	Canvas.rect(c, s.x - 1.1, baseY + 7.6, 0.2, 1.3, WHITE, 0.18)
 	-- (just over the awning: higher, it met the district's title as you walked in)
-	self:placeSign(c, "wardrobe", s.name .. "\n" .. s.landmark, s.x, baseY + Plaza2D.signAbove(110), 15, Ui.PINK)
+	-- (its foot on the awning, not over it: over it, the card was 9 px under the district title)
+	self:placeSign(c, "wardrobe", s.name .. "\n" .. s.landmark, s.x, baseY + 100 * PlazaArt.CELL, 15, Ui.PINK)
 end
 
 -- ------------------------------------------------------------------ the frame ----
@@ -1106,7 +1152,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	local clock = os.clock()
 	local vp = c:viewport()
 	local b = scene.bounds
-	-- (a short screen sees a little more of the roof - 44 studs tall, not 38 - so its walking band
+	-- (a short screen sees a little more of the roof - 46 studs tall, not 38 - so its walking band
 	-- clears the buttons' row and its billboard the title card: framed lower instead, BLOCKFALL went
 	-- under the card)
 	local ppu = math.clamp(vp.Y / (if vp.Y < Plaza2D.SHORT_SCREEN then Plaza2D.SHORT_STUDS else 38), 6, 22)

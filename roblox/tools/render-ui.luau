@@ -103,9 +103,13 @@ if screen == "plaza" then
 	end
 	if room then
 		-- a room mid-setup: you not ready, a ready teammate, an open place and a bot, voting on maps
-		hub:setRoom({ id = 1, format = room, stage = "FoundryFloor", mapChoice = "host", mode = "stock", stocks = 3, time = 180,
-			slots = { { userId = 1, team = 0, ready = false, vote = "Undertow" }, { userId = 2, team = 1, ready = true, vote = "Undertow" },
-				{ team = 0 }, { team = 1, bot = "easy" } } })
+		-- (a 3v3 room with its six places: four people, a bot and an open place - rendered with a duel's
+		-- four, it read "1/2 ready" like the duel)
+		local slots = if room == "Triples" then { { userId = 1, team = 0, ready = false, vote = "Undertow" }, { userId = 2, team = 1, ready = true, vote = "Undertow" },
+				{ userId = 3, team = 0, ready = true, vote = "Saltflat" }, { userId = 4, team = 1, ready = false }, { team = 0 }, { team = 1, bot = "easy" } }
+			else { { userId = 1, team = 0, ready = false, vote = "Undertow" }, { userId = 2, team = 1, ready = true, vote = "Undertow" },
+				{ team = 0 }, { team = 1, bot = "easy" } }
+		hub:setRoom({ id = 1, format = room, stage = "FoundryFloor", mapChoice = "host", mode = "stock", stocks = 3, time = 180, slots = slots })
 	end
 	hub.model:setScene(hub.model.data, { x = x, z = z })
 	hub.camX = x

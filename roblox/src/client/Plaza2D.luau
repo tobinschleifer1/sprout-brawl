@@ -73,7 +73,13 @@ Plaza2D.CAB_BACK = 10
 Plaza2D.CAB_FAR_SCALE = 0.8
 -- the arcade canopy's height in PlazaArt cells (its beam's foot is 14 under it)
 Plaza2D.CANOPY_H = 52
+-- where the arcade's sign stands on its marquee board (cells up from the beam's top)
+Plaza2D.MARQUEE_FOOT = 14
 Plaza2D.LOUNGE_LIFT = 3
+-- (0.7: larger, the lounge's camera fits the wider room and draws everyone smaller - the sky over the
+-- stations stays the same, 174-176 px)
+Plaza2D.STATION_SCALE = 0.7
+Plaza2D.SHORT_SCREEN, Plaza2D.SHORT_LIFT, Plaza2D.SHORT_STUDS = 450, 1.5, 46
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
 -- A stall's lettering: its awning colour, lightened until it reads at 4.5:1 on the board's dark face
@@ -341,8 +347,8 @@ function Plaza2D.clearBanner(self: any)
 	end
 end
 
--- A name tag over a cabinet's number hides the number (a person is worth more than a marquee's digits:
--- Corsair's tag sat on 06's on one baseline).
+-- A name tag over a cabinet's number rises above the number (Corsair's sat on 06's on one baseline;
+-- hiding the number left that cabinet with none).
 function Plaza2D.clearTags(self: any)
 	if not self.signs then return end
 	for id, t in self.pool do
@@ -355,7 +361,9 @@ function Plaza2D.clearTags(self: any)
 				if c.Visible and string.match(sid, "^cab%d+$") then
 					local cx1, cy1 = c.Position.X.Offset, c.Position.Y.Offset
 					if cx1 < cx + w / 2 and cx1 + c.Size.X.Offset > cx - w / 2 and cy1 < y2 and cy1 + c.Size.Y.Offset > y1 then
-						c.Visible = false
+						-- the tag's words (about 20 px tall, centred in its box) end 4 px over the card
+						t.Position = UDim2.fromOffset(t.Position.X.Offset, cy1 - 14 - t.Size.Y.Offset / 2)
+						y1, y2 = cy1 - 24, cy1 - 4
 					end
 				end
 			end
@@ -363,17 +371,23 @@ function Plaza2D.clearTags(self: any)
 	end
 end
 
--- A sign mostly off the screen's side is hidden (NOTICE BOARD read "ARD" at a phone's edge).
-Plaza2D.EDGE_SHOWN = 0.6
-function Plaza2D.clearEdges(self: any)
-	if not self.signs then return end
-	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0
+-- A sign whose words run off the screen's side is hidden - all of its words or none (NOTICE BOARD read
+-- "ARD", and a marquee 62% on screen read "5" for 05). The billboard's lettering likewise ("BLO").
+-- `gw`: the canvas's width (the GUI's AbsoluteSize is stale at start and after a resize).
+function Plaza2D.clearEdges(self: any, gw: number)
 	if gw <= 0 then return end
-	for _, sg in self.signs do
+	for _, sg in self.signs or {} do
 		local c = sg.card
-		local x1, w = c.Position.X.Offset, c.Size.X.Offset
-		if c.Visible and w > 0 and (math.min(gw, x1 + w) - math.max(0, x1)) / w < Plaza2D.EDGE_SHOWN then
-			c.Visible = false
+		local x1 = c.Position.X.Offset + Plaza2D.SIGN_PAD
+		local x2 = c.Position.X.Offset + c.Size.X.Offset - Plaza2D.SIGN_PAD
+		if c.Visible and (x1 < 0 or x2 > gw) then c.Visible = false end
+	end
+	for _, id in { "billboard", "billboard2" } do
+		local t = self.pool[id]
+		if t and t.Visible then
+			local w = Ui.textWidth(t.Text, t.TextSize / Ui.SCALE, t.Font)
+			local cx = t.Position.X.Offset + t.Size.X.Offset / 2
+			if cx - w / 2 < 0 or cx + w / 2 > gw then t.Visible = false end
 		end
 	end
 end
@@ -481,7 +495,7 @@ function Plaza2D.setRoom(self: any, room: any)
 			else (if shown then Realms.name(shown) else "Random map")
 		local rules = if nextRoom.mode == "timed" then `Timed {(nextRoom.time or 180) // 60} min` else `{nextRoom.stocks or 3} lives`
 		self.title.Text = string.upper(Realms.place("lounge", self.model.data.name))
-		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} {if bots == 1 then "CPU" else "CPUs"} · {map} · {rules} · the stairs on the left go back down`
+		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} {if bots == 1 then "CPU" else "CPUs"} · {map} · {rules}`
 	else
 		self.title.Text = string.upper(Realms.LOBBY.name)
 		-- (short: the long line grew the card to 81% of the screen's width)
@@ -835,7 +849,12 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		-- (on the canopy's beam: over it, the sign sat behind the district's title as you walked in. Its
 		-- flicker is in its words: recolouring the card repaints its gradient, border and lip)
 		-- (what it is for, not its name again: THE ARCADE sat under THE ARCADE GROVE)
-		self:placeSign(c, "arcade", "1v1 CABINETS", 140, 20.5 * D + (Plaza2D.CANOPY_H - 14) * PlazaArt.CELL + 0.05, 16, Ui.TEAL)
+		-- a marquee board standing on the beam, for the arcade's name to hang on (the sky over the canopy
+		-- was a quarter of the screen with nothing in it)
+		local board = PlazaArt.get("marquee", PlazaArt.arcadeMarquee)
+		local beamTop = 20.5 * D + Plaza2D.CANOPY_H * PlazaArt.CELL
+		PlazaArt.draw(c, "marquee", board, 140, beamTop)
+		self:placeSign(c, "arcade", "1v1 CABINETS", 140, beamTop + Plaza2D.MARQUEE_FOOT * PlazaArt.CELL, 22, Ui.TEAL)
 		self.signs.arcade.text.TextTransparency = if math.floor(clock * 7) % 23 == 0 then 0.5 else 0
 	end)
 	for _, cab in PLAZA.cabinets do
@@ -1027,14 +1046,15 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			end)
 		else
 			add(s.z + 1, function()
-				-- At 0.7 scale about its base: the stations were drawn for the old hub's wider camera.
+				-- At STATION_SCALE about its base: the stations were drawn for the old hub's wider camera.
+				local k = Plaza2D.STATION_SCALE
 				Canvas.save(c)
 				Canvas.translate(c, s.x, (s.z + 1) * D)
-				Canvas.scale(c, 0.7, 0.7)
+				Canvas.scale(c, k, k)
 				Canvas.translate(c, -s.x, 0)
 				local top = stationArt(c, s, near == s, self.room, self.char and self.char.weapon and self.char.weapon.id)
 				Canvas.restore(c)
-				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + top * 0.7 + Plaza2D.SIGN_GAP, 14, Plaza2D.STATION_COLOURS[s.kind] or Ui.INDIGO)
+				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + top * k + Plaza2D.SIGN_GAP, 14, Plaza2D.STATION_COLOURS[s.kind] or Ui.INDIGO)
 			end)
 		end
 	end
@@ -1086,7 +1106,10 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	local clock = os.clock()
 	local vp = c:viewport()
 	local b = scene.bounds
-	local ppu = math.clamp(vp.Y / 38, 6, 22)
+	-- (a short screen sees a little more of the roof - 44 studs tall, not 38 - so its walking band
+	-- clears the buttons' row and its billboard the title card: framed lower instead, BLOCKFALL went
+	-- under the card)
+	local ppu = math.clamp(vp.Y / (if vp.Y < Plaza2D.SHORT_SCREEN then Plaza2D.SHORT_STUDS else 38), 6, 22)
 	-- a lounge is one room: all of it in view (at the market's scale its right-hand station and the
 	-- stairs out were off the screen's edges)
 	-- (fitting the stations, stairs to ready rail, not the island's whole width: fitted to the island
@@ -1095,7 +1118,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	if scene.kind ~= "plaza" then
 		roomLo, roomHi = math.huge, -math.huge
 		for _, st in scene.stations do
-			local reach = if st.kind == "Exit" then 4.5 else 6.5
+			local reach = if st.kind == "Exit" then 4.5 else 8 * Plaza2D.STATION_SCALE + 0.6
 			roomLo, roomHi = math.min(roomLo, st.x - reach), math.max(roomHi, st.x + reach)
 		end
 		roomLo, roomHi = math.max(roomLo, b.x1), math.min(roomHi, b.x2)
@@ -1114,7 +1137,10 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	-- Framed on the plaza, not the island under it: the underside is a strip at the bottom.
 	-- (a lounge framed higher on its stations: framed as the market, a quarter of the screen under its
 	-- rail was empty floor and island)
-	c:world(self.camX, 12.5 + p.z * D * 0.3 + (if scene.kind ~= "plaza" then Plaza2D.LOUNGE_LIFT else 0), ppu, 0, 0)
+	-- (and a short screen's world framed lower, so the walking band clears the buttons' row: on a
+	-- phone the buttons sat on its front 32 px)
+	c:world(self.camX, 12.5 + p.z * D * 0.3 + (if scene.kind ~= "plaza" then Plaza2D.LOUNGE_LIFT else 0)
+		- (if vp.Y < Plaza2D.SHORT_SCREEN then Plaza2D.SHORT_LIFT else 0), ppu, 0, 0)
 	local left, right = self.camX - half - 12, self.camX + half + 12
 	self:drawGround(c, scene, left, right)
 
@@ -1196,7 +1222,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self:endLabels()
 	self:clearBanner()
 	self:clearTags()
-	self:clearEdges()
+	self:clearEdges(vp.X)
 	c:finish()
 	self:placeTop(Ui.topInset())
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0

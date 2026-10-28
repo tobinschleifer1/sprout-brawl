@@ -356,6 +356,7 @@ do
 	end
 	local labelsSeen: { [string]: string } = {}
 	local function frame()
+		hub.camX = hub.model.p.x          -- (the camera on you: off the screen, a sign is hidden)
 		hub:draw(canvas(1280, 720), 1/60)
 		for id, t in hub.pool do if t.Visible then labelsSeen[id] = t.Text end end
 		-- (and the kit signs', by their own id: a cabinet's state is on tags now)
@@ -697,7 +698,7 @@ do
 		hub.camX = st.x
 		hub:draw(canvas(1280, 720), 1/60)
 		local top = Plaza2D.stationArt(canvas(1280, 720), st, false, hub.room, nil)
-		table.insert(gaps, ys["st" .. st.id] - ((st.z + 1) * PLAZA.depth + top * 0.7))
+		table.insert(gaps, ys["st" .. st.id] - ((st.z + 1) * PLAZA.depth + top * Plaza2D.STATION_SCALE))
 	end
 	Plaza2D.placeSign = real
 	for _, g in gaps do
@@ -713,7 +714,10 @@ do
 		-- every station whole on screen, stairs to ready rail, and the room no smaller than that needs
 		-- (fitted to the island's whole width its people stood a third smaller than the market's)
 		for _, st in hub.model.data.stations do
-			local reach = if st.kind == "Exit" then 4.5 else 6.5
+			-- (its art's half width: the stairs' doorway 3.6 studs, a desk 6, the rack's screen 8 - each
+			-- at the scale the lounge draws its stations)
+			local reach = if st.kind == "Exit" then 3.9
+				else (if st.kind == "Weapons" then 8.5 else 6.5) * Plaza2D.STATION_SCALE
 			local sl, sr = c:project(st.x - reach, 0).X, c:project(st.x + reach, 0).X
 			assert(sl >= -1 and sr <= 1281, `the lounge's {st.id} runs off the screen ({sl} to {sr} of 1280)`)
 		end
@@ -827,6 +831,7 @@ do
 		Canvas.sprite = was
 		assert(scales["prop|cabFar"] and scales["prop|cab"] and scales["prop|cabFar"] < scales["prop|cab"] * 0.95,
 			"the arcade's back row is no smaller than the front")
+		assert(scales["prop|marquee"], "no marquee board over the arcade's canopy: a quarter of the screen of empty sky")
 		local D = PLAZA.depth
 		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
 		local backTop = 0
@@ -851,13 +856,19 @@ do
 		hub.peers[9].x, hub.peers[9].z = cab.x, cab.z - 4.5
 		hub.model:setScene(hub.model.data, { x = cab.x, z = 3 })
 		hub.camX = cab.x
-		hub:draw(canvas(1280, 720), 1/60)
+		local c = canvas(1280, 720)
+		hub:draw(c, 1/60)
 		local tag, num = hub.pool["name9"], hub.signs["cab6"]
 		assert(tag and tag.Visible, "the guest's name tag is not up")
+		assert(num.card.Visible, "cabinet 06 lost its number under a name tag")
+		-- the tag's words (20 px about its centre) clear of the number's card
 		local tcy = tag.Position.Y.Offset + tag.Size.Y.Offset / 2
-		local overlaps = num.card.Position.Y.Offset < tcy + 10 and num.card.Position.Y.Offset + num.card.Size.Y.Offset > tcy - 10
-		assert(not (overlaps and num.card.Visible), "a name tag is drawn over cabinet 06's number")
-		assert(overlaps, "the test's guest does not stand where a tag meets 06's number")
+		local n1, n2 = num.card.Position.Y.Offset, num.card.Position.Y.Offset + num.card.Size.Y.Offset
+		assert(tcy + 10 <= n1 or tcy - 10 >= n2, "a name tag is drawn over cabinet 06's number")
+		-- (and where the guest stands, the tag would have met it: its own place is on the number)
+		local peer = hub.peers[9]
+		local natural = c:project(peer.x, peer.z * PLAZA.depth + peer.char.height + 1.6).Y
+		assert(natural + 10 > n1 and natural - 10 < n2, "the test's guest does not stand where a tag meets 06's number")
 		hub:setPeers({}, 1)
 	end
 	-- a sign mostly off the screen's side is hidden, one on it is not
@@ -871,11 +882,30 @@ do
 			for id, sg in hub.signs do
 				local c = sg.card
 				local x1, w = c.Position.X.Offset, c.Size.X.Offset
-				local shown = (math.min(812, x1 + w) - math.max(0, x1)) / w
-				if c.Visible then assert(shown >= 0.6, `the {id} sign shows with {math.floor(shown * 100)}% of it on the screen`); seen += 1 end
+				-- (all of its words on the screen, or none: a marquee 62% on read "5" for 05)
+				local pad = Plaza2D.SIGN_PAD
+				if c.Visible then
+					assert(x1 + pad >= 0 and x1 + w - pad <= 812, `the {id} sign's words run off the screen ({x1 + pad} to {x1 + w - pad} of 812)`)
+					seen += 1
+				end
 			end
 		end
 		assert(seen > 0, "no signs on the phone")
+		-- and on the phone the walking band's front clears the buttons' row (they sat on its front 32 px)
+		hub.model:setScene(hub.model.data, { x = 0, z = 8 })
+		hub.camX = 0
+		local c = canvas(812, 375)
+		for _ = 1, 3 do hub:draw(c, 1/60) end
+		local front = math.huge
+		for _, r in hub.model.data.floor do if r.x1 <= 0 and r.x2 >= 0 then front = math.min(front, r.z1 * PLAZA.depth) end end
+		local edge = c:project(0, front).Y
+		assert(edge <= 375 - 10 - Plaza2D.ICON, `on a phone the walking band runs to y {edge}, under the buttons (from {375 - 10 - Plaza2D.ICON})`)
+		-- and the billboard's BLOCKFALL clear of the title card (framed lower, it went under the card)
+		local bb = hub.pool["billboard"]
+		assert(bb and bb.Visible, "no BLOCKFALL on the phone's billboard")
+		local wordsTop = bb.Position.Y.Offset + bb.Size.Y.Offset / 2 - bb.TextSize / 2
+		local cardBottom = hub.plate.Position.Y.Offset + hub.plate.Size.Y.Offset
+		assert(wordsTop >= cardBottom, `on a phone BLOCKFALL's top (y {wordsTop}) is under the title card (to y {cardBottom})`)
 		hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
 	end
 	-- each lift shows how many a side it takes, so the three are not the same grey doors

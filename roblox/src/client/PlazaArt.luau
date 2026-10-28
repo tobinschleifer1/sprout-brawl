@@ -245,6 +245,23 @@ function PlazaArt.canopy(span: number, height: number?): any
 	return b.done(true)
 end
 
+-- The arcade's marquee board, standing on its canopy's beam: an indigo kit panel ringed with bulbs, a
+-- joystick at each end, on two struts (its name is a kit sign, Plaza2D).
+function PlazaArt.arcadeMarquee(): any
+	local W, H = 200, 52
+	local b = builder(W, H)
+	b.r(30, 0, 6, 10, C.steel); b.r(W - 36, 0, 6, 10, C.steel)              -- struts
+	b.r(0, 10, W, 42, C.indigoDk)                                           -- its lip
+	b.r(0, 13, W, 37, C.indigo)
+	b.r(0, 46, W, 4, C.indigoHi)                                            -- its light band
+	for x = 4, W - 8, 12 do b.r(x, 15, 4, 3, if (x // 12) % 2 == 0 then C.amber else C.teal) end
+	for x = 4, W - 8, 12 do b.r(x, 41, 4, 3, if (x // 12) % 2 == 0 then C.teal else C.amber) end
+	for _, x in { 12, W - 24 } do                                           -- a joystick each end
+		b.r(x, 21, 12, 5, C.ink); b.r(x + 5, 26, 2, 8, C.ink); b.r(x + 3, 33, 6, 5, C.pink)
+	end
+	return b.done(true)
+end
+
 -- A pair of arcade cabinets back to back, seen from the side: each faces out toward its seat.
 -- `far`: the back row, in its colours' dark shades, so the two rows read as near and far and not as
 -- one two-storey locker (the back row stands at the same x as the front, its top over its front's).

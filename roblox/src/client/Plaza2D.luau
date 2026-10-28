@@ -68,6 +68,8 @@ Plaza2D.SIGN_W = 52 * PlazaArt.CELL
 -- a narrow screen's prompt keeps this far left of the screen's middle, where your fighter stands
 -- the kit's box in world units (kitBox): its ink outline and its light band and dark lip
 Plaza2D.KIT_INK, Plaza2D.KIT_BAND = 0.3, 0.5
+-- cabinets deeper than this are the arcade's back row, drawn in their dark shades
+Plaza2D.CAB_BACK = 10
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
 -- A stall's lettering: its awning colour, lightened until it reads at 4.5:1 on the board's dark face
@@ -281,24 +283,56 @@ function Plaza2D.placeSign(self: any, c: any, id: string, value: string, x: numb
 	local sg = self.signs[id]
 	if not sg then
 		local card = Ui.card(self.labelLayer, "Sign_" .. id, face)
-		local t = Ui.faceText(card, value, size, face)
+		local t, o = Ui.faceText(card, value, size, face)
 		t.Size, t.BackgroundTransparency = UDim2.fromScale(1, 1), 1
-		sg = { card = card, text = t, face = face }
+		sg = { card = card, text = t, outline = o, face = face }
 		self.signs[id] = sg
 		self.pool[key] = card
+		Plaza2D.letterSign(sg, face)
 	end
-	if sg.face ~= face then Ui.paintCard(sg.card, face); sg.face = face end
+	if sg.face ~= face then Ui.paintCard(sg.card, face); sg.face = face; Plaza2D.letterSign(sg, face) end
 	sg.text.Text = value
 	local w = 0
 	local lines = string.split(value, "\n")
 	for _, ln in lines do w = math.max(w, Ui.textWidth(ln, size, Ui.DISPLAY)) end
 	w = math.ceil(w) + 2 * Plaza2D.SIGN_PAD
 	local h = math.ceil(Ui.px(size, Ui.DISPLAY) * (#lines * 1.1) + Plaza2D.SIGN_PAD)
+	-- (`y` is the card's foot, so `signAbove` is one gap everywhere: centred on its point, a two-line
+	-- card hung lower than a one-line one and the stalls' signs sank into their awnings)
 	local at = c:project(x, y)
-	sg.card.Position, sg.card.Size = UDim2.fromOffset(math.floor(at.X - w / 2), math.floor(at.Y - h / 2)), UDim2.fromOffset(w, h)
+	sg.card.Position, sg.card.Size = UDim2.fromOffset(math.floor(at.X - w / 2), math.floor(at.Y - h)), UDim2.fromOffset(w, h)
 	sg.card.Visible = true
 	self.used[key] = true
 	return sg.card
+end
+
+-- A sign's lettering: white outlined in the face's shade, or ink on a face too pale for white (the
+-- UI's own yellows - the shop's FEATURED tab, the CLAIM pill - are lettered in ink; white on the gold
+-- lift's face measured 1.17:1 and read only by its outline).
+Plaza2D.PALE_FACE = 2
+function Plaza2D.letterSign(sg: any, face: Color3)
+	local pale = Ui.contrast(Ui.WHITE, face) < Plaza2D.PALE_FACE
+	sg.text.TextColor3 = if pale then Ui.INK else Ui.WHITE
+	sg.outline.Transparency = if pale then 1 else 0
+	sg.pale = pale
+end
+
+-- While the district's title is up (three seconds as you walk in), a sign under it steps aside: the
+-- climb's sat beside CLIMBERS' YARD as one line with it, the arcade's and the wardrobe's just under it.
+-- The title names the place meanwhile; the sign is back when it fades.
+function Plaza2D.clearBanner(self: any)
+	local banner = self.banner
+	if not banner or banner.TextTransparency >= 1 or not self.signs then return end
+	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 1280
+	local tw = Ui.textWidth(banner.Text, 40, Ui.DISPLAY)
+	local x1, x2 = gw / 2 - tw / 2 - 12, gw / 2 + tw / 2 + 12
+	local bottom = banner.Position.Y.Offset + banner.Size.Y.Offset + 4
+	for _, sg in self.signs do
+		local c = sg.card
+		if c.Visible and c.Position.Y.Offset < bottom and c.Position.X.Offset + c.Size.X.Offset > x1 and c.Position.X.Offset < x2 then
+			c.Visible = false
+		end
+	end
 end
 
 -- A speech bubble: a pooled label styled once, sized to its text.
@@ -404,10 +438,11 @@ function Plaza2D.setRoom(self: any, room: any)
 			else (if shown then Realms.name(shown) else "Random map")
 		local rules = if nextRoom.mode == "timed" then `Timed {(nextRoom.time or 180) // 60} min` else `{nextRoom.stocks or 3} lives`
 		self.title.Text = string.upper(Realms.place("lounge", self.model.data.name))
-		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} CPUs · {map} · {rules} · the stairs on the left go back down`
+		self.directions.Text = nextRoom.error or `{ready}/{humans} ready · {bots} {if bots == 1 then "CPU" else "CPUs"} · {map} · {rules} · the stairs on the left go back down`
 	else
 		self.title.Text = string.upper(Realms.LOBBY.name)
-		self.directions.Text = "1v1 at the arcade's cabinets  ·  rooms of every size at the fighters' gates  ·  the tailor's terrace makes your character"
+		-- (short: the long line grew the card to 81% of the screen's width)
+		self.directions.Text = "1v1 at the cabinets  ·  rooms at the gates  ·  your look at the tailor's"
 	end
 end
 
@@ -662,7 +697,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			PlazaArt.draw(c, "stallB" .. st.sign, back, st.x, STALL_Z * D)
 			-- (a kit sign in the awning's colour: bare coloured words on a navy board were a second
 			-- lettering beside the stations' signs)
-			self:placeSign(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + 10.4, 14, Plaza2D.awningFace(st.a))
+			self:placeSign(c, "stall" .. st.sign, st.sign, st.x, STALL_Z * D + Plaza2D.signAbove(78), 14, Plaza2D.awningFace(st.a))
 		end)
 		add(STALL_Z + 0.1, function()
 			local vc = vendorChar(self, st.vendor)
@@ -683,7 +718,8 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		PlazaArt.draw(c, "kiosk", k, 0, 12 * D)
 		-- The hologram: a turning diamond of light over the projector.
 		local turn = math.sin(clock * 1.6)
-		local cy = 12 * D + 10.5
+		-- (low enough to stay under the billboard's screen: higher, it shone between its two lines)
+		local cy = 12 * D + 7.6
 		for i = 0, 5 do
 			local w = (3 - math.abs(i - 2.5) * 1.05) * math.abs(turn) + 0.3
 			Canvas.rect(c, -w, cy - 2.8 + i * 1.1, w * 2, 1, CYAN, 0.28)
@@ -725,15 +761,16 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		elseif s.kind == "Parkour" then
 			add(s.z + 1.6, function()
 				PlazaArt.draw(c, "climbgate", PlazaArt.get("climbgate", PlazaArt.climbGate), s.x, (s.z + 1.6) * D)
-				-- (at the flag, not over it: higher, it met the title card)
-				self:placeSign(c, "climb", s.name, s.x, (s.z + 1.6) * D + Plaza2D.signAbove(150) - 2.2, 16, Ui.ORANGE)
+				-- (on the scaffold's top deck, under the flag: over the flag it met the title card, and beside
+				-- the district's title it read as one line with it)
+				self:placeSign(c, "climb", s.name, s.x, (s.z + 1.6) * D + Plaza2D.CLIMB_DECK * PlazaArt.CELL, 16, Ui.ORANGE)
 			end)
 		elseif s.kind == "Records" then
 			add(s.z + 1, function()
 				PlazaArt.draw(c, "records", PlazaArt.get("records", PlazaArt.recordBoard), s.x, (s.z + 1) * D)
 				self:placeSign(c, "records", s.name, s.x, (s.z + 1) * D + Plaza2D.signAbove(76), 13, Ui.INDIGO)
 				if self.recordsLine then
-					self:placeLabel(c, "recordsTop", self.recordsLine, s.x, (s.z + 1) * D + 10.4, 11, WHITE, 240)
+					self:placeSign(c, "recordsTop", self.recordsLine, s.x, (s.z + 1) * D + Plaza2D.signAbove(76) + 1.8, 11, Ui.GOLD)
 				end
 			end)
 		elseif s.kind == "Format" then
@@ -753,30 +790,36 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		-- (on the canopy's beam: over it, the sign sat behind the district's title as you walked in. Its
 		-- flicker is in its words: recolouring the card repaints its gradient, border and lip)
 		-- (what it is for, not its name again: THE ARCADE sat under THE ARCADE GROVE)
-		self:placeSign(c, "arcade", "1v1 CABINETS", 140, 20.5 * D + 14.1, 20, Ui.TEAL)
+		self:placeSign(c, "arcade", "1v1 CABINETS", 140, 20.5 * D + 13.3, 16, Ui.TEAL)
 		self.signs.arcade.text.TextTransparency = if math.floor(clock * 7) % 23 == 0 then 0.5 else 0
 	end)
 	for _, cab in PLAZA.cabinets do
 		add(cab.z, function()
-			PlazaArt.draw(c, "cab", PlazaArt.get("cab", PlazaArt.cabinetPair), cab.x, cab.z * D)
+			if cab.z > Plaza2D.CAB_BACK then
+				PlazaArt.draw(c, "cabFar", PlazaArt.get("cabFar", function() return PlazaArt.cabinetPair(true) end), cab.x, cab.z * D)
+			else
+				PlazaArt.draw(c, "cab", PlazaArt.get("cab", PlazaArt.cabinetPair), cab.x, cab.z * D)
+			end
 			local flick = 0.7 + 0.3 * math.sin(clock * 9 + cab.number)
 			Canvas.rect(c, cab.x - 2.2, cab.z * D + 3.3, 0.3, 2, CYAN, 0.25 * flick)
 			Canvas.rect(c, cab.x + 1.9, cab.z * D + 3.3, 0.3, 2, PINK, 0.25 * flick)
 			-- (on its own marquee: above it, the front row's numbers sat on the back row's cabinets)
-			self:placeSign(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x, cab.z * D + 6.2, 14, Ui.INDIGO)
+			self:placeSign(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x, cab.z * D + 5.6, 14, Ui.INDIGO)
 			-- What the cabinet is doing: a countdown, a fight (and who is watching), the streak.
 			local view = self.cabinets[cab.number]
 			if view then
 				if view.state == "countdown" and view.startsIn then
-					self:placeLabel(c, "cabT" .. cab.number, `READY · {math.ceil(view.startsIn)}`, cab.x, cab.z * D + 10.2, 16, CYAN, 160)
+					-- (what a cabinet is doing, on tags of the same kit over its marquee: bare coloured words
+					-- were the last lettering on the roof outside the kit)
+					self:placeSign(c, "cabT" .. cab.number, `READY · {math.ceil(view.startsIn)}`, cab.x, cab.z * D + 8.6, 12, Ui.SKY)
 				elseif view.state == "playing" then
 					local watchers = if (view.watchers or 0) > 0 then ` · {view.watchers} watching` else ""
-					self:placeLabel(c, "cabT" .. cab.number, (if view.cpu then "VS CPU" else "IN PLAY") .. watchers, cab.x, cab.z * D + 10.2, 14, PINK, 200)
+					self:placeSign(c, "cabT" .. cab.number, (if view.cpu then "VS CPU" else "IN PLAY") .. watchers, cab.x, cab.z * D + 8.6, 12, Ui.PINK)
 					Canvas.rect(c, cab.x - 3.2, cab.z * D + 3.2, 6.4, 2.4, PINK, 0.08 + 0.06 * math.sin(clock * 12))
 				end
 				if view.streak and view.streak.wins > 0 then
 					local s2 = if view.streak.wins == 1 then "1 WIN" else `{view.streak.wins} WINS`
-					self:placeLabel(c, "cabS" .. cab.number, `{s2}\n{view.streak.name}`, cab.x, cab.z * D + 12.2, 15, AMBER, 200)
+					self:placeSign(c, "cabS" .. cab.number, `{s2}  {view.streak.name}`, cab.x, cab.z * D + 10.2, 12, Ui.GOLD)
 				end
 			end
 		end)
@@ -816,7 +859,9 @@ Plaza2D.LIFT_HEX = { [1] = "#FEE761", [2] = "#0099DB", [3] = "#F6757A" }
 -- How far above a prop's base its sign sits: the prop's own height (`cells` tall, in PlazaArt cells)
 -- and a fixed gap, so every sign hangs the same distance over what it names (at one fixed height, the
 -- weapon rack's overlapped its frame and the ready rail's floated 67 px up).
-Plaza2D.SIGN_GAP = 1.4
+Plaza2D.SIGN_GAP = 0.9
+-- the climb's sign stands on its scaffold's top deck (rows of PlazaArt.climbGate), under the flag
+Plaza2D.CLIMB_DECK = 124
 function Plaza2D.signAbove(cells: number, scale: number?): number
 	return cells * PlazaArt.CELL * (scale or 1) + Plaza2D.SIGN_GAP
 end
@@ -930,7 +975,7 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 				kitBox(c, x - 3.6, y + 1, 7.2, 12.8, Ui.shade(Ui.PINK, -0.15))
 				Canvas.rect(c, x - 3, y + 1, 6, 12, Ui.shade(Ui.PINK, -0.75))
 				for i = 0, 5 do Canvas.rect(c, x - 2.6, y + 1.2 + i * 1.6, 5.2, 0.3, Ui.shade(Ui.PINK, -0.35)) end
-				self:placeSign(c, "st" .. s.id, s.name .. "\n" .. s.landmark, x, y + 13.8 + Plaza2D.SIGN_GAP + 1.2, 14, Ui.PINK)
+				self:placeSign(c, "st" .. s.id, s.name .. "\n" .. s.landmark, x, y + 13.8 + Plaza2D.SIGN_GAP, 14, Ui.PINK)
 			end)
 		else
 			add(s.z + 1, function()
@@ -941,7 +986,7 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 				Canvas.translate(c, -s.x, 0)
 				local top = stationArt(c, s, near == s, self.room, self.char and self.char.weapon and self.char.weapon.id)
 				Canvas.restore(c)
-				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + top * 0.7 + Plaza2D.SIGN_GAP + 0.6, 14, Plaza2D.STATION_COLOURS[s.kind] or Ui.INDIGO)
+				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + top * 0.7 + Plaza2D.SIGN_GAP, 14, Plaza2D.STATION_COLOURS[s.kind] or Ui.INDIGO)
 			end)
 		end
 	end
@@ -974,7 +1019,7 @@ function Plaza2D.drawWardrobe(self: any, c: any, s: any, clock: number)
 	Canvas.rect(c, s.x - 1.6, baseY + 6.8, 0.25, 2.2, WHITE, 0.25)
 	Canvas.rect(c, s.x - 1.1, baseY + 7.6, 0.2, 1.3, WHITE, 0.18)
 	-- (just over the awning: higher, it met the district's title as you walked in)
-	self:placeSign(c, "wardrobe", s.name .. "\n" .. s.landmark, s.x, baseY + 15.3, 15, Ui.PINK)
+	self:placeSign(c, "wardrobe", s.name .. "\n" .. s.landmark, s.x, baseY + Plaza2D.signAbove(110), 15, Ui.PINK)
 end
 
 -- ------------------------------------------------------------------ the frame ----
@@ -996,7 +1041,18 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	local ppu = math.clamp(vp.Y / 38, 6, 22)
 	-- a lounge is one room: all of it in view (at the market's scale its right-hand station and the
 	-- stairs out were off the screen's edges)
-	if scene.kind ~= "plaza" then ppu = math.min(ppu, vp.X / (b.x2 - b.x1)) end
+	-- (fitting the stations, stairs to ready rail, not the island's whole width: fitted to the island
+	-- the room's people stood a third smaller than the market's)
+	local roomLo, roomHi = b.x1, b.x2
+	if scene.kind ~= "plaza" then
+		roomLo, roomHi = math.huge, -math.huge
+		for _, st in scene.stations do
+			local reach = if st.kind == "Exit" then 4.5 else 6.5
+			roomLo, roomHi = math.min(roomLo, st.x - reach), math.max(roomHi, st.x + reach)
+		end
+		roomLo, roomHi = math.max(roomLo, b.x1), math.min(roomHi, b.x2)
+		ppu = math.min(ppu, vp.X / (roomHi - roomLo))
+	end
 	local half = vp.X / ppu / 2
 	local target = p.x + p.facing * 4
 	if b.x2 - b.x1 > half * 2 then
@@ -1004,6 +1060,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	else
 		target = (b.x1 + b.x2) / 2
 	end
+	if scene.kind ~= "plaza" then target = (roomLo + roomHi) / 2 end
 	self.camX += (target - self.camX) * math.min(1, dt * 6)
 	RealmArt.sky(c, Realms.LOBBY, self.camX, clock)
 	-- Framed on the plaza, not the island under it: the underside is a strip at the bottom.
@@ -1036,7 +1093,14 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 				local tag = self:placeLabel(c, "name" .. id, (if gold then "VIP  " else "") .. (peer.name or ""), peer.x, head + 1.6, 12, if gold then Ui.GOLD else Ui.WHITE, 180)
 				-- (outlined whole in ink, as the HUD's words: at a 0.55 stroke a name over the pale sky
 				-- or paving was grey on grey)
-				tag.Font, tag.TextStrokeTransparency, tag.TextStrokeColor3 = Ui.LABEL, 0, INK
+				tag.Font = Ui.LABEL
+				-- (a 2 px ink outline, as the signs' words: TextStroke is 1 px, and white on the paving is
+				-- 1.7-2.9:1 without it)
+				self.tagStrokes = self.tagStrokes or {}
+				if not self.tagStrokes[id] then
+					self.tagStrokes[id] = Ui.outline(tag, 2, INK)
+					tag.TextStrokeTransparency = 1
+				end
 				self:drawOverhead(c, id, peer.x, head + 1.4)
 			end)
 		end
@@ -1076,10 +1140,11 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		cabinetWord = if not intent then "TAKEN:" elseif intent.action == "stand" then "STAND UP FROM"
 			elseif intent.action == "watch" then "WATCH" else "SIT AT"
 		if intent and intent.action == "sit" then
-			self:placeLabel(c, "seat", "SIT HERE", near.x, near.z * D + 7.2, 14, AMBER, 140)
+			self:placeSign(c, "seat", "SIT HERE", near.x, near.z * D + 7.2, 13, Ui.GOLD)
 		end
 	end
 	self:endLabels()
+	self:clearBanner()
 	c:finish()
 	self:placeTop(Ui.topInset())
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0

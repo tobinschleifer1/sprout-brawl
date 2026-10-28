@@ -21,7 +21,7 @@ local C: { [string]: string } = {
 	-- it is - `night` is a sign board's face, `tar` the paving, `pink` the red awning stripe.
 	ink = "#120E16", night = "#2C3A58", slate = "#8C7B66", slateHi = "#B8A68A", tar = "#A89A86", tarHi = "#C4B8A2",
 	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
-	pink = "#E04848", pinkDk = "#8E2424", cyan = "#3A8AD8", cyanDk = "#1E4A8A", amber = "#FFC83A", amberDk = "#C47A1A",
+	pink = "#E04848", pinkDk = "#8E2424", pinkDeep = "#4E1620", cyan = "#3A8AD8", cyanDk = "#1E4A8A", cyanDeep = "#14284E", amber = "#FFC83A", amberDk = "#C47A1A",
 	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66",
 	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
@@ -246,23 +246,26 @@ function PlazaArt.canopy(span: number): any
 end
 
 -- A pair of arcade cabinets back to back, seen from the side: each faces out toward its seat.
-function PlazaArt.cabinetPair(): any
-	local W, H = 64, 56
+-- `far`: the back row, in its colours' dark shades, so the two rows read as near and far and not as
+-- one two-storey locker (the back row stands at the same x as the front, its top over its front's).
+function PlazaArt.cabinetPair(far: boolean?): any
+	local W, H = 70, 56
 	local b = builder(W, H)
 	for _, side in { -1, 1 } do
 		local function sx(x: number, w: number): number
-			return if side < 0 then 32 - x - w else 32 + x
+			return if side < 0 then 35 - x - w else 35 + x
 		end
-		local art = if side < 0 then C.pink else C.cyan
-		local artDk = if side < 0 then C.pinkDk else C.cyanDk
+		local art = if side < 0 then (if far then C.pinkDk else C.pink) else (if far then C.cyanDk else C.cyan)
+		local artDk = if side < 0 then (if far then C.pinkDeep else C.pinkDk) else (if far then C.cyanDeep else C.cyanDk)
 		-- the side in the kit: a coloured panel with a light band and a dark lip, so a pair reads as two
 		-- arcade machines and not a navy locker
 		b.r(sx(0, 20), 0, 20, 22, artDk)                                     -- body
 		b.r(sx(2, 16), 2, 16, 16, art); b.r(sx(2, 16), 16, 16, 2, C.white, 0.35)
 		b.r(sx(0, 20), 0, 20, 2, C.ink, 0.5)                                 -- its lip
-		b.r(sx(20, 6), 18, 6, 6, C.slateHi)                                  -- control panel, out toward the seat
-		b.r(sx(21, 1), 24, 1, 3, C.ink); b.r(sx(20, 3), 26, 3, 2, C.pink)    -- a stick
-		b.r(sx(23, 3), 23, 3, 1, C.amber)                                    -- buttons
+		b.r(sx(20, 9), 17, 9, 7, if far then C.slate else C.slateHi)         -- control deck, out toward the seat
+		b.r(sx(20, 9), 23, 9, 1, C.white, 0.4)
+		b.r(sx(22, 1), 24, 1, 4, C.ink); b.r(sx(21, 3), 27, 3, 3, C.pink)    -- a stick
+		b.r(sx(25, 2), 24, 2, 2, C.amber); b.r(sx(27, 2), 24, 2, 2, C.cyan)  -- buttons
 		b.r(sx(2, 18), 22, 18, 22, C.night)                                  -- screen housing
 		b.r(sx(6, 13), 25, 13, 16, C.glass)                                  -- the screen, lit
 		b.r(sx(8, 9), 27, 9, 12, art, 0.75)

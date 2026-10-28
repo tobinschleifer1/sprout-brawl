@@ -28,6 +28,7 @@ local function instance(): any
 	obj.Destroy = function() obj.destroyed = true end
 	obj.Activated = { Connect = function(_, fn) obj.activate = fn end }
 	obj.SetAttribute = function(_, key, value) obj.attributes[key] = value end
+	obj.GetChildren = function() return {} end          -- (Ui.paintCard walks a card's children)
 	return obj
 end
 -- the shared UI kit builds with these too (Loader.gui)
@@ -238,9 +239,23 @@ do
 	assert(tonumber(behind[2]) and tonumber(behind[1]) and tonumber(behind[2]) < tonumber(behind[1]), "a player behind cabinet 1 must be drawn before it")
 	local infront = drawWith(cab.z - 1.5)
 	assert(tonumber(infront[2]) > tonumber(infront[1]), "a player in front of cabinet 1 must be drawn after it")
-	-- a name tag is outlined whole in ink (at a 0.55 stroke a name over the sky was grey on grey)
+	-- a name tag is outlined in ink at 2 px, as the signs' words (TextStroke is 1 px; at a 0.55 stroke a
+	-- name over the sky was grey on grey)
 	local tag = hub.pool["name2"]
-	assert(tag and tag.Visible and tag.TextStrokeTransparency == 0, "the guest's name tag is not outlined")
+	local stroke = hub.tagStrokes and hub.tagStrokes[2]
+	assert(tag and tag.Visible and type(stroke) == "table" and stroke.Thickness >= 2, "the guest's name tag is not outlined")
+	-- the back row of cabinets in its dark shades (the same art at the same x read as one locker)
+	do
+		local keys: { [string]: boolean } = {}
+		local was = Canvas.sprite
+		Canvas.sprite = function(c: any, key: string, ...: any)
+			keys[key] = true
+			return was(c, key, ...)
+		end
+		hub:draw(canvas(1280, 720), 1/60)
+		Canvas.sprite = was
+		assert(keys["prop|cab"] and keys["prop|cabFar"], "the arcade's two rows of cabinets are drawn alike")
+	end
 	-- each cabinet's number sits on its own marquee (rows 44-54 of the pair's 56), not over it, where the
 	-- front row's numbers landed on the back row's cabinets
 	do
@@ -343,6 +358,8 @@ do
 	local function frame()
 		hub:draw(canvas(1280, 720), 1/60)
 		for id, t in hub.pool do if t.Visible then labelsSeen[id] = t.Text end end
+		-- (and the kit signs', by their own id: a cabinet's state is on tags now)
+		for id, sg in hub.signs or {} do if sg.card.Visible then labelsSeen[id] = sg.text.Text end end
 	end
 	-- Open cabinet: sit at the seat you stand by.
 	hub:setCabinets(views("open", {}), 1)
@@ -365,7 +382,7 @@ do
 	-- Countdown and streak on the cabinet.
 	hub:setCabinets(views("countdown", { A = { userId = 7, name = "Rin" }, B = { userId = 8, name = "Kai" } }, { startsIn = 2.4, streak = { userId = 7, name = "Rin", wins = 3 } }), 1)
 	frame()
-	assert(labelsSeen["cabT3"] == "READY · 3" and labelsSeen["cabS3"] == "3 WINS\nRin", "the countdown and the champion's streak show on the cabinet")
+	assert(labelsSeen["cabT3"] == "READY · 3" and labelsSeen["cabS3"] == "3 WINS  Rin", "the countdown and the champion's streak show on the cabinet")
 	-- Seated: locked to the seat, facing the machine, walking moves nothing; E gets up; alone, C plays the CPU.
 	hub:setCabinets(views("open", { A = { userId = 1, name = "Me" } }), 1)
 	stand({ x = 0, z = 8 })
@@ -621,6 +638,9 @@ do
 		hub.model:setScene(hub.model.data, { x = st.x, z = 2 })
 		hub.camX = st.x
 		hub:draw(canvas(1280, 720), 1/60)
+		-- (long after walking in: while the district's title is up, a sign under it steps aside)
+		hub.bannerAt = -1e9
+		hub:draw(canvas(1280, 720), 1/60)
 		if st.kind == "Members" or st.kind == "Warp" or st.kind == "Format" then
 			local sg = hub.signs and hub.signs["st" .. st.id]
 			assert(sg and sg.card.Visible, `the market's {st.id} has no sign`)
@@ -665,8 +685,16 @@ do
 		local l, r = c:project(b.x1, 0).X, c:project(b.x2, 0).X
 		-- (the camera eases toward its target: settle it first)
 		for _ = 1, 200 do hub:draw(c, 1/60) end
-		l, r = c:project(b.x1, 0).X, c:project(b.x2, 0).X
-		assert(l >= -1 and r <= 1281, `the lounge runs off the screen ({l} to {r} of 1280)`)
+		-- every station whole on screen, stairs to ready rail, and the room no smaller than that needs
+		-- (fitted to the island's whole width its people stood a third smaller than the market's)
+		for _, st in hub.model.data.stations do
+			local reach = if st.kind == "Exit" then 4.5 else 6.5
+			local sl, sr = c:project(st.x - reach, 0).X, c:project(st.x + reach, 0).X
+			assert(sl >= -1 and sr <= 1281, `the lounge's {st.id} runs off the screen ({sl} to {sr} of 1280)`)
+		end
+		local scale = math.abs(c:project(1, 0).X - c:project(0, 0).X)
+		assert(scale > 1280 / (b.x2 - b.x1) + 0.5, `the lounge is drawn at {scale} px a stud, the island's whole width`)
+		local _ = l + r
 	end
 	assert(hub.district ~= "lounge", "a lounge's district banner repeats the title card's name")
 	hub:setRoom({ left = true })
@@ -695,6 +723,75 @@ do
 			roofs += 1
 		end
 		assert(roofs > 0, "no roofs checked")
+	end
+end
+
+-- 12. Round 3: signs clear of the district title while it shows, pale signs lettered in ink, a
+--     cabinet's state on kit tags.
+do
+	hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
+	local Ui = Loader.loadFrom("src/client/", "Ui")
+	for _, w in PLAZA.market.warps do
+		hub.model:warp(w.id)
+		hub.district = nil          -- walked in just now: the title is up
+		hub.model:setScene(hub.model.data, { x = hub.model.p.x, z = 2 })
+		hub.camX = hub.model.p.x
+		hub:draw(canvas(1280, 720), 1/60)
+		assert(hub.banner.TextTransparency < 1, `no district title at {w.id}`)
+		local tw = Ui.textWidth(hub.banner.Text, 40, Ui.DISPLAY)
+		local bx1, bx2 = 640 - tw / 2 - 12, 640 + tw / 2 + 12
+		local bottom = hub.banner.Position.Y.Offset + hub.banner.Size.Y.Offset
+		for id, sg in hub.signs or {} do
+			local x1 = sg.card.Position.X.Offset
+			local x2 = x1 + sg.card.Size.X.Offset
+			if sg.card.Visible and x2 > bx1 and x1 < bx2 then
+				assert(sg.card.Position.Y.Offset >= bottom + 4, `at {w.id} the {id} sign (top {sg.card.Position.Y.Offset}) meets the district title (bottom {bottom})`)
+			end
+		end
+	end
+	-- a pale face is lettered in ink, a deep one in white (white on the gold lift measured 1.17:1)
+	for _, st in PLAZA.market.stations do
+		if st.kind == "Format" then
+			hub.model:setScene(hub.model.data, { x = st.x, z = 8 })
+			hub.camX = st.x
+			hub:draw(canvas(1280, 720), 1/60)
+		end
+	end
+	local checked = 0
+	for id, sg in hub.signs do
+		local white = Ui.contrast(Ui.WHITE, sg.face)
+		if white < 1.5 then
+			assert(sg.text.TextColor3 == Ui.INK, `the {id} sign is white on a face it measures {white}:1 against`)
+			checked += 1
+		elseif white > 3 then
+			assert(sg.text.TextColor3 == Ui.WHITE, `the {id} sign is ink on a deep face`)
+		end
+	end
+	assert(checked > 0, "no pale sign checked")
+	-- a cabinet counting down shows it on a kit tag, not bare words
+	hub.model:warp("arcade")
+	hub:setCabinets({ { number = 1, state = "countdown", startsIn = 3, seats = {} } }, 1)
+	hub:draw(canvas(1280, 720), 1/60)
+	local tagSign = hub.signs and hub.signs.cabT1
+	assert(tagSign and tagSign.card.Visible and string.find(tagSign.text.Text, "READY", 1, true), "cabinet 1's countdown is not on a tag")
+	local bare = hub.pool["cabT1"]
+	assert(not bare or bare.Visible == false, "cabinet 1's countdown is bare words")
+	hub:setCabinets({}, 1)
+	-- the floor is a mid-tone stone white names read on at 2:1 or better (pale flagstones were the
+	-- biggest light mass on screen, white on them 1.4:1)
+	do
+		local RealmArt = Loader.loadFrom("src/client/", "RealmArt")
+		-- (every stone tone, by a wide roof's area: the grass lip along its back aside)
+		local lobby = Loader.load("Realms").LOBBY
+		local art = RealmArt.paving(lobby, 80, 12, 1)
+		local stone, light = 0, 0
+		for _, r in art.rects do
+			if r[5] ~= lobby.top[2] and r[5] ~= lobby.top[3] then
+				stone += r[3] * r[4]
+				if Ui.contrast(Ui.WHITE, Rbx.Color3.fromHex(r[5])) < 2 then light += r[3] * r[4] end
+			end
+		end
+		assert(stone > 0 and light / stone < 0.05, `{math.floor(light / stone * 100)}% of the paving is a stone white names read under 2:1 on`)
 	end
 end
 

@@ -601,21 +601,24 @@ function RealmArt.paving(realm: any, width: number, depth: number, seed: number)
 	if hit then return hit end
 	local P = BODY_PPU
 	local ink, list = inks()
-	local base, light, joint = ink(mix(realm.rock[4], "#E8DCC4", 0.5)), ink(mix(realm.rock[5], "#FFF4DC", 0.45)),
-		ink(mix(realm.rock[4], "#E8DCC4", 0.25))
+	-- (a mid-tone stone, its joints darker, so the floor holds people and names as the arenas'
+	-- islands do: pale flagstones were the biggest light mass on screen, white names 1.4:1 on them)
+	local base, light, joint = ink(mix(realm.rock[4], "#A8967C", 0.3)), ink(mix(realm.rock[4], "#CDBFA6", 0.35)),
+		ink(mix(realm.rock[3], "#8A7A66", 0.3))
 	local grass, grassL = ink(realm.top[2]), ink(realm.top[3])
 	local W, H = math.floor(width * P + 0.5), math.floor(depth * P + 0.5)
 	local g = PixelGrid.new(W, H)
 	-- broad, low-contrast flagstones: wide stones in deep courses read as a floor seen from above,
 	-- where narrow ones in shallow courses read as a wall facing the camera
-	local course = 5
+	-- (bigger stones, fewer joints: at 14 x 5 the floor was a grid finer than everything on it)
+	local course, len = 7, 20
 	for y = 0, H - 1 do
 		local row = y // course
 		local off = math.floor(hash(row, 2, seed) * 12)
 		for x = 0, W - 1 do
-			local stone = (x + off) // 14
+			local stone = (x + off) // len
 			local v = base
-			if y % course == course - 1 or (x + off) % 14 == 13 then v = joint
+			if y % course == course - 1 or (x + off) % len == len - 1 then v = joint
 			elseif hash(stone, row, seed) > 0.75 then v = light end
 			put(g, x, y, v)
 		end

@@ -565,13 +565,28 @@ do
 			hub:draw(canvas(1280, 720), 1/60)
 			assert(hub.promptKey.Visible and string.find(hub.prompt.Text, "ENTER", 1, true) and not string.find(hub.prompt.Text, "[E", 1, true),
 				`beside {st.id} the prompt reads {hub.prompt.Text}`)
-			assert(hub.controls.Visible, "the controls row did not show on a wide screen")
-			assert(hub.prompt.AnchorPoint.Y == 1 and hub.prompt.Position.Y.Scale == 1 and hub.prompt.AnchorPoint.X == 0.5 and hub.prompt.Position.X.Scale == 0.5,
-				"on a wide screen the prompt left the bottom middle")
+			-- (it stands in the key hints' row at the bottom left, under the walking band: above the
+			-- buttons' row it covered the band's front 45 px, where a crowd's front row stands)
+			assert(not hub.controls.Visible, "the controls row shows under the action card on a wide screen")
+			local p = hub.prompt
+			local top = p.Position.Y.Scale * 720 + p.Position.Y.Offset - p.AnchorPoint.Y * p.Size.Y.Offset
+			local c = canvas(1280, 720)
+			hub:draw(c, 1/60)
+			local front = math.huge
+			for _, r in hub.model.data.floor do if st.x >= r.x1 and st.x <= r.x2 then front = math.min(front, r.z1 * PLAZA.depth) end end
+			local band = c:project(st.x, front).Y
+			assert(top >= band, `on a wide screen the action card's top ({top}) is over the walking band (front edge {band})`)
+			local right = p.Position.X.Scale * 1280 + p.Position.X.Offset - p.AnchorPoint.X * p.Size.X.Offset + p.Size.X.Offset
+			assert(right <= 1280 - Plaza2D.SOCIAL_BAR_W - 16, `the action card reaches x {right}, into the buttons' row`)
+			-- away from a station: no card, and the key hints are back
+			hub.model:setScene(hub.model.data, { x = st.x - 9, z = 3 })
+			hub:draw(canvas(1280, 720), 1/60)
+			assert(not hub.prompt.Visible and hub.controls.Visible, "away from a station a card shows, or the key hints do not")
 			break
 		end
 	end
 	hub.model:setScene(hub.model.data, { x = 0, z = 8 })
+	hub.camX = 0
 	hub.gui.AbsoluteSize = { X = 812, Y = 375 }
 	local narrow = canvas(812, 375)
 	hub:draw(narrow, 1/60)
@@ -581,7 +596,9 @@ do
 		local signs = 0
 		for _, st in Plaza2D.STALLS do
 			local sg = hub.signs and hub.signs["stall" .. st.sign]
-			if sg and sg.card.Visible then
+			-- (the two stalls either side of the square, on a phone's screen from it: a sign wider
+			-- than its stall may be hidden at the edge, so its width is checked whether shown or not)
+			if sg and math.abs(st.x) <= 30 then
 				local y = 18.8 * PLAZA.depth + 10.4
 				local span = math.abs(narrow:project(st.x + 6, y).X - narrow:project(st.x - 6, y).X)
 				assert(sg.card.Size.X.Offset <= span, `{st.sign}'s sign is {sg.card.Size.X.Offset} px wide over a {span} px stall`)
@@ -598,8 +615,16 @@ do
 		end
 		assert(labels > 0, "no world labels were checked")
 	end
-	assert(not hub.promptKey.Visible and string.find(hub.prompt.Text, "Walk", 1, true), `away from a station the prompt reads {hub.prompt.Text}`)
+	-- (no tip on a phone either: it covered a stall and the back of the walking band)
+	assert(not hub.prompt.Visible, `away from a station a card shows on a phone: {hub.prompt.Text}`)
 	assert(not hub.controls.Visible, "the controls row showed where it runs into the social bar")
+	-- beside a station, the action card, placed as below
+	do
+		local boardSt
+		for _, st in PLAZA.market.stations do if st.kind == "Members" then boardSt = st end end
+		stand(boardSt)
+		hub:draw(narrow, 1/60)
+	end
 	-- (a narrow screen: the prompt at the bottom left, above the dock, its right edge short of the
 	-- screen's middle where your fighter stands; under the title card it covered the billboard)
 	do
@@ -806,10 +831,11 @@ do
 		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
 		local backTop = 0
 		for _, cab in PLAZA.cabinets do backTop = math.max(backTop, cab.z * D + 56 * Art.CELL * (if cab.z > Plaza2D.CAB_BACK then Plaza2D.CAB_FAR_SCALE else 1)) end
-		assert(beam - backTop <= 6, `{beam - backTop} studs of empty sky between the arcade's canopy and its cabinets`)
+		assert(beam - backTop <= 2, `{beam - backTop} studs of empty sky between the arcade's canopy and its cabinets`)
 	end
 	-- a cabinet counting down shows it on a kit tag, not bare words
 	hub.model:warp("arcade")
+	hub.camX = hub.model.p.x
 	hub:setCabinets({ { number = 1, state = "countdown", startsIn = 3, seats = {} } }, 1)
 	hub:draw(canvas(1280, 720), 1/60)
 	local tagSign = hub.signs and hub.signs.cabT1
@@ -817,6 +843,52 @@ do
 	local bare = hub.pool["cabT1"]
 	assert(not bare or bare.Visible == false, "cabinet 1's countdown is bare words")
 	hub:setCabinets({}, 1)
+	-- a name tag over a cabinet's number hides the number (Corsair's sat on 06's, one baseline)
+	do
+		local cab
+		for _, cb in PLAZA.cabinets do if cb.number == 6 then cab = cb end end
+		hub:setPeers({ { userId = 9, name = "Corsair", avatar = "Classic", weapon = "Sword", x = cab.x, z = cab.z - 4.5, y = 0, facing = 1 } }, 1)
+		hub.peers[9].x, hub.peers[9].z = cab.x, cab.z - 4.5
+		hub.model:setScene(hub.model.data, { x = cab.x, z = 3 })
+		hub.camX = cab.x
+		hub:draw(canvas(1280, 720), 1/60)
+		local tag, num = hub.pool["name9"], hub.signs["cab6"]
+		assert(tag and tag.Visible, "the guest's name tag is not up")
+		local tcy = tag.Position.Y.Offset + tag.Size.Y.Offset / 2
+		local overlaps = num.card.Position.Y.Offset < tcy + 10 and num.card.Position.Y.Offset + num.card.Size.Y.Offset > tcy - 10
+		assert(not (overlaps and num.card.Visible), "a name tag is drawn over cabinet 06's number")
+		assert(overlaps, "the test's guest does not stand where a tag meets 06's number")
+		hub:setPeers({}, 1)
+	end
+	-- a sign mostly off the screen's side is hidden, one on it is not
+	do
+		hub.gui.AbsoluteSize = { X = 812, Y = 375 }
+		local seen = 0
+		for x = -60, 60, 6 do
+			hub.model:setScene(hub.model.data, { x = x, z = 8 })
+			hub.camX = x
+			hub:draw(canvas(812, 375), 1/60)
+			for id, sg in hub.signs do
+				local c = sg.card
+				local x1, w = c.Position.X.Offset, c.Size.X.Offset
+				local shown = (math.min(812, x1 + w) - math.max(0, x1)) / w
+				if c.Visible then assert(shown >= 0.6, `the {id} sign shows with {math.floor(shown * 100)}% of it on the screen`); seen += 1 end
+			end
+		end
+		assert(seen > 0, "no signs on the phone")
+		hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
+	end
+	-- each lift shows how many a side it takes, so the three are not the same grey doors
+	do
+		local Art = Loader.loadFrom("src/client/", "PlazaArt")
+		local function sig(prop: any): string
+			local parts = {}
+			for _, r in prop.rects do table.insert(parts, table.concat({ r[1], r[2], r[3], r[4] }, ",")) end
+			return table.concat(parts, ";")
+		end
+		local a, b, c = sig(Art.lift("#FFFFFF", 1)), sig(Art.lift("#FFFFFF", 2)), sig(Art.lift("#FFFFFF", 3))
+		assert(a ~= b and b ~= c and a ~= c, "the three lifts' doors are drawn alike")
+	end
 	-- the floor is a mid-tone stone white names read on at 2:1 or better (pale flagstones were the
 	-- biggest light mass on screen, white on them 1.4:1)
 	do

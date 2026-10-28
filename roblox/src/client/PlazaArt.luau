@@ -283,7 +283,9 @@ function PlazaArt.stool(): any
 	return b.done(true)
 end
 
-function PlazaArt.lift(colour: string): any
+-- `people`: how many a side it takes (1v1, 2v2, 3v3), painted on its doors as figures in its colour -
+-- blank, the three lifts were the same grey doors under their signs.
+function PlazaArt.lift(colour: string, people: number?): any
 	local W, H = 88, 104
 	local b = builder(W, H)
 	b.r(0, 0, W, 96, C.ink)
@@ -297,6 +299,13 @@ function PlazaArt.lift(colour: string): any
 	b.r(0, 84, W, 12, colour); b.r(0, 84, W, 2, C.ink, 0.45); b.r(0, 94, W, 2, C.white, 0.45)
 	b.r(8, 82, 72, 2, C.steelHi)                                            -- the doors' lit top
 	b.r(26, 96, 36, 8, C.ink); b.r(28, 98, 32, 4, colour, 0.9)             -- the floor light
+	local n = people or 0
+	for i = 1, n do
+		-- a figure: head, body, legs, in the lift's colour on an ink plate
+		local x = 44 + (i - (n + 1) / 2) * 14 - 4
+		b.r(x - 1, 30, 10, 26, C.ink)
+		b.r(x + 2, 48, 4, 4, colour); b.r(x + 1, 38, 6, 9, colour); b.r(x + 1, 32, 2, 6, colour); b.r(x + 5, 32, 2, 6, colour)
+	end
 	return b.done(true)
 end
 

@@ -72,7 +72,7 @@ Plaza2D.KIT_INK, Plaza2D.KIT_BAND = 0.3, 0.5
 Plaza2D.CAB_BACK = 10
 Plaza2D.CAB_FAR_SCALE = 0.8
 -- the arcade canopy's height in PlazaArt cells (its beam's foot is 14 under it)
-Plaza2D.CANOPY_H = 84
+Plaza2D.CANOPY_H = 52
 Plaza2D.LOUNGE_LIFT = 3
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
@@ -341,6 +341,43 @@ function Plaza2D.clearBanner(self: any)
 	end
 end
 
+-- A name tag over a cabinet's number hides the number (a person is worth more than a marquee's digits:
+-- Corsair's tag sat on 06's on one baseline).
+function Plaza2D.clearTags(self: any)
+	if not self.signs then return end
+	for id, t in self.pool do
+		if string.sub(id, 1, 4) == "name" and t.Visible then
+			local w = Ui.textWidth(t.Text, 12) + 8
+			local cx = t.Position.X.Offset + t.Size.X.Offset / 2
+			local y1, y2 = t.Position.Y.Offset + t.Size.Y.Offset / 2 - 10, t.Position.Y.Offset + t.Size.Y.Offset / 2 + 10
+			for sid, sg in self.signs do
+				local c = sg.card
+				if c.Visible and string.match(sid, "^cab%d+$") then
+					local cx1, cy1 = c.Position.X.Offset, c.Position.Y.Offset
+					if cx1 < cx + w / 2 and cx1 + c.Size.X.Offset > cx - w / 2 and cy1 < y2 and cy1 + c.Size.Y.Offset > y1 then
+						c.Visible = false
+					end
+				end
+			end
+		end
+	end
+end
+
+-- A sign mostly off the screen's side is hidden (NOTICE BOARD read "ARD" at a phone's edge).
+Plaza2D.EDGE_SHOWN = 0.6
+function Plaza2D.clearEdges(self: any)
+	if not self.signs then return end
+	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0
+	if gw <= 0 then return end
+	for _, sg in self.signs do
+		local c = sg.card
+		local x1, w = c.Position.X.Offset, c.Size.X.Offset
+		if c.Visible and w > 0 and (math.min(gw, x1 + w) - math.max(0, x1)) / w < Plaza2D.EDGE_SHOWN then
+			c.Visible = false
+		end
+	end
+end
+
 -- A speech bubble: a pooled label styled once, sized to its text.
 function Plaza2D.bubble(self: any, c: any, id: string, value: string, x: number, y: number, alpha: number)
 	local t = self:label(id, value, 14, INK)
@@ -448,7 +485,8 @@ function Plaza2D.setRoom(self: any, room: any)
 	else
 		self.title.Text = string.upper(Realms.LOBBY.name)
 		-- (short: the long line grew the card to 81% of the screen's width)
-		self.directions.Text = "East: 1v1 at the cabinets, rooms at the gates, the climb  ·  West: your look at the tailor's"
+		-- (short: the long line took the card to 62% of the screen, 94% of a phone's)
+		self.directions.Text = "East: cabinets, gates, climb  ·  West: tailor"
 	end
 end
 
@@ -783,7 +821,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			add(s.z + 1.8, function()
 				local hex = Plaza2D.LIFT_HEX[s.teamSize] or Plaza2D.LIFT_HEX[1]
 				local face = Color3.fromHex(hex)
-				PlazaArt.draw(c, "lift" .. s.id, PlazaArt.get("lift" .. s.id, function() return PlazaArt.lift(hex) end), s.x, (s.z + 1.8) * D)
+				PlazaArt.draw(c, "lift" .. s.id, PlazaArt.get("lift" .. s.id, function() return PlazaArt.lift(hex, s.teamSize) end), s.x, (s.z + 1.8) * D)
 				-- (each lift says what it is: blank, the three read as elevators)
 				self:placeSign(c, "st" .. s.id, s.name .. "  " .. s.landmark, s.x, (s.z + 1.8) * D + Plaza2D.signAbove(104), 14, face)
 			end)
@@ -1157,6 +1195,8 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	end
 	self:endLabels()
 	self:clearBanner()
+	self:clearTags()
+	self:clearEdges()
 	c:finish()
 	self:placeTop(Ui.topInset())
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0
@@ -1175,7 +1215,9 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	-- (on every screen now: on a wide one the tip never went and cut the legs off people at the front.
 	-- On a wide screen there is no tip at all - the title card's directions say the same - so the card
 	-- at the bottom is only ever an action; a narrow one keeps it, for a few seconds)
-	local tipDone = not action and (not self.bannerNarrow or clock - (self.promptAt or clock) > Plaza2D.TIP_SECONDS)
+	-- (and now on a phone too: its tip covered a stall and the back of the walking band. The title
+	-- card's directions say which way things are; the card below is an action, or the blocked note)
+	local tipDone = not action and not self.blocked
 	self.prompt.Visible = not (self.social and self.social.anyOpen and self.social:anyOpen()) and not tipDone
 	-- the card fits its words, so a short line is not a long bar and a long one does not leave a
 	-- word alone on a second line
@@ -1189,11 +1231,19 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		-- under the title card on the billboard's BLOCKFALL)
 		self.prompt.AnchorPoint = Vector2.new(0, 1)
 		self.prompt.Position = UDim2.new(0, 16, 1, -(10 + Plaza2D.ICON + 14))
+	elseif Ui.lightPanels() then
+		-- (in the key hints' row at the bottom left, which it stands in for while it shows: above the
+		-- buttons' row it covered the front of the walking band, where a crowd's front row stands)
+		self.prompt.AnchorPoint = Vector2.new(0, 1)
+		self.prompt.Position = UDim2.new(0, 16, 1, -10)
 	else
 		self.prompt.AnchorPoint = Vector2.new(0.5, 1)
-		self.prompt.Position = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 14) else -62)
+		self.prompt.Position = UDim2.new(0.5, 0, 1, -62)
 	end
-	local promptMax = if high then math.max(gw / 2 - 16 - Plaza2D.FIGHTER_CLEAR, 160) else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
+	if not high and Ui.lightPanels() and self.prompt.Visible then self.controls.Visible = false end
+	local promptMax = if high then math.max(gw / 2 - 16 - Plaza2D.FIGHTER_CLEAR, 160)
+		elseif Ui.lightPanels() then math.max(gw - Plaza2D.SOCIAL_BAR_W - 48, 200)
+		else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
 	local promptWant = Ui.textWidth(self.prompt.Text, if action then 20 else 13) + (if action then 64 else 16) + 24
 	-- (taller when the words must wrap, so two lines keep their padding)
 	self.prompt.Size = UDim2.new(0, math.min(promptMax, promptWant), 0, if promptWant > promptMax then 66 else 50)

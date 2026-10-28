@@ -85,6 +85,15 @@ Plaza2D.STATION_SCALE = 0.7
 -- (24.5 studs tall: at 15 it started under the stations' signs and left the sky over them as it was)
 -- (the wainscot a skirting, under the couches: 6 studs tall, it put them on deep indigo at 1.13:1)
 Plaza2D.WALL_Z, Plaza2D.WALL_H, Plaza2D.WAINSCOT = 19.5, 24.5, 0.4
+-- How far a lounge station's art reaches either side of its x, outline and all: the stairs' doorway
+-- 3.6 + ink; a desk 6 + ink; the weapon rack's screen 8, its frame 0.5 and ink - the last two scaled.
+function Plaza2D.stationHalf(st: any): number
+	local o = Plaza2D.KIT_INK
+	if st.kind == "Exit" then return 3.6 + o end
+	return ((if st.kind == "Weapons" then 8.5 else 6) + o) * Plaza2D.STATION_SCALE
+end
+-- a window's width in studs (PlazaArt.loungeWall's 37 cells and its frame)
+Plaza2D.WINDOW_W = 41 / 8
 Plaza2D.SHORT_SCREEN, Plaza2D.SHORT_LIFT, Plaza2D.SHORT_STUDS = 450, 1.5, 46
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
@@ -434,6 +443,17 @@ function Plaza2D.clearEdges(self: any, gw: number)
 			local slide = sg.anchorX and sg.anchorX >= 0 and sg.anchorX <= gw and not string.match(c.Name, "^Sign_cab%d+$")
 			if slide and c.Size.X.Offset <= gw - 8 then
 				c.Position = UDim2.fromOffset(math.clamp(x1, 4, gw - 4 - c.Size.X.Offset), c.Position.Y.Offset)
+				-- (and clear of any sign it now meets, under it: slid, NOTICE BOARD's met MASKS')
+				for _, other in self.signs do
+					local o = other.card
+					if o ~= c and o.Visible then
+						local ox, oy = o.Position.X.Offset, o.Position.Y.Offset
+						local cx, cy = c.Position.X.Offset, c.Position.Y.Offset
+						if cx < ox + o.Size.X.Offset + 2 and ox < cx + c.Size.X.Offset + 2 and cy < oy + o.Size.Y.Offset + 2 and oy < cy + c.Size.Y.Offset + 2 then
+							c.Position = UDim2.fromOffset(cx, oy + o.Size.Y.Offset + 4)
+						end
+					end
+				end
 			else
 				c.Visible = false
 			end
@@ -1094,11 +1114,19 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local cells = math.floor((b.x2 - b.x1) / PlazaArt.CELL + 0.5)
 		local wall = PlazaArt.get("wall" .. cells, function()
 			-- windows in the gaps between the stations, not over them
+			-- (centred between the stations' edges, not their middles - the weapon rack is wider than the
+			-- rest, and a window stood 3 px from it - and none where the gap is narrower than a window)
 			local xs = {}
 			local list = {}
-			for _, st in self.model.data.stations do table.insert(list, st.x) end
-			table.sort(list)
-			for i = 1, #list - 1 do table.insert(xs, ((list[i] + list[i + 1]) / 2 - b.x1) / PlazaArt.CELL) end
+			for _, st in self.model.data.stations do
+				local half = Plaza2D.stationHalf(st)
+				table.insert(list, { st.x - half, st.x + half })
+			end
+			table.sort(list, function(a, c) return a[1] < c[1] end)
+			for i = 1, #list - 1 do
+				local gap = list[i + 1][1] - list[i][2]
+				if gap >= Plaza2D.WINDOW_W + 2 then table.insert(xs, ((list[i][2] + list[i + 1][1]) / 2 - b.x1) / PlazaArt.CELL) end
+			end
 			return PlazaArt.loungeWall(cells, math.floor(Plaza2D.WALL_H / PlazaArt.CELL), xs, Realms.LOBBY.sky[2],
 				math.floor(Plaza2D.WAINSCOT / PlazaArt.CELL))
 		end)
@@ -1112,7 +1140,7 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		PlazaArt.draw(c, "plant", pl, 41, 18.4 * D)
 	end)
 	add(17.8, function()
-		PlazaArt.draw(c, "couchP", PlazaArt.get("couchP", function() return PlazaArt.couch(A.pinkDk) end), -31, 17.8 * D)
+		PlazaArt.draw(c, "couchP", PlazaArt.get("couchP", function() return PlazaArt.couch(A.pinkDk) end), -29, 17.8 * D)
 		PlazaArt.draw(c, "couchC", PlazaArt.get("couchC", function() return PlazaArt.couch(A.cyanDk) end), 7, 17.8 * D)
 	end)
 	for _, s in self.model.data.stations do

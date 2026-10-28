@@ -23,7 +23,7 @@ local C: { [string]: string } = {
 	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
 	pink = "#E04848", pinkDk = "#8E2424", pinkDeep = "#4E1620", cyan = "#3A8AD8", cyanDk = "#1E4A8A", cyanDeep = "#14284E", amber = "#FFC83A", amberDk = "#C47A1A",
 	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66",
-	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", indigoWall = "#353870", violet = "#9668FF", plaster = "#A7A9DA", plasterHi = "#CDCEF0", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
+	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", indigoWall = "#5A5C96", violet = "#9668FF", plaster = "#A7A9DA", plasterHi = "#CDCEF0", plasterDk = "#8F91C6", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
 PlazaArt.C = C
 
@@ -266,35 +266,46 @@ function PlazaArt.arcadeMarquee(): any
 		b.r(x, 19, 3, 6, dk); b.r(x + 5, 19, 3, 6, dk)                          -- legs
 		b.r(x, 25, 8, 7, col); b.r(x, 25, 8, 2, dk)                             -- body, belt
 		b.r(x + 1, 32, 6, 4, C.paper); b.r(x + (if dir > 0 then 4 else 2), 33, 1, 1, C.ink)  -- head, eye
+		b.r(x - 1, 35, 10, 3, C.ink); b.r(x, 36, 8, 2, dk)                       -- a helmet
 		local hx = if dir > 0 then x + 8 else x - 9
 		b.r(hx, 28, 9, 3, C.ink); b.r(hx + 1, 29, 7, 1, C.steelHi)             -- a sword out
+		local gx = if dir > 0 then hx else hx + 7
+		b.r(gx, 26, 2, 7, C.ink); b.r(gx, 27, 2, 5, C.amber)                    -- its crossguard
 	end
 	fighter(14, 1, C.pink, C.pinkDk)
 	fighter(W - 22, -1, C.cyan, C.cyanDk)
 	return b.done(true)
 end
 
+-- One pennant, its top edge's centre at (x, y), `size` cells wide, pointing down: an ink outline, a
+-- band narrowing to a point. Shared by the arcade's bunting and the lounge's wall (they were drawn two
+-- ways, one pointed, one flat).
+local function pennant(b: any, x: number, y: number, size: number, col: string)
+	local rows = math.ceil(size / 2)
+	for k = 0, rows - 1 do
+		local half = math.floor(size / 2) - k
+		b.r(x - half - 1, y - 2 - k * 2, half * 2 + 2, 2, C.ink)
+		if half > 0 then b.r(x - half, y - 2 - k * 2, half * 2, 2, col) end
+	end
+end
+
 -- Pennants on a sagging line, `w` x `h` cells, falling from its left end (h up) to its right (0 up),
 -- for the arcade's marquee to the canopy's ends. Mirror it for the other side.
 function PlazaArt.bunting(w: number, h: number, flip: boolean?): any
-	-- (two strands of big pennants: one thin strand left the arcade's side thirds 95% sky)
-	local H = h + 40
+	-- (two strands, every pennant drawn, each strand running all the way to its end - one left the
+	-- arcade's sides 95% sky, every other pennant 90%, and they stopped short of the marquee, tied to
+	-- nothing - and kept apart at their ends)
+	local H = h + 48
 	local b = builder(w, H)
 	local colours = { C.pink, C.cyan, C.amber, C.teal }
 	for strand = 0, 1 do
-		local n = math.floor(w / 10)
+		local n = math.floor(w / 11)
 		for i = 0, n - 1 do
-			local t = i / n
-			local x = math.floor(if flip then w - 10 - t * (w - 10) else t * (w - 10))
-			local y = math.floor(28 + h * (1 - t) - math.sin(t * math.pi) * (10 + strand * 14) - strand * 4)
-			b.r(x, y, 10, 1, C.ink)
-			if (i + strand) % 2 == 0 then
-				for k = 0, 4 do
-					local half = 5 - k
-					b.r(x + 5 - half - 1, y - 2 - k * 2, half * 2 + 2, 2, C.ink)
-					if half > 1 then b.r(x + 5 - half, y - 2 - k * 2, half * 2, 2, colours[(i // 2 + strand) % #colours + 1]) end
-				end
-			end
+			local t = i / (n - 1)
+			local x = math.floor(if flip then w - 11 - t * (w - 11) else t * (w - 11))
+			local y = math.floor(40 + h * (1 - t) - math.sin(t * math.pi) * (8 + strand * 10) - strand * 16)
+			b.r(x, y, 11, 1, C.ink)
+			pennant(b, x + 5, y, 10, colours[(i + strand * 2) % #colours + 1])
 		end
 	end
 	return b.done()
@@ -308,13 +319,28 @@ function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: str
 	local b = builder(w, h)
 	b.r(0, 0, w, h, C.indigoDk)
 	b.r(0, 3, w, h - 7, C.plaster)
-	b.r(0, h - 7, w, 3, C.plasterHi)
-	b.r(0, 3, w, low, C.indigoWall)                                          -- the wainscot
+	-- plaster in courses of panels, as the islands' stone is in courses (one flat colour was 53% of the
+	-- band behind the stations)
+	for y = low + 18, h - 30, 24 do
+		b.r(0, y, w, 1, C.plasterDk)
+		local off = ((y // 24) % 2) * 32
+		for x = off, w, 64 do b.r(x, y + 1, 1, 23, C.plasterDk) end
+		b.r(0, y + 1, w, 1, C.plasterHi)
+	end
+	-- a terrace parapet for its top, not an interior cornice: a striped awning edge, as the stalls'
+	b.r(0, h - 12, w, 9, C.pinkDk)
+	for x = 0, w - 1, 16 do b.r(x, h - 12, 8, 9, C.paper) end
+	for x = 0, w - 1, 16 do b.r(x + 2, h - 15, 4, 3, C.paper) end
+	b.r(0, h - 3, w, 3, C.ink)
+	b.r(0, 3, w, low, C.indigoWall)                                          -- the skirting
 	b.r(0, low + 3, w, 3, C.indigoHi)                                        -- its rail
 	for _, cx in windows do
 		local x0, y0, ww, wh = math.floor(cx) - 18, low + 14, 37, h - low - 44
 		b.r(x0 - 2, y0 - 2, ww + 4, wh + 4, C.ink)
 		b.r(x0, y0, ww, wh, sky)
+		-- the view: a far island and a cloud, so the window says "high up" and not "a room's glass"
+		b.r(x0 + 4, y0 + 10, 14, 4, C.plasterHi); b.r(x0 + 8, y0 + 7, 8, 3, C.plasterHi)
+		b.r(x0 + 20, y0 + math.floor(wh * 0.3), 15, 5, C.green); b.r(x0 + 22, y0 + math.floor(wh * 0.3) - 4, 9, 4, C.slate)
 		b.r(x0, y0 + math.floor(wh * 0.6), ww, 2, C.ink)
 		b.r(x0 + 17, y0, 2, wh, C.ink)
 		b.r(x0 - 4, y0 - 4, ww + 8, 2, C.indigoHi)                              -- its sill and lintel
@@ -323,13 +349,7 @@ function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: str
 	local n = 0
 	for x = 12, w - 12, 24 do
 		n += 1
-		local col = colours[(n - 1) % #colours + 1]
-		-- a pennant: a band, narrowing to a point
-		for k = 0, 5 do
-			local half = 5 - k
-			b.r(x - half - 1, h - 9 - k * 2, half * 2 + 2, 2, C.ink)
-			if half > 0 then b.r(x - half, h - 9 - k * 2, half * 2, 2, col) end
-		end
+		pennant(b, x, h - 15, 10, colours[(n - 1) % #colours + 1])
 	end
 	return b.done(true)
 end

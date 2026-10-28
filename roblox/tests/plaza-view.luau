@@ -753,9 +753,11 @@ do
 		Canvas.sprite = was
 		assert(#windows >= 3, "the lounge's wall has no windows")
 		for _, st in hub.model.data.stations do
-			local half = if st.kind == "Exit" then 3.6 elseif st.kind == "Weapons" then 8 * Plaza2D.STATION_SCALE else 6 * Plaza2D.STATION_SCALE
+			-- (the art's own reach, outline and all: the rack's screen frame 8.5 + ink, a desk 6 + ink)
+			local half = if st.kind == "Exit" then 3.9 else ((if st.kind == "Weapons" then 8.5 else 6) + 0.3) * Plaza2D.STATION_SCALE
 			for _, w in windows do
-				assert(w[2] <= st.x - half or w[1] >= st.x + half, `a window ({w[1]} to {w[2]}) stands behind the {st.id} station`)
+				-- (half a stud of plaster at least between: one stood 3 px from the weapon rack)
+				assert(w[2] <= st.x - half - 0.5 or w[1] >= st.x + half + 0.5, `a window ({w[1]} to {w[2]}) stands behind or against the {st.id} station`)
 			end
 		end
 		-- (less than half of a couch against the wainscot)
@@ -763,6 +765,16 @@ do
 		local couchTop = couchBase + 22 * Loader.loadFrom("src/client/", "PlazaArt").CELL
 		local wainscotTop = Plaza2D.WALL_Z * PLAZA.depth + Plaza2D.WAINSCOT
 		assert(wainscotTop < (couchBase + couchTop) / 2, "the couches stand on the wall's deep wainscot")
+		-- what does stand against the skirting keeps its ink outline: 2:1 or better (1.47:1 on deep indigo)
+		local Art = Loader.loadFrom("src/client/", "PlazaArt")
+		local Ui = Loader.loadFrom("src/client/", "Ui")
+		local ratio = Ui.contrast(Rbx.Color3.fromHex(Art.C.ink), Rbx.Color3.fromHex(Art.C.indigoWall))
+		assert(ratio >= 2, `an ink outline reads at {ratio}:1 on the wall's skirting`)
+		-- and the plaster is in courses, not one flat colour (53% of the band behind the stations)
+		local wallArt = Art.loungeWall(400, 196, { 100 }, "#6FB5F2", 3)
+		local courses = 0
+		for _, r in wallArt.rects do if r[5] == Art.C.plasterDk then courses += 1 end end
+		assert(courses >= 10, `the lounge's plaster has {courses} course lines`)
 	end
 	-- the lounge is a room: its back wall stands behind the stations (its upper fifth was empty sky)
 	do
@@ -894,6 +906,17 @@ do
 		local arcadeSign = hub.signs.arcade
 		assert(arcadeSign and arcadeSign.card.Visible and arcadeSign.text.Text == "1v1 CABINETS", "the arcade's marquee carries no sign")
 		assert(scales["prop|buntL"] and scales["prop|buntR"], "no pennants either side of the arcade's marquee")
+		-- each strand runs all the way to its ends, a pennant on every stretch (they stopped short of the
+		-- marquee, and every other pennant was drawn)
+		local strand = Art.bunting(200, 34)
+		local inks, coloured = 0, 0
+		local reach = 0
+		for _, r in strand.rects do
+			if r[5] == Art.C.ink and r[4] == 1 then inks += 1; reach = math.max(reach, r[1] + r[3]) end
+			if r[5] ~= Art.C.ink and r[3] == 2 then coloured += 1 end      -- a pennant's tip
+		end
+		assert(reach >= 200 - 1, `the bunting's strand stops at {reach} of 200 cells`)
+		assert(coloured >= inks * 0.9, `{coloured} pennants for {inks} stretches of line: pennants missing`)
 		local D = PLAZA.depth
 		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
 		local backTop = 0
@@ -984,6 +1007,22 @@ do
 			end
 		end
 		assert(seen > 0, "no signs on the phone")
+		-- and no two cards meet anywhere along it (NOTICE BOARD's, slid on, met MASKS')
+		for x = -60, 60, 3 do
+			hub.model:setScene(hub.model.data, { x = x, z = 8 })
+			hub.camX = x
+			hub:draw(canvas(812, 375), 1/60)
+			local cards = {}
+			for id, sg in hub.signs do if sg.card.Visible then table.insert(cards, { id, sg.card }) end end
+			for i = 1, #cards do
+				for j = i + 1, #cards do
+					local a, b = cards[i][2], cards[j][2]
+					local ax, ay, bx, by = a.Position.X.Offset, a.Position.Y.Offset, b.Position.X.Offset, b.Position.Y.Offset
+					assert(not (ax < bx + b.Size.X.Offset and bx < ax + a.Size.X.Offset and ay < by + b.Size.Y.Offset and by < ay + a.Size.Y.Offset),
+						`at x {x} on the phone the {cards[i][1]} and {cards[j][1]} signs meet`)
+				end
+			end
+		end
 		-- a station still on the screen keeps its name: its card slides on rather than going (NOTICE
 		-- BOARD's went whole)
 		local named = 0

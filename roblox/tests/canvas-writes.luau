@@ -219,4 +219,22 @@ assert(walker.frame.Visible, "back on screen: shown again")
 local tile = Canvas.inFrame(instance("Frame"))
 tile:rect(5000, 5000, 1, 1, RED)
 assert(tile.used == 1, "a tile canvas culls nothing")
+-- A frame drawn into twice - a Locker card reused for another item as you scroll - shows only the
+-- second picture: what the first drew and the second did not is hidden (a new canvas each time left
+-- the first picture under the second: a posing fighter over every weapon).
+do
+	local card = instance("Frame")
+	local first = Canvas.inFrame(card)
+	Canvas.setTransform(first, 2, 0, 0, -2, 10, 40)          -- (as a weapon's art is fitted)
+	first:rect(0, 0, 4, 4, RED); first:rect(4, 0, 4, 4, RED); first:rect(8, 0, 4, 4, RED)
+	first:finish(true)
+	local second = Canvas.inFrame(card)
+	second:rect(0, 8, 2, 2, BLUE)
+	second:finish(true)
+	local shown = 0
+	for _, f in first.pool do if f.Visible then shown += 1 end end
+	if second ~= first then for _, f in second.pool do if f.Visible then shown += 1 end end end
+	assert(shown == 1, `a card drawn twice shows {shown} shapes: the first picture is left under the second`)
+	assert(second.m.a == 1 and second.m.e == 0 and #second.stack == 0, "a card's canvas keeps the last draw's transform")
+end
 print("PASS canvas writes: a repeated frame writes nothing, a change writes only itself, spares hidden once, off-screen skipped, the picture unchanged")

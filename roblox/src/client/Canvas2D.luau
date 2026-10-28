@@ -62,9 +62,26 @@ end
 
 -- Palette entries arrive from the shared data layer as the CSS hex strings the web build uses.
 -- Embedded canvases reuse the exact same weapon art inside loadout cards.
-function Canvas2D.inFrame(frame: Frame): any
+-- One canvas a frame, kept: a frame drawn into again (a Locker or Shop card reused for another item
+-- as you scroll or change tab) gets its own canvas back, so `finish` hides what the last picture drew
+-- and this one did not. A new canvas each time left every earlier picture under the new one - a
+-- posing fighter drawn over each weapon. Weak keys: a frame destroyed takes its canvas with it.
+local FRAME_CANVAS: { [Instance]: any } = setmetatable({}, { __mode = "k" }) :: any
+-- A canvas of its own over a frame, kept by nobody: the sprite collector's and the warm-up's scratch.
+function Canvas2D.scratch(frame: any): any
 	return setmetatable({ gui = frame, layer = frame, pool = {}, poolState = {}, used = 0, z = 0,
 		m = identity(), stack = {}, alpha = 1, alphaStack = {}, sprites = {}, spriteUse = {}, frameNo = 0 }, Canvas2D)
+end
+function Canvas2D.inFrame(frame: Frame): any
+	local c = FRAME_CANVAS[frame]
+	if c then
+		-- the transform and fade a draw left behind are not the next one's
+		c.m, c.stack, c.alpha, c.alphaStack = identity(), {}, 1, {}
+		return c
+	end
+	c = Canvas2D.scratch(frame)
+	FRAME_CANVAS[frame] = c
+	return c
 end
 
 -- Parsed rather than converted at generation time, so the two builds read the same data file.
@@ -609,7 +626,7 @@ end
 -- Record the renderer's own keys and occurrence numbers without allocating GUI objects. Using
 -- the real draw avoids a second roster/LOD/footwear implementation drifting from sprite slots.
 function Canvas2D.collectSprites(self: any, draw: (any) -> ()): { any }
-	local c = Canvas2D.inFrame(self.gui)
+	local c = Canvas2D.scratch(self.gui)
 	c.collectingSprites = {}
 	draw(c)
 	return c.collectingSprites
@@ -618,7 +635,7 @@ end
 -- Build hidden slots on the destination canvas in bounded countdown batches. Neither its draw
 -- counters nor transform are advanced, and the first visible draw still sets its own ordering.
 function Canvas2D.warmSprites(self: any, queue: any, budget: number): boolean
-	local c = Canvas2D.inFrame(self.gui)
+	local c = Canvas2D.scratch(self.gui)
 	c.layer, c.sprites, c.frameNo, c.prewarming = self.layer, self.sprites, self.frameNo, true
 	local cost = 0
 	while queue.at <= #queue do

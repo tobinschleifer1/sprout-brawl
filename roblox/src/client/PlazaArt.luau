@@ -23,7 +23,7 @@ local C: { [string]: string } = {
 	steel = "#8A94A6", steelHi = "#C8D0DC", rust = "#B4462E", wood = "#A0683A", woodHi = "#D49A5C", woodDk = "#6B3F22",
 	pink = "#E04848", pinkDk = "#8E2424", pinkDeep = "#4E1620", cyan = "#3A8AD8", cyanDk = "#1E4A8A", cyanDeep = "#14284E", amber = "#FFC83A", amberDk = "#C47A1A",
 	lantern = "#FF7A3A", lanternHi = "#FFD27A", teal = "#2ECCAA", tealHi = "#8AF0D8", tealDk = "#1A7A66",
-	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", indigoWall = "#353870", violet = "#9668FF", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
+	indigo = "#464A96", indigoHi = "#7E82CC", indigoDk = "#2A2C5E", indigoWall = "#353870", violet = "#9668FF", plaster = "#A7A9DA", plasterHi = "#CDCEF0", paper = "#F4ECD8", glass = "#3A5A7A", white = "#FFFFFF", green = "#5AB447",
 }
 PlazaArt.C = C
 
@@ -260,55 +260,76 @@ function PlazaArt.arcadeMarquee(): any
 	for x = 23, W - 26, 8 do b.r(x, 52, 3, 2, if (x // 8) % 2 == 0 then C.teal else C.amber) end
 	for y = 18, 38, 6 do b.r(3, y, 2, 3, C.amber); b.r(W - 5, y, 2, 3, C.teal) end
 	-- two fighters squaring up, either side of the name
-	local function fighter(x: number, dir: number, col: string)
-		b.r(x, 18, 8, 3, C.ink); b.r(x + 1, 21, 6, 10, col); b.r(x + 2, 31, 4, 4, col)
-		b.r(x + (if dir > 0 then 7 else -4), 25, 5, 2, col)                -- a fist out
-		b.r(x + 2, 32, 1, 1, C.ink)
+	-- (outlined, two-toned and armed, as Blockfall's own: flat one-colour pictograms read as an LCD game)
+	local function fighter(x: number, dir: number, col: string, dk: string)
+		b.r(x - 1, 17, 10, 20, C.ink)                                           -- the outline
+		b.r(x, 19, 3, 6, dk); b.r(x + 5, 19, 3, 6, dk)                          -- legs
+		b.r(x, 25, 8, 7, col); b.r(x, 25, 8, 2, dk)                             -- body, belt
+		b.r(x + 1, 32, 6, 4, C.paper); b.r(x + (if dir > 0 then 4 else 2), 33, 1, 1, C.ink)  -- head, eye
+		local hx = if dir > 0 then x + 8 else x - 9
+		b.r(hx, 28, 9, 3, C.ink); b.r(hx + 1, 29, 7, 1, C.steelHi)             -- a sword out
 	end
-	fighter(12, 1, C.pink)
-	fighter(W - 20, -1, C.cyan)
+	fighter(14, 1, C.pink, C.pinkDk)
+	fighter(W - 22, -1, C.cyan, C.cyanDk)
 	return b.done(true)
 end
 
 -- Pennants on a sagging line, `w` x `h` cells, falling from its left end (h up) to its right (0 up),
 -- for the arcade's marquee to the canopy's ends. Mirror it for the other side.
 function PlazaArt.bunting(w: number, h: number, flip: boolean?): any
-	local H = h + 16
+	-- (two strands of big pennants: one thin strand left the arcade's side thirds 95% sky)
+	local H = h + 40
 	local b = builder(w, H)
 	local colours = { C.pink, C.cyan, C.amber, C.teal }
-	local n = math.floor(w / 6)
-	for i = 0, n - 1 do
-		local t = i / n
-		local x = math.floor(if flip then w - 6 - t * (w - 6) else t * (w - 6))
-		local y = math.floor(12 + h * (1 - t) - math.sin(t * math.pi) * 8)
-		b.r(x, y, 6, 1, C.ink)
-		if i % 2 == 0 then
-			b.r(x + 1, y - 7, 5, 7, C.ink); b.r(x + 2, y - 6, 3, 5, colours[(i // 2) % #colours + 1])
+	for strand = 0, 1 do
+		local n = math.floor(w / 10)
+		for i = 0, n - 1 do
+			local t = i / n
+			local x = math.floor(if flip then w - 10 - t * (w - 10) else t * (w - 10))
+			local y = math.floor(28 + h * (1 - t) - math.sin(t * math.pi) * (10 + strand * 14) - strand * 4)
+			b.r(x, y, 10, 1, C.ink)
+			if (i + strand) % 2 == 0 then
+				for k = 0, 4 do
+					local half = 5 - k
+					b.r(x + 5 - half - 1, y - 2 - k * 2, half * 2 + 2, 2, C.ink)
+					if half > 1 then b.r(x + 5 - half, y - 2 - k * 2, half * 2, 2, colours[(i // 2 + strand) % #colours + 1]) end
+				end
+			end
 		end
 	end
 	return b.done()
 end
 
--- A lounge's back wall, `w` x `h` cells: a kit wall (ink top, light band, deep indigo face, dark lip)
--- with `windows` tall windows onto the sky and pennants in the stations' colours along its top.
-function PlazaArt.loungeWall(w: number, h: number, windows: number, sky: string): any
+-- A lounge's back wall, `w` x `h` cells: the kit's anatomy - ink top, light band, a pale plaster face,
+-- and a deep indigo wainscot `low` cells tall under the stations - with windows at `windows` (cell
+-- x's: the gaps between the stations) onto the sky, and pointed pennants along its top. (All deep
+-- indigo, the couches sat on it at 1.13:1 and the map board read as one more window.)
+function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: string, low: number): any
 	local b = builder(w, h)
 	b.r(0, 0, w, h, C.indigoDk)
-	b.r(0, 3, w, h - 7, C.indigoWall)
-	b.r(0, h - 7, w, 3, C.indigoHi)
-	local pitch = w / windows
-	for i = 0, windows - 1 do
-		local cx = math.floor((i + 0.5) * pitch)
-		b.r(cx - 26, 18, 53, h - 36, C.ink)
-		b.r(cx - 24, 20, 49, h - 40, sky)
-		b.r(cx - 24, 20 + math.floor((h - 40) * 0.55), 49, 2, C.ink)
-		b.r(cx - 1, 20, 2, h - 40, C.ink)
+	b.r(0, 3, w, h - 7, C.plaster)
+	b.r(0, h - 7, w, 3, C.plasterHi)
+	b.r(0, 3, w, low, C.indigoWall)                                          -- the wainscot
+	b.r(0, low + 3, w, 3, C.indigoHi)                                        -- its rail
+	for _, cx in windows do
+		local x0, y0, ww, wh = math.floor(cx) - 18, low + 14, 37, h - low - 44
+		b.r(x0 - 2, y0 - 2, ww + 4, wh + 4, C.ink)
+		b.r(x0, y0, ww, wh, sky)
+		b.r(x0, y0 + math.floor(wh * 0.6), ww, 2, C.ink)
+		b.r(x0 + 17, y0, 2, wh, C.ink)
+		b.r(x0 - 4, y0 - 4, ww + 8, 2, C.indigoHi)                              -- its sill and lintel
 	end
 	local colours = { C.cyan, C.lantern, C.violet, C.green, C.pink }
 	local n = 0
 	for x = 12, w - 12, 24 do
 		n += 1
-		b.r(x - 5, h - 20, 10, 13, C.ink); b.r(x - 4, h - 19, 8, 11, colours[(n - 1) % #colours + 1])
+		local col = colours[(n - 1) % #colours + 1]
+		-- a pennant: a band, narrowing to a point
+		for k = 0, 5 do
+			local half = 5 - k
+			b.r(x - half - 1, h - 9 - k * 2, half * 2 + 2, 2, C.ink)
+			if half > 0 then b.r(x - half, h - 9 - k * 2, half * 2, 2, col) end
+		end
 	end
 	return b.done(true)
 end

@@ -163,9 +163,12 @@ do
 	local wardrobe
 	for _, st in PLAZA.market.stations do if st.kind == "Wardrobe" then wardrobe = st end end
 	hub:drawWardrobe(c, wardrobe, 0)
-	before = poses[hub.char]
+	-- (the reflection is your character unarmed: its sword reached out past the glass)
+	local mirror = hub.mirrorChar and hub.mirrorChar.char
+	assert(mirror and mirror.weapon == nil and hub.char.weapon ~= nil, "the reflection in the mirror is armed")
+	before = poses[mirror]
 	for _ = 1, 12 do hub:step(1/60, false); hub:drawWardrobe(c, wardrobe, 0) end
-	after = poses[hub.char]
+	after = poses[mirror]
 	assert(after.x == before.x, "mirror left its fixed display position")
 	changed(before, after, "mirror")
 	hub.input.frame.y = 0
@@ -726,6 +729,41 @@ do
 		local _ = l + r
 	end
 	assert(hub.district ~= "lounge", "a lounge's district banner repeats the title card's name")
+	-- the wall rises to within 60 px of the title card (at 15 studs it started under the stations' signs,
+	-- leaving the sky over them as it was), its windows sit between the stations, not behind them, and
+	-- the couches stand on its pale plaster, not its deep wainscot
+	do
+		local c = canvas(1280, 720)
+		for _ = 1, 200 do hub:draw(c, 1/60) end
+		local wallTop = c:project(0, Plaza2D.WALL_Z * PLAZA.depth + Plaza2D.WALL_H).Y
+		local cardBottom = hub.plate.Position.Y.Offset + hub.plate.Size.Y.Offset
+		assert(wallTop - cardBottom <= 60, `{wallTop - cardBottom} px of empty sky between the title card and the lounge's wall`)
+		local sky = Rbx.Color3.fromHex(Loader.load("Realms").LOBBY.sky[2])
+		local windows: { { number } } = {}
+		local was = Canvas.sprite
+		Canvas.sprite = function(cc: any, key: string, list: any, x0: number, y1: number, pw: number, ...: any)
+			if string.find(key, "^prop|wall") then
+				for _, r in list do
+					if Rbx.Color3.fromHex(r[5]) == sky then table.insert(windows, { x0 + r[1] * pw, x0 + (r[1] + r[3]) * pw }) end
+				end
+			end
+			return was(cc, key, list, x0, y1, pw, ...)
+		end
+		hub:draw(c, 1/60)
+		Canvas.sprite = was
+		assert(#windows >= 3, "the lounge's wall has no windows")
+		for _, st in hub.model.data.stations do
+			local half = if st.kind == "Exit" then 3.6 elseif st.kind == "Weapons" then 8 * Plaza2D.STATION_SCALE else 6 * Plaza2D.STATION_SCALE
+			for _, w in windows do
+				assert(w[2] <= st.x - half or w[1] >= st.x + half, `a window ({w[1]} to {w[2]}) stands behind the {st.id} station`)
+			end
+		end
+		-- (less than half of a couch against the wainscot)
+		local couchBase = 17.8 * PLAZA.depth
+		local couchTop = couchBase + 22 * Loader.loadFrom("src/client/", "PlazaArt").CELL
+		local wainscotTop = Plaza2D.WALL_Z * PLAZA.depth + Plaza2D.WAINSCOT
+		assert(wainscotTop < (couchBase + couchTop) / 2, "the couches stand on the wall's deep wainscot")
+	end
 	-- the lounge is a room: its back wall stands behind the stations (its upper fifth was empty sky)
 	do
 		local keys: { [string]: boolean } = {}
@@ -946,6 +984,20 @@ do
 			end
 		end
 		assert(seen > 0, "no signs on the phone")
+		-- a station still on the screen keeps its name: its card slides on rather than going (NOTICE
+		-- BOARD's went whole)
+		local named = 0
+		for x = -60, 60, 3 do
+			hub.model:setScene(hub.model.data, { x = x, z = 8 })
+			hub.camX = x
+			hub:draw(canvas(812, 375), 1/60)
+			local sg = hub.signs["stBoard"]
+			if sg and sg.anchorX and sg.anchorX > 0 and sg.anchorX < 812 then
+				assert(sg.card.Visible, `the notice board stands on the screen (x {sg.anchorX}) with no name`)
+				named += 1
+			end
+		end
+		assert(named > 0, "the notice board never stood on the phone's screen")
 		-- and on the phone the walking band's front clears the buttons' row (they sat on its front 32 px)
 		hub.model:setScene(hub.model.data, { x = 0, z = 8 })
 		hub.camX = 0

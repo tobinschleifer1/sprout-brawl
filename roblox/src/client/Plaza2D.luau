@@ -82,7 +82,9 @@ Plaza2D.LOUNGE_LIFT = 3
 -- stations stays the same, 174-176 px)
 Plaza2D.STATION_SCALE = 0.7
 -- the lounge's back wall: its depth (behind everything), its height in studs, its windows
-Plaza2D.WALL_Z, Plaza2D.WALL_H, Plaza2D.WALL_WINDOWS = 19.5, 15, 6
+-- (24.5 studs tall: at 15 it started under the stations' signs and left the sky over them as it was)
+-- (the wainscot a skirting, under the couches: 6 studs tall, it put them on deep indigo at 1.13:1)
+Plaza2D.WALL_Z, Plaza2D.WALL_H, Plaza2D.WAINSCOT = 19.5, 24.5, 0.4
 Plaza2D.SHORT_SCREEN, Plaza2D.SHORT_LIFT, Plaza2D.SHORT_STUDS = 450, 1.5, 46
 Plaza2D.FIGHTER_CLEAR = 64
 Plaza2D.TIP_SECONDS = 6        -- (the camera leads, and a held weapon reaches back: 40 met the sword)
@@ -315,6 +317,7 @@ function Plaza2D.placeSign(self: any, c: any, id: string, value: string, x: numb
 	-- card hung lower than a one-line one and the stalls' signs sank into their awnings)
 	local at = c:project(x, y)
 	sg.card.Position, sg.card.Size = UDim2.fromOffset(math.floor(at.X - w / 2), math.floor(at.Y - h)), UDim2.fromOffset(w, h)
+	sg.anchorX = at.X
 	sg.card.Visible = true
 	self.used[key] = true
 	return sg.card
@@ -362,33 +365,53 @@ function Plaza2D.clearTags(self: any)
 		if string.sub(id, 1, 4) == "name" and t.Visible then table.insert(tags, t) end
 	end
 	table.sort(tags, function(a, b) return a.Position.Y.Offset > b.Position.Y.Offset end)
-	for i, t in tags do
-		local w = Ui.textWidth(t.Text, 12) + 8
-		local cx = t.Position.X.Offset + t.Size.X.Offset / 2
-		for j = 1, i - 1 do
-			local o = tags[j]
-			local ow = Ui.textWidth(o.Text, 12) + 8
-			local ocx = o.Position.X.Offset + o.Size.X.Offset / 2
-			if math.abs(cx - ocx) < (w + ow) / 2 and math.abs(t.Position.Y.Offset - o.Position.Y.Offset) < 18 then
-				t.Position = UDim2.fromOffset(t.Position.X.Offset, o.Position.Y.Offset - 18)
-			end
-		end
-	end
+	Plaza2D.unpileTags(tags)
+	self.tagList = tags
 	if not self.signs then return end
-	for id, t in self.pool do
-		if string.sub(id, 1, 4) == "name" and t.Visible then
+	Plaza2D.liftOffNumbers(self, tags)
+	Plaza2D.unpileTags(tags)
+end
+
+-- Tags that meet rise a row, over and over until none do (one pass left a tag pushed past a second
+-- unchecked against a third).
+function Plaza2D.unpileTags(tags: { any })
+	for _ = 1, 8 do
+		local moved = false
+		for i, t in tags do
 			local w = Ui.textWidth(t.Text, 12) + 8
 			local cx = t.Position.X.Offset + t.Size.X.Offset / 2
-			local y1, y2 = t.Position.Y.Offset + t.Size.Y.Offset / 2 - 10, t.Position.Y.Offset + t.Size.Y.Offset / 2 + 10
-			for sid, sg in self.signs do
-				local c = sg.card
-				if c.Visible and string.match(sid, "^cab%d+$") then
-					local cx1, cy1 = c.Position.X.Offset, c.Position.Y.Offset
-					if cx1 < cx + w / 2 and cx1 + c.Size.X.Offset > cx - w / 2 and cy1 < y2 and cy1 + c.Size.Y.Offset > y1 then
-						-- the tag's words (about 20 px tall, centred in its box) end 4 px over the card
-						t.Position = UDim2.fromOffset(t.Position.X.Offset, cy1 - 14 - t.Size.Y.Offset / 2)
-						y1, y2 = cy1 - 24, cy1 - 4
+			for j = 1, #tags do
+				local o = tags[j]
+				if j ~= i and o.Position.Y.Offset >= t.Position.Y.Offset then
+					local ow = Ui.textWidth(o.Text, 12) + 8
+					local ocx = o.Position.X.Offset + o.Size.X.Offset / 2
+					-- (the lower of two that meet rises: ties go to the later one)
+					if math.abs(cx - ocx) < (w + ow) / 2 and math.abs(t.Position.Y.Offset - o.Position.Y.Offset) < 18
+						and (o.Position.Y.Offset > t.Position.Y.Offset or j < i) then
+						t.Position = UDim2.fromOffset(t.Position.X.Offset, o.Position.Y.Offset - 18)
+						moved = true
 					end
+				end
+			end
+		end
+		if not moved then return end
+	end
+end
+
+-- A tag over a cabinet's number rises above it (the number stays: hidden, its cabinet had none).
+function Plaza2D.liftOffNumbers(self: any, tags: { any })
+	for _, t in tags do
+		local w = Ui.textWidth(t.Text, 12) + 8
+		local cx = t.Position.X.Offset + t.Size.X.Offset / 2
+		local y1, y2 = t.Position.Y.Offset + t.Size.Y.Offset / 2 - 10, t.Position.Y.Offset + t.Size.Y.Offset / 2 + 10
+		for sid, sg in self.signs do
+			local c = sg.card
+			if c.Visible and string.match(sid, "^cab%d+$") then
+				local cx1, cy1 = c.Position.X.Offset, c.Position.Y.Offset
+				if cx1 < cx + w / 2 and cx1 + c.Size.X.Offset > cx - w / 2 and cy1 < y2 and cy1 + c.Size.Y.Offset > y1 then
+					-- the tag's words (about 20 px tall, centred in its box) end 4 px over the card
+					t.Position = UDim2.fromOffset(t.Position.X.Offset, cy1 - 14 - t.Size.Y.Offset / 2)
+					y1, y2 = cy1 - 24, cy1 - 4
 				end
 			end
 		end
@@ -402,10 +425,19 @@ function Plaza2D.clearEdges(self: any, gw: number)
 	if gw <= 0 then return end
 	for _, sg in self.signs or {} do
 		local c = sg.card
-		-- (the whole card: its pad allowed off, NOTICE BOARD lost its left frame)
+		-- (the whole card: its pad allowed off, NOTICE BOARD lost its left frame. A station still on the
+		-- screen keeps its name: its card slides back on, 4 px in; one whose point is off goes, and so does
+		-- a cabinet's number, which belongs on its marquee)
 		local x1 = c.Position.X.Offset
 		local x2 = c.Position.X.Offset + c.Size.X.Offset
-		if c.Visible and (x1 < 0 or x2 > gw) then c.Visible = false end
+		if c.Visible and (x1 < 0 or x2 > gw) then
+			local slide = sg.anchorX and sg.anchorX >= 0 and sg.anchorX <= gw and not string.match(c.Name, "^Sign_cab%d+$")
+			if slide and c.Size.X.Offset <= gw - 8 then
+				c.Position = UDim2.fromOffset(math.clamp(x1, 4, gw - 4 - c.Size.X.Offset), c.Position.Y.Offset)
+			else
+				c.Visible = false
+			end
+		end
 	end
 	for _, id in { "billboard", "billboard2" } do
 		local t = self.pool[id]
@@ -1061,7 +1093,14 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		local b = self.model.data.bounds
 		local cells = math.floor((b.x2 - b.x1) / PlazaArt.CELL + 0.5)
 		local wall = PlazaArt.get("wall" .. cells, function()
-			return PlazaArt.loungeWall(cells, math.floor(Plaza2D.WALL_H / PlazaArt.CELL), Plaza2D.WALL_WINDOWS, Realms.LOBBY.sky[2])
+			-- windows in the gaps between the stations, not over them
+			local xs = {}
+			local list = {}
+			for _, st in self.model.data.stations do table.insert(list, st.x) end
+			table.sort(list)
+			for i = 1, #list - 1 do table.insert(xs, ((list[i] + list[i + 1]) / 2 - b.x1) / PlazaArt.CELL) end
+			return PlazaArt.loungeWall(cells, math.floor(Plaza2D.WALL_H / PlazaArt.CELL), xs, Realms.LOBBY.sky[2],
+				math.floor(Plaza2D.WAINSCOT / PlazaArt.CELL))
 		end)
 		PlazaArt.draw(c, "wall" .. cells, wall, (b.x1 + b.x2) / 2, Plaza2D.WALL_Z * D)
 	end)
@@ -1121,10 +1160,17 @@ function Plaza2D.drawWardrobe(self: any, c: any, s: any, clock: number)
 		Fighter2D.draw(c, st, m.char, clock + k * 0.7, baseY + 0.5)
 	end
 	if self.char then
+		-- (unarmed: the reflection's sword reached out past the glass, at full strength on the shop wall)
+		if not self.mirrorChar or self.mirrorChar.from ~= self.char then
+			local m = table.clone(self.char)
+			m.weapon = nil
+			self.mirrorChar = { from = self.char, char = m }
+		end
+		local mc = self.mirrorChar.char
 		local p = self.model.p
-		local r = posed(self.char, p.state, p.sf, s.x, 17.4, 0.6 + math.max(0, p.y) * 0.3, -p.facing, p.vx, p)
+		local r = posed(mc, p.state, p.sf, s.x, 17.4, 0.6 + math.max(0, p.y) * 0.3, -p.facing, p.vx, p)
 		r.onGround = p.y <= 0.01
-		Fighter2D.draw(c, r, self.char, clock, baseY + 0.6)
+		Fighter2D.draw(c, r, mc, clock, baseY + 0.6)
 	end
 	-- (the glass over your reflection, strong enough that it reads as one: at 0.1 the knight in the
 	-- mirror read as a second player standing in the doorway)

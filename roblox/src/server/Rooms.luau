@@ -74,15 +74,31 @@ local function humans(room: any): number
 	return n
 end
 
--- Puts a bot in (or takes one out of) slot `i`: the old host-only action, now what a passed vote does.
-local function applyBot(room: any, i: number, value: any)
+-- Bots play on hard, always (the owner's call: one level, and a hard one).
+Rooms.BOT_LEVEL = "hard"
+-- Puts a bot in (or takes one out of) slot `i`: what a passed vote, or FILL WITH BOTS, does. A bot
+-- takes two different weapons at random from the roster (`rand(n)` returns 1..n).
+local function applyBot(room: any, i: number, value: any, rand: (number) -> number)
 	local slot = room.slots[i]
-	slot.bot = value or nil
+	slot.bot = if value then Rooms.BOT_LEVEL else nil
 	-- A bot wears a ready-made character (by slot, so it is stable), which also shows every
 	-- player what the kit can do before they open the creator.
-	slot.weapon, slot.avatar = "Sword", if value then BOT_LOOKS[(i * 5) % #BOT_LOOKS + 1] else "Classic"
-	slot.weapon2 = if value then BOT_SECONDS[(i * 3) % #BOT_SECONDS + 1] else "Hammer"
+	slot.avatar = if value then BOT_LOOKS[(i * 5) % #BOT_LOOKS + 1] else "Classic"
+	if value then
+		local a = rand(#Weapons.LIST)
+		local b = rand(#Weapons.LIST - 1)
+		if b >= a then b += 1 end
+		slot.weapon, slot.weapon2 = Weapons.LIST[a].id, Weapons.LIST[b].id
+	else
+		slot.weapon, slot.weapon2 = "Sword", "Hammer"
+	end
 	invalidate(room)
+end
+-- Every empty place in the room takes a bot.
+local function fillBots(room: any, rand: (number) -> number)
+	for i, slot in room.slots do
+		if not slot.player and not slot.bot then applyBot(room, i, true, rand) end
+	end
 end
 
 -- Settle the room's vote if its result is certain, or its time is up. Returns true if it closed.
@@ -105,7 +121,9 @@ function Rooms.settleVote(self: any, room: any): boolean
 	if yes * 2 > total then
 		room.botVote = nil
 		room.lastVote = { slot = v.slot, value = v.value, passed = true }
-		applyBot(room, v.slot, v.value)
+		-- an ADD BOT that passes fills every open place, not the one it was proposed on: the room has
+		-- waited its BOT_WAIT for players, and the majority wants the fight
+		if v.value ~= false then fillBots(room, self.rand) else applyBot(room, v.slot, false, self.rand) end
 		return true
 	end
 	if no * 2 >= total or self.clock() >= v.deadline then
@@ -246,7 +264,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	local spec = nil
 	-- Only a fight format opens a room: the concourse also has the wardrobe, and a client naming
 	-- it as a format must not create a room nobody can fight in.
-	for _, entry in Plaza.DATA.market.stations do if entry.id == format and entry.kind == "Format" then spec = entry end end
+	for _, entry in Rooms.FORMATS do if entry.id == format then spec = entry end end
 	if not spec then return nil, "Choose 1v1, 2v2 or 3v3." end
 	-- Fill the fullest waiting room first, lowest id on a tie. Taking the first open slot in
 	-- `pairs` order - which Luau leaves unspecified - could strand people: after a few leaves
@@ -281,11 +299,114 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	local slot = room.slots[place]
 	slot.player, slot.weapon, slot.weapon2, slot.avatar = player, profile.weapon, profile.weapon2, profile.avatar
 	self.membership[player.UserId] = room.id
+	room.lastJoin = self.clock()
 	invalidate(room)
 	-- a newcomer takes a vote's slot (cancelling it) or joins the electorate
 	if room.botVote then self:settleVote(room) end
 	return room, nil
 end
+-- ------------------------------------------------------------------ the queue ----
+-- PLAY: a player picks 1v1, 2v2 or 3v3 and waits in the lobby while the queue finds them a fight.
+-- A queued player first takes an open place in a room of that format already forming; failing
+-- that, a new room forms once the queue holds all but one of a fight's players (2 of 2 for a 1v1, 3
+-- of 4, 5 of 6) - the last place is the ADD BOT vote's, BOT_WAIT seconds after the last one in.
+-- FILL WITH BOTS takes everyone queued for that format into a room at once, bots in the rest.
+Rooms.BOT_WAIT = 10
+Rooms.FORMATS = {}
+for key, room in Plaza.DATA.rooms do
+	-- (keyed by the format, Duel / Doubles / Triples; named by its first part, "1v1 · OPEN ROOM" -> "1v1")
+	table.insert(Rooms.FORMATS, { id = key, name = string.match(room.name, "^(.-) ·") or room.name, teamSize = room.teamSize })
+end
+table.sort(Rooms.FORMATS, function(a, b) return a.teamSize < b.teamSize end)
+local function formatOf(format: any): any
+	for _, f in Rooms.FORMATS do if f.id == format then return f end end
+	return nil
+end
+-- How many queued players a new room forms at.
+function Rooms.formAt(teamSize: number): number
+	return if teamSize == 1 then 2 else teamSize * 2 - 1
+end
+-- Seconds until an ADD BOT may be proposed in `room`.
+function Rooms.botWait(self: any, room: any): number
+	return math.max(0, (room.lastJoin or 0) + Rooms.BOT_WAIT - self.clock())
+end
+function Rooms.queued(self: any, id: number): string?
+	self.queues = self.queues or {}
+	for format, list in self.queues do
+		for _, p in list do if p.UserId == id then return format end end
+	end
+	return nil
+end
+function Rooms.dequeue(self: any, player: any): string?
+	self.queues = self.queues or {}
+	for format, list in self.queues do
+		local i = table.find(list, player)
+		if i then table.remove(list, i); return format end
+	end
+	return nil
+end
+-- Into the queue for `format`. Returns the rooms that changed (players seated), or nil and why.
+function Rooms.queue(self: any, player: any, format: any): ({ any }?, string?)
+	if self:get(player.UserId) then return nil, "You are already in a room." end
+	local f = formatOf(format)
+	if not f then return nil, "Choose 1v1, 2v2 or 3v3." end
+	self:dequeue(player)
+	self.queues = self.queues or {}
+	self.queues[format] = self.queues[format] or {}
+	table.insert(self.queues[format], player)
+	return self:matchQueue(format), nil
+end
+-- Seat whoever the queue for `format` can seat now. Returns the rooms that changed.
+function Rooms.matchQueue(self: any, format: string): { any }
+	self.queues = self.queues or {}
+	local list = self.queues[format] or {}
+	local f = formatOf(format)
+	local changed: { any } = {}
+	local function mark(room: any) if not table.find(changed, room) then table.insert(changed, room) end end
+	-- into the open places of rooms already forming (Rooms.join fills the fullest first)
+	local function openRoom(): boolean
+		for _, room in self.rooms do
+			if room.format == format and room.state == "setup" and (room.phase or "pick") == "pick" and not full(room) then return true end
+		end
+		return false
+	end
+	-- (each taken off the queue as they are seated, so no loop can seat the same player twice)
+	while #list > 0 and openRoom() do
+		local room = self:join(table.remove(list, 1), format)
+		if room then mark(room) end
+	end
+	-- a new room, once enough are waiting
+	while f and #list >= Rooms.formAt(f.teamSize) do
+		local room = self:join(table.remove(list, 1), format)
+		if room then
+			mark(room)
+			while #list > 0 and not full(room) do self:join(table.remove(list, 1), format) end
+		end
+	end
+	return changed
+end
+-- FILL WITH BOTS: `player` (queued) and everyone else queued for that format into a room now, bots
+-- in its empty places. Returns the room, or nil and why.
+function Rooms.fillWithBots(self: any, player: any): (any, string?)
+	local format = self:queued(player.UserId)
+	if not format then return nil, "You are not in the queue." end
+	local list = self.queues[format]
+	self:dequeue(player)
+	local room = self:join(player, format)
+	if not room then return nil, "Choose 1v1, 2v2 or 3v3." end
+	while #list > 0 and not full(room) do self:join(table.remove(list, 1), format) end
+	fillBots(room, self.rand)
+	return room, nil
+end
+-- What a queued player sees: their format, how many are waiting, and how many a fight needs.
+function Rooms.queueView(self: any, id: number): any
+	local format = self:queued(id)
+	if not format then return { queued = false } end
+	local f = formatOf(format)
+	return { queued = true, format = format, name = f and f.name, waiting = #self.queues[format],
+		needed = if f then f.teamSize * 2 else 2, formAt = if f then Rooms.formAt(f.teamSize) else 2 }
+end
+
 function Rooms.canStart(_self: any, room: any): boolean
 	if room.state ~= "setup" then return false end
 	for _, slot in room.slots do
@@ -319,7 +440,7 @@ function Rooms.view(self: any, room: any): any
 		mapChoice = room.mapChoice, mapSet = room.mapSet, mode = room.mode, time = room.time,
 		preset = Rooms.presetOf(room), botVote = vote, lastVote = room.lastVote,
 		phase = room.phase or "pick", phaseLeft = if room.phaseEnds then math.max(0, room.phaseEnds - self.clock()) else nil,
-		mapResult = room.mapResult, ruleResult = room.ruleResult }
+		mapResult = room.mapResult, ruleResult = room.ruleResult, botWait = Rooms.botWait(self, room) }
 end
 function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 	local room = self:get(player.UserId)
@@ -378,7 +499,11 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		local slot = room.slots[i]
 		if slot.player then return false, "Cannot replace a player with a bot." end
 		if value ~= false and value ~= "easy" and value ~= "normal" and value ~= "hard" then return false, "Unknown difficulty." end
+		if value ~= false then value = Rooms.BOT_LEVEL end
 		if room.botVote then return false, "A bot vote is already running." end
+		-- (BOT_WAIT seconds after the last player came in: time for the queue to bring one more)
+		local wait = Rooms.botWait(self, room)
+		if value ~= false and wait > 0 then return false, `Waiting for players - bots in {math.ceil(wait)}s.` end
 		if value == false and not slot.bot then return false, "There is no bot there." end
 		if value ~= false and slot.bot then return false, "There is already a bot there." end
 		room.botVote = { slot = i, value = value, by = player.UserId, ballots = { [player.UserId] = true },

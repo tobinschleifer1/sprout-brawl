@@ -63,101 +63,74 @@ local Social = luau.load(fs.readFile("src/client/LobbySocial.luau"), { debugName
 	Enum = setmetatable({}, { __index = function() return codes end }),
 	typeof = function(v) return if type(v) == "table" and v.EnumType then "EnumItem" else type(v) end,
 }, injectGlobals = true })()
-local PLAZA = Loader.load("Data/Plaza")
+local PLAZA = Loader.load("Plaza").DATA      -- (the Roblox lobby's market)
+local Ui = Loader.loadFrom("src/client/", "Ui")
 
-local now = 100
-local sent, requests, warps, warpedTo = {}, 0, {}, {}
+local warps, queued, unqueued, filled = {}, {}, 0, 0
 local s = Social.new(instance("PlayerGui"), {
-	localId = 1, clock = function() return now end,
-	send = function(msg) table.insert(sent, msg) end,
-	requestMembers = function() requests += 1 end,
 	warp = function(id) table.insert(warps, id); return true end,
-	warpTo = function(m) table.insert(warpedTo, m.userId); return true end,
+	queue = function(format) table.insert(queued, format) end,
+	unqueue = function() unqueued += 1 end,
+	fill = function() filled += 1 end,
 })
-
--- 1. Stamp icons are drawn upright: in a y-up transform, inside their tiles.
-assert(#icons == #PLAZA.stamps, `drew {#icons} stamp icons for {#PLAZA.stamps} stamps`)
-for _, ic in icons do
-	assert(ic.d < 0, `{ic.key} drawn in a y-down transform: it would be upside down`)
-	assert(ic.x0 >= 0 and ic.x0 + ic.w <= 68 and ic.y1 <= 68 and ic.y1 - ic.h >= 0, `{ic.key} leaves its tile`)
-end
-
--- 2. Disabled (in a fight), nothing opens.
-assert(not s:key("T") and not s.gui.Enabled, "the social layer answers keys while disabled")
 s:setEnabled(true)
 
--- 3. Keys open one panel at a time; numbers pick from the open one and close it.
-assert(s:key("T") and s:open() == "Stamps", "T opens the stamps")
-assert(s:key("Y") and s:open() == "Say", "Y swaps to quick messages")
-assert(s:key("Three") and sent[#sent].kind == "say" and sent[#sent].index == 3 and s:open() == nil, "3 sends the third message and closes")
-s:key("T")
-s:key("Two")
-assert(sent[#sent].kind == "stamp" and sent[#sent].id == PLAZA.stamps[2].id, "2 sends the second stamp")
-assert(not s:key("Five") or s:open() ~= nil, "a number with nothing open is not used")
-s:key("M")
-s:key("Three")
-assert(warps[#warps] == PLAZA.market.warps[3].id and s:open() == nil, "3 on the map warps to the third place")
-click(s.gui, "OpenSay")
-click(s.gui, "Say_10")
-assert(sent[#sent].index == 10, "the buttons send too")
-click(s.gui, "OpenStamps")
-click(s.gui, "Stamp_heart")
-assert(sent[#sent].id == "heart", "stamp buttons send their stamp")
+-- the bar: PLAY and MAP, and nothing of the stamps, quick messages or member list
+assert(find(s.gui, "OpenPlay") and find(s.gui, "OpenMap"), "the bar has PLAY and MAP")
+for _, gone in { "OpenStamps", "OpenSay", "OpenPeople", "Stamps", "Say", "People", "Log" } do
+	assert(not find(s.gui, gone), `the bar still has {gone}`)
+end
 
--- 4. What arrives goes over the right head, into the log, and away again.
-s:onEvent({ userId = 7, name = "Rin", kind = "say", index = 1 })
-s:onEvent({ userId = 1, name = "Me", kind = "stamp", id = "gg" })
-s:onEvent({ userId = 8, name = "X", kind = "stamp", id = "nope" })
-s:onEvent({ userId = 8, name = "X", kind = "say", index = 999 })
-assert(s:overhead(7).text == PLAZA.messages[1] and s:overhead(1).id == "gg" and s:overhead(8) == nil, "overheads for what was said and stamped, none for nonsense")
-assert(s.logLines[Social.LOG_LINES].Text == "You  [GG]" and s.logLines[Social.LOG_LINES - 1].Text == "Rin: " .. PLAZA.messages[1], "the log names who, and says You for you")
-now += Social.STAMP_SECONDS + 0.1
-assert(s:overhead(1) == nil and s:overhead(7) ~= nil, "a stamp goes before a message does")
-now += Social.SAY_SECONDS
-assert(s:overhead(7) == nil, "and the message goes too")
-for i = 1, 10 do s:onEvent({ userId = 9, name = "Spam", kind = "say", index = (i % 5) + 1 }) end
-assert(#s.log == Social.LOG_LINES, "the log keeps its last lines only")
+-- PLAY: three formats; one pressed asks to queue for it and closes the panel
+click(s.gui, "OpenPlay")
+assert(s:open() == "Play", "PLAY opens its panel")
+-- (above the bar's real height: the square buttons stand ICON px, and a panel at the old 42 px bar's
+-- height covered their tops)
+if Ui.lightPanels() then
+	assert(find(s.gui, "Play").Position.Y.Offset <= -(10 + Social.ICON), "the PLAY panel covers the button bar")
+end
+for _, f in { "Duel", "Doubles", "Triples" } do assert(find(s.gui, "Format_" .. f), "PLAY offers " .. f) end
+click(s.gui, "Format_Doubles")
+assert(queued[1] == "Doubles" and s:open() == nil, "choosing 2v2 queues for it and closes the panel")
+-- a digit picks from the open PLAY panel
+click(s.gui, "OpenPlay")
+assert(s:key("Three") and queued[2] == "Triples", "3 on the PLAY panel queues for 3v3")
 
--- 5. People: opening asks the server; rows for everyone; WARP only to others on the market floor.
-click(s.gui, "OpenPeople")
-assert(requests == 1 and s:open() == "People", "opening the list asks who is here")
-s:setMembers({
-	{ userId = 1, name = "Me", avatar = PLAZA.cabinets and "Classic", where = "NEON SQUARE", place = "market", x = 0, z = 6 },
-	{ userId = 7, name = "Rin", avatar = Loader.load("Data/AvatarKit").presets[3].code, where = "THE ARCADE", place = "market", x = 138, z = 11 },
-	{ userId = 8, name = "Kai", avatar = "Classic", where = "2v2 · CREW LIFT", place = "room" },
-	{ userId = 9, name = "Zed", avatar = "Classic", where = "Fighting · Duel", place = "fight" },
-})
-local rows = find(s.gui, "List"):GetChildren()
-local count = 0
-for _, r in rows do if r.ClassName == "Frame" then count += 1 end end
-assert(count == 4, `four rows, got {count}`)
-assert(find(find(s.gui, "Member_1"), "Name").Text == "Me (YOU)", "you are marked")
--- your row's ring is heavier than the others' (a later line used to reset it), and a name shrinks to
--- one line rather than wrapping onto the place line under it
-do
-	local function ring(row)
-		for _, ch in row:GetChildren() do
-			for _, g in (ch.GetChildren and ch:GetChildren() or {}) do if g.ClassName == "UIStroke" then return g end end
-			if ch.ClassName == "UIStroke" then return ch end
+-- the queue's card: shown while queued, with what it waits for; CANCEL and FILL WITH BOTS
+local card = find(s.gui, "Queue")
+assert(card and not card.Visible, "no queue card before queueing")
+s:setQueue({ queued = true, format = "Doubles", name = "2v2", waiting = 1, needed = 4, formAt = 3 })
+assert(card.Visible and string.find(find(card, "Title").Text, "2v2", 1, true), "the queue card says what it is finding")
+assert(string.find(find(card, "Count").Text, "1 waiting", 1, true) and string.find(find(card, "Count").Text, "at 3", 1, true),
+	"and how many wait, and when a room opens")
+click(card, "Cancel")
+assert(unqueued == 1, "CANCEL leaves the queue")
+click(card, "Fill")
+assert(filled == 1, "FILL WITH BOTS asks for bots")
+s:setQueue({ queued = false })
+assert(not card.Visible, "out of the queue, the card goes")
+
+-- the roof map: the Roblox lobby's warps (the arcade and the gates are gone), its rows' words padded
+-- in from their edge and bare (dark words wore a grey smudge of an outline on the pale rows)
+click(s.gui, "OpenMap")
+assert(s:open() == "Map", "MAP opens the roof map")
+local rows = 0
+for _, w in PLAZA.market.warps do
+	local b = find(s.gui, "Warp_" .. w.id)
+	assert(b, "no row for " .. w.id)
+	rows += 1
+	local pad = nil
+	for _, ch in b:GetChildren() do if ch.ClassName == "UIPadding" then pad = ch end end
+	assert(pad and pad.PaddingLeft.Offset >= 10, `the {w.id} row's words sit against its edge`)
+	for _, ch in b:GetChildren() do
+		if ch.ClassName == "UIStroke" and tostring(ch.ApplyStrokeMode) ~= "Border" and ch.ApplyStrokeMode ~= "Border" then
+			assert((ch.Thickness or 0) == 0, `the {w.id} row's dark words are outlined`)
 		end
 	end
-	local mine, theirs = ring(find(s.gui, "Member_1")), ring(find(s.gui, "Member_7"))
-	assert(mine and theirs and mine.Thickness > theirs.Thickness, `your row's ring is {mine and mine.Thickness} px, like the others' {theirs and theirs.Thickness}`)
-	assert(find(find(s.gui, "Member_1"), "Name").TextScaled == true, "a member's name wraps rather than fitting its line")
 end
-assert(not find(find(s.gui, "Member_1"), "WarpTo") and not find(find(s.gui, "Member_8"), "WarpTo") and not find(find(s.gui, "Member_9"), "WarpTo"),
-	"no WARP to yourself, into a room, or into a fight")
-find(find(s.gui, "Member_7"), "WarpTo").Activated:Fire()
-assert(warpedTo[1] == 7 and s:open() == nil, "WARP takes you to them and closes the list")
+assert(rows == 3 and not find(s.gui, "Warp_arcade") and not find(s.gui, "Warp_gates"), "the map lists the arcade or the gates")
+assert(s:key("Three") and warps[#warps] == PLAZA.market.warps[3].id and s:open() == nil, "3 on the map warps to the third place")
+assert(s:key("M") and s:open() == "Map", "M opens the map")
 s:setEnabled(false)
-assert(s:open() == nil and not s.gui.Enabled, "a fight closes everything")
--- every panel opens above the bar, never over its buttons (both are anchored at the screen's foot)
-do
-	local bar = find(s.gui, "Bar")
-	local barTop = bar.Position.Y.Offset - bar.Size.Y.Offset
-	for _, name in { "Stamps", "Say", "People", "Map" } do
-		local p = find(s.gui, name)
-		assert(p and p.Position.Y.Scale == 1 and p.Position.Y.Offset <= barTop - 4, `the {name} panel covers the button bar`)
-	end
-end
-print("PASS social: upright stamp icons, one panel at a time, keys and buttons send stamps, messages and warps, overheads and log with expiry, member list with warps only where you can go")
+assert(not s:key("M"), "a hidden bar takes no keys")
+print("PASS social UI: the bar is PLAY and MAP; PLAY queues for 1v1/2v2/3v3 by button or digit; the queue card counts and offers CANCEL and FILL WITH BOTS; the map lists the lobby's three places, padded and bare")

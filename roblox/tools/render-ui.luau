@@ -3,9 +3,10 @@
 -- stand-in Instances (Recorder.gui), with anything it draws on the game canvas recorded - written as
 -- JSON for tools/gui-svg.mjs, so a screen can be looked at without Studio.
 --
---   lune run tools/render-ui <out.json> <plaza|studio|hud|results|records|notice|people|climb|locker|shop> [width] [height] [variant]
+--   lune run tools/render-ui <out.json> <plaza|studio|hud|results|records|notice|play|climb|locker|shop> [width] [height] [variant]
 --     plaza   variant: "x,z" where you stand (beside a station shows its prompt; the default shows
---             the tip), or "stamps" to open the stamp panel
+--             the tip), or "map" to open the roof map
+--     play    the PLAY panel open over the lobby, and the queue's card for a 2v2
 --     studio  variant: a tab - presets, body, face, hair, outfit, extras; or clothing (the tops, two owned)
 --     hud     variant: "fight" (mid-fight, a full ultimate) or "countdown" (the combo card, "3")
 --     results variant: "teams" for a team match (the winners share first); a GG has just been said
@@ -84,9 +85,9 @@ c.pool, c.poolState = {}, {}          -- (for a module that calls Canvas2D.finis
 if screen == "plaza" then
 	local Plaza2D = load("Plaza2D")
 	local Social = load("LobbySocial")
-	local social = Social.new(playerGui, { localId = 1, clock = function() return 0 end, send = function() end })
+	local social = Social.new(playerGui, {})
 	social:setEnabled(true)
-	if variant == "stamps" then social:toggle("Stamps") end
+	if variant == "map" then social:toggle("Map") end
 	local hub = Plaza2D.new(playerGui)
 	hub.social = social          -- as the client wires them (init.client.luau)
 	local cfg = Loader.load("MatchConfig").default()
@@ -211,18 +212,12 @@ elseif screen == "notice" then
 	if variant == "error" then panel:show("That match could not be run: the arena failed to load.") else panel:waiting("Loading arena and fighters…") end
 	c:screen()
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
-elseif screen == "people" then
+elseif screen == "play" then
 	local Social = load("LobbySocial")
-	local social = Social.new(playerGui, { localId = 1, clock = function() return 0 end, send = function() end })
+	local social = Social.new(playerGui, {})
 	social:setEnabled(true)
-	social:toggle("People")
-	social:setMembers({ { userId = 1, name = if EXTREME then LONG else "etondes", where = "Skyhold Bazaar", place = "market", x = 0 },
-		{ userId = 2, name = "Rival", where = "In a fight · 2v2", place = "fight" },
-		{ userId = 3, name = "ada", where = "Skyhold Bazaar", place = "market", x = 40 },
-		{ userId = 4, name = "bo", where = "Room · 3v3", place = "room" } })
-	-- (through the game's own handler, so the log shows the colours the game picks)
-	social:onEvent({ userId = 3, name = "ada", kind = "say", index = 1 })
-	social:onEvent({ userId = social.localId, kind = "stamp", id = "gg" })
+	social:toggle("Play")
+	social:setQueue({ queued = true, format = "Doubles", name = "2v2", waiting = 2, needed = 4, formAt = 3 })
 	c:screen()
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
 elseif screen == "climb" then

@@ -185,17 +185,6 @@ function PlazaArt.acUnit(): any
 	return b.done(true)
 end
 
-function PlazaArt.noticeBoard(): any
-	local W, H = 64, 60
-	local b = builder(W, H)
-	b.r(6, 0, 4, 44, C.woodDk); b.r(54, 0, 4, 44, C.woodDk)
-	b.r(0, 20, W, 36, C.wood); b.r(2, 22, W - 4, 32, C.woodDk)
-	local papers: { { any } } = { { 5, 38, C.paper }, { 17, 32, C.amber }, { 29, 40, C.paper }, { 41, 30, C.cyan }, { 50, 38, C.pink }, { 8, 25, C.paper }, { 31, 24, C.paper } }
-	for _, p in papers do b.r(p[1], p[2], 10, 12, p[3]); b.r(p[1] + 4, p[2] + 10, 2, 2, C.lantern) end
-	b.r(0, 56, W, 4, C.woodHi)
-	return b.done(true)
-end
-
 function PlazaArt.mapSign(): any
 	local W, H = 64, 60
 	local b = builder(W, H)
@@ -228,58 +217,8 @@ function PlazaArt.stringLights(span: number): any
 	return b.done()
 end
 
--- The arcade's canopy: posts and a roof beam across the whole district. (The sign is a label.)
-function PlazaArt.canopy(span: number, height: number?): any
-	local W, H = span, height or 120
-	local b = builder(W, H)
-	local posts = math.floor(span / 160)
-	for i = 0, posts do
-		local x = math.floor(i * (span - 8) / posts)
-		b.r(x, 0, 8, H - 10, C.steel); b.r(x + 2, 0, 2, H - 10, C.steelHi)
-	end
-	-- the beam in the kit's anatomy - a deep indigo face, a light band on top, a dark lip under, teal
-	-- bulbs - for the arcade's teal sign to stand out on (on a teal beam the sign was 1.4:1; an ink bar
-	-- with two pin stripes read as a rail across the sky)
-	b.r(0, H - 14, W, 3, C.indigoDk); b.r(0, H - 11, W, 8, C.indigo); b.r(0, H - 5, W, 2, C.indigoHi)
-	for x = 6, W - 6, 24 do b.r(x, H - 9, 4, 3, C.teal) end                -- bulbs along it
-	return b.done(true)
-end
-
--- The arcade's marquee board, standing on its canopy's beam: an indigo kit panel ringed with bulbs, a
--- joystick at each end, on two struts (its name is a kit sign, Plaza2D).
-function PlazaArt.arcadeMarquee(): any
-	-- (an arcade's stepped marquee, not a billboard: a wide flat slab copied the square's)
-	local W, H = 150, 64
-	local b = builder(W, H)
-	b.r(24, 0, 6, 10, C.steel); b.r(W - 30, 0, 6, 10, C.steel)              -- struts
-	b.r(0, 10, W, 36, C.indigoDk); b.r(0, 13, W, 31, C.indigo)               -- the board
-	b.r(20, 44, W - 40, 16, C.indigoDk); b.r(20, 46, W - 40, 12, C.indigo)   -- its stepped crown
-	b.r(20, 56, W - 40, 2, C.indigoHi); b.r(0, 41, W, 3, C.indigoHi)
-	-- chase bulbs all round
-	for x = 3, W - 6, 8 do b.r(x, 14, 3, 2, if (x // 8) % 2 == 0 then C.amber else C.teal) end
-	for x = 23, W - 26, 8 do b.r(x, 52, 3, 2, if (x // 8) % 2 == 0 then C.teal else C.amber) end
-	for y = 18, 38, 6 do b.r(3, y, 2, 3, C.amber); b.r(W - 5, y, 2, 3, C.teal) end
-	-- two fighters squaring up, either side of the name
-	-- (outlined, two-toned and armed, as Blockfall's own: flat one-colour pictograms read as an LCD game)
-	local function fighter(x: number, dir: number, col: string, dk: string)
-		b.r(x - 1, 17, 10, 20, C.ink)                                           -- the outline
-		b.r(x, 19, 3, 6, dk); b.r(x + 5, 19, 3, 6, dk)                          -- legs
-		b.r(x, 25, 8, 7, col); b.r(x, 25, 8, 2, dk)                             -- body, belt
-		b.r(x + 1, 32, 6, 4, C.paper); b.r(x + (if dir > 0 then 4 else 2), 33, 1, 1, C.ink)  -- head, eye
-		b.r(x - 1, 35, 10, 3, C.ink); b.r(x, 36, 8, 2, dk)                       -- a helmet
-		local hx = if dir > 0 then x + 8 else x - 9
-		b.r(hx, 28, 9, 3, C.ink); b.r(hx + 1, 29, 7, 1, C.steelHi)             -- a sword out
-		local gx = if dir > 0 then hx else hx + 7
-		b.r(gx, 26, 2, 7, C.ink); b.r(gx, 27, 2, 5, C.amber)                    -- its crossguard
-	end
-	fighter(14, 1, C.pink, C.pinkDk)
-	fighter(W - 22, -1, C.cyan, C.cyanDk)
-	return b.done(true)
-end
-
 -- One pennant, its top edge's centre at (x, y), `size` cells wide, pointing down: an ink outline, a
--- band narrowing to a point. Shared by the arcade's bunting and the lounge's wall (they were drawn two
--- ways, one pointed, one flat).
+-- band narrowing to a point (the lounge's wall).
 local function pennant(b: any, x: number, y: number, size: number, col: string)
 	local rows = math.ceil(size / 2)
 	for k = 0, rows - 1 do
@@ -287,30 +226,6 @@ local function pennant(b: any, x: number, y: number, size: number, col: string)
 		b.r(x - half - 1, y - 2 - k * 2, half * 2 + 2, 2, C.ink)
 		if half > 0 then b.r(x - half, y - 2 - k * 2, half * 2, 2, col) end
 	end
-end
-
--- Pennants on a sagging line, `w` x `h` cells, falling from its left end (h up) to its right (0 up),
--- for the arcade's marquee to the canopy's ends. Mirror it for the other side.
-function PlazaArt.bunting(w: number, h: number, flip: boolean?): any
-	-- (two strands, every pennant drawn, each strand running all the way to its end - one left the
-	-- arcade's sides 95% sky, every other pennant 90%, and they stopped short of the marquee, tied to
-	-- nothing - and kept apart at their ends)
-	local H = h + 48
-	local b = builder(w, H)
-	local colours = { C.pink, C.cyan, C.amber, C.teal }
-	for strand = 0, 1 do
-		local n = math.floor(w / 11)
-		for i = 0, n - 1 do
-			local t = i / (n - 1)
-			local x = math.floor(if flip then w - 11 - t * (w - 11) else t * (w - 11))
-			local y = math.floor(40 + h * (1 - t) - math.sin(t * math.pi) * (8 + strand * 10) - strand * 16)
-			b.r(x, y, 11, 1, C.ink)
-			-- (a breath every fourth, so the marquee stays the focus: packed edge to edge, the bunting was
-			-- the loudest thing in the upper half after the title)
-			if i % 4 ~= 3 then pennant(b, x + 5, y, 10, colours[(i + strand * 2) % #colours + 1]) end
-		end
-	end
-	return b.done()
 end
 
 -- A lounge's back wall, `w` x `h` cells: the kit's anatomy - ink top, light band, a pale plaster face,
@@ -360,70 +275,6 @@ function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: str
 	for x = 12, w - 12, 24 do
 		n += 1
 		pennant(b, x, h - 15, 10, colours[(n - 1) % #colours + 1])
-	end
-	return b.done(true)
-end
-
--- A pair of arcade cabinets back to back, seen from the side: each faces out toward its seat.
--- `far`: the back row, in its colours' dark shades, so the two rows read as near and far and not as
--- one two-storey locker (the back row stands at the same x as the front, its top over its front's).
-function PlazaArt.cabinetPair(far: boolean?): any
-	local W, H = 70, 56
-	local b = builder(W, H)
-	for _, side in { -1, 1 } do
-		local function sx(x: number, w: number): number
-			return if side < 0 then 35 - x - w else 35 + x
-		end
-		local art = if side < 0 then (if far then C.pinkDk else C.pink) else (if far then C.cyanDk else C.cyan)
-		local artDk = if side < 0 then (if far then C.pinkDeep else C.pinkDk) else (if far then C.cyanDeep else C.cyanDk)
-		-- the side in the kit: a coloured panel with a light band and a dark lip, so a pair reads as two
-		-- arcade machines and not a navy locker
-		b.r(sx(0, 20), 0, 20, 22, artDk)                                     -- body
-		b.r(sx(2, 16), 2, 16, 16, art); b.r(sx(2, 16), 16, 16, 2, C.white, 0.35)
-		b.r(sx(0, 20), 0, 20, 2, C.ink, 0.5)                                 -- its lip
-		b.r(sx(20, 9), 17, 9, 7, if far then C.slate else C.slateHi)         -- control deck, out toward the seat
-		b.r(sx(20, 9), 23, 9, 1, C.white, 0.4)
-		b.r(sx(22, 1), 24, 1, 4, C.ink); b.r(sx(21, 3), 27, 3, 3, C.pink)    -- a stick
-		b.r(sx(25, 2), 24, 2, 2, C.amber); b.r(sx(27, 2), 24, 2, 2, C.cyan)  -- buttons
-		b.r(sx(2, 18), 22, 18, 22, C.night)                                  -- screen housing
-		b.r(sx(6, 13), 25, 13, 16, C.glass)                                  -- the screen, lit
-		b.r(sx(8, 9), 27, 9, 12, art, 0.75)
-		b.r(sx(8, 9), 37, 9, 2, C.white, 0.5)
-		b.r(sx(0, 20), 44, 20, 10, C.ink)                                    -- marquee
-		b.r(sx(2, 16), 46, 16, 6, art, 0.9)
-		b.r(sx(0, 2), 0, 2, 54, C.slate)                                     -- the seam between them
-	end
-	return b.done(true)
-end
-
-function PlazaArt.stool(): any
-	local b = builder(12, 16)
-	b.r(0, 12, 12, 3, C.pink); b.r(5, 0, 2, 12, C.steel); b.r(2, 0, 8, 2, C.steel)
-	return b.done(true)
-end
-
--- `people`: how many a side it takes (1v1, 2v2, 3v3), painted on its doors as figures in its colour -
--- blank, the three lifts were the same grey doors under their signs.
-function PlazaArt.lift(colour: string, people: number?): any
-	local W, H = 88, 104
-	local b = builder(W, H)
-	b.r(0, 0, W, 96, C.ink)
-	b.r(6, 0, 76, 86, C.slate)
-	b.r(8, 0, 35, 84, C.steel); b.r(45, 0, 35, 84, C.steel)                 -- doors
-	b.r(43, 0, 2, 84, C.ink)
-	for i = 0, 5 do b.r(10, 8 + i * 13, 31, 1, C.slate); b.r(47, 8 + i * 13, 31, 1, C.slate) end
-	b.r(0, 0, 2, 96, colour); b.r(W - 2, 0, 2, 96, colour)
-	-- its header in the kit: the lift's colour, a light band on top and a dark lip under (bare, an
-	-- ink header over grey doors read as a plain elevator)
-	b.r(0, 84, W, 12, colour); b.r(0, 84, W, 2, C.ink, 0.45); b.r(0, 94, W, 2, C.white, 0.45)
-	b.r(8, 82, 72, 2, C.steelHi)                                            -- the doors' lit top
-	b.r(26, 96, 36, 8, C.ink); b.r(28, 98, 32, 4, colour, 0.9)             -- the floor light
-	local n = people or 0
-	for i = 1, n do
-		-- a figure: head, body, legs, in the lift's colour on an ink plate
-		local x = 44 + (i - (n + 1) / 2) * 14 - 4
-		b.r(x - 1, 30, 10, 26, C.ink)
-		b.r(x + 2, 48, 4, 4, colour); b.r(x + 1, 38, 6, 9, colour); b.r(x + 1, 32, 2, 6, colour); b.r(x + 5, 32, 2, 6, colour)
 	end
 	return b.done(true)
 end
@@ -499,30 +350,6 @@ function PlazaArt.plant(): any
 	b.r(4, 0, 12, 9, C.rust); b.r(3, 8, 14, 2, C.woodDk)
 	b.r(8, 10, 3, 12, "#2E6B3E"); b.r(2, 14, 8, 6, "#3E8A4E"); b.r(10, 18, 9, 7, "#3E8A4E"); b.r(6, 24, 7, 6, "#4FA05E")
 	return b.done(true)
-end
-
--- A stamp (Data/Plaza stamps) as sprite rectangles: each row cut into runs of one colour. Rows
--- are already top-down, which is the sprite convention.
-local STAMPS: { [string]: any } = {}
-function PlazaArt.stamp(st: any): any
-	local hit = STAMPS[st.id]
-	if hit then return hit end
-	local rects: { any } = {}
-	local w = 0
-	for r, row in st.rows do
-		w = math.max(w, #row)
-		local c = 1
-		while c <= #row do
-			local ch = string.sub(row, c, c)
-			local run = 1
-			while c + run <= #row and string.sub(row, c + run, c + run) == ch do run += 1 end
-			if ch ~= "." then table.insert(rects, { c - 1, r - 1, run, 1, st.ink[ch], 1 } :: { any }) end
-			c += run
-		end
-	end
-	hit = { rects = rects, w = w, h = #st.rows }
-	STAMPS[st.id] = hit
-	return hit
 end
 
 -- Cached props, keyed by name + arguments.

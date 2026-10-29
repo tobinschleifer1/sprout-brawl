@@ -255,9 +255,11 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 		shine.BackgroundTransparency, lip.BackgroundTransparency = 1, 1
 	end
 	parts[b] = { shine = shine, lip = lip, outline = outline, border = border }
-	if not o.textColour and Ui.light(colour) > 0.62 then
-		-- (on a pale face the words go dark and bare: the theme's text colour on a light window)
-		b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone then Ui.tone(colour) else Ui.INK
+	if Ui.light(colour) > 0.62 then
+		-- (on a pale face the words go dark and bare: the theme's text colour on a light window - and
+		-- bare even when the caller chose the words' colour: outlined in the face's shade, dark words
+		-- on the warp menu's pale rows wore a grey smudge)
+		if not o.textColour then b.TextColor3 = if theme.light then Ui.TEXT elseif theme.tone then Ui.tone(colour) else Ui.INK end
 		if outline then outline.Thickness = 0 end
 	end
 	parts[b].small = o.small
@@ -544,6 +546,9 @@ Ui.ICONS = {
 		colours = { O = "#3A1A08", f = "#F0C49A", s = "#FF9A3D", t = "#5FB8FF" } },
 	map = { w = 9, rows = { "OOOOOOOOO", "OyygggyyO", "OygggyRyO", "OyyggRyRO", "OygggyRyO", "OyyyggyyO", "OOOOOOOOO" },
 		colours = { O = "#4A3010", y = "#F2D9A0", g = "#6CC45A", R = "#D93030" } },
+	-- PLAY: two swords crossed
+	swords = { w = 9, rows = { "O.......O", "OwO...OwO", ".OwO.OwO.", "..OwOwO..", "...OwO...", "..OyOyO..", ".OyO.OyO.", "OyO...OyO", "OO.....OO" },
+		colours = { O = "#2A1A10", w = "#E8F0F8", y = "#F2B33A" } },
 	shirt = { w = 9, rows = { "..OO.OO..", ".OsOOOsO.", "OssssssSO", "OOssssSOO", ".OssssSO.", ".OssssSO.", ".OOOOOOO." },
 		colours = { O = "#14264A", s = "#6FB6FF", S = "#3D7FD0" } },
 } :: { [string]: any }

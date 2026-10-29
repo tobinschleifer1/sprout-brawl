@@ -5,7 +5,7 @@
 --
 -- Drawing, back to front: the realm's sky; every plaza (the island it stands on hanging below its
 -- front edge, its paving, its low back wall) and the plank bridges between; then every prop
--- and person SORTED BY DEPTH, so a player walking behind a cabinet is hidden by it and one walking
+-- and person SORTED BY DEPTH, so a player walking behind a stall is hidden by it and one walking
 -- in front covers it; then the front railings. A point at depth z is lifted z * DEPTH on screen,
 -- which is the whole of the perspective: characters keep their side-on art and are never scaled.
 --
@@ -68,15 +68,8 @@ Plaza2D.SIGN_W = 52 * PlazaArt.CELL
 -- a narrow screen's prompt keeps this far left of the screen's middle, where your fighter stands
 -- the kit's box in world units (kitBox): its ink outline and its light band and dark lip
 Plaza2D.KIT_INK, Plaza2D.KIT_BAND = 0.3, 0.5
--- cabinets deeper than this are the arcade's back row, drawn in their dark shades
-Plaza2D.CAB_BACK = 10
-Plaza2D.CAB_FAR_SCALE = 0.8
 Plaza2D.BANNER_CLEAR = 16
 Plaza2D.MIRROR_GLASS = 0.4
--- the arcade canopy's height in PlazaArt cells (its beam's foot is 14 under it)
-Plaza2D.CANOPY_H = 52
--- where the arcade's sign stands on its marquee board (cells up from the beam's top)
-Plaza2D.MARQUEE_FOOT = 17
 Plaza2D.LOUNGE_LIFT = 3
 -- (0.7: larger, the lounge's camera fits the wider room and draws everyone smaller - the sky over the
 -- stations stays the same, 174-176 px)
@@ -156,7 +149,7 @@ end
 -- square icon buttons, as the reference simulator's
 Plaza2D.ICON = 76
 Plaza2D.CHARACTER_W = if Ui.lightPanels() then 3 * Plaza2D.ICON + 2 * Ui.GAP else 168
-Plaza2D.SOCIAL_BAR_W = if Ui.lightPanels() then 4 * (Plaza2D.ICON + Ui.GAP) - Ui.GAP + Ui.GAP + Plaza2D.CHARACTER_W
+Plaza2D.SOCIAL_BAR_W = if Ui.lightPanels() then 2 * (Plaza2D.ICON + Ui.GAP) - Ui.GAP + Ui.GAP + Plaza2D.CHARACTER_W
 	else 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 
 -- ------------------------------------------------------------------ construction ----
@@ -255,15 +248,6 @@ function Plaza2D.new(parent: Instance): any
 	if LIGHT then shopButton.Position = UDim2.new(1, -16 - 2 * (Plaza2D.ICON + Ui.GAP), 1, -10)
 	else shopButton.Position, shopButton.Size = UDim2.new(1, -16, 1, -106), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.shopButton = shopButton
-	-- Alone at a cabinet: take on the CPU (also C).
-	local cpu = Ui.keyButton(gui, "C", "VS CPU", Ui.PURPLE, function()
-		if self.active and not self.blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
-	end, 42)
-	cpu.Name, cpu.Visible = "CpuButton", false
-	cpu.AnchorPoint = Vector2.new(0.5, 1)
-	cpu.Position, cpu.Size = UDim2.new(0.5, 0, 1, if Ui.lightPanels() then -(10 + Plaza2D.ICON + 12 + 50 + 10) else -126), UDim2.fromOffset(190, 42)
-	self.cpuButton = cpu
-	self.cabinets = {}
 	self:placeTop(Ui.topInset())
 	return self
 end
@@ -370,8 +354,7 @@ function Plaza2D.clearBanner(self: any)
 	end
 end
 
--- A name tag over a cabinet's number rises above the number (Corsair's sat on 06's on one baseline;
--- hiding the number left that cabinet with none).
+-- Name tags clear of each other.
 function Plaza2D.clearTags(self: any)
 	-- tags against each other first: one whose words meet another's rises 14 px, back to front (nine
 	-- names on two baselines read as one line of text in a crowd)
@@ -382,9 +365,6 @@ function Plaza2D.clearTags(self: any)
 	table.sort(tags, function(a, b) return a.Position.Y.Offset > b.Position.Y.Offset end)
 	Plaza2D.unpileTags(tags)
 	self.tagList = tags
-	if not self.signs then return end
-	Plaza2D.liftOffNumbers(self, tags)
-	Plaza2D.unpileTags(tags)
 end
 
 -- Tags that meet rise a row, over and over until none do (one pass left a tag pushed past a second
@@ -413,26 +393,6 @@ function Plaza2D.unpileTags(tags: { any })
 	end
 end
 
--- A tag over a cabinet's number rises above it (the number stays: hidden, its cabinet had none).
-function Plaza2D.liftOffNumbers(self: any, tags: { any })
-	for _, t in tags do
-		local w = Ui.textWidth(t.Text, 12) + 8
-		local cx = t.Position.X.Offset + t.Size.X.Offset / 2
-		local y1, y2 = t.Position.Y.Offset + t.Size.Y.Offset / 2 - 10, t.Position.Y.Offset + t.Size.Y.Offset / 2 + 10
-		for sid, sg in self.signs do
-			local c = sg.card
-			if c.Visible and string.match(sid, "^cab%d+$") then
-				local cx1, cy1 = c.Position.X.Offset, c.Position.Y.Offset
-				if cx1 < cx + w / 2 and cx1 + c.Size.X.Offset > cx - w / 2 and cy1 < y2 and cy1 + c.Size.Y.Offset > y1 then
-					-- the tag's words (about 20 px tall, centred in its box) end 4 px over the card
-					t.Position = UDim2.fromOffset(t.Position.X.Offset, cy1 - 14 - t.Size.Y.Offset / 2)
-					y1, y2 = cy1 - 24, cy1 - 4
-				end
-			end
-		end
-	end
-end
-
 -- A sign whose words run off the screen's side is hidden - all of its words or none (NOTICE BOARD read
 -- "ARD", and a marquee 62% on screen read "5" for 05). The billboard's lettering likewise ("BLO").
 -- `gw`: the canvas's width (the GUI's AbsoluteSize is stale at start and after a resize).
@@ -441,12 +401,11 @@ function Plaza2D.clearEdges(self: any, gw: number, cv: any?)
 	for _, sg in self.signs or {} do
 		local c = sg.card
 		-- (the whole card: its pad allowed off, NOTICE BOARD lost its left frame. A station still on the
-		-- screen keeps its name: its card slides back on, 4 px in; one whose point is off goes, and so does
-		-- a cabinet's number, which belongs on its marquee)
+		-- screen keeps its name: its card slides back on, 4 px in; one whose point is off goes)
 		local x1 = c.Position.X.Offset
 		local x2 = c.Position.X.Offset + c.Size.X.Offset
 		if c.Visible and (x1 < 0 or x2 > gw) then
-			local slide = sg.anchorX and sg.anchorX >= 0 and sg.anchorX <= gw and not string.match(c.Name, "^Sign_cab%d+$")
+			local slide = sg.anchorX and sg.anchorX >= 0 and sg.anchorX <= gw
 			if slide and c.Size.X.Offset <= gw - 8 then
 				c.Position = UDim2.fromOffset(math.clamp(x1, 4, gw - 4 - c.Size.X.Offset), c.Position.Y.Offset)
 				-- (and clear of any sign it now meets, counting both cards' strokes, and of the stalls' awnings:
@@ -480,16 +439,6 @@ function Plaza2D.clearEdges(self: any, gw: number, cv: any?)
 					end
 					return nil
 				end
-				-- first onto two lines, narrower, against the edge (rising over the awning instead, NOTICE
-				-- BOARD's met the title card on a phone)
-				if (meets() or overAwning()) and sg.value and string.find(sg.value, " ", 1, true) and not string.find(sg.value, "\n", 1, true) then
-					local two = string.gsub(sg.value, " ", "\n", 1)
-					local w2, h2 = Plaza2D.signSize(two, sg.size)
-					local foot = c.Position.Y.Offset + c.Size.Y.Offset
-					sg.text.Text = two
-					c.Size = UDim2.fromOffset(w2, h2)
-					c.Position = UDim2.fromOffset(math.clamp(c.Position.X.Offset, 4, gw - 4 - w2), foot - h2)
-				end
 				local up = false
 				for _ = 1, 6 do
 					local a = overAwning()
@@ -508,8 +457,9 @@ function Plaza2D.clearEdges(self: any, gw: number, cv: any?)
 				-- (a sign with nowhere left to go - risen into the title card, or still on another or an
 				-- awning - is hidden rather than drawn over them)
 				local plate = self.plate
-				local underCard = plate and c.Position.X.Offset < plate.Position.X.Offset + plate.Size.X.Offset + g
-					and c.Position.Y.Offset < plate.Position.Y.Offset + plate.Size.Y.Offset + g
+				local pp, ps = plate and plate.Position, plate and plate.Size
+				local underCard = pp and ps and c.Position.X.Offset < pp.X.Offset + ps.X.Offset + g
+					and c.Position.Y.Offset < pp.Y.Offset + ps.Y.Offset + g
 				if underCard or meets() or overAwning() then c.Visible = false end
 			else
 				c.Visible = false
@@ -539,48 +489,6 @@ function Plaza2D.clearEdges(self: any, gw: number, cv: any?)
 				if not fits then t.Visible = false end
 			end
 		end
-	end
-end
-
--- A speech bubble: a pooled label styled once, sized to its text.
-function Plaza2D.bubble(self: any, c: any, id: string, value: string, x: number, y: number, alpha: number)
-	local t = self:label(id, value, 14, INK)
-	self.styled = self.styled or {}
-	if not self.styled[id] then
-		self.styled[id] = true
-		t.BackgroundColor3 = Color3.fromRGB(246, 242, 232)
-		t.TextStrokeTransparency = 1
-		t.TextWrapped = false
-		-- a square speech box, ink-framed, as a pixel game draws one
-		Ui.corner(t, 0)
-		Ui.stroke(t, INK, 2)
-	end
-	local at = c:project(x, y)
-	local w = Ui.textWidth(value, 14) + 20
-	t.Position, t.Size = UDim2.fromOffset(at.X - w / 2, at.Y - 30), UDim2.fromOffset(w, 28)
-	t.BackgroundTransparency = 1 - 0.95 * alpha
-	t.TextTransparency = 1 - alpha
-end
-
--- What someone just stamped or said, over their head (LobbySocial keeps who and since when).
-function Plaza2D.drawOverhead(self: any, c: any, userId: number, x: number, headY: number)
-	local social = self.social
-	if not social then return end
-	local o, age, life = social:overhead(userId)
-	if not o then return end
-	local fade = math.clamp((life - age) / 0.4, 0, 1)
-	if o.kind == "stamp" then
-		local stamp
-		for _, st in PLAZA.stamps do if st.id == o.id then stamp = st end end
-		if not stamp then return end
-		local prop = PlazaArt.stamp(stamp)
-		-- A pop: overshoot, settle, and a slow bob while it is up.
-		local pop = if age < 0.18 then 0.5 + age / 0.18 * 0.75 elseif age < 0.32 then 1.25 - (age - 0.18) / 0.14 * 0.25 else 1
-		local k = 0.17 * pop
-		local y = headY + 0.8 + math.sin(age * 5) * 0.12
-		Canvas.sprite(c, "ovh|" .. o.id, prop.rects, x - prop.w * k / 2, y + prop.h * k, k, k, prop.w, prop.h, fade)
-	else
-		self:bubble(c, "bub" .. userId, o.text, x, headY + 2.6, fade)
 	end
 end
 
@@ -650,7 +558,7 @@ function Plaza2D.setRoom(self: any, room: any)
 		self.title.Text = string.upper(Realms.LOBBY.name)
 		-- (short: the long line grew the card to 81% of the screen's width)
 		-- (short: the long line took the card to 62% of the screen, 94% of a phone's)
-		self.directions.Text = "East: cabinets, gates, climb  ·  West: tailor"
+		self.directions.Text = "PLAY to find a fight  ·  East: the climb  ·  West: the tailor"
 	end
 end
 
@@ -677,50 +585,9 @@ function Plaza2D.setPeers(self: any, entries: any, localId: number)
 	end
 end
 
--- The arcade as the server last described it (Cabinets.views), and which seat, if any, is yours.
-function Plaza2D.setCabinets(self: any, views: any, localId: number)
-	if type(views) ~= "table" then return end
-	local byNumber = {}
-	local mine = nil
-	for _, v in views do
-		byNumber[v.number] = v
-		for side, seat in v.seats or {} do
-			if seat.userId == localId then mine = `Cab{v.number}{side}` end
-		end
-	end
-	self.cabinets = byNumber
-	self.seatId = mine
-end
-
-function Plaza2D.seatStation(self: any): any
-	if not self.seatId or self.room then return nil end
-	for _, st in PLAZA.market.stations do
-		if st.id == self.seatId then return st end
-	end
-	return nil
-end
-
--- What using a cabinet seat means right now: get up from yours, watch a fight, or sit down.
-function Plaza2D.cabinetIntent(self: any, st: any): any
-	local view = self.cabinets[st.cabinet]
-	if self.seatId then
-		return if self.seatId == st.id then { action = "stand" } else nil
-	end
-	if view and view.state == "playing" then return { action = "watch", cabinet = st.cabinet } end
-	local side = if st.side < 0 then "A" else "B"
-	if view and view.seats and view.seats[side] then return nil end
-	return { action = "sit", cabinet = st.cabinet, side = side }
-end
-
 function Plaza2D.interact(self: any)
 	if not self.active or self.blocked or UIS:GetFocusedTextBox() then return end
-	local seat = self:seatStation()
-	local station = seat or self.model:nearest()
-	if station and station.kind == "Cabinet" then
-		local intent = self:cabinetIntent(station)
-		if intent and self.onCabinet then self.onCabinet(intent) end
-		return
-	end
+	local station = self.model:nearest()
 	if station and self.onInteract then self.onInteract(station) end
 end
 
@@ -734,20 +601,6 @@ function Plaza2D.step(self: any, dt: number, blocked: boolean)
 	for _, frame in self.input:sample(dt, Config.FRAME) do
 		self.model:step(if blocked then Input.emptyFrame() else frame)
 	end
-	-- Seated, you stay at the machine, facing it: put back at the seat after every step, which also
-	-- undoes any walking or hop the frames just made.
-	local seat = self:seatStation()
-	if seat then
-		local p = self.model.p
-		if p.x ~= seat.x or p.z ~= seat.z then self.model:setScene(self.model.data, { x = seat.x, z = seat.z }) end
-		p.facing = seat.facing
-	end
-	local view = seat and self.cabinets[seat.cabinet]
-	local alone = view ~= nil and view.state == "open" and not (view.seats.A and view.seats.B)
-	self.cpuButton.Visible = alone and not blocked
-	local cDown = alone and not UIS:GetFocusedTextBox() and UIS:IsKeyDown(Enum.KeyCode.C)
-	if cDown and not self.cHeld and not blocked and self.onCabinet then self.onCabinet({ action = "cpu" }) end
-	self.cHeld = cDown
 	-- L opens and closes the Locker (the Locker itself is not one of the panels that block the lobby)
 	local lDown = not UIS:GetFocusedTextBox() and UIS:IsKeyDown(Enum.KeyCode.L)
 	if lDown and not self.lHeld and self.onLocker then self.onLocker() end
@@ -880,9 +733,10 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		for _ in self.peers do n += 1 end
 		-- (Plaza2D.BILLBOARD_LINE, not the scanlines' CYAN: at #7FA8B8 it measured 2.8:1 on the screen; and
 		-- the short line where the full one would shrink below 11 px)
-		local full = if n == 1 then "THE ARCADE IS OPEN  ·  THE GATES ARE OPEN" else `{n} ON THE ROOF TONIGHT  ·  ARCADE OPEN`
+		-- (PLAY finds the fights now: the arcade and the gates are gone)
+		local full = if n == 1 then "PRESS PLAY TO FIND A FIGHT" else `{n} ON THE ROOF TONIGHT  ·  PRESS PLAY`
 		local span = math.abs(c:project(sw * 0.45, 0).X - c:project(-sw * 0.45, 0).X)
-		local line = if Ui.textWidth(full, 11) <= span then full elseif n == 1 then "THE ARCADE IS OPEN" else `{n} ON THE ROOF TONIGHT`
+		local line = if Ui.textWidth(full, 11) <= span then full elseif n == 1 then "PRESS PLAY" else `{n} ON THE ROOF TONIGHT`
 		local sub = self:placeLabel(c, "billboard2", line, 0, sy0 + sh * 0.25, 14, Plaza2D.BILLBOARD_LINE, 520, sw * 0.9)
 		-- (a full ink outline on both lines: the board's lighter structure behind them took the white to
 		-- 2.9:1 and the gold to 3.0:1)
@@ -952,17 +806,12 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 		PlazaArt.draw(c, "plant", pl, -100, 16.6 * D)
 	end)
 	add(20.4, function()
+		-- (either end of the climb's roof, 95..130)
 		PlazaArt.draw(c, "plant", PlazaArt.get("plant", PlazaArt.plant), 99, 20.4 * D)
-		PlazaArt.draw(c, "plant", PlazaArt.get("plant", PlazaArt.plant), 181, 20.4 * D)
 	end)
-	-- The notice board and the roof map.
+	-- The roof map, the climb and its records.
 	for _, s in model.data.stations do
-		if s.kind == "Members" then
-			add(s.z + 1, function()
-				PlazaArt.draw(c, "board", PlazaArt.get("board", PlazaArt.noticeBoard), s.x, (s.z + 1) * D)
-				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + Plaza2D.signAbove(60), 13, Plaza2D.STATION_COLOURS.Members)
-			end)
-		elseif s.kind == "Warp" then
+		if s.kind == "Warp" then
 			add(s.z + 1, function()
 				PlazaArt.draw(c, "mapsign", PlazaArt.get("mapsign", PlazaArt.mapSign), s.x, (s.z + 1) * D)
 				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + Plaza2D.signAbove(60), 13, Plaza2D.STATION_COLOURS.Warp)
@@ -981,75 +830,6 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 				if self.recordsLine then
 					self:placeSign(c, "recordsTop", self.recordsLine, s.x, (s.z + 1) * D + Plaza2D.signAbove(76) + 1.8, 11, Ui.GOLD)
 				end
-			end)
-		elseif s.kind == "Format" then
-			add(s.z + 1.8, function()
-				local hex = Plaza2D.LIFT_HEX[s.teamSize] or Plaza2D.LIFT_HEX[1]
-				local face = Color3.fromHex(hex)
-				PlazaArt.draw(c, "lift" .. s.id, PlazaArt.get("lift" .. s.id, function() return PlazaArt.lift(hex, s.teamSize) end), s.x, (s.z + 1.8) * D)
-				-- (each lift says what it is: blank, the three read as elevators)
-				self:placeSign(c, "st" .. s.id, s.name .. "  " .. s.landmark, s.x, (s.z + 1.8) * D + Plaza2D.signAbove(104), 14, face)
-			end)
-		end
-	end
-	-- The arcade: its canopy, and the cabinets, each pair with its stools and number.
-	add(20.5, function()
-		-- (low, over the cabinets: at 15 studs a band of empty sky and posts lay between beam and machines)
-		local canopy = PlazaArt.get("canopy", function() return PlazaArt.canopy(88 * 8, Plaza2D.CANOPY_H) end)
-		PlazaArt.draw(c, "canopy", canopy, 140, 20.5 * D)
-		-- (on the canopy's beam: over it, the sign sat behind the district's title as you walked in. Its
-		-- flicker is in its words: recolouring the card repaints its gradient, border and lip)
-		-- (what it is for, not its name again: THE ARCADE sat under THE ARCADE GROVE)
-		-- a marquee board standing on the beam, for the arcade's name to hang on (the sky over the canopy
-		-- was a quarter of the screen with nothing in it)
-		local board = PlazaArt.get("marquee", PlazaArt.arcadeMarquee)
-		local beamTop = 20.5 * D + Plaza2D.CANOPY_H * PlazaArt.CELL
-		PlazaArt.draw(c, "marquee", board, 140, beamTop)
-		-- pennants strung from the board's corners out along the canopy, so the sky either side is not bare
-		local half = board.w * PlazaArt.CELL / 2
-		local span = math.floor((43 - half) / PlazaArt.CELL)
-		local left = PlazaArt.get("buntL", function() return PlazaArt.bunting(span, 34) end)
-		local right = PlazaArt.get("buntR", function() return PlazaArt.bunting(span, 34, true) end)
-		PlazaArt.draw(c, "buntL", left, 140 - half - span * PlazaArt.CELL / 2, beamTop)
-		PlazaArt.draw(c, "buntR", right, 140 + half + span * PlazaArt.CELL / 2, beamTop)
-		self:placeSign(c, "arcade", "1v1 CABINETS", 140, beamTop + Plaza2D.MARQUEE_FOOT * PlazaArt.CELL, 22, Ui.TEAL)
-	end)
-	for _, cab in PLAZA.cabinets do
-		add(cab.z, function()
-			if cab.z > Plaza2D.CAB_BACK then
-				-- (smaller as well as darker: the same size at the same x, the two rows read as one locker)
-				PlazaArt.draw(c, "cabFar", PlazaArt.get("cabFar", function() return PlazaArt.cabinetPair(true) end), cab.x, cab.z * D, Plaza2D.CAB_FAR_SCALE)
-			else
-				PlazaArt.draw(c, "cab", PlazaArt.get("cab", PlazaArt.cabinetPair), cab.x, cab.z * D)
-			end
-			local flick = 0.7 + 0.3 * math.sin(clock * 9 + cab.number)
-			Canvas.rect(c, cab.x - 2.2, cab.z * D + 3.3, 0.3, 2, CYAN, 0.25 * flick)
-			Canvas.rect(c, cab.x + 1.9, cab.z * D + 3.3, 0.3, 2, PINK, 0.25 * flick)
-			-- (on its own marquee: above it, the front row's numbers sat on the back row's cabinets)
-			local far = cab.z > Plaza2D.CAB_BACK
-			self:placeSign(c, "cab" .. cab.number, string.format("%02d", cab.number), cab.x,
-				cab.z * D + (if far then 44 * PlazaArt.CELL * Plaza2D.CAB_FAR_SCALE else 5.6), if far then 12 else 14, Ui.INDIGO)
-			-- What the cabinet is doing: a countdown, a fight (and who is watching), the streak.
-			local view = self.cabinets[cab.number]
-			if view then
-				if view.state == "countdown" and view.startsIn then
-					-- (what a cabinet is doing, on tags of the same kit over its marquee: bare coloured words
-					-- were the last lettering on the roof outside the kit)
-					self:placeSign(c, "cabT" .. cab.number, `READY · {math.ceil(view.startsIn)}`, cab.x, cab.z * D + 8.6, 12, Ui.SKY)
-				elseif view.state == "playing" then
-					local watchers = if (view.watchers or 0) > 0 then ` · {view.watchers} watching` else ""
-					self:placeSign(c, "cabT" .. cab.number, (if view.cpu then "VS CPU" else "IN PLAY") .. watchers, cab.x, cab.z * D + 8.6, 12, Ui.PINK)
-					Canvas.rect(c, cab.x - 3.2, cab.z * D + 3.2, 6.4, 2.4, PINK, 0.08 + 0.06 * math.sin(clock * 12))
-				end
-				if view.streak and view.streak.wins > 0 then
-					local s2 = if view.streak.wins == 1 then "1 WIN" else `{view.streak.wins} WINS`
-					self:placeSign(c, "cabS" .. cab.number, `{s2}  {view.streak.name}`, cab.x, cab.z * D + 10.2, 12, Ui.GOLD)
-				end
-			end
-		end)
-		for _, side in { -1, 1 } do
-			add(cab.z - 0.05, function()
-				PlazaArt.draw(c, "stool", PlazaArt.get("stool", PlazaArt.stool), cab.x + side * 5, cab.z * D)
 			end)
 		end
 	end
@@ -1077,9 +857,7 @@ end
 -- Each lounge station's colour, the HUD's own: the map board blue as the MAP button, the rack the
 -- orange of a weapon card, the rules purple, the ready rail green as READY.
 Plaza2D.STATION_COLOURS = { Maps = Ui.BLUE, Weapons = Ui.ORANGE, Rules = Ui.VIOLET, Players = Ui.GREEN, Exit = Ui.PINK,
-	Members = Ui.TEAL, Warp = Ui.GREEN }
--- the lifts by team size: 1v1 gold, 2v2 blue, 3v3 pink (the HUD's own)
-Plaza2D.LIFT_HEX = { [1] = "#FEE761", [2] = "#0099DB", [3] = "#F6757A" }
+	Warp = Ui.GREEN }
 -- How far above a prop's base its sign sits: the prop's own height (`cells` tall, in PlazaArt cells)
 -- and a fixed gap, so every sign hangs the same distance over what it names (at one fixed height, the
 -- weapon rack's overlapped its frame and the ready rail's floated 67 px up).
@@ -1371,7 +1149,6 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 					self.tagStrokes[id] = Ui.outline(tag, 2, INK)
 					tag.TextStrokeTransparency = 1
 				end
-				self:drawOverhead(c, id, peer.x, head + 1.4)
 			end)
 		end
 	end
@@ -1379,7 +1156,6 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		add(p.z, function()
 			local st = posed(self.char, p.state, p.sf, p.x, p.z, p.y, p.facing, p.vx, p)
 			self:drawPerson(c, self.char, st, p.z, clock)
-			if self.localId then self:drawOverhead(c, self.localId, p.x, p.y + p.z * D + self.char.height + 0.2) end
 		end)
 	end
 	table.sort(items, function(a, b2)
@@ -1403,16 +1179,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.banner.TextTransparency = if self.bannerNarrow then 1 elseif age < 2 then 0 elseif age < 3 then age - 2 else 1
 	self.bannerOutline.Transparency = self.banner.TextTransparency
 
-	local near = self:seatStation() or model:nearest()
-	local cabinetWord = nil
-	if near and near.kind == "Cabinet" then
-		local intent = self:cabinetIntent(near)
-		cabinetWord = if not intent then "TAKEN:" elseif intent.action == "stand" then "STAND UP FROM"
-			elseif intent.action == "watch" then "WATCH" else "SIT AT"
-		if intent and intent.action == "sit" then
-			self:placeSign(c, "seat", "SIT HERE", near.x, near.z * D + 7.2, 13, Ui.GOLD)
-		end
-	end
+	local near = model:nearest()
 	self:endLabels()
 	self:clearBanner()
 	self:clearTags()
@@ -1427,7 +1194,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self.bannerNarrow = gw > 0 and gw < 1000
 	local action = not self.blocked and near ~= nil
 	self.prompt.Text = if self.blocked then "Finish at the panel, then carry on."
-		elseif near then `{if near.kind == "Format" or near.kind == "Exit" then "ENTER" elseif cabinetWord then cabinetWord else "USE"} {near.name}`
+		elseif near then `{if near.kind == "Exit" then "ENTER" else "USE"} {near.name}`
 		else if self.room then "Walk to a station to set up the fight." else "Walk the roofs: the arcade and the climb are east, the tailor is west."
 	self.prompt.Active = action
 	-- (a tip - not an action - goes after a few seconds: it sat over your own fighter on a phone)

@@ -1,6 +1,8 @@
 --!strict
 local Loader = require("./loader")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
+Rooms.BOT_WAIT = 0
 local function player(id: number): any return { UserId = id, DisplayName = `Player{id}`, Name = `Player{id}` } end
 for size, format in { "Duel", "Doubles", "Triples" } do
 	local model = Rooms.new()

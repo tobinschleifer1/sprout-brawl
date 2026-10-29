@@ -61,7 +61,6 @@ local TEXT, SUB = Ui.TEXT, Ui.SUB                -- words on a card (dark on a p
 local SLATE = if LIGHT then Ui.EDGE else Color3.fromRGB(58, 68, 102)   -- an unchosen chip, an unlit stat block
 local ASK = if LIGHT then Color3.fromRGB(196, 92, 20) else Ui.GOLD    -- a question on a card
 local STAT_NAMES = { damage = "DMG", defense = "DEF", dexterity = "DEX", speed = "SPD" }
-local DIFFICULTIES = { "easy", "normal", "hard" }
 
 -- ------------------------------------------------------------------ layout ----
 -- Where everything goes on a W x H screen with `slots` (the room's slot views, in room order).
@@ -189,7 +188,7 @@ end
 -- ------------------------------------------------------------------ construction ----
 function SelectScreen.new(parent: Instance): any
 	local self: any = setmetatable({ open = false, minimised = false, room = nil, userId = 0, cards = {}, cells = {},
-		tags = {}, difficulty = "normal", hand = 1, fighters = {}, chars = {}, voteEndsAt = 0, built = nil,
+		tags = {}, hand = 1, fighters = {}, chars = {}, voteEndsAt = 0, built = nil,
 		now = os.clock }, SelectScreen)        -- (`now` is replaceable, for the tests)
 	local gui = make("ScreenGui", parent, { Name = "BlockfallSelect", ResetOnSpawn = false, IgnoreGuiInset = true,
 		DisplayOrder = 15, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
@@ -291,6 +290,7 @@ function SelectScreen.update(self: any, room: any, userId: number)
 	self.room, self.userId = room, userId
 	if room.left then self:hide(); self.room = nil; return end
 	if room.botVote then self.voteEndsAt = os.clock() + (room.botVote.left or 0) end
+	self.botReadyAt = os.clock() + (room.botWait or 0)
 	-- a new room, or this one back from a fight (a rematch), brings the screen up
 	if (entering or back) and room.state == "setup" then self.hand = 1; self:show() else self:render() end
 end
@@ -429,32 +429,19 @@ function SelectScreen.build(self: any, L: any)
 			bars[key] = segs
 			segs.tag = tag
 		end
-		-- the open slot: ADD BOT and the difficulty to propose it at
+		-- the open slot: ADD BOT (bots are always hard: no difficulty to choose), which opens BOT_WAIT
+		-- seconds after the last player came in - time for the queue to bring one more
 		local open = make("Frame", card, { Name = "Open", BackgroundTransparency = 1 })
 		place(open, 0, 26 * s, p.cardW, p.cardH - 26 * s)
 		local openText = text(open, "OPEN SLOT", math.floor(18 * s), SUB, DISPLAY)
 		place(openText, 0, 4 * s, p.cardW, 24 * s)
 		local addBot = button(open, "+ ADD BOT", Ui.BLUE, function()
-			self:send("bot", self.difficulty, p.slot)
+			self:send("bot", "hard", p.slot)
 		end)
 		addBot.Name = "AddBot"
 		addBot.TextSize = Ui.px(18 * s)
 		place(addBot, p.cardW * 0.12, 36 * s, p.cardW * 0.76, 38 * s)
 		local chips = {}
-		for k, d in DIFFICULTIES do
-			local chip = button(open, string.upper(d), SLATE, function()
-				self.difficulty = d
-				self:render()
-			end, true)
-			chip.Name = "Difficulty" .. d
-			chip.TextSize = Ui.px(12 * s)
-			Ui.fit(chip, 8)
-			-- (Ui.GAP apart and under ADD BOT in a light theme: scaled gaps left their outlines touching)
-			local CG = if LIGHT then Ui.GAP else 4 * s
-			local cw = math.floor((p.cardW * 0.76 - 2 * CG) / 3)
-			place(chip, p.cardW * 0.12 + (k - 1) * (cw + CG), if LIGHT then 36 * s + 38 * s + Ui.GAP else 82 * s, cw, 26 * s)
-			chips[d] = chip
-		end
 		-- a running vote on this slot: the question, the time left, the tally and your ballot
 		local vote = make("Frame", card, { Name = "Vote", BackgroundTransparency = 1, Visible = false })
 		place(vote, 0, 26 * s, p.cardW, p.cardH - 26 * s)
@@ -702,11 +689,7 @@ function SelectScreen.render(self: any)
 		card.vote.Visible = voting
 		card.open.Visible = not filled and not voting
 		card.remove.Visible = bot and not voting and vote == nil
-		card.addBot.Active = vote == nil
-		card.addBot.Text = if vote then "VOTE RUNNING" else "+ ADD BOT"
-		for d, chip in card.chips do
-			Ui.paint(chip, if d == self.difficulty then GOLD else SLATE, if d == self.difficulty then INK else WHITE)
-		end
+		SelectScreen.botButton(self, card, os.clock())
 		if voting then
 			local mineBallot = vote.ballots and vote.ballots[tostring(self.userId)]
 			card.question.Text = if vote.value == false then "REMOVE THE BOT?" else `ADD {string.upper(vote.value)} BOT?`
@@ -1034,8 +1017,21 @@ function SelectScreen.drawRuleEmblems(self: any, c: any, t: number)
 	end
 end
 
+-- An open slot's ADD BOT: VOTE RUNNING while one is, a countdown until the room's BOT_WAIT is up (a
+-- press before it was refused by the server), then ADD BOT.
+function SelectScreen.botButton(self: any, card: any, t: number)
+	local vote = self.room and self.room.botVote
+	local wait = math.max(0, math.ceil((self.botReadyAt or 0) - t))
+	card.addBot.Active = vote == nil and wait == 0
+	local word = if vote then "VOTE RUNNING" elseif wait > 0 then `BOTS IN {wait}s` else "+ ADD BOT"
+	if card.addBot.Text ~= word then card.addBot.Text = word end
+end
+
 -- The vote's countdown, written once a second.
 function SelectScreen.tickVote(self: any, t: number)
+	for _, card in self.cards or {} do
+		if card.addBot then SelectScreen.botButton(self, card, t) end
+	end
 	local vote = self.room and self.room.botVote
 	if not vote then return end
 	local card = self.cards[vote.slot]

@@ -1,101 +1,75 @@
 --!strict
--- Talking in the lobby: stamps over your head, quick messages in bubbles, a chat log, the member
--- list and the warp menu - after the DBFZ and P4A lobbies, in the Skyhold Bazaar's colours.
+-- The lobby's bar: PLAY (pick 1v1, 2v2 or 3v3 and wait in the queue - Rooms.queue - while you walk
+-- the roofs) and the roof map's warps. While queued, a card at the top says what you are waiting
+-- for, with CANCEL and FILL WITH BOTS.
 --
--- Everything sent is an index into a fixed list (Data/Plaza stamps and messages), so nothing here
--- is free text and nothing needs filtering; the server checks it and passes it to the people in the
--- same place. What arrives is kept in `overheads` (what to draw over whose head, since when) for
--- Plaza2D to draw, and in the log.
+-- (It was also the lobby's stamps, quick messages and member list; the owner had those taken out,
+-- 2026-10-29, when PLAY replaced the arcade and the fighters' gates.)
 --
--- Keys, while the lobby is up: T stamps, Y quick messages, P people, M the roof map; 1-9 and 0 pick
--- from an open list. (Tab and Escape belong to Roblox.) Every key has a button, for touch.
+-- Keys, while the lobby is up: M the roof map; 1-9 pick from an open list. Every key has a button.
 
 local Shared = game:GetService("ReplicatedStorage").Shared
-local PLAZA: any = require(Shared.Data.Plaza)
-local Canvas2D = require(script.Parent.Canvas2D)
-local KitPortrait = require(script.Parent.KitPortrait)
-local Loadout = require(Shared.Loadout)
-local PlazaArt = require(script.Parent.PlazaArt)
+local Plaza = require(Shared.Plaza)
 local Realms = require(Shared.Realms)
 local Ui = require(script.Parent.Ui)
+
+local PLAZA: any = Plaza.DATA      -- the Roblox lobby's market (Plaza.luau), not the web's
 
 local LobbySocial = {}
 LobbySocial.__index = LobbySocial
 
-LobbySocial.STAMP_SECONDS = 2.6
-LobbySocial.SAY_SECONDS = 4.5
-LobbySocial.LOG_LINES = 6
 -- Room at the right end of the bottom row for the plaza's buttons (Plaza2D.CHARACTER_W): one wide
 -- CHARACTER button, or in a light theme the row of three square icon buttons.
 LobbySocial.RIGHT_GAP = if Ui.lightPanels() then 3 * 76 + 3 * Ui.GAP else 168 + 8
 
 local LIGHT = Ui.lightPanels()
-local INK = Color3.fromRGB(15, 18, 24)
--- the panels' buttons and rows: pale with dark words in a light theme
 local PANEL2 = if LIGHT then Ui.PANEL2 else Color3.fromRGB(46, 52, 63)
--- words in the chat log: light over its dark body, or dark on a pale one (a light theme)
-local TEXT = if LIGHT then Ui.TEXT else Color3.fromRGB(230, 225, 214)
-local ON_PANEL = if LIGHT then Ui.TEXT else TEXT  -- words on a panel
-local DIM = if LIGHT then Ui.SUB else Color3.fromRGB(138, 148, 166)
-local PINK = if LIGHT then Color3.fromRGB(176, 70, 36) else Color3.fromRGB(200, 100, 60)
-local CYAN = if LIGHT then Color3.fromRGB(0, 110, 170) else Color3.fromRGB(127, 168, 184)
-local AMBER = Color3.fromRGB(232, 162, 74)
+local ON_PANEL = if LIGHT then Ui.TEXT else Color3.fromRGB(230, 225, 214)
 
--- The button bar: { panel, key, word, colour }.
+-- The bar: { panel, key, word, colour, icon }.
 local SPECS: { { any } } = {
-	{ "Stamps", "T", "STAMP", Color3.fromRGB(181, 80, 136), "heart" },
-	{ "Say", "Y", "SAY", Color3.fromRGB(0, 153, 219), "bubble" },
-	{ "People", "P", "PEOPLE", Color3.fromRGB(247, 118, 34), "people" },
+	{ "Play", "", "PLAY", Color3.fromRGB(228, 59, 68), "swords" },
 	{ "Map", "M", "MAP", Color3.fromRGB(62, 137, 72), "map" },
 }
 -- a bar button's side in a light theme (square icon buttons beside the plaza's; Plaza2D.ICON)
 LobbySocial.ICON = 76
-LobbySocial.BAR_W = if Ui.lightPanels() then 4 * (LobbySocial.ICON + Ui.GAP) - Ui.GAP else 4 * 124 - 8
+LobbySocial.BAR_W = if LIGHT then #SPECS * (LobbySocial.ICON + Ui.GAP) - Ui.GAP else #SPECS * 124 - 8
+-- the formats PLAY offers, in order, with what each needs
+LobbySocial.FORMATS = {
+	{ id = "Duel", word = "1v1", note = "One on one", colour = Ui.GOLD },
+	{ id = "Doubles", word = "2v2", note = "Two teams of two", colour = Ui.BLUE },
+	{ id = "Triples", word = "3v3", note = "Two teams of three", colour = Ui.PINK },
+}
+-- a list row's words, in from its edge (they sat against the row's left side)
+LobbySocial.ROW_PAD = 14
 
-local function corner(parent: Instance, px: number)
-	Ui.corner(parent, px)
-end
-
--- A list button inside a panel: the kit's bevelled block, in body text so a line of words fits.
-local function button(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
-	-- (dark words only on a pale button; a coloured one keeps the kit's white, outlined in its shade)
-	local b = Ui.button(parent, text, colour or Ui.PANEL2, onClick, { font = Ui.LABEL, size = 11, small = true,
+-- A list row inside a panel: the kit's bevelled block, its words dark and bare on the pale face.
+local function row(parent: Instance, name: string, text: string, onClick: () -> (), colour: Color3?): TextButton
+	local b = Ui.button(parent, text, colour or PANEL2, onClick, { font = Ui.LABEL, size = 13, small = true,
 		textColour = if colour == nil or Ui.light(colour) > 0.62 then ON_PANEL else nil })
 	b.Name = name
+	b.TextXAlignment = Enum.TextXAlignment.Left
+	Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, LobbySocial.ROW_PAD), PaddingRight = UDim.new(0, LobbySocial.ROW_PAD) })
 	return b
 end
 
-local function label(parent: Instance, name: string, text: string, size: number, colour: Color3?): TextLabel
-	local t = Instance.new("TextLabel")
-	t.Name, t.Text, t.Font, t.TextSize = name, text, Ui.LABEL, Ui.px(size)
-	t.BackgroundTransparency, t.TextColor3, t.TextXAlignment, t.TextWrapped = 1, colour or ON_PANEL, Enum.TextXAlignment.Left, true
-	t.Parent = parent
-	return t
-end
-
--- A panel over the button bar: the kit's card, with a band in its button's colour and its title.
+-- A panel over the bar: the kit's card, with a band in its button's colour and its title.
 local function panel(parent: Instance, name: string, title: string, w: number, h: number, colour: Color3): Frame
 	local f = Ui.panel(parent, name, colour, title, 30)
 	f.AnchorPoint = Vector2.new(1, 1)
-	-- (above the bar's real height: the square buttons stand 76 px, and a panel at the old 42 px bar's
-	-- height covered their tops)
+	-- (above the bar's real height: the square buttons stand 76 px)
 	f.Position, f.Size = UDim2.new(1, -16, 1, if LIGHT then -(10 + LobbySocial.ICON + 8) else -62), UDim2.fromOffset(w, h)
 	f.Visible = false
 	return f
 end
 
--- `opts.send(msg)` goes to the Social remote, `opts.requestMembers()` asks who is here,
--- `opts.warp(id)` moves you to a warp point, `opts.warpTo(member)` next to someone,
--- `opts.clock()` is the time.
+-- `opts.warp(id)` moves you to a warp point; `opts.queue(format)`, `opts.unqueue()` and
+-- `opts.fill()` go to the room remote.
 function LobbySocial.new(parent: Instance, opts: any): any
 	local self: any = setmetatable({}, LobbySocial)
 	self.opts = opts
-	self.clock = opts.clock or os.clock
-	self.overheads = {}                 -- userId -> { kind, id?, index?, at }
-	self.log = {}                       -- { text, colour, at }
-	self.members = {}
-	self.localId = opts.localId or 0
 	self.enabled = false
+	self.queue = { queued = false }
 
 	local gui = Instance.new("ScreenGui")
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset, gui.DisplayOrder = "BlockfallSocial", false, true, 13
@@ -103,16 +77,16 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	gui.Parent = parent
 	self.gui = gui
 
-	-- The button bar, bottom right.
+	-- The bar, bottom right.
 	local bar = Instance.new("Frame")
 	bar.Name, bar.BackgroundTransparency, bar.AnchorPoint = "Bar", 1, Vector2.new(1, 1)
 	bar.Position, bar.Size = UDim2.new(1, -16 - LobbySocial.RIGHT_GAP, 1, -10),
 		UDim2.fromOffset(LobbySocial.BAR_W, if LIGHT then LobbySocial.ICON else 42)
 	bar.Parent = gui
-	-- each button is its key on a cap and its word, in its own colour; its panel's band matches
 	for i, sp in SPECS do
 		local open = function() self:toggle(sp[1]) end
-		local b = if LIGHT then Ui.iconButton(bar, sp[5], sp[3], sp[4], open, LobbySocial.ICON, sp[2])
+		local key = if sp[2] ~= "" then sp[2] else nil
+		local b = if LIGHT then Ui.iconButton(bar, sp[5], sp[3], sp[4], open, LobbySocial.ICON, key)
 			else Ui.keyButton(bar, sp[2], sp[3], sp[4], open, 42, { size = 12 })
 		b.Name = "Open" .. sp[1]
 		if LIGHT then b.Position = UDim2.fromOffset((i - 1) * (LobbySocial.ICON + Ui.GAP), 0)
@@ -120,72 +94,41 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	end
 	self.bar = bar
 
-	-- Stamps: eight tiles with the icon drawn in each.
-	local stamps = panel(gui, "Stamps", "STAMPS", 4 * 74 + 20, 2 * 74 + 44, SPECS[1][4])
-	for i, st in PLAZA.stamps do
-		local b = button(stamps, "Stamp_" .. st.id, "", function() self:stamp(st.id) end, PANEL2)
-		b.Position, b.Size = UDim2.fromOffset(10 + ((i - 1) % 4) * 74, 36 + math.floor((i - 1) / 4) * 74), UDim2.fromOffset(68, 68)
-		local holder = Instance.new("Frame")
-		holder.Name, holder.BackgroundTransparency, holder.Size, holder.Parent = "Icon", 1, UDim2.fromScale(1, 1), b
-		local c = Canvas2D.inFrame(holder)
-		local prop = PlazaArt.stamp(st)
-		local k = math.floor(44 / math.max(prop.w, prop.h))
-		-- y up, origin at the tile's bottom-left, as the world is: sprites assume it.
-		Canvas2D.setTransform(c, 1, 0, 0, -1, 0, 68)
-		Canvas2D.sprite(c, "stamp|" .. st.id, prop.rects, 34 - prop.w * k / 2, 34 + prop.h * k / 2, k, k, prop.w, prop.h)
-		local n = label(b, "Key", tostring(i), 11, DIM)
-		n.Position, n.Size = UDim2.fromOffset(4, 2), UDim2.fromOffset(14, 14)
+	-- PLAY: the three formats, a big button each.
+	-- (a kit gap between buttons, past their strokes: 8 px apart, their outlines were 2 px apart)
+	local step = 48 + Ui.GAP + 6
+	local play = panel(gui, "Play", "PLAY  ·  FIND A FIGHT", 300, 38 + #LobbySocial.FORMATS * step - Ui.GAP, SPECS[1][4])
+	for i, f in LobbySocial.FORMATS do
+		local b = Ui.button(play, `{f.word}   {f.note}`, f.colour, function() self:choose(f.id) end, { size = 16 })
+		b.Name = "Format_" .. f.id
+		b.Position, b.Size = UDim2.fromOffset(13, 38 + (i - 1) * step), UDim2.new(1, -26, 0, 48)
 	end
-	self.stampsPanel = stamps
-
-	-- Quick messages.
-	local say = panel(gui, "Say", "SAY", 300, 38 + math.ceil(#PLAZA.messages / 2) * 34 + 8, SPECS[2][4])
-	for i, m in PLAZA.messages do
-		local key = if i <= 9 then tostring(i) elseif i == 10 then "0" else ""
-		local b = button(say, "Say_" .. i, (if key ~= "" then key .. "  " else "") .. m, function() self:say(i) end, PANEL2)
-		b.TextSize, b.TextXAlignment = Ui.px(10), Enum.TextXAlignment.Left
-		b.TextTruncate = Enum.TextTruncate.AtEnd
-		Ui.make("UIPadding", b, { PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 4) })
-		b.Position, b.Size = UDim2.fromOffset(10 + ((i - 1) % 2) * 142, 36 + math.floor((i - 1) / 2) * 34), UDim2.fromOffset(136, 30)
-	end
-	self.sayPanel = say
-
-	-- People.
-	local people = panel(gui, "People", "WHO IS HERE", 340, 380, SPECS[3][4])
-	local list = Instance.new("ScrollingFrame")
-	list.Name, list.BackgroundTransparency, list.BorderSizePixel = "List", 1, 0
-	list.Position, list.Size = UDim2.fromOffset(8, 36), UDim2.new(1, -16, 1, -44)
-	list.AutomaticCanvasSize, list.CanvasSize, list.ScrollBarThickness = Enum.AutomaticSize.Y, UDim2.new(), 5
-	list.Parent = people
-	local layout = Instance.new("UIListLayout")
-	layout.Padding, layout.SortOrder, layout.Parent = UDim.new(0, 6), Enum.SortOrder.LayoutOrder, list
-	self.peoplePanel, self.peopleList = people, list
+	self.playPanel = play
 
 	-- The roof map.
-	local map = panel(gui, "Map", "BAZAAR MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8, SPECS[4][4])
+	local map = panel(gui, "Map", "BAZAAR MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8, SPECS[2][4])
 	for i, w in PLAZA.market.warps do
-		local b = button(map, "Warp_" .. w.id, `{i}  {Realms.place(w.id, w.name)}`, function() self:warp(w.id) end, PANEL2)
-		b.TextXAlignment = Enum.TextXAlignment.Left
+		local b = row(map, "Warp_" .. w.id, `{i}   {Realms.place(w.id, w.name)}`, function() self:warp(w.id) end)
 		b.Position, b.Size = UDim2.fromOffset(10, 36 + (i - 1) * 44), UDim2.new(1, -20, 0, 38)
 	end
 	self.mapPanel = map
 
-	-- The log, bottom left.
-	-- (a window like the rest, see-through enough to keep the roofs behind it in view)
-	local log = Ui.panel(gui, "Log", if LIGHT then Ui.SKY else Ui.PANEL2, "CHAT", 30)
-	-- (a pale window like the people list in a light theme, not a dark one beside it)
-	if not LIGHT then log.BackgroundColor3, log.BackgroundTransparency = INK, 0.3 end
-	log.AnchorPoint, log.Position, log.Size = Vector2.new(0, 1), UDim2.new(0, 16, 1, -122), UDim2.fromOffset(330, LobbySocial.LOG_LINES * 20 + 42)
-	self.logFrame = log
-	self.logLines = {}
-	for i = 1, LobbySocial.LOG_LINES do
-		local l = label(log, "Line" .. i, "", 13)
-		l.Position, l.Size = UDim2.fromOffset(10, 36 + (i - 1) * 20), UDim2.new(1, -20, 0, 20)
-		l.TextTruncate = Enum.TextTruncate.AtEnd
-		self.logLines[i] = l
-	end
-	self.panels = { Stamps = stamps, Say = say, People = people, Map = map }
-	self:renderLog()
+	-- The queue's card, top centre: what you are waiting for, CANCEL and FILL WITH BOTS.
+	local card = Ui.card(gui, "Queue", Ui.INDIGO)
+	card.AnchorPoint, card.Position, card.Size = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, 12), UDim2.fromOffset(440, 96)
+	card.Visible = false
+	local title = Ui.faceText(card, "", 20, Ui.INDIGO)
+	title.Name, title.Position, title.Size = "Title", UDim2.fromOffset(12, 8), UDim2.new(1, -24, 0, 26)
+	local count = Ui.faceText(card, "", 13, Ui.INDIGO, Ui.LABEL)
+	count.Name, count.Position, count.Size = "Count", UDim2.fromOffset(12, 32), UDim2.new(1, -24, 0, 18)
+	local cancel = Ui.button(card, "CANCEL", Ui.PANEL2, function() self:cancel() end, { size = 14 })
+	cancel.Name, cancel.Position, cancel.Size = "Cancel", UDim2.fromOffset(14, 56), UDim2.fromOffset(150, 30)
+	local fillX = 14 + 150 + Ui.GAP + 6
+	local fill = Ui.button(card, "FILL WITH BOTS", Ui.GREEN, function() self:fill() end, { size = 14 })
+	fill.Name, fill.Position, fill.Size = "Fill", UDim2.fromOffset(fillX, 56), UDim2.new(1, -fillX - 14, 0, 30)
+	self.queueCard, self.queueTitle, self.queueCount = card, title, count
+
+	self.panels = { Play = play, Map = map }
 	return self
 end
 
@@ -218,18 +161,35 @@ function LobbySocial.toggle(self: any, name: string)
 	local was = self.panels[name].Visible
 	self:closeAll()
 	self.panels[name].Visible = not was
-	if name == "People" and not was and self.opts.requestMembers then self.opts.requestMembers() end
 end
 
--- ------------------------------------------------------------------ sending ----
-function LobbySocial.stamp(self: any, id: string)
-	self.opts.send({ kind = "stamp", id = id })
+-- ------------------------------------------------------------------ PLAY ----
+function LobbySocial.choose(self: any, format: string)
+	if self.opts.queue then self.opts.queue(format) end
 	self:closeAll()
 end
 
-function LobbySocial.say(self: any, index: number)
-	self.opts.send({ kind = "say", index = index })
-	self:closeAll()
+function LobbySocial.cancel(self: any)
+	if self.opts.unqueue then self.opts.unqueue() end
+end
+
+function LobbySocial.fill(self: any)
+	if self.opts.fill then self.opts.fill() end
+end
+
+-- What the server says about your place in the queue (Rooms.queueView).
+function LobbySocial.setQueue(self: any, view: any)
+	if type(view) ~= "table" then return end
+	self.queue = view
+	local on = view.queued == true
+	self.queueCard.Visible = on
+	if on then
+		self.queueTitle.Text = `FINDING A {view.name or "FIGHT"}`
+		local waiting, formAt = view.waiting or 1, view.formAt or 2
+		-- (how many wait, and when a room opens: at all but one, and the last place is the bot vote's)
+		self.queueCount.Text = if waiting >= formAt then "A room is opening..."
+			else `{waiting} waiting  ·  a room opens at {formAt}  ·  or fill it with bots`
+	end
 end
 
 function LobbySocial.warp(self: any, id: string)
@@ -240,112 +200,17 @@ end
 function LobbySocial.key(self: any, code: any): boolean
 	if not self.enabled then return false end
 	local open = self:open()
-	local digits = { One = 1, Two = 2, Three = 3, Four = 4, Five = 5, Six = 6, Seven = 7, Eight = 8, Nine = 9, Zero = 10 }
+	local digits = { One = 1, Two = 2, Three = 3, Four = 4, Five = 5, Six = 6, Seven = 7, Eight = 8, Nine = 9 }
 	local name = if typeof(code) == "EnumItem" then code.Name else tostring(code)
 	local n = digits[name]
 	if n and open then
-		if open == "Stamps" and PLAZA.stamps[n] then self:stamp(PLAZA.stamps[n].id); return true end
-		if open == "Say" and PLAZA.messages[n] then self:say(n); return true end
 		if open == "Map" and PLAZA.market.warps[n] then self:warp(PLAZA.market.warps[n].id); return true end
+		if open == "Play" and LobbySocial.FORMATS[n] then self:choose(LobbySocial.FORMATS[n].id); return true end
 		return false
 	end
-	if name == "T" then self:toggle("Stamps")
-	elseif name == "Y" then self:toggle("Say")
-	elseif name == "P" then self:toggle("People")
-	elseif name == "M" then self:toggle("Map")
+	if name == "M" then self:toggle("Map")
 	else return false end
 	return true
-end
-
--- ------------------------------------------------------------------ receiving ----
-function LobbySocial.onEvent(self: any, ev: any)
-	if type(ev) ~= "table" or type(ev.userId) ~= "number" then return end
-	local now = self.clock()
-	local who = if ev.userId == self.localId then "You" else tostring(ev.name or "?")
-	if ev.kind == "stamp" then
-		local stamp
-		for _, st in PLAZA.stamps do if st.id == ev.id then stamp = st end end
-		if not stamp then return end
-		self.overheads[ev.userId] = { kind = "stamp", id = ev.id, at = now }
-		self:addLog(`{who}  [{stamp.name}]`, PINK)
-	elseif ev.kind == "say" then
-		local text = PLAZA.messages[ev.index]
-		if not text then return end
-		self.overheads[ev.userId] = { kind = "say", index = ev.index, text = text, at = now }
-		self:addLog(`{who}: {text}`, if ev.userId == self.localId then CYAN else TEXT)
-	end
-end
-
-function LobbySocial.addLog(self: any, text: string, colour: Color3)
-	table.insert(self.log, { text = text, colour = colour, at = self.clock() })
-	while #self.log > LobbySocial.LOG_LINES do table.remove(self.log, 1) end
-	self:renderLog()
-end
-
-function LobbySocial.renderLog(self: any)
-	local n = #self.log
-	for i, l in self.logLines do
-		local entry = self.log[n - LobbySocial.LOG_LINES + i]
-		l.Text = if entry then entry.text else ""
-		l.TextColor3 = if entry then entry.colour else TEXT
-	end
-	self.logFrame.Visible = n > 0
-end
-
--- What is over someone's head right now, or nil once it has had its time.
-function LobbySocial.overhead(self: any, userId: number): any
-	local o = self.overheads[userId]
-	if not o then return nil end
-	local age = self.clock() - o.at
-	local life = if o.kind == "stamp" then LobbySocial.STAMP_SECONDS else LobbySocial.SAY_SECONDS
-	if age > life then
-		self.overheads[userId] = nil
-		return nil
-	end
-	return o, age, life
-end
-
-function LobbySocial.setMembers(self: any, list: any)
-	if type(list) ~= "table" then return end
-	self.members = list
-	for _, child in self.peopleList:GetChildren() do
-		if child:IsA("Frame") then child:Destroy() end
-	end
-	for i, m in list do
-		local row = Instance.new("Frame")
-		row.Name, row.BackgroundColor3, row.BorderSizePixel, row.LayoutOrder = "Member_" .. tostring(m.userId), Ui.PANEL2, 0, i
-		row.Size, row.Parent = UDim2.new(1, -8, 0, 48), self.peopleList
-		corner(row, 0)
-		-- its frame drawn inside it, so the scrolling list cannot clip one side of it away
-		-- (you: an ink ring a pixel heavier on a pale row, where gold measured 1.0:1)
-		local _, edge = Ui.rim(row, if m.userId == self.localId then (if LIGHT then Ui.INK else Ui.GOLD) else Ui.INK, if m.userId == self.localId and LIGHT then 3 else 2, 0)
-		-- (whatever the theme does with rims: this one says who is you - 3 px for you on a pale row, which
-		-- this line used to reset to 2 like every other row's)
-		edge.Thickness = if m.userId == self.localId and LIGHT then 3 else 2
-		local face = Instance.new("Frame")
-		face.Name, face.BackgroundTransparency, face.Position, face.Size, face.Parent = "Face", 1, UDim2.fromOffset(4, 2), UDim2.fromOffset(44, 44), row
-		-- a kit code, or a preset (drawn as its kit): the head in the member list
-		local code = if type(m.avatar) == "string" then Loadout.kitCodeOf(m.avatar) else nil
-		if code then
-			KitPortrait.draw(Canvas2D.inFrame(face), code, "head", 44, 44)
-		end
-		local name = label(row, "Name", (if m.userId == self.localId then m.name .. " (YOU)" else tostring(m.name)), 13)
-		name.Font = Ui.DISPLAY
-		name.Position, name.Size = UDim2.fromOffset(54, 4), UDim2.new(1, -140, 0, 20)
-		-- (one line, shrinking to fit: a 20-letter name and (YOU) wrapped onto the place line below)
-		Ui.fit(name, 9)
-		local where = label(row, "Where", tostring(m.where or ""), 11, if m.place == "fight" then (if LIGHT then Color3.fromRGB(165, 28, 28) else Color3.fromRGB(255, 150, 150))
-			elseif m.place == "room" then (if LIGHT then Color3.fromRGB(150, 60, 0) else AMBER) else (if LIGHT then Ui.SUB else Color3.fromRGB(192, 203, 220)))
-		where.Position, where.Size = UDim2.fromOffset(54, 24), UDim2.new(1, -140, 0, 18)
-		if m.place == "market" and m.userId ~= self.localId and m.x then
-			local go = button(row, "WarpTo", "WARP", function()
-				if self.opts.warpTo and self.opts.warpTo(m) then self:closeAll() end
-			end, Ui.BLUE)
-			go.Position, go.Size = UDim2.new(1, -78, 0, 8), UDim2.fromOffset(70, 32)
-		end
-	end
-	-- the window fits its rows (up to the room the screen gives it; the list scrolls past that)
-	self.peoplePanel.Size = UDim2.fromOffset(340, math.clamp(36 + #list * 54 + 14, 140, 380))
 end
 
 return LobbySocial

@@ -253,7 +253,16 @@ do
 	if lastSent().action ~= "weapon" or lastSent().value ~= "Pike" then fail("after keeping the axe, the next pick was not the first hand") end
 	screen.hand = 1
 end
-inCard(3, "Difficultyhard").Activated:Fire()
+-- bots are always hard: there is no difficulty to choose
+for _, d in { "easy", "normal", "hard" } do
+	if inCard(3, "Difficulty" .. d) then fail("an open slot still offers a bot difficulty") end
+end
+-- ADD BOT waits out the room's BOT_WAIT, counting down, then opens
+screen:update(room({ botWait = 7 }), 1)
+local add = inCard(3, "AddBot")
+if add.Active or not string.find(add.Text, "7", 1, true) then fail(`ADD BOT is open during the room's wait ({add.Text})`) end
+screen:update(room({ botWait = 0 }), 1)
+if not add.Active or not string.find(add.Text, "ADD BOT", 1, true) then fail(`ADD BOT did not open after the wait ({add.Text})`) end
 inCard(3, "AddBot").Activated:Fire()
 if lastSent().action ~= "bot" or lastSent().value ~= "hard" or lastSent().slot ~= 3 then fail(`ADD BOT sent {lastSent().action}/{tostring(lastSent().value)}/{tostring(lastSent().slot)}`) end
 inCard(4, "RemoveBot").Activated:Fire()

@@ -20,7 +20,7 @@ shots=(
   "records|records|1280|720|"
   "notice|notice|1280|720|"
   "notice-error|notice|1280|720|error"
-  "people|people|1280|720|"
+  "play|play|1280|720|"
   "climb|climb|1280|720|"
   "studio-presets|studio|1280|720|presets"
   "studio-outfit|studio|1280|720|clothing"

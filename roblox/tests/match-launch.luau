@@ -86,11 +86,15 @@ end
 -- told, and what the wire then carries: the drops on the scene and the bots armed on the fighters.
 local Snapshot = Loader.load("Snapshot")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
+Rooms.BOT_WAIT = 0
 local drops = 0
 do
 	local model = Rooms.new()
 	local room = model:join(player, "Doubles")
-	for slot = 2, 4 do assert(model:edit(player, { id = room.id, revision = room.revision, action = "bot", value = "normal", slot = slot })) end
+	-- (one passed ADD BOT fills every open place)
+	assert(model:edit(player, { id = room.id, revision = room.revision, action = "bot", value = "normal", slot = 2 }))
+	for slot = 2, 4 do assert(room.slots[slot].bot == "hard", `slot {slot} took no bot`) end
 	assert(model:edit(player, { id = room.id, revision = room.revision, action = "weapon2", value = "Pike" }))
 	local roster, opts = model:roster(room, function() return 1 end)
 	-- a fixed seed: left to math.random, the bots now and then took no drop in the window and the

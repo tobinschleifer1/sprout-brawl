@@ -237,25 +237,14 @@ pcall(function()
 	end
 end)
 Net.remote("LockerView").OnClientEvent:Connect(function(view: any) locker:setLocker(view) end)
--- Stamps, quick messages, who is here, and warps (LobbySocial); the lobby draws what it hears.
+-- The lobby's bar (LobbySocial): PLAY's queue, and the roof map's warps.
 local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
-	localId = Players.LocalPlayer.UserId,
-	send = function(msg: any) Net.remote("Social"):FireServer(msg) end,
-	requestMembers = function() Net.remote("Members"):FireServer() end,
 	warp = function(id: string): boolean return hub.active and not hub.room and hub:warp(id) end,
-	-- Next to a friend: beside them if there is floor there, on their spot if not.
-	warpTo = function(m: any): boolean
-		if not hub.active or hub.room or type(m.x) ~= "number" or type(m.z) ~= "number" then return false end
-		local scene = hub.model.data
-		for _, dx in { 2.5, -2.5, 0 } do
-			if Plaza.walkable(scene, m.x + dx, m.z) then
-				hub.model:setScene(scene, { x = m.x + dx, z = m.z })
-				return true
-			end
-		end
-		return false
-	end,
+	queue = function(format: string) Net.remote("RoomAction"):FireServer({ action = "queue", format = format }) end,
+	unqueue = function() Net.remote("RoomAction"):FireServer({ action = "unqueue" }) end,
+	fill = function() Net.remote("RoomAction"):FireServer({ action = "fill" }) end,
 })
+Net.remote("QueueView").OnClientEvent:Connect(function(view: any) social:setQueue(view) end)
 hub.social, hub.localId = social, Players.LocalPlayer.UserId
 -- The Skyline Climb. The climb runs here; the server keeps progress (ClimbProgress). Entering asks
 -- the server where to start - the bottom, or the furthest checkpoint reached - and the answer
@@ -335,24 +324,6 @@ Net.remote("ClimbView").OnClientEvent:Connect(function(view: any)
 		parkour:start(select_.cfg.slots[1].avatarId, view.start)
 	end
 end)
-Net.remote("SocialEvent").OnClientEvent:Connect(function(ev: any) social:onEvent(ev) end)
--- The arcade: sit, stand, vs CPU, watch. The server decides; the lobby draws what it says.
-hub.onCabinet = function(intent: any) Net.remote("CabinetAction"):FireServer(intent) end
-Net.remote("Cabinets").OnClientEvent:Connect(function(views: any, why: string?)
-	hub:setCabinets(views, Players.LocalPlayer.UserId)
-	if why then social:addLog(why, Color3.fromRGB(255, 181, 71)) end
-end)
--- Watching a cabinet fight: the match plays with no fighter of our own; this is the way out.
-local watchGui = Instance.new("ScreenGui")
-watchGui.Name, watchGui.ResetOnSpawn, watchGui.DisplayOrder, watchGui.Enabled = "BlockfallWatching", false, 14, false
-watchGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
--- (the kit's button, at the bottom right: Roblox's own top bar and player list hang over the top)
-local stopWatching = Ui.button(watchGui, "STOP WATCHING", Color3.fromRGB(214, 84, 120), function()
-	Net.remote("CabinetAction"):FireServer({ action = "unwatch" })
-end)
-stopWatching.Name = "StopWatching"
-stopWatching.AnchorPoint, stopWatching.Position, stopWatching.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -16), UDim2.fromOffset(190, 42)
-Net.remote("Members").OnClientEvent:Connect(function(list: any) social:setMembers(list) end)
 Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 	editor:setView(view)
 	local worn = view.slots and view.slots[view.active]
@@ -374,7 +345,6 @@ end)
 -- ---------------------------------------------------------------- match setup ----
 -- The server says "pick a match". It also says when it refused one, and why.
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
-	watchGui.Enabled = false
 	acceptingSnapshots = false
 	fighterWarmup = nil
 	predictor = nil
@@ -404,13 +374,8 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 					askClimb(if parkour.progress.best > 0 then "best" else 0)
 				elseif station.kind == "Records" then
 					records:toggle()
-				elseif station.kind == "Members" then
-					social:toggle("People")
 				elseif station.kind == "Warp" then
 					social:toggle("Map")
-				elseif station.kind == "Format" then
-					-- the room's view opens the select screen when it arrives
-					Net.remote("RoomAction"):FireServer({ action = "join", format = station.id })
 				elseif station.kind == "Exit" then
 					select_:send("leave")
 				else
@@ -502,7 +467,6 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 			localIndex = entry.index
 		end
 	end
-	watchGui.Enabled = localIndex == nil      -- no fighter of ours: we are watching
 	for _, data in Stages.LIST do
 		if data.id == cfg.stage then
 			-- A view-only Stage, built from the same data and seed as the server's, and never

@@ -6,13 +6,56 @@
 --
 -- Shared, because the server checks every position a client reports against the same floor.
 
-local PLAZA: any = require(script.Parent.Data.Plaza)
-local W = PLAZA.walk
+local WEB: any = require(script.Parent.Data.Plaza)
+local W = WEB.walk
 local DT = 1 / W.hz
+
+-- The Roblox lobby's market (Roblox-only: the web keeps its own, which tests/plaza-parity replays).
+-- Fights are found through PLAY's queue, so the arcade's cabinets and the fighters' gates are gone,
+-- and the Skyline Climb's roof moves over to the square's east bridge where the arcade stood. The
+-- notice board went with the member list. Everything else is the web's market, as it was.
+local CLIMB_SHIFT = -155          -- the climb's roof, 250..285, to 95..130 (the arcade's roof began at 95)
+local function shifted(r: any, dx: number): any
+	local out: any = table.clone(r)
+	if out.x1 then out.x1 += dx; out.x2 += dx end
+	if out.x then out.x += dx end
+	return out
+end
+local function robloxMarket(web: any): any
+	local m = table.clone(web)
+	m.floor, m.blocks, m.districts, m.stations, m.warps = {}, {}, {}, {}, {}
+	for _, r in web.floor do
+		if r.x1 >= 250 then table.insert(m.floor, shifted(r, CLIMB_SHIFT))
+		elseif r.x2 <= 96 then table.insert(m.floor, r) end           -- the tailor's roof, the square and their bridges
+	end
+	for _, r in web.blocks do
+		if r.x2 <= 96 then table.insert(m.blocks, r) end              -- the kiosk; not the cabinets
+	end
+	for _, d in web.districts do
+		if d.id == "climb" then table.insert(m.districts, shifted(d, CLIMB_SHIFT))
+		elseif d.id ~= "arcade" and d.id ~= "gates" then table.insert(m.districts, d) end
+	end
+	for _, st in web.stations do
+		if st.kind == "Parkour" or st.kind == "Records" then table.insert(m.stations, shifted(st, CLIMB_SHIFT))
+		elseif st.kind ~= "Cabinet" and st.kind ~= "Format" and st.kind ~= "Members" then table.insert(m.stations, st) end
+	end
+	for _, w in web.warps do
+		if w.id == "climb" then table.insert(m.warps, shifted(w, CLIMB_SHIFT))
+		elseif w.id ~= "arcade" and w.id ~= "gates" then table.insert(m.warps, w) end
+	end
+	m.bounds = { x1 = web.bounds.x1, x2 = web.bounds.x2 + CLIMB_SHIFT }
+	return m
+end
+
+local PLAZA: any = table.clone(WEB)
+PLAZA.market = robloxMarket(WEB.market)
+PLAZA.cabinets = {}
 
 local Plaza = {}
 Plaza.__index = Plaza
+-- The Roblox lobby's data (its market as above), and the web's, for the parity replay.
 Plaza.DATA = PLAZA
+Plaza.WEB = WEB
 
 local function inside(r: any, x: number, z: number): boolean
 	return x >= r.x1 and x <= r.x2 and z >= r.z1 and z <= r.z2

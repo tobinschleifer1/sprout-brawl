@@ -15,6 +15,8 @@
 --     lune run tests/bot-vote
 local Loader = require("./loader")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
+Rooms.BOT_WAIT = 0
 
 local function fail(msg: string): never
 	error(msg, 0)
@@ -72,7 +74,7 @@ do
 	if not room.lastVote or room.lastVote.passed then fail("the failed vote was not reported as failed") end
 	assert(edit(model, p[2], "bot", "easy", i))
 	assert(edit(model, p[1], "ballot", true))
-	if room.slots[i].bot ~= "easy" then fail("both of two saying yes did not add the bot") end
+	if room.slots[i].bot ~= "hard" then fail("both of two saying yes did not add the bot") end
 end
 -- alone: instant
 do
@@ -80,7 +82,7 @@ do
 	local model, room, p = roomOf(1)
 	local i = emptySlot(room)
 	assert(edit(model, p[1], "bot", "normal", i))
-	if room.slots[i].bot ~= "normal" or room.botVote then fail("a solo proposal did not pass at once") end
+	if room.slots[i].bot ~= "hard" or room.botVote then fail("a solo proposal did not pass at once") end
 end
 -- time runs out: fails on the tick past BOT_VOTE_TIME, not before
 do
@@ -113,7 +115,7 @@ do
 	local i = emptySlot(room)
 	assert(edit(model, p[1], "bot", "normal", i))
 	model:leave(p[2])
-	if room.slots[i].bot ~= "normal" then fail("after the other player left, the proposer's yes was not a majority") end
+	if room.slots[i].bot ~= "hard" then fail("after the other player left, the proposer's yes was not a majority") end
 end
 -- a voter who leaves stops counting, in the tally the screens show too: four players, two yes (not
 -- a majority of four), one of the yeses leaves - one yes of three, still open, and shown as one
@@ -161,7 +163,7 @@ do
 	if edit(model, p[2], "bot", "hard", j) then fail("a second vote started while one was running") end
 	assert(edit(model, p[2], "ballot", false))
 	assert(model:edit(p[2], { id = room.id, revision = -1, action = "ballot", value = true }), "a ballot needed a fresh revision")
-	if room.slots[i].bot ~= "normal" then fail("changing a no to a yes did not count") end
+	if room.slots[i].bot ~= "hard" then fail("changing a no to a yes did not count") end
 	local outsider = person(77)
 	if model:edit(outsider, { id = room.id, revision = room.revision, action = "ballot", value = true }) then fail("an outsider voted") end
 	if edit(model, p[1], "ballot", true) then fail("a ballot was accepted with no vote running") end
@@ -189,7 +191,7 @@ do
 	assert(edit(model, p[1], "bot", "easy", i))
 	now = 5
 	local v = model:view(room).botVote
-	if not v or v.slot ~= i or v.value ~= "easy" or v.yes ~= 1 or v.no ~= 0 or v.voters ~= 3 then fail("the view's vote is wrong") end
+	if not v or v.slot ~= i or v.value ~= "hard" or v.yes ~= 1 or v.no ~= 0 or v.voters ~= 3 then fail("the view's vote is wrong") end
 	if math.abs(v.left - (Rooms.BOT_VOTE_TIME - 3)) > 1e-9 then fail(`the view says {v.left}s left, want {Rooms.BOT_VOTE_TIME - 3}`) end
 	if v.ballots[tostring(p[1].UserId)] ~= true then fail("the view does not show the proposer's yes") end
 end

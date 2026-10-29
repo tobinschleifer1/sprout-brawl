@@ -9,12 +9,9 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 shots=(
   "square|1280|720|0,8"
   "square-crowd|1280|720|0,8,12"
-  "board|1280|720|-40,15"
+  "map|1280|720|40,15"
   "tailor|1280|720|-122,12"
-  "arcade|1280|720|138,11"
-  "arcade-crowd|1280|720|138,9,10"
-  "gates|1280|720|217,13"
-  "climb|1280|720|268,12"
+  "climb|1280|720|113,12"
   "phone|844|390|0,8"
   "lounge-duel|1280|720|0,9,0,Duel"
   "lounge-triples|1280|720|-2,15,0,Triples"
@@ -24,6 +21,11 @@ for s in "${shots[@]}"; do
   lune run tools/render-ui "$OUT/$name.json" plaza "$w" "$h" "$variant" > /dev/null
   node tools/gui-svg.mjs "$OUT/$name.json" "$OUT/$name.svg" > /dev/null
 done
+# the PLAY panel and the queue's card, and the roof map open
+lune run tools/render-ui "$OUT/play.json" play 1280 720 > /dev/null
+node tools/gui-svg.mjs "$OUT/play.json" "$OUT/play.svg" > /dev/null
+lune run tools/render-ui "$OUT/warp.json" plaza 1280 720 map > /dev/null
+node tools/gui-svg.mjs "$OUT/warp.json" "$OUT/warp.svg" > /dev/null
 rm -f "$OUT"/*.json
 if [ -x "$CHROME" ]; then
   for f in "$OUT"/*.svg; do

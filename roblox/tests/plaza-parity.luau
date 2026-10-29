@@ -8,7 +8,7 @@ local serde = require("@lune/serde")
 local Loader = require("./loader")
 local Plaza = Loader.load("Plaza")
 local T = serde.decode("json", fs.readFile("tests/plaza-fixture.json"))
-local DATA = Plaza.DATA
+local DATA = Plaza.WEB          -- (the web's market: the Roblox lobby's has no arcade or gates)
 local byId: { [string]: any } = { [DATA.market.id] = DATA.market }
 for _, r in DATA.rooms do byId[r.id] = r end
 

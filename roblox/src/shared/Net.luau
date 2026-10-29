@@ -62,11 +62,7 @@ if RunService:IsServer() then
 		make("RemoteEvent", "HubPresence")
 		make("RemoteEvent", "Avatar")               -- client -> server, save / wear / delete a character
 		make("RemoteEvent", "AvatarView")           -- server -> client, your saved characters
-		make("RemoteEvent", "Social")               -- client -> server, a stamp or a quick message
-		make("RemoteEvent", "SocialEvent")          -- server -> client, someone near you stamped or spoke
-		make("RemoteEvent", "Members")              -- both ways: "who is here?" and the answer
-		make("RemoteEvent", "CabinetAction")        -- client -> server, sit / stand / vs CPU / watch
-		make("RemoteEvent", "Cabinets")             -- server -> client, the arcade's seats and streaks
+		make("RemoteEvent", "QueueView")            -- server -> client, your place in PLAY's queue
 		make("RemoteEvent", "Climb")                -- client -> server, entering / leaving the Skyline Climb, checkpoints, the Summit
 		make("RemoteEvent", "ClimbView")            -- server -> client, your climb progress
 		make("RemoteEvent", "ClimbBoards")          -- server -> client, the climb's leaderboards (every two hours)

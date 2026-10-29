@@ -150,7 +150,14 @@ send(9,"Avatar",{action="save",slot=1,code="k1<script>",name="x"})
 send(9,"Avatar",{action="save",slot=7,code=KNIGHT})
 send(9,"Avatar",{action="wear",slot=0})
 assert(#last(9,"AvatarView").slots==1 and type(last(9,"AvatarView").error)=="string", "a bad slot or a skipped slot is refused")
-for i=1,6 do send(i,"RoomAction",{action="join",format="Triples"}) end
+-- PLAY's queue: four of six wait in the lobby; the fifth forms the room and the sixth takes its open place
+for i=1,4 do send(i,"RoomAction",{action="queue",format="Triples"}) end
+assert(last(4,"QueueView").queued and last(4,"QueueView").waiting == 4 and not last(1,"RoomView"), "four of six wait in the queue")
+assert(last(1,"QueueView").waiting == 4, "everyone queued is told the new count")
+for i=5,6 do send(i,"RoomAction",{action="queue",format="Triples"}) end
+assert(last(1,"RoomView") and last(1,"RoomView").id == last(6,"RoomView").id, "the queue seats all six in one room")
+send(7,"RoomAction",{action="join",format="Doubles"})
+assert(last(7,"RoomView").left and string.find(last(7,"RoomView").error or "", "PLAY"), "the old gates' join is refused")
 -- Changing character inside a room updates your place in it and un-readies no-one.
 edit(2,"ready")
 local before = last(3,"RoomView").revision
@@ -158,59 +165,7 @@ send(3,"Avatar",{action="save",slot=1,code=KNIGHT})
 local after = last(3,"RoomView")
 assert(after.revision==before and after.slots[3].avatar==KNIGHT and after.slots[2].ready, "a character change is not a rules change")
 edit(2,"ready")
--- Stamps and quick messages reach the people in the same place and no one else; anything not on
--- the fixed lists, and anything sent too fast, reaches nobody.
-do
-	-- Only what arrives after `mark`: the history is kept, because later steps read the last
-	-- room view from it.
-	local mark = 0
-	local function since(): { any }
-		local out = {}
-		for k = mark + 1, #messages do table.insert(out, messages[k]) end
-		return out
-	end
-	local function heard(kind: string): { [number]: any }
-		local got = {}
-		for _, m in since() do
-			if m.name == "SocialEvent" and m.data.kind == kind then got[m.player.UserId] = m.data end
-		end
-		return got
-	end
-	mark = #messages
-	now += 2
-	send(9,"Social",{kind="stamp",id="gg"})
-	local got = heard("stamp")
-	assert(got[9] and got[7] and got[8] and got[9].userId == 9 and got[9].id == "gg", "the market hears a stamp")
-	for i=1,6 do assert(not got[i], "a lounge must not hear the market") end
-	mark = #messages
-	now += 2
-	send(1,"Social",{kind="say",index=2})
-	got = heard("say")
-	for i=1,6 do assert(got[i] and got[i].index == 2 and got[i].name == "P1", "the room hears its own") end
-	for i=7,9 do assert(not got[i], "the market must not hear a room") end
-	mark = #messages
-	for _, bad in { {kind="stamp",id="nuke"}, {kind="say",index=0}, {kind="say",index=99}, {kind="say",index=1.5}, {kind="say",text="free text"}, "x" } do
-		now += 2
-		send(9,"Social",bad)
-	end
-	assert(next(heard("stamp")) == nil and next(heard("say")) == nil, "nothing off the fixed lists is passed on")
-	now += 2
-	mark = #messages
-	send(9,"Social",{kind="say",index=1}); send(9,"Social",{kind="say",index=3})
-	local count = 0
-	for _, m in since() do if m.name == "SocialEvent" and m.player.UserId == 9 then count += 1 end end
-	assert(count == 1, `two messages 0.1 s apart should be one, got {count}`)
-	-- The member list: everyone, and where.
-	mark = #messages
-	now += 1
-	send(9,"Members")
-	local list = last(9,"Members")
-	assert(list and #list == 9, "the member list names everyone in the lobby")
-	local where = {}
-	for _, m in list do where[m.userId] = m end
-	assert(where[1].place == "room" and where[9].place == "market" and type(where[9].where) == "string", "and says where each is")
-end
-for i=7,8 do send(i,"RoomAction",{action="join",format="Duel"}) end
+for i=7,8 do send(i,"RoomAction",{action="queue",format="Duel"}) end
 for i=1,8 do edit(i,"ready") end
 votes({1,2,3,4,5,6})
 votes({7,8})
@@ -219,12 +174,6 @@ local knights = 0
 for _, f in last(1,"Match").fighters do if f.avatar==KNIGHT then knights += 1 end end
 assert(knights==1, "the character a player saved is the one they fight in")
 assert(last(1,"Match").id ~= last(7,"Match").id, "generation globally unique")
-do
-	local mark = #messages
-	now += 2
-	send(1,"Social",{kind="say",index=1})
-	for k = mark + 1, #messages do assert(messages[k].name ~= "SocialEvent", "nobody hears the lobby from inside a fight") end
-end
 assert(not last(9,"Match"), "uninvolved player stays in the hub")
 messages={}
 for _=1,300 do now+=1/60; run.PostSimulation:Fire(1/60) end
@@ -311,16 +260,21 @@ run.Heartbeat:Fire(0.1)
 for _, peer in last(2,"HubPresence") do
 	if peer.userId==2 then assert(peer.x==lounge.spawn.x, "a pose off the lounge floor is ignored") end
 end
-send(9,"HubPose",{area=0,x=PLAZA.cabinets[1].x,z=PLAZA.cabinets[1].z,y=0})
+send(9,"HubPose",{area=0,x=0,z=14,y=0})          -- inside the square's kiosk
 send(9,"HubPose",{area=0,x=0/0,z=8,y=10})
 send(9,"HubPose",{area=0,x=-90,z=3,y=0})          -- over the gap beside a bridge
 run.Heartbeat:Fire(0.1)
 for _, peer in last(9,"HubPresence") do
-	assert(peer.x==12 and peer.z==5, "inside a cabinet, NaN and over the gap are all refused; the last good pose stands")
+	assert(peer.x==12 and peer.z==5, "inside the kiosk, NaN and over the gap are all refused; the last good pose stands")
 end
 -- Explicit bot match can finish and cleanly return; completion targets no other room.
-send(9,"RoomAction",{action="join",format="Duel"})
-edit(9,"bot","normal",2); edit(9,"ready"); votes({9})
+-- FILL WITH BOTS: alone in the 1v1 queue, into a room at once with a hard bot
+send(9,"RoomAction",{action="queue",format="Duel"})
+assert(last(9,"QueueView").queued and not last(9,"RoomView"), "one 1v1 player waits")
+send(9,"RoomAction",{action="fill"})
+assert(last(9,"RoomView") and last(9,"RoomView").slots[2].bot == "hard", "FILL WITH BOTS seats a hard bot")
+assert(not last(9,"QueueView").queued, "and takes the player out of the queue")
+edit(9,"ready"); votes({9})
 assert(#last(9,"Match").fighters==2)
 send(9,"RoomAction",{action="leave"})
 assert(last(9,"RoomView").left)
@@ -332,71 +286,11 @@ assert(last(7,"Results") and last(8,"Results") and not last(2,"Results") and not
 for _, job in tasks do job.fn(table.unpack(job.args)) end
 assert(not active.match and last(7,"RoomView").state=="setup", "completed matches tear down and return to ready check")
 for _, slot in last(7,"RoomView").slots do assert(not slot.bot and not slot.ready,"rematch resets readiness and bots") end
--- The arcade, through the real server: sit, count down, fight, watch, winner stays.
-do
-	local Cabinets = Loader.loadFrom("src/server/", "Cabinets")
-	for i=10,12 do
-		people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}
-		now += 1.1
-		send(i,"Hello")
-	end
-	local function cabinets(id: number): any return last(id,"Cabinets") end
-	now += 1
-	send(10,"CabinetAction",{action="sit",cabinet=1,side="A"})
-	now += 1
-	send(11,"CabinetAction",{action="sit",cabinet=1,side="B"})
-	assert(cabinets(12)[1].state == "countdown" and cabinets(12)[1].seats.A.name == "P10", "everyone on the floor sees the seats fill and the countdown start")
-	send(10,"RoomAction",{action="join",format="Doubles"})
-	assert(last(10,"RoomView").left and string.find(last(10,"RoomView").error or "", "cabinet"), "a seated player cannot go into a room")
-	local before = #instances
-	now += Cabinets.COUNTDOWN + 0.1
-	run.Heartbeat:Fire(0.1)
-	assert(#instances == before + 1, "the countdown starts a fight")
-	local service = instances[#instances]
-	assert(#last(10,"Match").fighters == 2 and last(11,"Match").id == last(10,"Match").id and not last(12,"Match"), "the two at the cabinet fight; nobody else is pulled in")
-	-- Watching.
-	now += 1
-	for _ = 1, 30 do run.PostSimulation:Fire(1/60) end   -- into the fight, between periodic keyframes
-	send(12,"CabinetAction",{action="watch",cabinet=1})
-	assert(last(12,"Match") and last(12,"Match").id == last(10,"Match").id, "a spectator is sent the fight")
-	-- Joining mid-fight, they have no base for a delta: the next snapshot is a keyframe for them.
-	now += 1/30; run.PostSimulation:Fire(1/30)
-	assert(last(12,"Snapshot") and not snapDropped[12], "a spectator decodes the fight from their first snapshot")
-	service:removeViewer(people[10])
-	assert(table.find(service.audience, people[10]), "removing a viewer never drops one of the fighters")
-	run.Heartbeat:Fire(0.1)
-	for _, peer in last(9,"HubPresence") or {} do assert(peer.userId ~= 12 and peer.userId ~= 10, "fighters and watchers are off the floor") end
-	for _ = 1, 240 do now += 1/60; run.PostSimulation:Fire(1/60) end   -- past the 3-2-1, when input is read
-	local consumed = service.input:consumedBy("p10")
-	send(10,"Input",{0},service.generation,0)
-	run.PostSimulation:Fire(1/60)
-	assert(service.input:consumedBy("p10") == consumed + 1, "a cabinet fighter's input reaches the cabinet's fight")
-	send(12,"Input",{0},service.generation,0)
-	run.PostSimulation:Fire(1/60)
-	assert(service.input:consumedBy("p12") == 0, "a spectator's input goes nowhere")
-	-- The result: winner stays, loser and spectator go back to the lobby.
-	local mark = #messages
-	tasks = {}
-	Loader.load("Match").finish(service.match)
-	service:tick(1/60)
-	for _, job in tasks do job.fn(table.unpack(job.args)) end
-	local view = cabinets(12)[1]
-	assert(view.state == "open" and view.streak and view.streak.wins == 1, "the fight ends with a streak begun")
-	local winner = view.streak.userId
-	local loser = if winner == 10 then 11 else 10
-	assert(view.seats.A or view.seats.B, "the winner is still sitting")
-	for _, side in {"A","B"} do if view.seats[side] then assert(view.seats[side].userId == winner, "only the winner stays") end end
-	local backs = {}
-	for k = mark + 1, #messages do if messages[k].name == "Select" then backs[messages[k].player.UserId] = true end end
-	assert(backs[loser] and backs[12] and backs[winner], "everyone at the cabinet is sent back to the lobby")
-	-- Alone, the winner takes on the CPU.
-	now += 1
-	send(winner,"CabinetAction",{action="cpu"})
-	local cpu = instances[#instances]
-	assert(cpu ~= service and #last(winner,"Match").fighters == 2, "vs CPU starts a fight against a bot")
-	-- And leaving mid-fight calls it off.
-	players.PlayerRemoving:Fire(people[winner])
-	assert(cabinets(loser)[1].state == "open" and not cabinets(loser)[1].seats.A and not cabinets(loser)[1].seats.B, "a leaver clears the cabinet")
+-- three more in the lobby, for the climb
+for i=10,12 do
+	people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}
+	now += 1.1
+	send(i,"Hello")
 end
 -- The Skyline Climb: entering takes you off the floor and shows in the member list; a checkpoint
 -- claimed too fast is ignored; leaving puts you back.
@@ -406,11 +300,6 @@ do
 	assert(last(12,"ClimbView") and last(12,"ClimbView").start == 0, "entering the climb starts at the bottom")
 	run.Heartbeat:Fire(0.1)
 	for _, peer in last(9,"HubPresence") or {} do assert(peer.userId ~= 12, "a climber is not on the lobby floor") end
-	now += 1
-	send(9,"Members")
-	local where = nil
-	for _, m in last(9,"Members") do if m.userId == 12 then where = m end end
-	assert(where and where.place == "climb" and string.find(where.where, "Skyline Climb"), "the member list says who is climbing")
 	local mark = #messages
 	now += 0.3
 	send(12,"Climb",{action="checkpoint",index=3})
@@ -481,4 +370,4 @@ do
 	assert(keyframes[90] == k + 1 and not snapDropped[90], "a new match on the same service starts with a keyframe")
 	svc:stop()
 end
-print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight, and arcade fights: countdown, spectators, winner stays, vs CPU, leavers")
+print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight; rooms through PLAY's queue and FILL WITH BOTS; the climb")

@@ -20,6 +20,8 @@
 --     lune run tests/room-phases
 local Loader = require("./loader")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
+Rooms.BOT_WAIT = 0
 local Rules = Loader.load("Data/Rules")
 local Stages = Loader.load("Data/Stages")
 

@@ -58,6 +58,8 @@ local Panel = luau.load(fs.readFile("src/client/RoomPanel.luau"), {environment={
  Enum={Font=codes,AutomaticSize=codes,TextXAlignment=codes}, Color3=Rbx.Color3,Vector2=Rbx.Vector2,UDim=Rbx.UDim,UDim2=Rbx.UDim2,Instance={new=instance},
 },injectGlobals=true})()
 local Rooms=Loader.loadFrom("src/server/","Rooms")
+-- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
+Rooms.BOT_WAIT = 0
 local model=Rooms.new()
 local p={UserId=1,DisplayName="Host"}
 local room=model:join(p,"Triples")
@@ -163,13 +165,14 @@ panel.body:FindFirstChild("Preset"):FindFirstChild("Preset_casual").Activated:Fi
 assert(room.mode=="stock" and room.disasters=="stage" and room.items==true, "Casual sets every rule")
 panel.body:FindFirstChild("Disasters_stage").Activated:Fire()
 panel.body:FindFirstChild("Bots OFF — add optional CPU").Activated:Fire()
-assert(room.slots[2].bot=="easy","explicit optional CPU control")
+assert(room.slots[2].bot=="hard","explicit optional CPU control (bots are always hard)")
 panel:openStation("Players")
 assert(panel.ready.Visible and panel.start.Visible, "ready controls belong to ready rail")
 panel.ready.Activated:Fire()
 assert(room.slots[1].ready)
-panel.start.Activated:Fire()
-assert(room.state=="setup","incomplete teams cannot launch")
+-- (one passed ADD BOT fills every open place: the room is whole, and still waits for its votes)
+for i = 2, #room.slots do assert(room.slots[i].bot == "hard", `place {i} took no bot`) end
+assert(room.state=="setup","a full room still goes through its votes before the fight")
 panel:update(model:view(room),2)
 panel.page="Maps";panel:render()
 local before = room.stage

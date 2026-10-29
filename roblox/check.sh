@@ -88,7 +88,6 @@ lune run tests/records-ui
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch
 lune run tests/rooms
-lune run tests/cabinets
 lune run tests/climb-progress
 lune run tests/climb-boards
 lune run tests/purchases
@@ -97,6 +96,8 @@ echo "== the select screen: layout, stat bars, every control; and the bot vote =
 lune run tests/ui-kit
 lune run tests/select-screen
 lune run tests/bot-vote
+echo "== the PLAY queue: rooms form at all-but-one, bots after a wait, fill with bots =="
+lune run tests/queue
 lune run tests/room-phases
 lune run tests/multiplayer
 lune run tests/presence-codec

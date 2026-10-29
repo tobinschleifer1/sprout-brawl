@@ -51,7 +51,7 @@ local Plaza2D = luau.load(fs.readFile("src/client/Plaza2D.luau"), { environment 
 	Color3 = Rbx.Color3, Vector2 = Rbx.Vector2, UDim2 = Rbx.UDim2, UDim = Rbx.UDim,
 	Enum = setmetatable({}, { __index = function() return codes end }), Instance = { new = instance },
 }, injectGlobals = true })()
-local PLAZA = Loader.load("Data/Plaza")
+local PLAZA = Loader.load("Plaza").DATA      -- (the Roblox lobby: no arcade or gates)
 local KIT = Loader.load("Data/AvatarKit")
 local cfg = Loader.load("MatchConfig").default()
 -- You arrive in a kit character no preset matches, so the mirror can be told from the mannequins.
@@ -96,7 +96,7 @@ local function stand(st: any)
 	hub.model:setScene(hub.model.data, { x = st.x, z = st.z })
 end
 local board
-for _, st in PLAZA.market.stations do if st.kind == "Members" then board = st end end
+for _, st in PLAZA.market.stations do if st.kind == "Warp" then board = st end end
 stand(board)
 eDown = true
 hub:step(1/60, false)
@@ -202,20 +202,12 @@ for _, size in { { 390, 844 }, { 1280, 720 }, { 1920, 1080 } } do
 	end
 end
 
--- 4. Depth: a player behind a cabinet is drawn before it, one in front after it.
+-- 4. Depth: a player behind the square's kiosk is drawn before it, one in front after it.
 do
-	local cab = PLAZA.cabinets[1]
 	local order: { string } = {}
-	-- Cabinet 1 by where it is drawn: every cabinet shares one sprite, and the back row (drawn
-	-- first) stands at the same x.
-	local D = PLAZA.depth
-	-- (where PlazaArt.draw puts the pair's top-left, from its own size: outlined, it grew a cell)
-	local pair = Loader.loadFrom("src/client/", "PlazaArt").cabinetPair()
-	local cell = 1 / 8
+	local KIOSK_Z = 14          -- (Plaza2D.marketItems stands the kiosk at this depth)
 	Canvas.sprite = function(c: any, key: string, _list: any, x0: number, y1: number, ...: any)
-		if key == "prop|cab" and math.abs(x0 - (cab.x - pair.w * cell / 2)) < 1e-6 and math.abs(y1 - (cab.z * D + pair.h * cell)) < 1e-6 then
-			table.insert(order, "cab")
-		end
+		if key == "prop|kiosk" then table.insert(order, "kiosk") end
 		if string.sub(key, 1, 2) == "k1" then table.insert(order, "person:" .. string.match(key, "^(k1%w+)")) end
 		primitive(c, x0, y1, ...)
 	end
@@ -226,55 +218,27 @@ do
 	assert(Loader.load("AvatarKit").canonical(guest) == guest, "and must wear a real character")
 	local function drawWith(z: number): { string }
 		table.clear(order)
-		hub:setPeers({ { userId = 2, name = "Guest", avatar = guest, weapon = "Sword", x = cab.x, z = z, y = 0, facing = 1 } }, 1)
-		hub.peers[2].z, hub.peers[2].x = z, cab.x
-		stand({ x = cab.x - 8, z = 9 })
-		hub.camX = cab.x
+		hub:setPeers({ { userId = 2, name = "Guest", avatar = guest, weapon = "Sword", x = 0, z = z, y = 0, facing = 1 } }, 1)
+		hub.peers[2].z, hub.peers[2].x = z, 0
+		stand({ x = -8, z = 9 })
+		hub.camX = 0
 		hub:draw(canvas(1280, 720), 1/60)
-		local firstCab, firstGuest = nil, nil
+		local first, firstGuest = nil, nil
 		for i, what in order do
-			if what == "cab" and not firstCab and i then firstCab = i end
+			if what == "kiosk" and not first then first = i end
 			if what == "person:" .. guest and not firstGuest then firstGuest = i end
 		end
-		return { tostring(firstCab), tostring(firstGuest) }
+		return { tostring(first), tostring(firstGuest) }
 	end
-	local behind = drawWith(cab.z + 1.5)
-	assert(tonumber(behind[2]) and tonumber(behind[1]) and tonumber(behind[2]) < tonumber(behind[1]), "a player behind cabinet 1 must be drawn before it")
-	local infront = drawWith(cab.z - 1.5)
-	assert(tonumber(infront[2]) > tonumber(infront[1]), "a player in front of cabinet 1 must be drawn after it")
+	local behind = drawWith(KIOSK_Z + 1.5)
+	assert(tonumber(behind[2]) and tonumber(behind[1]) and tonumber(behind[2]) < tonumber(behind[1]), "a player behind the kiosk must be drawn before it")
+	local infront = drawWith(KIOSK_Z - 1.5)
+	assert(tonumber(infront[2]) > tonumber(infront[1]), "a player in front of the kiosk must be drawn after it")
 	-- a name tag is outlined in ink at 2 px, as the signs' words (TextStroke is 1 px; at a 0.55 stroke a
 	-- name over the sky was grey on grey)
 	local tag = hub.pool["name2"]
 	local stroke = hub.tagStrokes and hub.tagStrokes[2]
 	assert(tag and tag.Visible and type(stroke) == "table" and stroke.Thickness >= 2, "the guest's name tag is not outlined")
-	-- the back row of cabinets in its dark shades (the same art at the same x read as one locker)
-	do
-		local keys: { [string]: boolean } = {}
-		local was = Canvas.sprite
-		Canvas.sprite = function(c: any, key: string, ...: any)
-			keys[key] = true
-			return was(c, key, ...)
-		end
-		hub:draw(canvas(1280, 720), 1/60)
-		Canvas.sprite = was
-		assert(keys["prop|cab"] and keys["prop|cabFar"], "the arcade's two rows of cabinets are drawn alike")
-	end
-	-- each cabinet's number sits on its own marquee (rows 44-54 of the pair's 56), not over it, where the
-	-- front row's numbers landed on the back row's cabinets
-	do
-		local real = Plaza2D.placeSign
-		local at: { [string]: number } = {}
-		Plaza2D.placeSign = function(self, c, id, value, x, y, ...)
-			at[id] = y
-			return real(self, c, id, value, x, y, ...)
-		end
-		hub:draw(canvas(1280, 720), 1/60)
-		Plaza2D.placeSign = real
-		local y = at["cab" .. cab.number]
-		assert(y, "cabinet 1 has no number sign")
-		local rel = (y - cab.z * D) / cell
-		assert(rel >= 44 and rel <= 55, `cabinet 1's number is at row {rel} of its art, not on its marquee`)
-	end
 	hub:setPeers({}, 1)
 	Canvas.sprite = function(c: any, key: string, _list: any, ...: any)
 		table.insert(sprites, key)
@@ -306,108 +270,6 @@ do
 	end
 	assert((a[cfg.slots[1].avatarId] or 0) >= 7, "your character is in the wardrobe's mirror")
 	assert(mannequins >= 2 and changed, "two mannequins in ready-made characters, changing over time")
-end
-
--- 5b. Overheads: a stamp over the stamper, a bubble over the speaker, nothing over anyone else.
-do
-	local over = { [1] = { kind = "stamp", id = "gg" }, [2] = { kind = "say", text = "GG!" } }
-	hub.social = { overhead = function(_, id) local o = over[id]; if o then return o, 0.5, 2.6 end return nil end }
-	hub.localId = 1
-	hub:setPeers({ { userId = 2, name = "Talker", avatar = KIT.presets[4].code, weapon = "Sword", x = 3, z = 8, y = 0, facing = 1 },
-		{ userId = 3, name = "Quiet", avatar = KIT.presets[6].code, weapon = "Sword", x = -3, z = 8, y = 0, facing = 1 } }, 1)
-	for _, peer in hub.peers do peer.x, peer.z = peer.target.x, peer.target.z end
-	stand({ x = 0, z = 8 })
-	hub.camX = 0
-	local stampAt: any = nil
-	Canvas.sprite = function(c: any, key: string, _list: any, x0: number, y1: number, pw: number, ph: number, cols: number, rows: number, ...: any)
-		if key == "ovh|gg" then stampAt = { x = x0 + cols * pw / 2, y = y1 } end
-		primitive(c, x0, y1)
-	end
-	hub:draw(canvas(1280, 720), 1/60)
-	assert(stampAt and math.abs(stampAt.x - 0) < 0.01 and stampAt.y > 8 * PLAZA.depth + 5, "your stamp over your own head")
-	local bubble = hub.pool["bub2"]
-	assert(bubble and bubble.Visible and bubble.Text == "GG!", "the speaker's bubble shows what they said")
-	assert(not hub.pool["bub3"] or not hub.pool["bub3"].Visible, "no bubble over someone who said nothing")
-	hub.social, hub.localId = nil, nil
-	hub:setPeers({}, 1)
-	Canvas.sprite = function(c: any, key: string, _list: any, ...: any)
-		table.insert(sprites, key)
-		primitive(c, ...)
-	end
-end
-
--- 5c. The arcade: a seat's use depends on the cabinet; seated, you stay put, facing the machine.
-do
-	local intents: { any } = {}
-	hub.onCabinet = function(intent) table.insert(intents, intent) end
-	local seatA, seatB
-	for _, st in PLAZA.market.stations do
-		if st.id == "Cab3A" then seatA = st end
-		if st.id == "Cab3B" then seatB = st end
-	end
-	local function views(state: string, seats: any, extra: any?): any
-		local list = {}
-		for _, cab in PLAZA.cabinets do
-			local v = { number = cab.number, state = "open", seats = {}, watchers = 0 }
-			if cab.number == 3 then
-				v.state, v.seats = state, seats
-				for k, val in extra or {} do v[k] = val end
-			end
-			table.insert(list, v)
-		end
-		return list
-	end
-	local labelsSeen: { [string]: string } = {}
-	local function frame()
-		hub.camX = hub.model.p.x          -- (the camera on you: off the screen, a sign is hidden)
-		hub:draw(canvas(1280, 720), 1/60)
-		for id, t in hub.pool do if t.Visible then labelsSeen[id] = t.Text end end
-		-- (and the kit signs', by their own id: a cabinet's state is on tags now)
-		for id, sg in hub.signs or {} do if sg.card.Visible then labelsSeen[id] = sg.text.Text end end
-	end
-	-- Open cabinet: sit at the seat you stand by.
-	hub:setCabinets(views("open", {}), 1)
-	stand(seatA)
-	hub:interact()
-	assert(intents[#intents].action == "sit" and intents[#intents].cabinet == 3 and intents[#intents].side == "A", "an empty seat is sat at")
-	-- Taken: nothing to do there; the prompt says so.
-	hub:setCabinets(views("open", { A = { userId = 7, name = "Rin" } }), 1)
-	local n = #intents
-	hub:interact()
-	frame()
-	assert(#intents == n and string.find(hub.prompt.Text, "TAKEN"), "a taken seat cannot be sat in, and says so")
-	-- A fight on: watch it, and the cabinet says who is watching.
-	hub:setCabinets(views("playing", { A = { userId = 7, name = "Rin" }, B = { userId = 8, name = "Kai" } }, { watchers = 2 }), 1)
-	stand(seatB)
-	hub:interact()
-	frame()
-	assert(intents[#intents].action == "watch" and intents[#intents].cabinet == 3, "a busy cabinet is watched")
-	assert(labelsSeen["cabT3"] == "IN PLAY · 2 watching", `the cabinet says it is in play, got {labelsSeen["cabT3"]}`)
-	-- Countdown and streak on the cabinet.
-	hub:setCabinets(views("countdown", { A = { userId = 7, name = "Rin" }, B = { userId = 8, name = "Kai" } }, { startsIn = 2.4, streak = { userId = 7, name = "Rin", wins = 3 } }), 1)
-	frame()
-	assert(labelsSeen["cabT3"] == "READY · 3" and labelsSeen["cabS3"] == "3 WINS  Rin", "the countdown and the champion's streak show on the cabinet")
-	-- Seated: locked to the seat, facing the machine, walking moves nothing; E gets up; alone, C plays the CPU.
-	hub:setCabinets(views("open", { A = { userId = 1, name = "Me" } }), 1)
-	stand({ x = 0, z = 8 })
-	hub.input.frame.x = 1
-	for _ = 1, 20 do hub:step(1/60, false) end
-	hub.input.frame.x = 0
-	assert(hub.model.p.x == seatA.x and hub.model.p.z == seatA.z and hub.model.p.facing == seatA.facing, "a seated player stays at the seat, facing the cabinet")
-	assert(hub.cpuButton.Visible, "alone at a cabinet, the CPU button shows")
-	hub:interact()
-	assert(intents[#intents].action == "stand", "E at your seat gets up")
-	cDown = true
-	hub:step(1/60, false)
-	hub:step(1/60, false)
-	cDown = false
-	assert(intents[#intents].action == "cpu" and intents[#intents - 1].action == "stand", "C once plays the CPU, once")
-	hub:setCabinets(views("countdown", { A = { userId = 1, name = "Me" }, B = { userId = 8, name = "Kai" } }), 1)
-	hub:step(1/60, false)
-	assert(not hub.cpuButton.Visible, "no CPU once someone sits across")
-	hub:setCabinets(views("open", {}), 1)
-	hub:step(1/60, false)
-	hub.onCabinet = nil
 end
 
 -- 6. The CHARACTER button: in the market, not in a lounge, not while a panel is open.
@@ -562,12 +424,14 @@ assert(hub.model.p.x == x, "a hidden lobby cannot move during a match")
 do
 	local wasActive, wasBlocked = hub.active, hub.blocked
 	hub.active, hub.blocked = true, false
+	local tried = false
 	for _, st in PLAZA.market.stations do
-		if st.kind == "Format" then
+		if st.kind == "Warp" then
+			tried = true
 			stand(st)
 			hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
 			hub:draw(canvas(1280, 720), 1/60)
-			assert(hub.promptKey.Visible and string.find(hub.prompt.Text, "ENTER", 1, true) and not string.find(hub.prompt.Text, "[E", 1, true),
+			assert(hub.promptKey.Visible and string.find(hub.prompt.Text, "USE", 1, true) and not string.find(hub.prompt.Text, "[E", 1, true),
 				`beside {st.id} the prompt reads {hub.prompt.Text}`)
 			-- (it stands in the key hints' row at the bottom left, under the walking band: above the
 			-- buttons' row it covered the band's front 45 px, where a crowd's front row stands)
@@ -589,6 +453,7 @@ do
 			break
 		end
 	end
+	assert(tried, "no station to stand beside for the action card")
 	hub.model:setScene(hub.model.data, { x = 0, z = 8 })
 	hub.camX = 0
 	hub.gui.AbsoluteSize = { X = 812, Y = 375 }
@@ -625,7 +490,7 @@ do
 	-- beside a station, the action card, placed as below
 	do
 		local boardSt
-		for _, st in PLAZA.market.stations do if st.kind == "Members" then boardSt = st end end
+		for _, st in PLAZA.market.stations do if st.kind == "Warp" then boardSt = st end end
 		stand(boardSt)
 		hub:draw(narrow, 1/60)
 	end
@@ -835,7 +700,7 @@ do
 	assert(string.find(hub.directions.Text, "East", 1, true) and string.find(hub.directions.Text, "West", 1, true),
 		`the title card does not say which way things are: {hub.directions.Text}`)
 	local board
-	for _, st in PLAZA.market.stations do if st.kind == "Members" then board = st end end
+	for _, st in PLAZA.market.stations do if st.kind == "Warp" then board = st end end
 	stand(board)
 	hub:draw(canvas(1280, 720), 1/60)
 	assert(hub.prompt.Visible and hub.promptKey.Visible, "beside a station on a wide screen the action card does not show")
@@ -886,18 +751,15 @@ do
 			assert(hub.signs.wardrobe and hub.signs.wardrobe.card.Visible, "the wardrobe's sign is hidden under the district title")
 		end
 	end
-	-- a pale face is lettered in ink, a deep one in white (white on the gold lift measured 1.17:1)
-	for _, st in PLAZA.market.stations do
-		if st.kind == "Format" then
-			hub.model:setScene(hub.model.data, { x = st.x, z = 8 })
-			hub.camX = st.x
-			hub:draw(canvas(1280, 720), 1/60)
-		end
-	end
+	-- a pale face is lettered in ink, a deep one in white (white on the gold lift measured 1.17:1; the
+	-- skewer stall's yellow is the pale one now)
+	hub.model:setScene(hub.model.data, { x = 28, z = 8 })
+	hub.camX = 28
+	hub:draw(canvas(1280, 720), 1/60)
 	local checked = 0
 	for id, sg in hub.signs do
 		local white = Ui.contrast(Ui.WHITE, sg.face)
-		if white < 1.5 then
+		if white < 2 then
 			assert(sg.text.TextColor3 == Ui.INK, `the {id} sign is white on a face it measures {white}:1 against`)
 			checked += 1
 		elseif white > 3 then
@@ -909,56 +771,6 @@ do
 	for id, sg in hub.signs do
 		if sg.pale then assert(sg.outline.Enabled == false, `the {id} sign's ink words carry a halo`) end
 	end
-	-- the arcade's back row drawn smaller than the front (as well as darker), and its canopy low over
-	-- the machines, not a band of empty sky above them
-	do
-		local Art = Loader.loadFrom("src/client/", "PlazaArt")
-		local scales: { [string]: number } = {}
-		local was = Canvas.sprite
-		Canvas.sprite = function(c: any, key: string, list: any, x0: number, y1: number, pw: number, ...: any)
-			scales[key] = pw
-			return was(c, key, list, x0, y1, pw, ...)
-		end
-		hub.model:warp("arcade")
-		hub:draw(canvas(1280, 720), 1/60)
-		Canvas.sprite = was
-		assert(scales["prop|cabFar"] and scales["prop|cab"] and scales["prop|cabFar"] < scales["prop|cab"] * 0.95,
-			"the arcade's back row is no smaller than the front")
-		assert(scales["prop|marquee"], "no marquee board over the arcade's canopy: a quarter of the screen of empty sky")
-		hub.bannerAt = -1e9          -- (long after walking in: under the district's title it steps aside)
-		hub.camX = hub.model.p.x
-		hub:draw(canvas(1280, 720), 1/60)
-		local arcadeSign = hub.signs.arcade
-		assert(arcadeSign and arcadeSign.card.Visible and arcadeSign.text.Text == "1v1 CABINETS", "the arcade's marquee carries no sign")
-		assert(scales["prop|buntL"] and scales["prop|buntR"], "no pennants either side of the arcade's marquee")
-		-- each strand runs all the way to its ends, a pennant on every stretch (they stopped short of the
-		-- marquee, and every other pennant was drawn)
-		local strand = Art.bunting(200, 34)
-		local inks, coloured = 0, 0
-		local reach = 0
-		for _, r in strand.rects do
-			if r[5] == Art.C.ink and r[4] == 1 then inks += 1; reach = math.max(reach, r[1] + r[3]) end
-			if r[5] ~= Art.C.ink and r[3] == 2 then coloured += 1 end      -- a pennant's tip
-		end
-		assert(reach >= 200 - 1, `the bunting's strand stops at {reach} of 200 cells`)
-		-- (three in four: a breath every fourth keeps the marquee the focus; every other one was too few)
-		assert(coloured >= inks * 0.7, `{coloured} pennants for {inks} stretches of line: pennants missing`)
-		local D = PLAZA.depth
-		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
-		local backTop = 0
-		for _, cab in PLAZA.cabinets do backTop = math.max(backTop, cab.z * D + 56 * Art.CELL * (if cab.z > Plaza2D.CAB_BACK then Plaza2D.CAB_FAR_SCALE else 1)) end
-		assert(beam - backTop <= 2, `{beam - backTop} studs of empty sky between the arcade's canopy and its cabinets`)
-	end
-	-- a cabinet counting down shows it on a kit tag, not bare words
-	hub.model:warp("arcade")
-	hub.camX = hub.model.p.x
-	hub:setCabinets({ { number = 1, state = "countdown", startsIn = 3, seats = {} } }, 1)
-	hub:draw(canvas(1280, 720), 1/60)
-	local tagSign = hub.signs and hub.signs.cabT1
-	assert(tagSign and tagSign.card.Visible and string.find(tagSign.text.Text, "READY", 1, true), "cabinet 1's countdown is not on a tag")
-	local bare = hub.pool["cabT1"]
-	assert(not bare or bare.Visible == false, "cabinet 1's countdown is bare words")
-	hub:setCabinets({}, 1)
 	-- in a crowd no two name tags' words meet (nine sat on two baselines and read as one line)
 	do
 		local list = {}
@@ -988,29 +800,6 @@ do
 				assert(not (a[1] < b[3] and b[1] < a[3] and a[2] < b[4] and b[2] < a[4]), `the name tags overlap: {a[5]} and {b[5]}`)
 			end
 		end
-		hub:setPeers({}, 1)
-	end
-	-- a name tag over a cabinet's number hides the number (Corsair's sat on 06's, one baseline)
-	do
-		local cab
-		for _, cb in PLAZA.cabinets do if cb.number == 6 then cab = cb end end
-		hub:setPeers({ { userId = 9, name = "Corsair", avatar = "Classic", weapon = "Sword", x = cab.x, z = cab.z - 4.5, y = 0, facing = 1 } }, 1)
-		hub.peers[9].x, hub.peers[9].z = cab.x, cab.z - 4.5
-		hub.model:setScene(hub.model.data, { x = cab.x, z = 3 })
-		hub.camX = cab.x
-		local c = canvas(1280, 720)
-		hub:draw(c, 1/60)
-		local tag, num = hub.pool["name9"], hub.signs["cab6"]
-		assert(tag and tag.Visible, "the guest's name tag is not up")
-		assert(num.card.Visible, "cabinet 06 lost its number under a name tag")
-		-- the tag's words (20 px about its centre) clear of the number's card
-		local tcy = tag.Position.Y.Offset + tag.Size.Y.Offset / 2
-		local n1, n2 = num.card.Position.Y.Offset, num.card.Position.Y.Offset + num.card.Size.Y.Offset
-		assert(tcy + 10 <= n1 or tcy - 10 >= n2, "a name tag is drawn over cabinet 06's number")
-		-- (and where the guest stands, the tag would have met it: its own place is on the number)
-		local peer = hub.peers[9]
-		local natural = c:project(peer.x, peer.z * PLAZA.depth + peer.char.height + 1.6).Y
-		assert(natural + 10 > n1 and natural - 10 < n2, "the test's guest does not stand where a tag meets 06's number")
 		hub:setPeers({}, 1)
 	end
 	-- a sign mostly off the screen's side is hidden, one on it is not
@@ -1112,17 +901,6 @@ do
 		assert(wordsTop >= cardBottom, `on a phone BLOCKFALL's top (y {wordsTop}) is under the title card (to y {cardBottom})`)
 		hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
 	end
-	-- each lift shows how many a side it takes, so the three are not the same grey doors
-	do
-		local Art = Loader.loadFrom("src/client/", "PlazaArt")
-		local function sig(prop: any): string
-			local parts = {}
-			for _, r in prop.rects do table.insert(parts, table.concat({ r[1], r[2], r[3], r[4] }, ",")) end
-			return table.concat(parts, ";")
-		end
-		local a, b, c = sig(Art.lift("#FFFFFF", 1)), sig(Art.lift("#FFFFFF", 2)), sig(Art.lift("#FFFFFF", 3))
-		assert(a ~= b and b ~= c and a ~= c, "the three lifts' doors are drawn alike")
-	end
 	-- the floor is a mid-tone stone white names read on at 2:1 or better (pale flagstones were the
 	-- biggest light mass on screen, white on them 1.4:1)
 	do
@@ -1185,8 +963,7 @@ do
 	local Art = Loader.loadFrom("src/client/", "PlazaArt")
 	local inkHex = Art.C.ink
 	local checked = 0
-	for _, name in { "billboard", "kiosk", "waterTower", "acUnit", "noticeBoard", "mapSign", "cabinetPair", "stool",
-		"boutique", "recordBoard", "plant" } do
+	for _, name in { "billboard", "kiosk", "waterTower", "acUnit", "mapSign", "boutique", "recordBoard", "plant" } do
 		local prop = Art[name]()
 		local solid, ink = {}, {}
 		for _, r in prop.rects do
@@ -1209,7 +986,7 @@ do
 		assert(missing == 0, `{name}: {missing} silhouette edges with no ink`)
 		checked += 1
 	end
-	assert(checked >= 10, "no props checked")
+	assert(checked >= 8, "no props checked")
 end
 
 print(`PASS lobby view: walking in depth, stations offered where they stand, modal/chat guards, {visits} finite bounded draws (peak {peak} primitives), depth order, wardrobe, CHARACTER button, district banners, lounges show the room`)

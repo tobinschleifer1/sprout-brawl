@@ -768,10 +768,35 @@ do
 		-- what does stand against the skirting keeps its ink outline: 2:1 or better (1.47:1 on deep indigo)
 		local Art = Loader.loadFrom("src/client/", "PlazaArt")
 		local Ui = Loader.loadFrom("src/client/", "Ui")
-		local ratio = Ui.contrast(Rbx.Color3.fromHex(Art.C.ink), Rbx.Color3.fromHex(Art.C.indigoWall))
-		assert(ratio >= 2, `an ink outline reads at {ratio}:1 on the wall's skirting`)
+		-- (every colour in the wall's bottom rows, where the couches and desks stand: its fill's dark showed
+		-- under the skirting at 1.47:1)
+		do
+			local low, h = 3, 196
+			local art = Art.loungeWall(400, h, { 100 }, "#6FB5F2", low, "#BFE3FA")
+			-- (painted in order, so only what shows is checked: the wall's fill lies under everything)
+			local footTop = art.h - (low + 3)
+			local cell: { [number]: string } = {}
+			for _, r in art.rects do
+				if (r[6] or 1) >= 1 then
+					for y = math.max(r[2], footTop), math.min(r[2] + r[4], art.h) - 1 do
+						for x = r[1], r[1] + r[3] - 1 do cell[y * 1000 + x] = r[5] end
+					end
+				end
+			end
+			for key, hex in cell do
+				local x = key % 1000
+				if hex ~= Art.C.ink and x > 1 and x < art.w - 2 then
+					local ratio = Ui.contrast(Rbx.Color3.fromHex(Art.C.ink), Rbx.Color3.fromHex(hex))
+					assert(ratio >= 3, `an ink outline reads at {ratio}:1 on the wall's skirting ({hex})`)
+				end
+			end
+		end
 		-- and the plaster is in courses, not one flat colour (53% of the band behind the stations)
-		local wallArt = Art.loungeWall(400, 196, { 100 }, "#6FB5F2", 3)
+		local wallArt = Art.loungeWall(400, 196, { 100 }, "#6FB5F2", 3, "#BFE3FA")
+		-- (the window's view: an island across most of the pane, not a speck)
+		local widest = 0
+		for _, r in wallArt.rects do if r[5] == Art.C.green then widest = math.max(widest, r[3]) end end
+		assert(widest >= 37 * 0.6, `the window's island is {widest} cells across a 37-cell pane`)
 		local courses = 0
 		for _, r in wallArt.rects do if r[5] == Art.C.plasterDk then courses += 1 end end
 		assert(courses >= 10, `the lounge's plaster has {courses} course lines`)
@@ -916,7 +941,8 @@ do
 			if r[5] ~= Art.C.ink and r[3] == 2 then coloured += 1 end      -- a pennant's tip
 		end
 		assert(reach >= 200 - 1, `the bunting's strand stops at {reach} of 200 cells`)
-		assert(coloured >= inks * 0.9, `{coloured} pennants for {inks} stretches of line: pennants missing`)
+		-- (three in four: a breath every fourth keeps the marquee the focus; every other one was too few)
+		assert(coloured >= inks * 0.7, `{coloured} pennants for {inks} stretches of line: pennants missing`)
 		local D = PLAZA.depth
 		local beam = 20.5 * D + (Plaza2D.CANOPY_H - 14) * Art.CELL
 		local backTop = 0
@@ -1017,9 +1043,38 @@ do
 			for i = 1, #cards do
 				for j = i + 1, #cards do
 					local a, b = cards[i][2], cards[j][2]
+					-- (each card's 3 px stroke is drawn outside it: two cards closer than 6 px touch)
 					local ax, ay, bx, by = a.Position.X.Offset, a.Position.Y.Offset, b.Position.X.Offset, b.Position.Y.Offset
-					assert(not (ax < bx + b.Size.X.Offset and bx < ax + a.Size.X.Offset and ay < by + b.Size.Y.Offset and by < ay + a.Size.Y.Offset),
+					local g = 6
+					assert(not (ax < bx + b.Size.X.Offset + g and bx < ax + a.Size.X.Offset + g and ay < by + b.Size.Y.Offset + g and by < ay + a.Size.Y.Offset + g),
 						`at x {x} on the phone the {cards[i][1]} and {cards[j][1]} signs meet`)
+				end
+			end
+			-- nor meets the title card (risen over an awning, NOTICE BOARD's did)
+			local cardBottom = hub.plate.Position.Y.Offset + hub.plate.Size.Y.Offset
+			local cardRight = hub.plate.Position.X.Offset + hub.plate.Size.X.Offset
+			for id, sg in hub.signs do
+				local c = sg.card
+				if c.Visible and c.Position.X.Offset < cardRight + 6 then
+					assert(c.Position.Y.Offset >= cardBottom + 6, `at x {x} on the phone the {id} sign meets the title card`)
+				end
+			end
+			-- nor does a station's sign, slid on, cover a stall's awning (NOTICE BOARD's hid 18 px of MASKS')
+			local c375 = canvas(812, 375)
+			hub:draw(c375, 1/60)
+			for _, st in Plaza2D.STALLS do
+				local l, r = c375:project(st.x - 6, 0).X, c375:project(st.x + 6, 0).X
+				local top, bottom = c375:project(0, 18.8 * PLAZA.depth + 10).Y, c375:project(0, 18.8 * PLAZA.depth + 7.4).Y
+				for id, sg in hub.signs do
+					local c = sg.card
+					-- (a sign slid along from over its own station - one standing over its own, in front of a stall
+					-- behind it, is drawn as the depth has it)
+					local slid = sg.anchorX and math.abs(c.Position.X.Offset + c.Size.X.Offset / 2 - sg.anchorX) > 2
+					if c.Visible and slid and string.sub(id, 1, 5) ~= "stall" then
+						local cx, cy = c.Position.X.Offset, c.Position.Y.Offset
+						assert(not (cx < r and l < cx + c.Size.X.Offset and cy < bottom and top < cy + c.Size.Y.Offset),
+							`at x {x} on the phone the {id} sign lies over the {st.sign} stall's awning`)
+					end
 				end
 			end
 		end
@@ -1030,10 +1085,13 @@ do
 			hub.model:setScene(hub.model.data, { x = x, z = 8 })
 			hub.camX = x
 			hub:draw(canvas(812, 375), 1/60)
-			local sg = hub.signs["stBoard"]
-			if sg and sg.anchorX and sg.anchorX > 0 and sg.anchorX < 812 then
-				assert(sg.card.Visible, `the notice board stands on the screen (x {sg.anchorX}) with no name`)
-				named += 1
+			-- (every station's sign, standing on the screen by 30 px: one at its very edge, with no room, may go)
+			for _, id in { "stBoard", "stMap" } do
+				local sg = hub.signs[id]
+				if sg and sg.anchorX and sg.anchorX > 30 and sg.anchorX < 812 - 30 then
+					assert(sg.card.Visible, `the {id} station stands on the screen (x {sg.anchorX}) with no name`)
+					named += 1
+				end
 			end
 		end
 		assert(named > 0, "the notice board never stood on the phone's screen")
@@ -1096,6 +1154,29 @@ do
 	hub:drawWardrobe(canvas(1280, 720), wardrobe, 0)
 	Canvas.rect = primitive
 	assert(glass >= 0.3, `the mirror's glass is {glass} over your reflection`)
+end
+
+-- 14. The billboard at the screen's edge keeps the game's name, shrunk into the visible part of its
+--     screen (hidden whole, the board was a blank panel 175 px wide)
+do
+	local Ui = Loader.loadFrom("src/client/", "Ui")
+	hub.gui.AbsoluteSize = { X = 1280, Y = 720 }
+	local kept = 0
+	for x = -60, -30, 2 do
+		hub.model:setScene(hub.model.data, { x = x, z = 15 })
+		hub.camX = x
+		hub:draw(canvas(1280, 720), 1/60)
+		local span = hub.billboardSpan
+		local t = hub.pool["billboard"]
+		if span and span[1] < 1280 - 80 and span[2] > 1280 then
+			assert(t and t.Visible, `the billboard stands half on the screen (x {span[1]}) with no name on it`)
+			local w = Ui.textWidth(t.Text, t.TextSize / Ui.SCALE, t.Font)
+			local cx = t.Position.X.Offset + t.Size.X.Offset / 2
+			assert(cx - w / 2 >= 0 and cx + w / 2 <= 1280, `the billboard's name runs off the screen ({cx - w / 2} to {cx + w / 2})`)
+			kept += 1
+		end
+	end
+	assert(kept > 0, "the billboard never stood half on the screen")
 end
 
 -- 10. Every outlined prop has an ink line round its silhouette, but not under its base: bare, the

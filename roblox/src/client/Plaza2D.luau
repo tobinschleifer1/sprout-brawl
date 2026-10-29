@@ -317,19 +317,25 @@ function Plaza2D.placeSign(self: any, c: any, id: string, value: string, x: numb
 	end
 	if sg.face ~= face then Ui.paintCard(sg.card, face); sg.face = face; Plaza2D.letterSign(sg, face) end
 	sg.text.Text = value
-	local w = 0
-	local lines = string.split(value, "\n")
-	for _, ln in lines do w = math.max(w, Ui.textWidth(ln, size, Ui.DISPLAY)) end
-	w = math.ceil(w) + 2 * Plaza2D.SIGN_PAD
-	local h = math.ceil(Ui.px(size, Ui.DISPLAY) * (#lines * 1.1) + Plaza2D.SIGN_PAD)
+	local w, h = Plaza2D.signSize(value, size)
 	-- (`y` is the card's foot, so `signAbove` is one gap everywhere: centred on its point, a two-line
 	-- card hung lower than a one-line one and the stalls' signs sank into their awnings)
 	local at = c:project(x, y)
 	sg.card.Position, sg.card.Size = UDim2.fromOffset(math.floor(at.X - w / 2), math.floor(at.Y - h)), UDim2.fromOffset(w, h)
-	sg.anchorX = at.X
+	sg.anchorX, sg.size, sg.value = at.X, size, value
 	sg.card.Visible = true
 	self.used[key] = true
 	return sg.card
+end
+
+-- A sign card's size for its words: the widest line and the pad, the lines' height and the pad.
+-- SIGN_STROKE: the card's border, drawn outside it (Ui.card's own-shade stroke).
+Plaza2D.SIGN_STROKE = 3
+function Plaza2D.signSize(value: string, size: number): (number, number)
+	local w = 0
+	local lines = string.split(value, "\n")
+	for _, ln in lines do w = math.max(w, Ui.textWidth(ln, size, Ui.DISPLAY)) end
+	return math.ceil(w) + 2 * Plaza2D.SIGN_PAD, math.ceil(Ui.px(size, Ui.DISPLAY) * (#lines * 1.1) + Plaza2D.SIGN_PAD)
 end
 
 -- A sign's lettering: white outlined in the face's shade, or ink on a face too pale for white (the
@@ -430,7 +436,7 @@ end
 -- A sign whose words run off the screen's side is hidden - all of its words or none (NOTICE BOARD read
 -- "ARD", and a marquee 62% on screen read "5" for 05). The billboard's lettering likewise ("BLO").
 -- `gw`: the canvas's width (the GUI's AbsoluteSize is stale at start and after a resize).
-function Plaza2D.clearEdges(self: any, gw: number)
+function Plaza2D.clearEdges(self: any, gw: number, cv: any?)
 	if gw <= 0 then return end
 	for _, sg in self.signs or {} do
 		local c = sg.card
@@ -443,28 +449,95 @@ function Plaza2D.clearEdges(self: any, gw: number)
 			local slide = sg.anchorX and sg.anchorX >= 0 and sg.anchorX <= gw and not string.match(c.Name, "^Sign_cab%d+$")
 			if slide and c.Size.X.Offset <= gw - 8 then
 				c.Position = UDim2.fromOffset(math.clamp(x1, 4, gw - 4 - c.Size.X.Offset), c.Position.Y.Offset)
-				-- (and clear of any sign it now meets, under it: slid, NOTICE BOARD's met MASKS')
-				for _, other in self.signs do
-					local o = other.card
-					if o ~= c and o.Visible then
-						local ox, oy = o.Position.X.Offset, o.Position.Y.Offset
-						local cx, cy = c.Position.X.Offset, c.Position.Y.Offset
-						if cx < ox + o.Size.X.Offset + 2 and ox < cx + c.Size.X.Offset + 2 and cy < oy + o.Size.Y.Offset + 2 and oy < cy + c.Size.Y.Offset + 2 then
-							c.Position = UDim2.fromOffset(cx, oy + o.Size.Y.Offset + 4)
-						end
+				-- (and clear of any sign it now meets, counting both cards' strokes, and of the stalls' awnings:
+				-- slid, NOTICE BOARD's met MASKS' and covered its awning)
+				local g = 2 * Plaza2D.SIGN_STROKE + 2
+				-- the stalls' awnings too, in the market (ROOF MAP's, slid, lay over SKEWERS')
+				local awnings = {}
+				if cv and self.model.data.kind == "plaza" then
+					for _, st in STALLS do
+						local l, r = cv:project(st.x - 6, 0).X, cv:project(st.x + 6, 0).X
+						table.insert(awnings, { l, cv:project(0, STALL_Z * D + 10).Y, r, cv:project(0, STALL_Z * D + 7.4).Y })
 					end
 				end
+				local function overAwning(): any
+					local cx, cy = c.Position.X.Offset, c.Position.Y.Offset
+					for _, a in awnings do
+						if cx < a[3] and a[1] < cx + c.Size.X.Offset and cy < a[4] and a[2] < cy + c.Size.Y.Offset then return a end
+					end
+					return nil
+				end
+				local function meets(): any
+					for _, other in self.signs do
+						local o = other.card
+						if o ~= c and o.Visible then
+							local ox, oy = o.Position.X.Offset, o.Position.Y.Offset
+							local cx, cy = c.Position.X.Offset, c.Position.Y.Offset
+							if cx < ox + o.Size.X.Offset + g and ox < cx + c.Size.X.Offset + g and cy < oy + o.Size.Y.Offset + g and oy < cy + c.Size.Y.Offset + g then
+								return o
+							end
+						end
+					end
+					return nil
+				end
+				-- first onto two lines, narrower, against the edge (rising over the awning instead, NOTICE
+				-- BOARD's met the title card on a phone)
+				if (meets() or overAwning()) and sg.value and string.find(sg.value, " ", 1, true) and not string.find(sg.value, "\n", 1, true) then
+					local two = string.gsub(sg.value, " ", "\n", 1)
+					local w2, h2 = Plaza2D.signSize(two, sg.size)
+					local foot = c.Position.Y.Offset + c.Size.Y.Offset
+					sg.text.Text = two
+					c.Size = UDim2.fromOffset(w2, h2)
+					c.Position = UDim2.fromOffset(math.clamp(c.Position.X.Offset, 4, gw - 4 - w2), foot - h2)
+				end
+				local up = false
+				for _ = 1, 6 do
+					local a = overAwning()
+					if a then
+						-- (over an awning: up into the sky above it, and on up past any sign met there - back
+						-- down under a sign, it landed on the awning again)
+						c.Position = UDim2.fromOffset(c.Position.X.Offset, a[2] - c.Size.Y.Offset - g)
+						up = true
+					else
+						local o = meets()
+						if not o then break end
+						c.Position = UDim2.fromOffset(c.Position.X.Offset,
+							if up then o.Position.Y.Offset - c.Size.Y.Offset - g else o.Position.Y.Offset + o.Size.Y.Offset + g)
+					end
+				end
+				-- (a sign with nowhere left to go - risen into the title card, or still on another or an
+				-- awning - is hidden rather than drawn over them)
+				local plate = self.plate
+				local underCard = plate and c.Position.X.Offset < plate.Position.X.Offset + plate.Size.X.Offset + g
+					and c.Position.Y.Offset < plate.Position.Y.Offset + plate.Size.Y.Offset + g
+				if underCard or meets() or overAwning() then c.Visible = false end
 			else
 				c.Visible = false
 			end
 		end
 	end
+	-- the billboard's lettering: cut by an edge, the game's name shrinks into the screen's visible part
+	-- (hidden whole, the board was a blank panel 175 px wide); the line under it goes
+	local span = self.billboardSpan
 	for _, id in { "billboard", "billboard2" } do
 		local t = self.pool[id]
 		if t and t.Visible then
 			local w = Ui.textWidth(t.Text, t.TextSize / Ui.SCALE, t.Font)
 			local cx = t.Position.X.Offset + t.Size.X.Offset / 2
-			if cx - w / 2 < 0 or cx + w / 2 > gw then t.Visible = false end
+			if cx - w / 2 < 0 or cx + w / 2 > gw then
+				local l, r = if span then math.max(span[1], 0) + 8 else 0, if span then math.min(span[2], gw) - 8 else 0
+				local fits = false
+				if id == "billboard" and r - l >= 60 then
+					local size = t.TextSize / Ui.SCALE
+					while size > 12 and Ui.textWidth(t.Text, size, t.Font) > r - l do size -= 1 end
+					if Ui.textWidth(t.Text, size, t.Font) <= r - l then
+						t.TextSize = Ui.px(size)
+						t.Position = UDim2.fromOffset(math.floor((l + r) / 2 - t.Size.X.Offset / 2), t.Position.Y.Offset)
+						fits = true
+					end
+				end
+				if not fits then t.Visible = false end
+			end
 		end
 	end
 end
@@ -802,6 +875,7 @@ function Plaza2D.marketItems(self: any, c: any, add: (number, () -> ()) -> (), c
 			Canvas.rect(c, sx0, sy0 + ((clock * 2 + i * 1.3) % sh), sw, 0.1, CYAN, 0.05)
 		end
 		local title = self:placeLabel(c, "billboard", "BLOCKFALL", 0, sy0 + sh * 0.66, 40, AMBER, 520, sw * 0.86)
+		self.billboardSpan = { c:project(sx0, sy0).X, c:project(sx0 + sw, sy0).X }
 		local n = 1
 		for _ in self.peers do n += 1 end
 		-- (Plaza2D.BILLBOARD_LINE, not the scanlines' CYAN: at #7FA8B8 it measured 2.8:1 on the screen; and
@@ -1128,7 +1202,7 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 				if gap >= Plaza2D.WINDOW_W + 2 then table.insert(xs, ((list[i][2] + list[i + 1][1]) / 2 - b.x1) / PlazaArt.CELL) end
 			end
 			return PlazaArt.loungeWall(cells, math.floor(Plaza2D.WALL_H / PlazaArt.CELL), xs, Realms.LOBBY.sky[2],
-				math.floor(Plaza2D.WAINSCOT / PlazaArt.CELL))
+				math.floor(Plaza2D.WAINSCOT / PlazaArt.CELL), Realms.LOBBY.sky[3])
 		end)
 		PlazaArt.draw(c, "wall" .. cells, wall, (b.x1 + b.x2) / 2, Plaza2D.WALL_Z * D)
 	end)
@@ -1342,7 +1416,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	self:endLabels()
 	self:clearBanner()
 	self:clearTags()
-	self:clearEdges(vp.X)
+	self:clearEdges(vp.X, c)
 	c:finish()
 	self:placeTop(Ui.topInset())
 	local gw = self.gui.AbsoluteSize and self.gui.AbsoluteSize.X or 0

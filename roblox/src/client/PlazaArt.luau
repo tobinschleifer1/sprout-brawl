@@ -305,7 +305,9 @@ function PlazaArt.bunting(w: number, h: number, flip: boolean?): any
 			local x = math.floor(if flip then w - 11 - t * (w - 11) else t * (w - 11))
 			local y = math.floor(40 + h * (1 - t) - math.sin(t * math.pi) * (8 + strand * 10) - strand * 16)
 			b.r(x, y, 11, 1, C.ink)
-			pennant(b, x + 5, y, 10, colours[(i + strand * 2) % #colours + 1])
+			-- (a breath every fourth, so the marquee stays the focus: packed edge to edge, the bunting was
+			-- the loudest thing in the upper half after the title)
+			if i % 4 ~= 3 then pennant(b, x + 5, y, 10, colours[(i + strand * 2) % #colours + 1]) end
 		end
 	end
 	return b.done()
@@ -315,7 +317,7 @@ end
 -- and a deep indigo wainscot `low` cells tall under the stations - with windows at `windows` (cell
 -- x's: the gaps between the stations) onto the sky, and pointed pennants along its top. (All deep
 -- indigo, the couches sat on it at 1.13:1 and the map board read as one more window.)
-function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: string, low: number): any
+function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: string, low: number, skyLow: string?): any
 	local b = builder(w, h)
 	b.r(0, 0, w, h, C.indigoDk)
 	b.r(0, 3, w, h - 7, C.plaster)
@@ -332,15 +334,23 @@ function PlazaArt.loungeWall(w: number, h: number, windows: { number }, sky: str
 	for x = 0, w - 1, 16 do b.r(x, h - 12, 8, 9, C.paper) end
 	for x = 0, w - 1, 16 do b.r(x + 2, h - 15, 4, 3, C.paper) end
 	b.r(0, h - 3, w, 3, C.ink)
-	b.r(0, 3, w, low, C.indigoWall)                                          -- the skirting
-	b.r(0, low + 3, w, 3, C.indigoHi)                                        -- its rail
+	-- the skirting from the wall's foot (the fill's dark showed under it, 1.47:1 to the couches' ink),
+	-- in the light indigo (5.4:1 to ink) with a mid rail
+	b.r(0, 0, w, low + 3, C.indigoHi)
+	b.r(0, low + 3, w, 3, C.indigoWall)
 	for _, cx in windows do
 		local x0, y0, ww, wh = math.floor(cx) - 18, low + 14, 37, h - low - 44
 		b.r(x0 - 2, y0 - 2, ww + 4, wh + 4, C.ink)
 		b.r(x0, y0, ww, wh, sky)
-		-- the view: a far island and a cloud, so the window says "high up" and not "a room's glass"
-		b.r(x0 + 4, y0 + 10, 14, 4, C.plasterHi); b.r(x0 + 8, y0 + 7, 8, 3, C.plasterHi)
-		b.r(x0 + 20, y0 + math.floor(wh * 0.3), 15, 5, C.green); b.r(x0 + 22, y0 + math.floor(wh * 0.3) - 4, 9, 4, C.slate)
+		-- the view: the paler sky low down, a far island most of the pane wide and a cloud, so the window
+		-- says "high up" (a 15 x 5 chip of island read as a speck)
+		local lowH = math.floor(wh * 0.4)
+		b.r(x0, y0, ww, lowH, skyLow or C.plasterHi)
+		local iy = y0 + lowH - 6
+		b.r(x0 + 4, iy - 1, ww - 8, 9, C.ink)                                      -- the island's rim
+		b.r(x0 + 5, iy, ww - 10, 3, C.green); b.r(x0 + 7, iy + 3, ww - 14, 4, C.slate)
+		b.r(x0 + 12, iy + 7, ww - 24, 2, C.slate)
+		b.r(x0 + 6, y0 + wh - 14, 12, 4, C.white); b.r(x0 + 9, y0 + wh - 17, 7, 3, C.white)
 		b.r(x0, y0 + math.floor(wh * 0.6), ww, 2, C.ink)
 		b.r(x0 + 17, y0, 2, wh, C.ink)
 		b.r(x0 - 4, y0 - 4, ww + 8, 2, C.indigoHi)                              -- its sill and lintel

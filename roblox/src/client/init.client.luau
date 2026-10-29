@@ -160,6 +160,8 @@ local select_: any = nil
 -- The select screen: everyone in the room on their pedestals (SelectScreen). The room panel above
 -- still shows the Maps and Rules boards over it.
 local selectScreen: any = nil
+-- your level, from the last EconomyView (Progression): the select screen locks weapons above it
+local progressLevel = 1
 -- Is a room overlay up (the select screen open, or the room panel's boards)? The plaza does not
 -- take input, and the social panel steps aside, while one is.
 local function roomOverlay(): boolean
@@ -244,7 +246,10 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	unqueue = function() Net.remote("RoomAction"):FireServer({ action = "unqueue" }) end,
 	fill = function() Net.remote("RoomAction"):FireServer({ action = "fill" }) end,
 })
-Net.remote("QueueView").OnClientEvent:Connect(function(view: any) social:setQueue(view) end)
+Net.remote("QueueView").OnClientEvent:Connect(function(view: any, why: any)
+	social:setQueue(view)
+	social:refused(why)
+end)
 hub.social, hub.localId = social, Players.LocalPlayer.UserId
 -- The Skyline Climb. The climb runs here; the server keeps progress (ClimbProgress). Entering asks
 -- the server where to start - the bottom, or the furthest checkpoint reached - and the answer
@@ -362,6 +367,7 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 			Net.remote("RoomAction"):FireServer(action)
 		end
 		selectScreen = SelectScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
+		selectScreen:setLevel(progressLevel)
 		selectScreen.onAction = function(action: any)
 			if action.action == "leave" then selectScreen:hide() end
 			Net.remote("RoomAction"):FireServer(action)
@@ -580,9 +586,16 @@ end)
 -- What the match earned: the drop meter and any drop, under the results (DropBanner).
 Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
 	locker:setEconomy(view)
+	-- your level and rank: PLAY shows them, and the select screen locks the weapons above your level
+	if type(view) == "table" and type(view.progress) == "table" then
+		social:setProgress(view.progress)
+		progressLevel = view.progress.level or 1
+		if selectScreen then selectScreen:setLevel(progressLevel) end
+	end
 	shopScreen:setEconomy(view)
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
 		DropBanner.show(hud.gui, view.event.match)
+		DropBanner.showProgress(hud.gui, view.event.match.progress)
 	end
 end)
 Net.remote("Results").OnClientEvent:Connect(function(res: any)

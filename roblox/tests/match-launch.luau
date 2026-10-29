@@ -86,6 +86,9 @@ end
 -- told, and what the wire then carries: the drops on the scene and the bots armed on the fighters.
 local Snapshot = Loader.load("Snapshot")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (every weapon unlocked: these rooms are not about levels - tests/progression is)
+local newRooms = Rooms.new
+Rooms.new = function(): any local r = newRooms(); r.levelOf = function(_: number): number return 50 end; return r end
 -- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
 Rooms.BOT_WAIT = 0
 local drops = 0
@@ -163,6 +166,33 @@ do
 		if row.index == 0 then found = true; assert(row.fightFrames == 60, "results did not carry the player's fight time") end
 	end
 	assert(found)
+	assert(service:results().ranked == false, "a match that was not ranked says it was")
+end
+-- A Ranked room's match says so in its results (Economy pays rank points from them), and a
+-- free-for-all room's is a free-for-all.
+do
+	local model = Rooms.new()
+	model.levelOf = function() return 10 end
+	model:join(player, "Ranked")
+	local room = model:get(player.UserId)
+	assert(model:edit(player, { id = room.id, revision = room.revision, action = "bot", value = "hard", slot = 2 }))
+	local roster, opts = model:roster(room, function() return 1 end)
+	opts.seed = 3
+	service:start(roster, opts)
+	Loader.load("Match").finish(service.match)
+	assert(service:results().ranked == true, "a Ranked match's results do not say it was ranked")
+	model:leave(player)
+	local ffa = Rooms.new()
+	ffa:join(player, "FFA3")
+	local room3 = ffa:get(player.UserId)
+	assert(ffa:edit(player, { id = room3.id, revision = room3.revision, action = "bot", value = "hard", slot = 2 }))
+	local roster3, opts3 = ffa:roster(room3, function() return 1 end)
+	opts3.seed = 4
+	service:start(roster3, opts3)
+	assert(service.match.mode == "StockFFA" and #service.match.fighters == 3, "a 3-way free-for-all room did not start a 3-fighter free-for-all")
+	for _ = 1, 30 do service:tick(1 / 60) end
+	cases += 2
+	ffa:leave(player)
 end
 service:stop()
 assert(not service:rejoin(player), "no stale rejoin after match teardown")

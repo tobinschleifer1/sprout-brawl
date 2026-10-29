@@ -4,6 +4,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Plaza = require(Shared.Plaza)
 local Weapons = require(Shared.Weapons)
 local Loadout = require(Shared.Loadout)
+local Progression = require(Shared.Progression)
 local AvatarKit = require(Shared.AvatarKit)
 local Stages = require(Shared.Data.Stages)
 local Rules = require(Shared.Data.Rules)
@@ -63,10 +64,19 @@ Rooms.PICK_TIME, Rooms.MAP_TIME, Rooms.RULES_TIME = 30, 15, 15
 local RULE_KEYS = { "mode", "stocks", "time", "items", "disasters" }
 
 function Rooms.new(): any
-	-- `clock` and `rand` are replaceable so the timers and the tie-breaks can be tested
+	-- `clock` and `rand` are replaceable so the timers and the tie-breaks can be tested; `levelOf`
+	-- (userId -> level, Progression) is the server's saved XP, and level 1 until it is set
 	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {}, clock = os.clock,
-		rand = function(n: number): number return math.random(1, n) end }, Rooms)
+		rand = function(n: number): number return math.random(1, n) end,
+		levelOf = function(_: number): number return 1 end }, Rooms)
 end
+-- A player's level, as the weapons and Ranked check it.
+function Rooms.level(self: any, id: number): number
+	local ok, level = pcall(self.levelOf, id)
+	return if ok and type(level) == "number" then level else 1
+end
+-- The weapons everyone has: what an empty pedestal and a new profile hold.
+local FIRST, SECOND = Progression.STARTERS[1], Progression.STARTERS[2]
 
 local function humans(room: any): number
 	local n = 0
@@ -90,7 +100,7 @@ local function applyBot(room: any, i: number, value: any, rand: (number) -> numb
 		if b >= a then b += 1 end
 		slot.weapon, slot.weapon2 = Weapons.LIST[a].id, Weapons.LIST[b].id
 	else
-		slot.weapon, slot.weapon2 = "Sword", "Hammer"
+		slot.weapon, slot.weapon2 = FIRST, SECOND
 	end
 	invalidate(room)
 end
@@ -199,10 +209,16 @@ function Rooms.advance(self: any, room: any): boolean
 		if not (allVoted(room, "vote") or now >= room.phaseEnds) then return false end
 		local pick = winner(self, room, "vote") or "Random"
 		if pick == "Random" then
-			local pool = Rooms.mapPool("all")
+			local pool = Rooms.mapPool(Rooms.voteSet(room))
 			pick = pool[self.rand(#pool)]
 		end
 		room.stage, room.mapChoice, room.mapResult = pick, "host", pick
+		-- Ranked's rules are not voted on: straight to the fight
+		if room.ranked then
+			room.phase, room.phaseEnds, room.state = "pick", nil, "playing"
+			room.revision += 1
+			return true
+		end
 		enter(self, room, "rules", Rooms.RULES_TIME)
 		return true
 	elseif phase == "rules" then
@@ -235,7 +251,7 @@ function Rooms.tick(self: any): { any }
 	return changed
 end
 function Rooms.profile(self: any, id: number): any
-	if not self.profiles[id] then self.profiles[id] = { weapon = "Sword", weapon2 = "Hammer", avatar = "Classic" } end
+	if not self.profiles[id] then self.profiles[id] = { weapon = FIRST, weapon2 = SECOND, avatar = "Classic" } end
 	return self.profiles[id]
 end
 function Rooms.get(self: any, id: number): any
@@ -265,7 +281,8 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	-- Only a fight format opens a room: the concourse also has the wardrobe, and a client naming
 	-- it as a format must not create a room nobody can fight in.
 	for _, entry in Rooms.FORMATS do if entry.id == format then spec = entry end end
-	if not spec then return nil, "Choose 1v1, 2v2 or 3v3." end
+	if not spec then return nil, Rooms.CHOOSE end
+	if spec.level and self:level(player.UserId) < spec.level then return nil, `{spec.name} unlocks at level {spec.level}.` end
 	-- Fill the fullest waiting room first, lowest id on a tie. Taking the first open slot in
 	-- `pairs` order - which Luau leaves unspecified - could strand people: after a few leaves
 	-- there can be two 1v1 rooms each holding one waiting player, and newcomers landed in either
@@ -291,11 +308,23 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 		room = { id = self.nextId, host = player.UserId, format = format, name = spec.name,
 			state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true,
 			disasters = "off", slots = {},    -- natural disasters: OFF unless the host turns them on
-			mapChoice = "host", mapSet = "all", mode = "stock", time = 180, phase = "pick" }
-		for i = 1, spec.teamSize * 2 do room.slots[i] = { team = (i - 1) % 2 } end
+			mapChoice = "host", mapSet = "all", mode = "stock", time = 180, phase = "pick",
+			ffa = spec.ffa, ranked = spec.ranked }
+		-- Ranked's rules are fixed, and its maps the competitive rotation: no items, no disasters
+		if spec.ranked then
+			for key, v in Rooms.RANKED_RULES do room[key] = v end
+		end
+		-- (a free-for-all's fighters are each their own team)
+		for i = 1, spec.players do room.slots[i] = { team = if spec.ffa then i - 1 else (i - 1) % 2 } end
 		self.rooms[room.id], place = room, 1
 	end
 	local profile = self:profile(player.UserId)
+	-- (a profile's weapons were checked when chosen, but not against a level read since: keep it so)
+	local level = self:level(player.UserId)
+	if not Progression.unlocked(level, profile.weapon) then profile.weapon = if profile.weapon2 == FIRST then SECOND else FIRST end
+	if not Progression.unlocked(level, profile.weapon2) or profile.weapon2 == profile.weapon then
+		profile.weapon2 = if profile.weapon == FIRST then SECOND else FIRST
+	end
 	local slot = room.slots[place]
 	slot.player, slot.weapon, slot.weapon2, slot.avatar = player, profile.weapon, profile.weapon2, profile.avatar
 	self.membership[player.UserId] = room.id
@@ -306,25 +335,35 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	return room, nil
 end
 -- ------------------------------------------------------------------ the queue ----
--- PLAY: a player picks 1v1, 2v2 or 3v3 and waits in the lobby while the queue finds them a fight.
--- A queued player first takes an open place in a room of that format already forming; failing
--- that, a new room forms once the queue holds all but one of a fight's players (2 of 2 for a 1v1, 3
--- of 4, 5 of 6) - the last place is the ADD BOT vote's, BOT_WAIT seconds after the last one in.
--- FILL WITH BOTS takes everyone queued for that format into a room at once, bots in the rest.
+-- PLAY: a player picks a fight - 1v1, 2v2 or 3v3, a free-for-all of 3, 4 or 6, or Ranked - and
+-- waits in the lobby while the queue finds them one. A queued player first takes an open place in a
+-- room of that format already forming; failing that, a new room forms once the queue holds all but
+-- one of a fight's players (2 of 2 for a 1v1, 3 of 4, 5 of 6) - the last place is the ADD BOT
+-- vote's, BOT_WAIT seconds after the last one in. FILL WITH BOTS takes everyone queued for that
+-- format into a room at once, bots in the rest.
 Rooms.BOT_WAIT = 10
+Rooms.CHOOSE = "Choose a fight from PLAY."
+-- Ranked (Plaza's Ranked lounge) plays one set of rules, on the competitive maps.
+Rooms.RANKED_RULES = { mode = "stock", stocks = 3, time = 180, items = false, disasters = "off", mapSet = "ranked" }
+-- PLAY's order: the team fights, the free-for-alls, then Ranked
+local ORDER = { "Duel", "Doubles", "Triples", "FFA3", "FFA4", "FFA6", "Ranked" }
 Rooms.FORMATS = {}
-for key, room in Plaza.DATA.rooms do
-	-- (keyed by the format, Duel / Doubles / Triples; named by its first part, "1v1 · OPEN ROOM" -> "1v1")
-	table.insert(Rooms.FORMATS, { id = key, name = string.match(room.name, "^(.-) ·") or room.name, teamSize = room.teamSize })
+for _, key in ORDER do
+	local room = Plaza.DATA.rooms[key]
+	-- (named by the lounge's first part, "1v1 · OPEN ROOM" -> "1v1")
+	if room then
+		table.insert(Rooms.FORMATS, { id = key, name = string.match(room.name, "^(.-) ·") or room.name, teamSize = room.teamSize,
+			players = room.players or room.teamSize * 2, ffa = room.ffa == true, ranked = room.ranked == true,
+			level = if room.ranked then Progression.RANKED_LEVEL else nil })
+	end
 end
-table.sort(Rooms.FORMATS, function(a, b) return a.teamSize < b.teamSize end)
 local function formatOf(format: any): any
 	for _, f in Rooms.FORMATS do if f.id == format then return f end end
 	return nil
 end
--- How many queued players a new room forms at.
-function Rooms.formAt(teamSize: number): number
-	return if teamSize == 1 then 2 else teamSize * 2 - 1
+-- How many queued players a new room of `players` places forms at.
+function Rooms.formAt(players: number): number
+	return if players <= 2 then 2 else players - 1
 end
 -- Seconds until an ADD BOT may be proposed in `room`.
 function Rooms.botWait(self: any, room: any): number
@@ -349,7 +388,8 @@ end
 function Rooms.queue(self: any, player: any, format: any): ({ any }?, string?)
 	if self:get(player.UserId) then return nil, "You are already in a room." end
 	local f = formatOf(format)
-	if not f then return nil, "Choose 1v1, 2v2 or 3v3." end
+	if not f then return nil, Rooms.CHOOSE end
+	if f.level and self:level(player.UserId) < f.level then return nil, `{f.name} unlocks at level {f.level}.` end
 	self:dequeue(player)
 	self.queues = self.queues or {}
 	self.queues[format] = self.queues[format] or {}
@@ -376,7 +416,7 @@ function Rooms.matchQueue(self: any, format: string): { any }
 		if room then mark(room) end
 	end
 	-- a new room, once enough are waiting
-	while f and #list >= Rooms.formAt(f.teamSize) do
+	while f and #list >= Rooms.formAt(f.players) do
 		local room = self:join(table.remove(list, 1), format)
 		if room then
 			mark(room)
@@ -393,7 +433,7 @@ function Rooms.fillWithBots(self: any, player: any): (any, string?)
 	local list = self.queues[format]
 	self:dequeue(player)
 	local room = self:join(player, format)
-	if not room then return nil, "Choose 1v1, 2v2 or 3v3." end
+	if not room then return nil, Rooms.CHOOSE end
 	while #list > 0 and not full(room) do self:join(table.remove(list, 1), format) end
 	fillBots(room, self.rand)
 	return room, nil
@@ -404,7 +444,7 @@ function Rooms.queueView(self: any, id: number): any
 	if not format then return { queued = false } end
 	local f = formatOf(format)
 	return { queued = true, format = format, name = f and f.name, waiting = #self.queues[format],
-		needed = if f then f.teamSize * 2 else 2, formAt = if f then Rooms.formAt(f.teamSize) else 2 }
+		needed = if f then f.players else 2, formAt = if f then Rooms.formAt(f.players) else 2 }
 end
 
 function Rooms.canStart(_self: any, room: any): boolean
@@ -434,7 +474,7 @@ function Rooms.view(self: any, room: any): any
 		vote = { slot = v.slot, value = v.value, by = v.by, yes = yes, no = no, voters = humans(room),
 			ballots = ballots, left = math.max(0, v.deadline - self.clock()) }
 	end
-	return { id = room.id, host = room.host, format = room.format, name = room.name,
+	return { id = room.id, host = room.host, format = room.format, name = room.name, ffa = room.ffa, ranked = room.ranked,
 		state = room.state, revision = room.revision, stage = room.stage, stocks = room.stocks,
 		items = room.items, disasters = room.disasters, slots = slots, canStart = self:canStart(room),
 		mapChoice = room.mapChoice, mapSet = room.mapSet, mode = room.mode, time = room.time,
@@ -485,7 +525,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		-- shared rules it un-readies nobody - a vote changes no-one's consent to the fight. The map
 		-- phase is the vote; a room set to "vote" outside it keeps the old standing ballot.
 		if phase ~= "map" and room.mapChoice ~= "vote" then return false, "The host picks the map in this room." end
-		local set = if phase == "map" then "all" else room.mapSet
+		local set = if phase == "map" then Rooms.voteSet(room) else room.mapSet
 		if value ~= "Random" and not (type(value) == "string" and Stages.BY_ID[value] and Rooms.inSet(Stages.BY_ID[value], set)) then
 			return false, "Unknown map."
 		end
@@ -524,6 +564,9 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		local clean = if action ~= "avatar" then (if type(value) == "string" and Weapons.BY_ID[value] then value else nil)
 			else Loadout.validAvatar(value)
 		if not clean then return false, "Unknown loadout." end
+		if action ~= "avatar" and not Progression.unlocked(self:level(player.UserId), clean) then
+			return false, `{Weapons.BY_ID[clean].name} unlocks at level {Progression.unlockLevel(clean)}.`
+		end
 		local profile = self:profile(player.UserId)
 		if action ~= "avatar" then
 			-- Your two weapons are two different ones: picking the one in your other hand swaps them.
@@ -539,6 +582,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		-- (a preset) clear everyone's arena ballots.
 		return false, "The room is voting - settings are locked."
 	elseif room.host ~= player.UserId then return false, "Only the host can change match settings."
+	elseif room.ranked then return false, "Ranked plays one set of rules."
 	elseif action == "stage" then
 		if value ~= "Random" and (type(value) ~= "string" or not Stages.BY_ID[value]) then return false, "Unknown map." end
 		room.stage = value
@@ -592,6 +636,10 @@ function Rooms.presetOf(room: any): string?
 	return nil
 end
 
+-- The maps a room's map vote offers: the competitive rotation in Ranked, every map elsewhere.
+function Rooms.voteSet(room: any): string
+	return if room.ranked then "ranked" else "all"
+end
 -- Map sets, as on the web setup screen: everything, or the competitive rotation.
 function Rooms.inSet(stage: any, set: string?): boolean
 	return set ~= "ranked" or stage.ranked == true
@@ -628,8 +676,9 @@ function Rooms.roster(_self: any, room: any, rand: ((number) -> number)?): ({ an
 		table.insert(roster, { player = slot.player, avatar = slot.avatar, weapon = slot.weapon,
 			kit = { slot.weapon, slot.weapon2 or slot.weapon }, team = slot.team, botLevel = slot.bot })
 	end
-	return roster, { mode = if room.mode == "timed" then "TimedTeams" else "StockTeams", timeLimit = room.time,
+	local mode = (if room.mode == "timed" then "Timed" else "Stock") .. (if room.ffa then "FFA" else "Teams")
+	return roster, { mode = mode, timeLimit = room.time,
 		stage = stage, stocks = room.stocks, items = room.items,
-		disasters = room.disasters, weaponDrops = true }
+		disasters = room.disasters, weaponDrops = true, ranked = room.ranked == true }
 end
 return Rooms

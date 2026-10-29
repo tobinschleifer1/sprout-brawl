@@ -12,12 +12,14 @@
 --               (openings since the last guaranteed-tier item; paidPity the same for paid keys),
 --               receipts (purchase ids granted in this record), presets (saved loadouts), firstWin
 --               (the UTC day of the last first-win bonus), meter (qualifying matches until the
---               next drop), earn { hour, count, times } (legacy hour bucket and rolling timestamps), seq (the
+--               next drop), progress { xp, points, best, wins } (levels and Ranked: Progression),
+--               earn { hour, count, times } (legacy hour bucket and rolling timestamps), seq (the
 --               next uid)
 --   the LOADOUT, what a fighter carries into a match: only what is equipped, as plain ids.
 -- Both are rebuilt through the catalogue whenever they are read - a record came from a DataStore,
 -- a loadout from the network - so anything unknown, unowned or misplaced is dropped. Pure.
 local Cosmetics = require(script.Parent.Cosmetics)
+local Progression = require(script.Parent.Progression)
 local Inventory = {}
 
 Inventory.VERSION = 2
@@ -164,6 +166,14 @@ function Inventory.sanitize(raw: any): any
 				end
 			end
 			return out
+		end)(),
+		-- levels and the Ranked ladder (Progression): XP, rank points, the best tier reached (its
+		-- reward paid), and ranked wins toward the next boost key
+		progress = (function()
+			local src2 = if type(src.progress) == "table" then src.progress else {}
+			local best = count(src2.best)
+			return { xp = count(src2.xp), points = count(src2.points), best = math.clamp(best, 1, #Progression.TIERS),
+				wins = count(src2.wins) }
 		end)(),
 		earn = { times = times, hour = integer(type(src.earn) == "table" and src.earn.hour, Inventory.MAX_INTEGER), count = count(type(src.earn) == "table" and src.earn.count) },
 	}

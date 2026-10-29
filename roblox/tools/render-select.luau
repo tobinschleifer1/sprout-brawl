@@ -4,7 +4,7 @@
 -- the screen can be looked at without Studio. Every Frame, label and button is resolved to its
 -- absolute rectangle through its parents, with its corner radius and outline.
 --
---   lune run tools/render-select <out.json> [width] [height] [format: 1v1|2v2|3v3] [phase: pick|map|rules]
+--   lune run tools/render-select <out.json> [width] [height] [format: 1v1|2v2|3v3|ffa3|ffa4|ffa6|ranked] [phase: pick|map|rules] [level]
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
 local process = require("@lune/process")
@@ -20,6 +20,8 @@ local W = tonumber(process.args[2] or "1280") or 1280
 local H = tonumber(process.args[3] or "720") or 720
 local format = process.args[4] or "2v2"
 local phase = process.args[5] or "pick"
+local level = tonumber(process.args[6] or "50") or 50
+local ffa = string.sub(format, 1, 3) == "ffa"
 
 -- ------------------------------------------------------------------ stand-in Instances ----
 local made = {}
@@ -71,11 +73,11 @@ local code
 for _, p in KIT.presets do if p.id == "knight" then code = p.code end end
 local looks = {}
 for _, p in KIT.presets do table.insert(looks, p.code) end
-local size = if format == "1v1" then 2 elseif format == "3v3" then 6 else 4
+local size = if format == "1v1" or format == "ranked" then 2 elseif format == "3v3" or format == "ffa6" then 6 elseif format == "ffa3" then 3 else 4
 local slots = {}
 local weapons = { "Sword", "Hammer", "Scythe", "Daggers", "Pike", "Grimoire" }
 for i = 1, size do
-	slots[i] = { team = (i - 1) % 2, weapon = weapons[i], avatar = looks[(i * 3) % #looks + 1], ready = false, name = "Open" }
+	slots[i] = { team = if ffa then i - 1 else (i - 1) % 2, weapon = weapons[i], avatar = looks[(i * 3) % #looks + 1], ready = false, name = "Open" }
 end
 slots[1].userId, slots[1].name, slots[1].avatar, slots[1].ready = 1, "You", code, true
 slots[2].userId, slots[2].name = 2, "Rival"
@@ -86,7 +88,7 @@ end
 if size >= 6 then slots[5].userId, slots[5].name = 5, "Ally" end
 local room = { id = 12, host = 1, format = format, name = format .. " Match", state = "setup", revision = 3, stage = "FoundryFloor",
 	stocks = 3, items = true, disasters = "off", slots = slots, canStart = false, mapChoice = "vote", mapSet = "all",
-	mode = "stock", time = 180,
+	mode = "stock", time = 180, ffa = ffa or nil, ranked = format == "ranked" or nil,
 	botVote = if size >= 4 then { slot = 3, value = "normal", by = 2, yes = 1, no = 0, voters = if size >= 6 then 3 else 2,
 		ballots = { ["2"] = true }, left = 7 } else nil }
 
@@ -102,6 +104,7 @@ if phase == "rules" then
 	if slots[5] then slots[5].ruleVote = "chaos" end
 end
 local screen = Screen.new(new("Folder"))
+screen:setLevel(level)
 screen:update(room, 1)
 local c = Recorder.canvas(Canvas, W, H)
 for _ = 1, 3 do table.clear(shapes); screen:draw(c, 1 / 60, code) end

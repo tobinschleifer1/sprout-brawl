@@ -13,6 +13,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Cosmetics = require(Shared.Cosmetics)
 local Inventory = require(Shared.Inventory)
 local Loot = require(Shared.Loot)
+local Progression = require(Shared.Progression)
 local Economy = {}
 Economy.__index = Economy
 
@@ -87,7 +88,9 @@ function Economy._matchFinished(self: any, inv: any, results: any, row: any, use
 	table.insert(times, now)
 	inv.earn.count += 1
 	local vip = isVip(self, userId)
+	local ranked = results.ranked == true
 	inv.meter = (inv.meter or Loot.nextMeter(self.rand)) - (if results.cpu then Economy.CPU_STEP else 1)
+		- (if ranked then Progression.RANKED_METER else 0)
 	local out: any = { counted = true, cpu = results.cpu == true }
 	if inv.meter <= 0 then
 		out.drop = self:_dropInto(inv, Loot.rollDrop(self.rand), vip)
@@ -102,8 +105,63 @@ function Economy._matchFinished(self: any, inv: any, results: any, row: any, use
 		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + bonus)
 		out.firstWin = bonus
 	end
+	out.progress = Economy._progress(inv, Economy.won(results, row), results.cpu == true, ranked)
 	out.left = inv.meter
 	return out
+end
+
+-- Levels and the Ranked ladder (Progression), for a match that counted. Returns what changed.
+function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean): any
+	local p = inv.progress
+	local before = Progression.level(p.xp)
+	local gained = Progression.xpFor(won, cpu)
+	p.xp = math.min(Inventory.MAX_COUNT, p.xp + gained)
+	local level, into, need = Progression.level(p.xp)
+	local out: any = { xp = gained, level = level, into = into, need = need, from = before,
+		unlocked = Progression.unlocksBetween(before, level) }
+	if not ranked then return out end
+	local points = Progression.rankAfter(p.points, p.best, won, cpu)
+	local tier = Progression.tier(points)
+	local rank: any = { delta = points - p.points, points = points, tier = tier }
+	p.points = points
+	-- each tier reached for the first time pays its reward once, in order (a jump of two pays both)
+	if tier > p.best then
+		rank.promoted = {}
+		for t = p.best + 1, tier do
+			local r = Progression.TIERS[t].reward
+			if r then
+				inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + (r.keys or 0))
+				inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + (r.sparks or 0))
+				if r.crate then inv.crates[r.crate] = math.min(Inventory.MAX_COUNT, inv.crates[r.crate] + (r.crates or 1)) end
+			end
+			table.insert(rank.promoted, t)
+		end
+		p.best = tier
+	end
+	-- the ranked boost: Sparks for a win, and a Forge Key every KEY_EVERY wins
+	if won then
+		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + Progression.RANKED_SPARKS)
+		rank.sparks = Progression.RANKED_SPARKS
+		p.wins = math.min(Inventory.MAX_COUNT, p.wins + 1)
+		if p.wins % Progression.KEY_EVERY == 0 then
+			inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + 1)
+			rank.key = true
+		end
+	end
+	out.rank = rank
+	return out
+end
+
+-- The player's level, from their saved XP.
+function Economy.level(self: any, userId: number): number
+	return (Progression.level(self:inventory(userId).progress.xp))
+end
+-- Their level and rank, as the client shows them.
+function Economy.progressView(inv: any): any
+	local p = inv.progress
+	local level, into, need = Progression.level(p.xp)
+	return { xp = p.xp, level = level, into = into, need = need, points = p.points, tier = Progression.tier(p.points),
+		best = p.best, wins = p.wins }
 end
 
 -- Apply a drop; returns what it was.
@@ -199,7 +257,7 @@ function Economy.view(self: any, userId: number): any
 		guarantees[id] = crate.guarantee.at - (if paidNext then inv.paidPity[id] else inv.pity[id])
 	end
 	return { sparks = inv.sparks, crates = table.clone(inv.crates), keys = { forge = inv.keys.forge.earned + inv.keys.forge.paid },
-		meter = inv.meter, guarantees = guarantees, items = items }
+		meter = inv.meter, guarantees = guarantees, items = items, progress = Economy.progressView(inv) }
 end
 
 -- All public mutations share the record transaction, including direct server grants and drops.

@@ -85,6 +85,8 @@ end
 -- it arms from drops (or `weapon` twice), and starts on fists.
 function MatchService.start(self: any, roster: { any }, opts: any?)
 	local o = opts or {}
+	-- a Ranked fight (Rooms): its results say so, and Economy pays rank points and the boost
+	self.ranked = o.ranked == true
 	self:stop()
 	self.generation += 1
 
@@ -304,7 +306,7 @@ function MatchService.results(self: any): any
 	local cpu = false
 	for _, f in m.fighters do if not self.userIds[f.source] then cpu = true end end
 	return {
-		rows = rows, winnerTeam = r.winnerTeam, teams = r.teams, mode = r.mode, timed = r.timed, cpu = cpu,
+		rows = rows, winnerTeam = r.winnerTeam, teams = r.teams, mode = r.mode, timed = r.timed, cpu = cpu, ranked = self.ranked,
 		frames = m.frame, time = m.time,
 	}
 end

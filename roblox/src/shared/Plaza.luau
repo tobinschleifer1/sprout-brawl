@@ -50,6 +50,20 @@ end
 local PLAZA: any = table.clone(WEB)
 PLAZA.market = robloxMarket(WEB.market)
 PLAZA.cabinets = {}
+-- PLAY's other fights, each with a lounge of its own (the 1v1's, renamed): free-for-alls of three,
+-- four and six - `players` places, everyone on their own - and Ranked, the tournament, a 1v1 that
+-- opens at level 10 (Progression) and climbs the rank ladder. The team rooms keep the web's.
+local function lounge(id: string, name: string, extra: any): any
+	local r: any = table.clone(WEB.rooms.Duel)
+	r.id, r.name = "Lounge" .. id, name
+	for k, v in extra do r[k] = v end
+	return r
+end
+PLAZA.rooms = table.clone(WEB.rooms)
+PLAZA.rooms.FFA3 = lounge("FFA3", "3-WAY FFA · FREE FOR ALL", { players = 3, ffa = true })
+PLAZA.rooms.FFA4 = lounge("FFA4", "4-WAY FFA · FREE FOR ALL", { players = 4, ffa = true })
+PLAZA.rooms.FFA6 = lounge("FFA6", "6-WAY FFA · FREE FOR ALL", { players = 6, ffa = true })
+PLAZA.rooms.Ranked = lounge("Ranked", "RANKED 1v1 · TOURNAMENT", { ranked = true })
 
 local Plaza = {}
 Plaza.__index = Plaza

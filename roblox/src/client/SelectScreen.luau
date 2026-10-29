@@ -17,6 +17,7 @@
 -- every player gets YES / NO, and a strict majority of the players in the room decides.
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Weapons = require(Shared.Weapons)
+local Progression = require(Shared.Progression)
 local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
 local Fighter = require(Shared.Fighter)
@@ -66,7 +67,10 @@ local STAT_NAMES = { damage = "DMG", defense = "DEF", dexterity = "DEX", speed =
 -- Where everything goes on a W x H screen with `slots` (the room's slot views, in room order).
 -- Pure: the canvas and the GUI both read it, so they cannot drift apart. Pedestals are in screen
 -- order - team 0 on the left, team 1 on the right, with a gap for the VS between them.
-function SelectScreen.layout(W: number, H: number, slots: { any }): any
+--
+-- A free-for-all (any slot on a team past 1: everyone is their own) stands in slot order with no VS
+-- and no gap between teams. `mapSet` "ranked" offers only the competitive maps (Ranked's vote).
+function SelectScreen.layout(W: number, H: number, slots: { any }, mapSet: string?): any
 	local s = math.clamp(math.min(W / 1280, H / 720), 0.55, 1.4)
 	-- a wide, short screen (a phone on its side) takes the roster in one row, leaving the height for
 	-- the fighters; anything squarer takes two rows. By the weapon count, not a fixed six: the
@@ -103,16 +107,17 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	end
 	local rows = math.ceil(#Weapons.LIST / perRow)
 	local rosterBottom = rosterTop + rows * cell + (rows - 1) * gap + math.floor(14 * s) * rows
-	-- pedestals: team 0 then team 1
+	-- pedestals: team 0 then team 1, or a free-for-all in slot order
+	local ffa = SelectScreen.isFfa(slots)
 	local order = {}
-	for i, slot in slots do if (slot.team or 0) == 0 then table.insert(order, i) end end
-	for i, slot in slots do if (slot.team or 0) ~= 0 then table.insert(order, i) end end
+	for i, slot in slots do if ffa or (slot.team or 0) == 0 then table.insert(order, i) end end
+	if not ffa then for i, slot in slots do if (slot.team or 0) ~= 0 then table.insert(order, i) end end end
 	local n = math.max(1, #order)
 	local buttonsY = H - math.floor(62 * s)
 	local cardH = math.floor(math.clamp(H * 0.24, 96, 190))
 	-- (at least Ui.GAP above the button row: scaled down on a phone, 18 * s left READY 3 px from the cards)
 	local cardY = buttonsY - math.max(math.floor(18 * s), if Ui.lightPanels() then Ui.GAP else 0) - cardH
-	local vsGap = math.floor(56 * s)
+	local vsGap = if ffa then 0 else math.floor(56 * s)
 	local cardW = math.floor(math.min(250 * s, (W - 40 - vsGap) / n - 14))
 	local total = n * cardW + (n - 1) * 14 + vsGap
 	local x = W / 2 - total / 2
@@ -127,7 +132,7 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	end
 	local vsX = nil
 	for k = 2, #pedestals do
-		if pedestals[k].team ~= pedestals[k - 1].team then vsX = (pedestals[k - 1].x + pedestals[k - 1].cardW + pedestals[k].x) / 2 end
+		if not ffa and pedestals[k].team ~= pedestals[k - 1].team then vsX = (pedestals[k - 1].x + pedestals[k - 1].cardW + pedestals[k].x) / 2 end
 	end
 	-- the vote pages: a band for the cards between the title and the strip of who has voted
 	local voteTop = math.floor(126 * s)
@@ -135,9 +140,12 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 	local area = stripY - math.floor(12 * s) - voteTop
 	-- the map cards: every arena and Random, five to a row, each a 16:9 picture with its name under it
 	local ids = {}
-	for _, st in Stages.LIST do table.insert(ids, st.id) end
+	for _, st in Stages.LIST do
+		if mapSet ~= "ranked" or st.ranked == true then table.insert(ids, st.id) end
+	end
 	table.insert(ids, "Random")
-	local cols = 5
+	-- (fewer than five - Ranked's competitive maps - stand centred in one row of their own)
+	local cols = math.min(5, #ids)
 	local rowsN = math.ceil(#ids / cols)
 	local nameH = math.floor(18 * s)
 	local MG = if Ui.lightPanels() then Ui.CHOSEN_GAP else 14
@@ -163,8 +171,19 @@ function SelectScreen.layout(W: number, H: number, slots: { any }): any
 		rules[i] = { id = id, x = W / 2 - rowW / 2 + (i - 1) * (ruleW + 16), y = voteTop, w = ruleW, h = ruleH,
 			panelH = math.min(ruleH * 0.75, math.floor(196 * s)) }
 	end
-	return { s = s, cell = cell, compact = compact, roster = roster, rosterBottom = rosterBottom, pedestals = pedestals, vsX = vsX,
+	return { s = s, cell = cell, compact = compact, roster = roster, rosterBottom = rosterBottom, pedestals = pedestals, vsX = vsX, ffa = ffa,
 		buttonsY = buttonsY, W = W, H = H, maps = maps, nameH = nameH, rules = rules, voteTop = voteTop, stripY = stripY }
+end
+
+-- Is this room a free-for-all? Its slots' teams run past the two sides.
+function SelectScreen.isFfa(slots: { any }): boolean
+	for _, slot in slots do if (slot.team or 0) > 1 then return true end end
+	return false
+end
+-- A pedestal's colour: its team's, or in a free-for-all its own player colour.
+function SelectScreen.teamColour(team: number, ffa: boolean?): Color3
+	if ffa then return HudColors.PLAYER[(team % #HudColors.PLAYER) + 1] end
+	return HudColors.TEAM[(team % 2) + 1]
 end
 
 -- ------------------------------------------------------------------ gui helpers ----
@@ -188,7 +207,7 @@ end
 -- ------------------------------------------------------------------ construction ----
 function SelectScreen.new(parent: Instance): any
 	local self: any = setmetatable({ open = false, minimised = false, room = nil, userId = 0, cards = {}, cells = {},
-		tags = {}, hand = 1, fighters = {}, chars = {}, voteEndsAt = 0, built = nil,
+		tags = {}, hand = 1, fighters = {}, chars = {}, voteEndsAt = 0, built = nil, level = 1,
 		now = os.clock }, SelectScreen)        -- (`now` is replaceable, for the tests)
 	local gui = make("ScreenGui", parent, { Name = "BlockfallSelect", ResetOnSpawn = false, IgnoreGuiInset = true,
 		DisplayOrder = 15, Enabled = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
@@ -295,10 +314,27 @@ function SelectScreen.update(self: any, room: any, userId: number)
 	if (entering or back) and room.state == "setup" then self.hand = 1; self:show() else self:render() end
 end
 
+-- Your level (Progression): weapons above it are locked on the roster.
+function SelectScreen.setLevel(self: any, level: number)
+	if type(level) ~= "number" or level == self.level then return end
+	self.level = level
+	if self.open then self:render() end
+end
+function SelectScreen.locked(self: any, id: string): boolean
+	return not Progression.unlocked(self.level or 1, id)
+end
+
 -- Weapon drops: you bring two weapons. A click fills the hand being chosen and moves on to the
 -- other, so two clicks pick a pair; clicking one you already hold keeps it and chooses its
 -- partner next. (The server keeps the pair two different weapons: see Rooms, "weapon2".)
 function SelectScreen.pickWeapon(self: any, id: string)
+	-- (a locked weapon says when it unlocks; the server refuses it too)
+	if self:locked(id) then
+		self.lockNote = `{Weapons.BY_ID[id].name} unlocks at level {Progression.unlockLevel(id)}. You are level {self.level}.`
+		self:render()
+		return
+	end
+	self.lockNote = nil
 	local mine = nil
 	for _, slot in (self.room and self.room.slots) or {} do if slot.userId == self.userId then mine = slot end end
 	if mine and mine.weapon == id then self.hand = 2
@@ -363,15 +399,19 @@ function SelectScreen.build(self: any, L: any)
 		place(name, r.x - L.cell / 2 - 4, r.y + L.cell / 2 + 5 + (if LIGHT then Ui.BRACKET_OUT + Ui.BRACKET_INK else 0), L.cell + 8, 14 * s)
 		name.TextSize = SelectScreen.fitSize(name.Text, 11 * s, L.cell - 4)
 		b.Activated:Connect(function() self:pickWeapon(r.id) end)
+		-- a locked weapon: its portrait veiled, its name its unlock level
+		local veil = make("Frame", b, { Name = "Locked", BackgroundColor3 = Ui.INK, BackgroundTransparency = 0.35, BorderSizePixel = 0,
+			Size = UDim2.fromScale(1, 1), Visible = false })
+		corner(veil, math.floor(L.cell / 2))
 		-- a picked weapon wears the stepped brackets the vote cards do: one mark for "chosen" everywhere
 		local marks = if LIGHT and not L.compact then Ui.brackets(b, GOLD) else nil
-		self.cells[i] = { button = b, ring = ring, name = name, id = r.id, marks = marks }
+		self.cells[i] = { button = b, ring = ring, name = name, id = r.id, marks = marks, veil = veil }
 		table.insert(self.tags, name)
 	end
 
 	-- a card per pedestal
 	for _, p in L.pedestals do
-		local team = HudColors.TEAM[(p.team % 2) + 1]
+		local team = SelectScreen.teamColour(p.team, L.ffa)
 		-- the card: an ink border with the team's colour as a ring inside it (green once ready), and
 		-- a header band in the team's colour with the player's name outlined in it
 		local card = make("Frame", self.pickPage, { Name = "Card" .. p.slot, BackgroundColor3 = PANEL, BackgroundTransparency = 0, BorderSizePixel = 0 })
@@ -573,9 +613,9 @@ function SelectScreen.render(self: any)
 	local room = self.room
 	if not room or room.left then return end
 	local W, H = self:viewport()
-	local layoutKey = `{W}x{H}x{#room.slots}`
+	local layoutKey = `{W}x{H}x{#room.slots}x{room.ranked == true}`
 	if self.layoutKey ~= layoutKey then
-		self.L = SelectScreen.layout(W, H, room.slots)
+		self.L = SelectScreen.layout(W, H, room.slots, if room.ranked then "ranked" else "all")
 		self:build(self.L)
 		self:buildVotes(self.L)
 		self.layoutKey = layoutKey
@@ -627,13 +667,17 @@ function SelectScreen.render(self: any)
 		if c.marks then c.marks.Visible = hand ~= nil end
 		-- (white over the sky, outlined in ink, as every word over the world; gold for your two)
 		c.name.TextColor3 = if hand then GOLD elseif LIGHT then WHITE else DIM
-		c.name.Text = (if hand then `{hand} · ` else "") .. SelectScreen.tileName(Weapons.BY_ID[c.id].name)
+		local locked = self:locked(c.id)
+		c.veil.Visible = locked
+		if locked then c.ring.Color, c.name.TextColor3 = Ui.EDGE, DIM end
+		c.name.Text = if locked then `LV {Progression.unlockLevel(c.id)}`
+			else (if hand then `{hand} · ` else "") .. SelectScreen.tileName(Weapons.BY_ID[c.id].name)
 		c.name.TextSize = SelectScreen.fitSize(c.name.Text, 11 * L.s, L.cell - 4)
 		local list: { any } = picked[c.id] or {}
 		for n, entry in list do
 			local slot = entry.slot
 			local you = slot.userId == self.userId
-			local colour = HudColors.TEAM[((slot.team or 0) % 2) + 1]
+			local colour = SelectScreen.teamColour(slot.team or 0, L.ffa)
 			local tag = text(self.pickPage, if you then "YOU" elseif slot.bot then "CPU" else `P{entry.i}`, math.floor(11 * L.s), INK)
 			tag.Name = "Tag"
 			tag.BackgroundTransparency = 0
@@ -705,7 +749,7 @@ function SelectScreen.render(self: any)
 	self.phaseEndsAt = if room.phaseLeft then os.clock() + room.phaseLeft else nil
 	local last = room.lastVote
 	local arena = room.mapResult and Stages.BY_ID[room.mapResult]
-	self.status.Text = room.error
+	self.status.Text = room.error or (if phase == "pick" then self.lockNote else nil)
 		or (if room.state == "playing" then `Loading {if arena then Realms.name(arena) else "the arena"}…` else nil)
 		or (if phase == "rules" and arena then `The arena: {string.upper(Realms.name(arena))}. Now the rules.` else nil)
 		or (if phase == "pick" and last then (if last.passed then (if last.value == false then "The bot was voted out." else "Vote passed: bot added.")
@@ -898,7 +942,7 @@ function SelectScreen.draw(self: any, c: any, dt: number, myAvatar: string?)
 	-- the pedestals and who stands on them
 	for _, p in L.pedestals do
 		local slot = room.slots[p.slot]
-		local team = HudColors.TEAM[(p.team % 2) + 1]
+		local team = SelectScreen.teamColour(p.team, L.ffa)
 		local left = p.cx - p.plinthW / 2
 		-- a beam of the team's light behind the fighter, in three soft steps
 		local top = p.plinthY - p.plinthH - p.fighterH * 1.05

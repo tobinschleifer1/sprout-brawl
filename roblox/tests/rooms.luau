@@ -1,6 +1,9 @@
 --!strict
 local Loader = require("./loader")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (every weapon unlocked: these rooms are not about levels - tests/progression is)
+local newRooms = Rooms.new
+Rooms.new = function(): any local r = newRooms(); r.levelOf = function(_: number): number return 50 end; return r end
 -- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
 Rooms.BOT_WAIT = 0
 local function player(id: number): any return { UserId = id, DisplayName = `Player{id}`, Name = `Player{id}` } end
@@ -238,7 +241,7 @@ do
 		return model:edit(a, { id = room.id, revision = revision or room.revision, action = action, value = value, slot = slot })
 	end
 	local mine = room.slots[1]
-	assert(mine.weapon == "Sword" and mine.weapon2 == "Hammer", "a newcomer brings two different weapons")
+	assert(mine.weapon == "Sword" and mine.weapon2 == "Scythe", "a newcomer brings two different weapons, the first two starters")
 	assert(edit("weapon2", "Axe") and mine.weapon == "Sword" and mine.weapon2 == "Axe", "weapon2 sets the second hand alone")
 	assert(edit("weapon", "Axe") and mine.weapon == "Axe" and mine.weapon2 == "Sword", "picking the other hand's weapon swaps the two")
 	assert(edit("weapon2", "Axe") and mine.weapon == "Sword" and mine.weapon2 == "Axe", "and back, from the second hand")

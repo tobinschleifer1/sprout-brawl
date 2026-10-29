@@ -192,6 +192,8 @@ local function visible(o: any): boolean
 end
 local sent = {}
 local screen = Screen.new(new("Folder"))
+-- (every weapon unlocked for the screen's own behaviour; the locks are checked at the end)
+screen:setLevel(50)
 screen.onAction = function(a: any) table.insert(sent, a) end
 local now = 0
 screen.now = function() return now end
@@ -421,6 +423,50 @@ if not screen.open then fail("the room back from its fight did not bring the scr
 screen:update({ left = true }, 1)
 if screen.open or screen.gui.Enabled then fail("leaving did not close the screen") end
 
+-- levels (Progression): at level 1 only the six starters can be picked. A locked portrait is veiled
+-- and named by its level, and clicking it says so instead of sending anything.
+do
+	screen:setLevel(1)
+	screen:update(room({ id = 8 }), 1)
+	local before = #sent
+	find("PickHammer").Activated:Fire()
+	if #sent ~= before then fail("a locked weapon was sent to the server") end
+	if not string.find(find("Status").Text, "level 5", 1, true) then fail(`clicking a locked weapon did not say its level: {find("Status").Text}`) end
+	if not find("NameHammer") or find("NameHammer").Text ~= "LV 5" then fail("a locked weapon is not named by its unlock level") end
+	if not find("PickHammer"):FindFirstChild("Locked").Visible then fail("a locked weapon's portrait is not veiled") end
+	if find("PickScythe"):FindFirstChild("Locked").Visible then fail("a starter is veiled at level 1") end
+	find("PickScythe").Activated:Fire()
+	if #sent ~= before + 1 or lastSent().value ~= "Scythe" then fail("a starter could not be picked at level 1") end
+	screen:setLevel(5)
+	if find("PickHammer"):FindFirstChild("Locked").Visible then fail("level 5 left the War Hammer locked") end
+	find("PickHammer").Activated:Fire()
+	if lastSent().value ~= "Hammer" then fail("the War Hammer could not be picked at level 5") end
+end
+-- a free-for-all stands everyone in a row with no VS, each in their own colour; Ranked votes on the
+-- competitive maps only
+do
+	local slots = { { team = 0 }, { team = 1 }, { team = 2 }, { team = 3 } }
+	local L = Screen.layout(1280, 720, slots)
+	if not L.ffa or L.vsX then fail("a free-for-all was laid out as two teams") end
+	for k = 2, #L.pedestals do
+		if L.pedestals[k].slot ~= k or math.abs(L.pedestals[k].x - L.pedestals[k - 1].x - L.pedestals[1].cardW - 14) > 1 then
+			fail("a free-for-all's pedestals are not evenly spaced in slot order")
+		end
+	end
+	if Screen.teamColour(2, true) == Screen.teamColour(0, true) then fail("free-for-all fighters share a colour") end
+	if Screen.layout(1280, 720, { { team = 0 }, { team = 1 } }).ffa then fail("a 1v1 was taken for a free-for-all") end
+	local ranked = Screen.layout(1280, 720, { { team = 0 }, { team = 1 } }, "ranked")
+	local all = Screen.layout(1280, 720, { { team = 0 }, { team = 1 } }, "all")
+	if #ranked.maps >= #all.maps then fail("Ranked's map vote offers every map") end
+	for _, m in ranked.maps do
+		if m.id ~= "Random" and not Stages.BY_ID[m.id].ranked then fail(`Ranked offers {m.id}, not a competitive map`) end
+	end
+	local first, last = ranked.maps[1], ranked.maps[#ranked.maps]
+	if math.abs((first.x + last.x + last.w) / 2 - 640) > 2 then fail("Ranked's map cards are not centred") end
+	if #ranked.maps > 5 or first.y ~= last.y then fail("Ranked's map cards are not one row") end
+end
+
+print("  levels lock the weapons above yours (veiled, named by level, explained, never sent); free-for-alls stand in a row; Ranked votes the competitive maps")
 print("PASS select screen: bars from the data; the layout fits 1280x720, 1920x1080, 812x375, 2560x1080, 1280x560, 1280x400 and 640x320 for 1v1/2v2/3v3 with the teams either side of the VS")
 print("  every control sends its action (portrait, ADD BOT at a difficulty, YES/NO, REMOVE, READY, LEAVE; no START), HIDE and ROOM, votes take their card, cards show their weapon's bars, picks carry tags, rematches reopen, the roster is drawn once")
 print("  the vote pages fit at every size; the phase picks the page; arena and rule cards send their votes, with counts, your ring, the voted strip, the clock and the arena in the bar")

@@ -61,6 +61,8 @@ local economy = Economy.new({ store = avatars, mint = mint,
 	paidAllowed = function(userId: number): boolean return not restricted(userId) end,
 	vip = function(userId: number): boolean return passes:owns(userId, "vip") end })
 local shop = Shop.new({ economy = economy, passes = passes, restricted = restricted })
+-- the weapons a player may pick, and whether Ranked is open to them, go by their saved level
+rooms.levelOf = function(userId: number): number return economy:level(userId) end
 local loaded: any = {}
 local function sendEconomy(player: Player, event: any?)
 	if loaded[player.UserId] ~= player then return end

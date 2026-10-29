@@ -1,7 +1,8 @@
 --!strict
--- The lobby's bar: PLAY (pick 1v1, 2v2 or 3v3 and wait in the queue - Rooms.queue - while you walk
--- the roofs) and the roof map's warps. While queued, a card at the top says what you are waiting
--- for, with CANCEL and FILL WITH BOTS.
+-- The lobby's bar: PLAY (pick a fight - 1v1, 2v2 or 3v3, a free-for-all of 3, 4 or 6, or Ranked -
+-- and wait in the queue - Rooms.queue - while you walk the roofs) and the roof map's warps. While
+-- queued, a card at the top says what you are waiting for, with CANCEL and FILL WITH BOTS. PLAY
+-- also shows your level and rank (Progression); Ranked stays locked below RANKED_LEVEL.
 --
 -- (It was also the lobby's stamps, quick messages and member list; the owner had those taken out,
 -- 2026-10-29, when PLAY replaced the arcade and the fighters' gates.)
@@ -11,6 +12,7 @@
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Plaza = require(Shared.Plaza)
 local Realms = require(Shared.Realms)
+local Progression = require(Shared.Progression)
 local Ui = require(script.Parent.Ui)
 
 local PLAZA: any = Plaza.DATA      -- the Roblox lobby's market (Plaza.luau), not the web's
@@ -25,6 +27,7 @@ LobbySocial.RIGHT_GAP = if Ui.lightPanels() then 3 * 76 + 3 * Ui.GAP else 168 + 
 local LIGHT = Ui.lightPanels()
 local PANEL2 = if LIGHT then Ui.PANEL2 else Color3.fromRGB(46, 52, 63)
 local ON_PANEL = if LIGHT then Ui.TEXT else Color3.fromRGB(230, 225, 214)
+local SUB = if LIGHT then Ui.SUB else Color3.fromRGB(170, 176, 190)
 
 -- The bar: { panel, key, word, colour, icon }.
 local SPECS: { { any } } = {
@@ -34,12 +37,18 @@ local SPECS: { { any } } = {
 -- a bar button's side in a light theme (square icon buttons beside the plaza's; Plaza2D.ICON)
 LobbySocial.ICON = 76
 LobbySocial.BAR_W = if LIGHT then #SPECS * (LobbySocial.ICON + Ui.GAP) - Ui.GAP else #SPECS * 124 - 8
--- the formats PLAY offers, in order, with what each needs
+-- the fights PLAY offers, in order (and by digit), in three sections
 LobbySocial.FORMATS = {
-	{ id = "Duel", word = "1v1", note = "One on one", colour = Ui.GOLD },
-	{ id = "Doubles", word = "2v2", note = "Two teams of two", colour = Ui.BLUE },
-	{ id = "Triples", word = "3v3", note = "Two teams of three", colour = Ui.PINK },
+	{ id = "Duel", word = "1v1", section = "TEAMS", colour = Ui.GOLD },
+	{ id = "Doubles", word = "2v2", section = "TEAMS", colour = Ui.BLUE },
+	{ id = "Triples", word = "3v3", section = "TEAMS", colour = Ui.PINK },
+	{ id = "FFA3", word = "3 WAY", section = "FREE FOR ALL", colour = Ui.TEAL },
+	{ id = "FFA4", word = "4 WAY", section = "FREE FOR ALL", colour = Ui.SKY },
+	{ id = "FFA6", word = "6 WAY", section = "FREE FOR ALL", colour = Ui.VIOLET },
+	{ id = "Ranked", word = "RANKED  ·  1v1", section = "RANKED  ·  THE TOURNAMENT", colour = Ui.ORANGE,
+		level = Progression.RANKED_LEVEL },
 }
+LobbySocial.PLAY_W = 340
 -- a list row's words, in from its edge (they sat against the row's left side)
 LobbySocial.ROW_PAD = 14
 
@@ -70,6 +79,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.opts = opts
 	self.enabled = false
 	self.queue = { queued = false }
+	self.progress = { level = 1, into = 0, need = Progression.need(1), points = 0, tier = 1 }
 
 	local gui = Instance.new("ScreenGui")
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset, gui.DisplayOrder = "BlockfallSocial", false, true, 13
@@ -94,15 +104,53 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	end
 	self.bar = bar
 
-	-- PLAY: the three formats, a big button each.
+	-- PLAY: your level and rank, then each section's buttons side by side.
 	-- (a kit gap between buttons, past their strokes: 8 px apart, their outlines were 2 px apart)
-	local step = 48 + Ui.GAP + 6
-	local play = panel(gui, "Play", "PLAY  ·  FIND A FIGHT", 300, 38 + #LobbySocial.FORMATS * step - Ui.GAP, SPECS[1][4])
-	for i, f in LobbySocial.FORMATS do
-		local b = Ui.button(play, `{f.word}   {f.note}`, f.colour, function() self:choose(f.id) end, { size = 16 })
-		b.Name = "Format_" .. f.id
-		b.Position, b.Size = UDim2.fromOffset(13, 38 + (i - 1) * step), UDim2.new(1, -26, 0, 48)
+	local gap, inner = Ui.GAP + 6, LobbySocial.PLAY_W - 26
+	local y = 38
+	local playH = 0
+	local play = panel(gui, "Play", "PLAY  ·  FIND A FIGHT", LobbySocial.PLAY_W, 10, SPECS[1][4])
+	local level = Ui.text(play, "", 14, ON_PANEL, Ui.LABEL, true)
+	level.Name, level.Position, level.Size = "Level", UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 18)
+	level.TextXAlignment = Enum.TextXAlignment.Left
+	local rank = Ui.text(play, "", 14, ON_PANEL, Ui.LABEL, true)
+	rank.Name, rank.Position, rank.Size = "Rank", UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 18)
+	rank.TextXAlignment = Enum.TextXAlignment.Right
+	y += 22
+	local track = Ui.make("Frame", play, { Name = "XpBar", BackgroundColor3 = Ui.INK, BorderSizePixel = 0 })
+	track.Position, track.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 8)
+	local fillBar = Ui.make("Frame", track, { Name = "Fill", BackgroundColor3 = Ui.GOLD, BorderSizePixel = 0 })
+	fillBar.Position, fillBar.Size = UDim2.fromOffset(1, 1), UDim2.new(0, 0, 1, -2)
+	y += 8 + 10
+	self.levelText, self.rankText, self.xpFill = level, rank, fillBar
+	self.formatButtons = {}
+	local i = 1
+	while i <= #LobbySocial.FORMATS do
+		local section = LobbySocial.FORMATS[i].section
+		local group = {}
+		while LobbySocial.FORMATS[i] and LobbySocial.FORMATS[i].section == section do
+			table.insert(group, LobbySocial.FORMATS[i]); i += 1
+		end
+		local head = Ui.text(play, section, 12, SUB, Ui.LABEL, true)
+		head.Name, head.Position, head.Size = "Section", UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 16)
+		head.TextXAlignment = Enum.TextXAlignment.Left
+		y += 20
+		local w = math.floor((inner - (#group - 1) * gap) / #group)
+		for k, f in group do
+			local b = Ui.button(play, f.word, f.colour, function() self:choose(f.id) end, { size = 16 })
+			b.Name = "Format_" .. f.id
+			b.Position, b.Size = UDim2.fromOffset(13 + (k - 1) * (w + gap), y), UDim2.fromOffset(w, 44)
+			self.formatButtons[f.id] = b
+		end
+		y += 44 + gap
 	end
+	-- why the last choice was refused (Ranked below its level, or the server's reason)
+	local note = Ui.text(play, "", 12, SUB, Ui.LABEL, true)
+	note.Name, note.Position, note.Size = "Note", UDim2.fromOffset(13, y - gap + 6), UDim2.new(1, -26, 0, 16)
+	note.TextXAlignment = Enum.TextXAlignment.Left
+	self.note = note
+	playH = y - gap + 28
+	play.Size = UDim2.fromOffset(LobbySocial.PLAY_W, playH)
 	self.playPanel = play
 
 	-- The roof map.
@@ -129,6 +177,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.queueCard, self.queueTitle, self.queueCount = card, title, count
 
 	self.panels = { Play = play, Map = map }
+	self:setProgress(nil)
 	return self
 end
 
@@ -164,9 +213,45 @@ function LobbySocial.toggle(self: any, name: string)
 end
 
 -- ------------------------------------------------------------------ PLAY ----
+local function formatById(id: string): any
+	for _, f in LobbySocial.FORMATS do if f.id == id then return f end end
+	return nil
+end
 function LobbySocial.choose(self: any, format: string)
+	local f = formatById(format)
+	-- (the server refuses it too: this only says so without the round trip)
+	if f and f.level and (self.progress.level or 1) < f.level then
+		self.note.Text = `Ranked unlocks at level {f.level}. You are level {self.progress.level or 1}.`
+		return
+	end
+	self.note.Text = ""
 	if self.opts.queue then self.opts.queue(format) end
 	self:closeAll()
+end
+
+-- Your level and rank (Economy.progressView, from EconomyView): the panel's top line and XP bar,
+-- and Ranked's button greyed while it is locked.
+function LobbySocial.setProgress(self: any, view: any)
+	if type(view) == "table" then self.progress = view end
+	local p = self.progress
+	local level, into, need = p.level or 1, p.into or 0, p.need or 0
+	self.levelText.Text = if need > 0 then `LEVEL {level}  ·  {into} / {need} XP` else `LEVEL {level}  ·  MAX`
+	self.xpFill.Size = UDim2.new(if need > 0 then math.clamp(into / need, 0, 1) else 1, -2, 1, -2)
+	local tier = Progression.TIERS[math.clamp(p.tier or 1, 1, #Progression.TIERS)]
+	self.rankText.Text = if level >= Progression.RANKED_LEVEL then `{tier.name}  ·  {p.points or 0} RP` else ""
+	for _, f in LobbySocial.FORMATS do
+		local b = self.formatButtons[f.id]
+		if f.level then
+			local open = level >= f.level
+			Ui.paint(b, if open then f.colour else PANEL2, if open then Ui.WHITE else ON_PANEL)
+			b.Text = if open then f.word else `RANKED  ·  UNLOCKS AT LEVEL {f.level}`
+		end
+	end
+end
+
+-- The server refused a queue (why, as Rooms.queue says it): shown under the buttons.
+function LobbySocial.refused(self: any, why: string?)
+	if type(why) == "string" and why ~= "" then self.note.Text = why end
 end
 
 function LobbySocial.cancel(self: any)

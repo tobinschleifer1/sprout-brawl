@@ -217,7 +217,10 @@ elseif screen == "play" then
 	local social = Social.new(playerGui, {})
 	social:setEnabled(true)
 	social:toggle("Play")
-	social:setQueue({ queued = true, format = "Doubles", name = "2v2", waiting = 2, needed = 4, formAt = 3 })
+	-- variant "locked": a new player (Ranked locked); otherwise level 12, Silver
+	if variant == "locked" then social:setProgress({ level = 1, into = 60, need = 140, points = 0, tier = 1 })
+	else social:setProgress({ level = 12, into = 130, need = 305, points = 140, tier = 2 }) end
+	social:setQueue({ queued = true, format = "FFA4", name = "4-WAY FFA", waiting = 2, needed = 4, formAt = 3 })
 	c:screen()
 	Canvas.rect(c, 0, 0, W, H, Rbx.Color3.fromRGB(40, 46, 70), 1)
 elseif screen == "climb" then

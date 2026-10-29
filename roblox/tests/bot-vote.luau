@@ -15,6 +15,9 @@
 --     lune run tests/bot-vote
 local Loader = require("./loader")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
+-- (every weapon unlocked: these rooms are not about levels - tests/progression is)
+local newRooms = Rooms.new
+Rooms.new = function(): any local r = newRooms(); r.levelOf = function(_: number): number return 50 end; return r end
 -- (no wait before ADD BOT here: the queue test holds Rooms.BOT_WAIT; this one is about the rest)
 Rooms.BOT_WAIT = 0
 

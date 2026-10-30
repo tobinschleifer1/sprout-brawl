@@ -187,6 +187,29 @@ do
 	if math.abs((a - b) - Progression.RANKED_METER) > 1e-9 then fail("a ranked match did not move the drop meter further") end
 end
 
+-- 5b. Studio's boost: a playtest reaches Ranked on the 3rd to 6th counted match (drawn once), losing
+-- every match against bots, and never before; outside Studio there is no boost.
+do
+	for _, case in { { 0, 3 }, { 0.5, 5 }, { 0.999, 6 } } do
+		local t = 0
+		local econ = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true),
+			rand = function() return case[1] end, time = function() return t end, studio = true })
+		local opened = nil
+		for n = 1, 8 do
+			t += 3600
+			local o = econ:matchFinished(1, results(false, false, true), row)
+			if not opened and o.progress.level >= Progression.RANKED_LEVEL then opened = n end
+		end
+		if opened ~= case[2] then fail(`a draw of {case[1]} opened Ranked on match {opened}, not {case[2]}`) end
+	end
+	local t = 0
+	local plain = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0 end,
+		time = function() return t end })
+	for _ = 1, 6 do t += 3600; plain:matchFinished(1, results(false, false, true), row) end
+	if plain:level(1) >= Progression.RANKED_LEVEL then fail("the Studio boost ran outside Studio") end
+	if Progression.xpTo(3) ~= Progression.need(1) + Progression.need(2) or Progression.level(Progression.xpTo(10)) ~= 10 then fail("xpTo is wrong") end
+end
+
 -- 6. Rooms: free-for-alls of 3, 4 and 6, each fighter their own team; Ranked locked below level 10,
 -- one set of rules, competitive maps, no rules vote; weapons locked by level.
 local function player(id: number): any return { UserId = id, DisplayName = `P{id}`, Name = `P{id}` } end
@@ -297,4 +320,5 @@ end
 
 print("PASS progression: the first six weapons for everyone, the rest from level 3 to 15; level 15 about thirty matches in; Ranked at level 10")
 print("  six tiers, never dropping one reached, each paying keys and Sparks once; ranked wins pay Sparks and a key every three; ranked moves the drop meter further")
+print("  Studio reaches Ranked on the drawn 3rd-6th match, and only Studio")
 print("  free-for-alls of 3, 4 and 6 (own teams, FFA modes); Ranked's fixed rules and competitive maps, no rules vote; weapons and Ranked refused below their level")

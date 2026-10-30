@@ -24,10 +24,31 @@ Economy.CPU_STEP = 0.75
 Economy.FIRST_WIN, Economy.VIP_SPARKS = 25, 0.10
 
 -- opts: { store = AvatarStore, mint = Mint, rand = () -> number, time = () -> number (os.time),
---   paidAllowed = (userId) -> boolean (PolicyService), vip = (userId) -> boolean (the VIP pass) }
+--   paidAllowed = (userId) -> boolean (PolicyService), vip = (userId) -> boolean (the VIP pass),
+--   studio = true in a Studio playtest (Economy.studioBoost) }
 function Economy.new(opts: any): any
 	return setmetatable({ store = opts.store, mint = opts.mint, rand = opts.rand or math.random, time = opts.time or os.time,
-		paidAllowed = opts.paidAllowed, vip = opts.vip or function() return false end }, Economy)
+		paidAllowed = opts.paidAllowed, vip = opts.vip or function() return false end, studio = opts.studio == true,
+		boosts = {} }, Economy)
+end
+
+-- Studio only: a playtest reaches Ranked in a few matches instead of about sixteen (Studio records
+-- are session-only, so every playtest starts at level 1). A player's first counted match of the
+-- session draws 3-6; each counted match then pays at least the XP still short of RANKED_LEVEL shared
+-- over the matches left, so Ranked opens on the drawn match. Returns that least XP (0 when done).
+Economy.BOOST_MIN, Economy.BOOST_MAX = 3, 6
+function Economy.studioBoost(self: any, userId: number?, xp: number): number
+	if not self.studio or not userId then return 0 end
+	local b = self.boosts[userId]
+	if not b then
+		b = { left = Economy.BOOST_MIN + math.floor(self.rand() * (Economy.BOOST_MAX - Economy.BOOST_MIN + 1)) }
+		self.boosts[userId] = b
+	end
+	local short = Progression.xpTo(Progression.RANKED_LEVEL) - xp
+	if b.left <= 0 or short <= 0 then return 0 end
+	local least = math.ceil(short / b.left)
+	b.left -= 1
+	return least
 end
 local function isVip(self: any, userId: number?): boolean
 	if not userId then return false end
@@ -105,16 +126,17 @@ function Economy._matchFinished(self: any, inv: any, results: any, row: any, use
 		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + bonus)
 		out.firstWin = bonus
 	end
-	out.progress = Economy._progress(inv, Economy.won(results, row), results.cpu == true, ranked)
+	out.progress = Economy._progress(inv, Economy.won(results, row), results.cpu == true, ranked,
+		self:studioBoost(userId, inv.progress.xp))
 	out.left = inv.meter
 	return out
 end
 
 -- Levels and the Ranked ladder (Progression), for a match that counted. Returns what changed.
-function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean): any
+function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean, least: number?): any
 	local p = inv.progress
 	local before = Progression.level(p.xp)
-	local gained = Progression.xpFor(won, cpu)
+	local gained = math.max(Progression.xpFor(won, cpu), least or 0)
 	p.xp = math.min(Inventory.MAX_COUNT, p.xp + gained)
 	local level, into, need = Progression.level(p.xp)
 	local out: any = { xp = gained, level = level, into = into, need = need, from = before,

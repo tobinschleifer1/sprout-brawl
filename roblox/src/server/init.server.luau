@@ -59,7 +59,9 @@ avatars.owns = function(userId: number, id: string): boolean return locker:owns(
 locker.vip = function(userId: number) return passes:owns(userId, "vip") end
 local economy = Economy.new({ store = avatars, mint = mint,
 	paidAllowed = function(userId: number): boolean return not restricted(userId) end,
-	vip = function(userId: number): boolean return passes:owns(userId, "vip") end })
+	vip = function(userId: number): boolean return passes:owns(userId, "vip") end,
+	-- (a playtest reaches Ranked in 3-6 matches: Economy.studioBoost)
+	studio = RunService:IsStudio() })
 local shop = Shop.new({ economy = economy, passes = passes, restricted = restricted })
 -- the weapons a player may pick, and whether Ranked is open to them, go by their saved level
 rooms.levelOf = function(userId: number): number return economy:level(userId) end

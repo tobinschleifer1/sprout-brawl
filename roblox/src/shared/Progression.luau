@@ -37,6 +37,13 @@ function Progression.level(xp: number): (number, number, number)
 	return level, left, if level < Progression.MAX_LEVEL then Progression.need(level) else 0
 end
 
+-- The total XP that reaches `level` from level 1.
+function Progression.xpTo(level: number): number
+	local xp = 0
+	for l = 1, math.min(level, Progression.MAX_LEVEL) - 1 do xp += Progression.need(l) end
+	return xp
+end
+
 -- The XP a counted match pays.
 function Progression.xpFor(won: boolean, cpu: boolean): number
 	local xp = Progression.XP_MATCH + (if won then Progression.XP_WIN else 0)

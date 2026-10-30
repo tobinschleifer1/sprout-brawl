@@ -18,6 +18,7 @@
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Weapons = require(Shared.Weapons)
 local Progression = require(Shared.Progression)
+local Features = require(Shared.Features)
 local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
 local Fighter = require(Shared.Fighter)
@@ -245,6 +246,7 @@ function SelectScreen.new(parent: Instance): any
 	-- the room's own rematch stays the default (retention plan, step 1)
 	self.requeue = button(root, "NEW OPPONENTS", Ui.BLUE, function() self:send("requeue") end)
 	self.requeue.Name = "Requeue"
+	self.requeue.Visible = Features.STEP1
 	self.ready = button(self.pickPage, "READY", GREEN, function() self:send("ready") end)
 	self.ready.Name = "Ready"
 	self.status = text(root, "", 14, WHITE)

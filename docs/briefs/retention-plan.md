@@ -48,6 +48,9 @@ completed, streak day). **Released on its own, a few days before Step 1's screen
 so Step 1 has a baseline. (Built: `roblox/src/server/Analytics.luau`.)
 
 ### Step 1 - The match loop: next goal, new opponents, invite (no economy risk)
+*Built (`feature/retention`), reviewed in round 3 (6.6) and revised: see `retention-round3-review.md`.
+The next goal shares ONE strip with the level line and the drop (three stacked strips hid the
+podium's stats on a phone). NEW OPPONENTS avoids the people left, both ways, for 60 s.*
 1. **The near-miss line** on the results podium: the single closest goal, by the fraction still to
    go, among: the next level ("85 XP to level 9 - the Shield"), the next tier ("40 RP to Gold - 2
    wins"), and (from Step 3) a quest ("1 more KO"). Ties go to the level. Never shown when the match

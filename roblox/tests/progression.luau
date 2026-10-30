@@ -312,6 +312,52 @@ do
 	if left ~= old or why or m:get(30) or m:queued(30) ~= "Duel" then fail("NEW OPPONENTS did not move the player from the room to the queue") end
 	local fresh = m:fillWithBots(A)
 	if not fresh or fresh == old or m:get(30) == old then fail("FILL WITH BOTS after NEW OPPONENTS put the player back in the room they left") end
+	-- both press NEW OPPONENTS: the room is gone, both wait in the queue, and they are NOT paired again
+	do
+		local t = 0
+		local m3 = Rooms.new()
+		m3.clock = function() return t end
+		local D, E, F = player(40), player(41), player(42)
+		m3:queue(D, "Duel"); m3:queue(E, "Duel")
+		m3:requeue(D); m3:requeue(E)
+		if m3:get(40) or m3:get(41) then fail("two who both asked for new opponents were paired again") end
+		if m3:queued(40) ~= "Duel" or m3:queued(41) ~= "Duel" then fail("the two were not left waiting in the queue") end
+		-- a third arrives: they meet the first in line, not each other
+		m3:queue(F, "Duel")
+		local r = m3:get(42)
+		if not r or (m3:get(40) ~= r and m3:get(41) ~= r) or (m3:get(40) == r and m3:get(41) == r) then fail("a newcomer did not pair with one of them") end
+		-- leave-then-queue: B left its room and queued again; A (who asked) still does not meet B
+		local m4 = Rooms.new()
+		m4.clock = function() return t end
+		local G, H = player(43), player(44)
+		m4:queue(G, "Duel"); m4:queue(H, "Duel")
+		m4:requeue(G)
+		m4:leave(H); m4:queue(H, "Duel")
+		if m4:get(43) or m4:get(44) then fail("NEW OPPONENTS paired the same two after the other left and queued again") end
+		-- and FILL WITH BOTS by either does not pull the other in
+		local fresh = m4:fillWithBots(H)
+		if not fresh or m4:get(43) == fresh or m4:queued(43) ~= "Duel" then
+			fail("FILL WITH BOTS pulled in the player who asked to leave them, or took them out of the queue")
+		end
+		-- the avoidance expires: after AVOID_SECONDS the two may meet again (nobody kept apart for good)
+		local m5 = Rooms.new()
+		m5.clock = function() return t end
+		local J, K = player(45), player(46)
+		m5:queue(J, "Duel"); m5:queue(K, "Duel")
+		m5:requeue(J); m5:requeue(K)
+		t += Rooms.AVOID_SECONDS
+		m5:dequeue(J); m5:queue(J, "Duel")
+		if not m5:get(45) or m5:get(45) ~= m5:get(46) then fail("the avoidance never expired") end
+		-- forget clears it at once
+		local m6 = Rooms.new()
+		m6.clock = function() return t end
+		local L, M = player(47), player(48)
+		m6:queue(L, "Duel"); m6:queue(M, "Duel")
+		m6:requeue(L)
+		m6:forget(L)
+		m6:dequeue(L); m6:queue(L, "Duel")
+		if m6:get(47) ~= m6:get(48) then fail("forget did not clear whom a player avoids") end
+	end
 	-- refused mid-fight
 	local m2 = Rooms.new()
 	local C = player(32)
@@ -339,6 +385,62 @@ do
 	if DropBanner.progressText(nil) ~= "" then fail("a match that did not count showed a progress line") end
 end
 
+-- 8b. One strip, not three: the level line, then the goal, then the drop, empty ones left out
+do
+	local lines = DropBanner.lines({ counted = true, left = 2, drop = { kind = "sparks", amount = 40 },
+		progress = { xp = 160, level = 9, from = 8, into = 20, need = 260, unlocked = { "Shield" } } }, "NEXT: 240 XP to level 10 - Ranked")
+	if #lines ~= 3 or not string.find(lines[1][1], "LEVEL 9", 1, true) or lines[2][1] ~= "NEXT: 240 XP to level 10 - Ranked"
+		or not string.find(lines[3][1], "40 Sparks", 1, true) then
+		fail("the strip's lines are not level, goal, drop")
+	end
+	local skipped = DropBanner.lines({ counted = false, left = 3 }, "")
+	if #skipped ~= 1 or not string.find(skipped[1][1], "did not count", 1, true) then fail("an uncounted match's strip is wrong") end
+	-- shown as one label that turns through them
+	local timers = {}
+	local made = {}
+	local function inst(class)
+		local o = { Name = "", Parent = nil, ClassName = class }
+		function o:Destroy() o.Parent = nil end
+		table.insert(made, o)
+		return o
+	end
+	local gui = { FindFirstChild = function() return nil end }
+	local Rbx = require("@lune/roblox")
+	Loader.gui = { Instance = { new = inst }, UDim = Rbx.UDim, UDim2 = Rbx.UDim2,
+		Enum = setmetatable({}, { __index = function() return setmetatable({}, { __index = function(_, k) return k end }) end }) }
+	DropBanner.delay = function(_, fn) table.insert(timers, fn) end
+	DropBanner.showAll(gui, lines)
+	local label = nil
+	for _, o in made do if o.ClassName == "TextLabel" then label = o end end
+	if not label or label.Text ~= lines[1][1] then fail("the strip did not start on the level line") end
+	local function turn(what: string)
+		local fn = table.remove(timers, 1)
+		if not fn then fail(`the strip did not turn to {what}`) end
+		fn()
+	end
+	turn("the next goal")
+	if label.Text ~= lines[2][1] then fail("the strip did not turn to the next goal") end
+	turn("the drop")
+	if label.Text ~= lines[3][1] then fail("the strip did not turn to the drop") end
+end
+
+-- 9. Analytics: never throws into the server, sends at most three fields in a fixed order, and
+-- accepts from clients only its fixed list.
+do
+	local Analytics = Loader.loadFrom("src/server/", "Analytics")
+	local calls = 0
+	Analytics.service = { LogCustomEvent = function() calls += 1; error("throttled") end }
+	local ok = pcall(Analytics.event, { UserId = 5 }, "match_finished", { format = "Duel", cpu = true, counted = false, extra = 1 })
+	if not ok then fail("a throwing AnalyticsService threw into the caller") end
+	local last = Analytics.sent[#Analytics.sent]
+	if calls ~= 1 or last.name ~= "match_finished" or #last.custom ~= 3 then fail("an event was not sent once with three fields") end
+	if last.custom[1] ~= "counted=false" or last.custom[2] ~= "cpu=true" or last.custom[3] ~= "extra=1" then
+		fail("the fields are not key=value in sorted order: " .. table.concat(last.custom, ", "))
+	end
+	Analytics.service = nil
+	if Analytics.CLIENT.match_finished or not Analytics.CLIENT.goal_shown then fail("the client's list of events is wrong") end
+end
+
 -- 8. The near-miss line (NextGoal): the closest goal by the share still to go; a tie to the level.
 do
 	local NextGoal = Loader.loadFrom("src/client/", "NextGoal")
@@ -363,5 +465,6 @@ end
 print("PASS progression: the first six weapons for everyone, the rest from level 3 to 15; level 15 about thirty matches in; Ranked at level 10")
 print("  six tiers, never dropping one reached, each paying keys and Sparks once; ranked wins pay Sparks and a key every three; ranked moves the drop meter further")
 print("  Studio reaches Ranked on the drawn 3rd-6th match, and only Studio")
+print("  NEW OPPONENTS avoids the players left (both ways, 60 s, through queue and FILL WITH BOTS); Analytics never throws")
 print("  the near-miss line names the closest goal - level or tier - by share to go, a tie to the level")
 print("  free-for-alls of 3, 4 and 6 (own teams, FFA modes); Ranked's fixed rules and competitive maps, no rules vote; weapons and Ranked refused below their level")

@@ -66,13 +66,14 @@ local Social = luau.load(fs.readFile("src/client/LobbySocial.luau"), { debugName
 local PLAZA = Loader.load("Plaza").DATA      -- (the Roblox lobby's market)
 local Ui = Loader.loadFrom("src/client/", "Ui")
 
-local warps, queued, unqueued, filled, invited = {}, {}, 0, 0, 0
+local warps, queued, unqueued, filled, invited, tracked = {}, {}, 0, 0, 0, {}
 local s = Social.new(instance("PlayerGui"), {
 	warp = function(id) table.insert(warps, id); return true end,
 	queue = function(format) table.insert(queued, format) end,
 	unqueue = function() unqueued += 1 end,
 	fill = function() filled += 1 end,
 	invite = function() invited += 1 end,
+	track = function(name) table.insert(tracked, name) end,
 })
 s:setEnabled(true)
 
@@ -111,6 +112,21 @@ for _, ch in find(s.gui, "Play"):GetChildren() do
 		table.insert(boxes, { x, y, w, h })
 	end
 end
+-- a new player (no XP): opening PLAY, 1v1 pulses and the note says where to start, until they choose
+do
+	local t = 0
+	s.now = function() return t end
+	s:setProgress({ level = 1, xp = 0, into = 0, need = 140, points = 0, tier = 1 })
+	s:tick()
+	assert(string.find(find(s.gui, "Note").Text, "Start with a 1v1", 1, true), "a new player is not told where to start")
+	assert(tracked[#tracked] == "start_here", "the start-here note was not counted")
+	local seen = {}
+	for k = 0, 3 do t = k * 0.5; s:tick(); seen[tostring(find(s.gui, "Format_Duel").BackgroundColor3)] = true end
+	local n = 0
+	for _ in seen do n += 1 end
+	assert(n >= 2, "1v1 does not pulse for a new player")
+	s.now = os.clock
+end
 -- your level and rank over the buttons: at level 1, Ranked is greyed, says its level, and does not queue
 s:setProgress({ level = 1, into = 40, need = 140, points = 0, tier = 1 })
 assert(string.find(find(s.gui, "Level").Text, "LEVEL 1", 1, true) and string.find(find(s.gui, "Level").Text, "40 / 140", 1, true), "PLAY does not show the level")
@@ -138,7 +154,7 @@ assert(queued[4] == "Ranked", "a level 10 player could not queue for Ranked")
 click(s.gui, "OpenPlay")
 assert(find(s.gui, "Invite"), "PLAY has no INVITE FRIENDS")
 click(s.gui, "Invite")
-assert(invited == 1, "INVITE FRIENDS did not ask for the invite prompt")
+assert(invited == 1 and table.find(tracked, "invite"), "INVITE FRIENDS did not ask for the invite prompt, or was not counted")
 -- a quiet queue: after QUIET seconds with nobody joining, the card says bots are ready and FILL pulses
 do
 	local t = 100
@@ -147,18 +163,24 @@ do
 	local fillB = find(find(s.gui, "Queue"), "Fill")
 	local before = fillB.BackgroundColor3
 	t += Social.QUIET - 1; s:tick()
-	assert(not string.find(find(s.gui, "Count").Text, "Quiet", 1, true), "the queue called itself quiet too soon")
+	assert(not string.find(find(s.gui, "Count").Text, "quiet right now", 1, true), "the queue called itself quiet too soon")
 	t += 1; s:tick()
-	assert(string.find(find(s.gui, "Count").Text, "Quiet", 1, true), "a quiet queue did not offer its bots")
+	assert(string.find(find(s.gui, "Count").Text, "quiet right now", 1, true), "a quiet queue did not offer its bots")
+	assert(string.find(find(s.gui, "Count").Text, "1 waiting", 1, true), "the quiet nudge hid how many are waiting")
+	assert(tracked[#tracked] == "quiet_shown", "the quiet nudge was not counted")
 	local colours = {}
 	for k = 0, 3 do t += 0.5 * k; s:tick(); colours[tostring(fillB.BackgroundColor3)] = true end
 	local n = 0
 	for _ in colours do n += 1 end
 	assert(n >= 2, "FILL WITH BOTS does not pulse")
+	-- (left on the lighter half of the pulse, to see it put back)
+	t += 0.5; s:tick()
+	assert(fillB.BackgroundColor3 ~= Ui.GREEN, "the test meant to leave FILL on its pulse colour")
 	-- someone joining restarts the clock
 	s:setQueue({ queued = true, format = "FFA6", name = "6-WAY FFA", waiting = 2, needed = 6, formAt = 5 })
 	s:tick()
-	assert(not string.find(find(s.gui, "Count").Text, "Quiet", 1, true), "a queue someone just joined is still called quiet")
+	assert(not string.find(find(s.gui, "Count").Text, "quiet right now", 1, true), "a queue someone just joined is still called quiet")
+	assert(fillB.BackgroundColor3 == Ui.GREEN, "FILL WITH BOTS kept its pulse colour after the quiet ended")
 	s:setQueue({ queued = false })
 	s.now = os.clock
 	local _ = before

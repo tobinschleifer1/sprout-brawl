@@ -8,6 +8,8 @@
 -- rejected call is skipped, because counting must never break playing.
 local Analytics = {}
 
+-- The events a client may report (the Track remote): only what the server cannot see itself.
+Analytics.CLIENT = { goal_shown = true, quiet_shown = true, invite = true, start_here = true } :: { [string]: boolean }
 -- The AnalyticsService (set by the server entry point); nil outside Roblox or in tests.
 Analytics.service = nil :: any
 -- Every event sent this session (most recent last, at most KEEP), for the tests and for Studio.
@@ -26,9 +28,9 @@ function Analytics.event(player: any, name: string, fields: { [string]: any }?)
 	local svc = Analytics.service
 	if not svc then return end
 	pcall(function()
-		local enums = (Enum :: any).AnalyticsCustomFieldKeys
+		-- (keyed by the names of Enum.AnalyticsCustomFieldKeys, as LogCustomEvent takes them)
 		local map = {}
-		for i, v in custom do map[enums["CustomField0" .. i].Name] = v end
+		for i, v in custom do map["CustomField0" .. i] = v end
 		svc:LogCustomEvent(player, name, 1, map)
 	end)
 end

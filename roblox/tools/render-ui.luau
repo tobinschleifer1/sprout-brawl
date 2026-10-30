@@ -74,6 +74,7 @@ local function load(name: string): any
 		Instance = { new = new }, Enum = enumNames, Color3 = Rbx.Color3, UDim = Rbx.UDim, UDim2 = Rbx.UDim2, Vector2 = Rbx.Vector2,
 		Random = { new = function() return { NextInteger = function(_, a) return a end, NextNumber = function() return 0.5 end } end },
 		typeof = function(v) return type(v) end,
+		task = { delay = function() end, spawn = function() end },   -- (a still picture: nothing is timed)
 	}, injectGlobals = true })()
 end
 
@@ -184,7 +185,8 @@ elseif screen == "results" then
 			score = 5 - i, kos = 4 - i, falls = i, sds = 0, damage = 120 * (5 - i), taken = 80 * i })
 	end
 	frameCanvas = c
-	local view = View.new(new("ScreenGui"), { rows = rows, winnerTeam = 0, teams = variant == "teams" }, chars, Rbx.Vector2.new(W, H), nil)
+	local resultsGui = new("ScreenGui")
+	local view = View.new(resultsGui, { rows = rows, winnerTeam = 0, teams = variant == "teams" }, chars, Rbx.Vector2.new(W, H), nil)
 	frameCanvas = nil
 	-- gui-svg paints the canvas under every Frame, but in Roblox the podium's canvas is a child of
 	-- its backdrop and draws over it: see through the backdrop so the picture matches
@@ -192,6 +194,15 @@ elseif screen == "results" then
 	view.gg.Activated:Fire()
 	table.clear(shapes)
 	view:draw(1)
+	-- variant "earned": the three lines under a ranked win - the drop, level and rank, the next goal
+	if variant == "earned" then
+		local DropBanner = load("DropBanner")
+		local NextGoal = load("NextGoal")
+		local p = { xp = 160, level = 9, from = 8, into = 20, need = 260, unlocked = { "Shield" },
+			rank = { delta = 25, points = 210, tier = 2, sparks = 15 } }
+		DropBanner.showAll(resultsGui, DropBanner.lines({ counted = true, left = 2, drop = { kind = "sparks", amount = 40 }, progress = p },
+			NextGoal.text(p)))
+	end
 elseif screen == "records" then
 	local Records = load("ClimbRecords")
 	local r = Records.new(playerGui, { localId = 2, now = function() return 1000 end })

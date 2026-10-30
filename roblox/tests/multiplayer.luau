@@ -296,6 +296,18 @@ do
 	local names = {}
 	for _, e in Analytics.sent do names[e.name] = (names[e.name] or 0) + 1 end
 	assert(names.session_start and names.queue and names.fill_bots and names.new_opponents, "the retention counters were not sent")
+	-- a client saying Hello again (rejoining a delayed arena) is not a new session
+	local before = 0
+	for _, e in Analytics.sent do if e.name == "session_start" and e.userId == 20 then before += 1 end end
+	now += 1.1; send(20,"Hello")
+	local after = 0
+	for _, e in Analytics.sent do if e.name == "session_start" and e.userId == 20 then after += 1 end end
+	assert(before == 1 and after == 1, "a second Hello counted a second session")
+	-- the Track remote takes only the client's fixed list
+	local n = #Analytics.sent
+	now += 1.1; send(20,"Track","goal_shown")
+	now += 1.1; send(20,"Track","match_finished")
+	assert(#Analytics.sent == n + 1 and Analytics.sent[#Analytics.sent].name == "goal_shown", "Track accepted an event that is not the client's")
 	send(20,"RoomAction",{action="unqueue"})
 	for i=21,22 do send(i,"RoomAction",{action="leave"}) end
 end

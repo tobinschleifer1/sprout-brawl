@@ -289,9 +289,8 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	-- at random, so those two never met. Fullest-first always completes a room before feeding
 	-- another, and the choice no longer depends on hash order.
 	local room: any, place: number?, bestOpen = nil, nil, math.huge
-	local avoid = self.avoid and self.avoid[player.UserId]
 	for _, candidate in self.rooms do
-		if candidate.format == format and candidate.state == "setup" and candidate.id ~= avoid then
+		if candidate.format == format and candidate.state == "setup" and not Rooms.clashes(self, player, candidate) then
 			local open, first = 0, nil
 			for i, slot in candidate.slots do
 				if not slot.player and not slot.bot then
@@ -399,16 +398,46 @@ function Rooms.queue(self: any, player: any, format: any): ({ any }?, string?)
 	return self:matchQueue(format), nil
 end
 -- NEW OPPONENTS: out of your room (in setup) and into the queue for its format, never to be seated
--- back in the room you left. Returns the room left (for the caller to resend), the rooms the queue
--- changed, and why not.
+-- with the players you left - in their room or a new one, by the queue or by FILL WITH BOTS - for
+-- AVOID_SECONDS (both ways). It expires so that on a quiet server two players are never kept apart
+-- for good. Returns the room left (for the caller to resend), the rooms the queue changed, and why.
+Rooms.AVOID_SECONDS = 60
+-- Do players `a` and `b` (user ids) avoid each other right now?
+function Rooms.shuns(self: any, a: number, b: number): boolean
+	local now = self.clock()
+	for _, pair in { { a, b }, { b, a } } do
+		local e = self.avoid and self.avoid[pair[1]]
+		if e then
+			if now >= e.untilT then self.avoid[pair[1]] = nil
+			elseif e.ids[pair[2]] then return true end
+		end
+	end
+	return false
+end
+-- Would seating `player` in `room` put them with someone they avoid?
+function Rooms.clashes(self: any, player: any, room: any): boolean
+	for _, slot in room.slots do
+		if slot.player and slot.player ~= player and Rooms.shuns(self, player.UserId, slot.player.UserId) then return true end
+	end
+	return false
+end
+-- Forget whom a player avoids (they left the queue, or the server).
+function Rooms.forget(self: any, player: any)
+	if self.avoid then self.avoid[player.UserId] = nil end
+end
 function Rooms.requeue(self: any, player: any): (any, { any }?, string?)
 	local room = self:get(player.UserId)
 	if not room then return nil, nil, "You are not in a room." end
 	if room.state ~= "setup" then return nil, nil, "This fight has already started." end
 	local format = room.format
 	self:leave(player)
+	-- (who you leave, not where: the room may be gone and its players queued again beside you)
+	local ids = {}
+	for _, slot in room.slots do
+		if slot.player and slot.player ~= player then ids[slot.player.UserId] = true end
+	end
 	self.avoid = self.avoid or {}
-	self.avoid[player.UserId] = room.id
+	self.avoid[player.UserId] = { ids = ids, untilT = self.clock() + Rooms.AVOID_SECONDS }
 	local changed, why = self:queue(player, format)
 	return room, changed, why
 end
@@ -422,10 +451,9 @@ function Rooms.matchQueue(self: any, format: string): { any }
 	-- into the open places of rooms already forming (Rooms.join fills the fullest first) - but not
 	-- a room the player just left with NEW OPPONENTS (Rooms.requeue), who waits for another instead
 	local function openRoomFor(p: any): boolean
-		local avoid = self.avoid and self.avoid[p.UserId]
 		for _, room in self.rooms do
 			if room.format == format and room.state == "setup" and (room.phase or "pick") == "pick" and not full(room)
-				and room.id ~= avoid then return true end
+				and not Rooms.clashes(self, p, room) then return true end
 		end
 		return false
 	end
@@ -443,12 +471,21 @@ function Rooms.matchQueue(self: any, format: string): { any }
 			end
 		end
 	end
-	-- a new room, once enough are waiting
-	while f and #list >= Rooms.formAt(f.players) do
-		local room = self:join(table.remove(list, 1), format)
+	-- a new room, once enough are waiting who do not avoid each other (first come, first in)
+	while f do
+		local group: { any } = {}
+		for _, p in list do
+			local ok = true
+			for _, q in group do if Rooms.shuns(self, p.UserId, q.UserId) then ok = false end end
+			if ok then table.insert(group, p) end
+			if #group >= f.players then break end
+		end
+		if #group < Rooms.formAt(f.players) then break end
+		for _, p in group do table.remove(list, table.find(list, p) :: number) end
+		local room = self:join(group[1], format)
 		if room then
 			mark(room)
-			while #list > 0 and not full(room) do self:join(table.remove(list, 1), format) end
+			for k = 2, #group do self:join(group[k], format) end
 		end
 	end
 	return changed
@@ -462,7 +499,11 @@ function Rooms.fillWithBots(self: any, player: any): (any, string?)
 	self:dequeue(player)
 	local room = self:join(player, format)
 	if not room then return nil, Rooms.CHOOSE end
-	while #list > 0 and not full(room) do self:join(table.remove(list, 1), format) end
+	-- (the others queued for it, but not anyone this room's players avoid)
+	local k = 1
+	while k <= #list and not full(room) do
+		if Rooms.clashes(self, list[k], room) then k += 1 else self:join(table.remove(list, k), format) end
+	end
 	fillBots(room, self.rand)
 	return room, nil
 end
@@ -707,6 +748,6 @@ function Rooms.roster(_self: any, room: any, rand: ((number) -> number)?): ({ an
 	local mode = (if room.mode == "timed" then "Timed" else "Stock") .. (if room.ffa then "FFA" else "Teams")
 	return roster, { mode = mode, timeLimit = room.time,
 		stage = stage, stocks = room.stocks, items = room.items,
-		disasters = room.disasters, weaponDrops = true, ranked = room.ranked == true }
+		disasters = room.disasters, weaponDrops = true, ranked = room.ranked == true, format = room.format }
 end
 return Rooms

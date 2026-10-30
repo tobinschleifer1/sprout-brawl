@@ -13,6 +13,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Plaza = require(Shared.Plaza)
 local Realms = require(Shared.Realms)
 local Progression = require(Shared.Progression)
+local Features = require(Shared.Features)
 local Ui = require(script.Parent.Ui)
 
 local PLAZA: any = Plaza.DATA      -- the Roblox lobby's market (Plaza.luau), not the web's
@@ -145,11 +146,16 @@ function LobbySocial.new(parent: Instance, opts: any): any
 		end
 		y += 44 + gap
 	end
-	-- INVITE FRIENDS: Roblox's invite prompt (retention plan, step 1)
-	local invite = Ui.button(play, "INVITE FRIENDS", Ui.PURPLE, function() if self.opts.invite then self.opts.invite() end end, { size = 15 })
-	invite.Name = "Invite"
-	invite.Position, invite.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 36)
-	y += 36 + gap
+	-- INVITE FRIENDS: Roblox's invite prompt (retention plan, step 1; Features.STEP1)
+	if Features.STEP1 then
+		local invite = Ui.button(play, "INVITE FRIENDS", Ui.PURPLE, function()
+			if self.opts.invite then self.opts.invite() end
+			if self.opts.track then self.opts.track("invite") end
+		end, { size = 15 })
+		invite.Name = "Invite"
+		invite.Position, invite.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 36)
+		y += 36 + gap
+	end
 	-- why the last choice was refused (Ranked below its level, or the server's reason)
 	local note = Ui.text(play, "", 12, SUB, Ui.LABEL, true)
 	note.Name, note.Position, note.Size = "Note", UDim2.fromOffset(13, y - gap + 6), UDim2.new(1, -26, 0, 16)
@@ -231,14 +237,34 @@ function LobbySocial.choose(self: any, format: string)
 		return
 	end
 	self.note.Text = ""
+	if self.fresh then
+		self.fresh, self.chosen = false, true
+		Ui.paint(self.formatButtons.Duel, Ui.GOLD)
+	end
 	if self.opts.queue then self.opts.queue(format) end
 	self:closeAll()
+end
+
+-- A new player (no XP yet) opening PLAY: 1v1 pulses and the note says where to start (retention plan,
+-- step 1.7), until they choose a fight.
+function LobbySocial.tickStart(self: any)
+	if not self.fresh or not self.playPanel.Visible then return end
+	local b = self.formatButtons.Duel
+	if not self.startShown then
+		self.startShown = true
+		self.note.Text = "New here? Start with a 1v1 - bots fill in if it's quiet."
+		if self.opts.track then self.opts.track("start_here") end
+	end
+	Ui.paint(b, if math.floor(self.now() * 2) % 2 == 0 then Ui.GOLD else Ui.shade(Ui.GOLD, 0.35))
 end
 
 -- Your level and rank (Economy.progressView, from EconomyView): the panel's top line and XP bar,
 -- and Ranked's button greyed while it is locked.
 function LobbySocial.setProgress(self: any, view: any)
-	if type(view) == "table" then self.progress = view end
+	if type(view) == "table" then
+		self.progress = view
+		self.fresh = view.xp == 0 and not self.chosen
+	end
 	local p = self.progress
 	local level, into, need = p.level or 1, p.into or 0, p.need or 0
 	self.levelText.Text = if need > 0 then `LEVEL {level}  ·  {into} / {need} XP` else `LEVEL {level}  ·  MAX`
@@ -274,6 +300,8 @@ function LobbySocial.setQueue(self: any, view: any)
 	-- (the quiet clock restarts when the queue starts, changes format, or someone joins it)
 	local was = self.queue
 	if view.queued and (not was.queued or was.format ~= view.format or was.waiting ~= view.waiting) then self.queuedAt = self.now() end
+	-- (out of the quiet state, FILL WITH BOTS goes back to its own green)
+	if self.quiet then Ui.paint(self.fillButton, Ui.GREEN, Ui.WHITE) end
 	self.quiet = false
 	self.queue = view
 	local on = view.queued == true
@@ -292,13 +320,17 @@ end
 -- every frame while the lobby is up.
 LobbySocial.QUIET = 20
 function LobbySocial.tick(self: any)
+	if not Features.STEP1 then return end
+	self:tickStart()
 	local view = self.queue
 	if not view.queued or not self.queuedAt then return end
 	local waited = self.now() - self.queuedAt
 	if waited < LobbySocial.QUIET or (view.waiting or 1) >= (view.formAt or 2) then return end
 	if not self.quiet then
 		self.quiet = true
-		self.queueCount.Text = "Quiet right now  ·  bots are ready when you are"
+		-- (added to the count, not instead of it: who is waiting still matters)
+		self.queueCount.Text = `{view.waiting or 1} waiting  ·  quiet right now - bots are ready when you are`
+		if self.opts.track then self.opts.track("quiet_shown") end
 	end
 	-- (twice a second, between the kit's green and a lighter one)
 	Ui.paint(self.fillButton, if math.floor(waited * 2) % 2 == 0 then Ui.GREEN else Ui.shade(Ui.GREEN, 0.3), Ui.WHITE)

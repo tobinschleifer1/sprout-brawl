@@ -136,7 +136,9 @@ end
 local function leave(player: Player)
 	local room = rooms:leave(player)
 	if not room then return end
-	if room.state == "playing" then resetRoom(room, "A player left. Fight cancelled; ready up again.")
+	if room.state == "playing" then
+		Analytics.event(player, "left_match", { format = room.format })
+		resetRoom(room, "A player left. Fight cancelled; ready up again.")
 	else rooms:advance(room); publish(room) end
 end
 -- Player objects that have left, weakly held: a Hello that yielded on the DataStore must not put a
@@ -158,8 +160,9 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	rooms:profile(player.UserId).avatar = avatars:active(player.UserId)
 	helloBusy[player] = nil
 	if departed[player] then return end      -- left while the DataStore was answering
+	-- (once per visit: a client says Hello again when it rejoins a delayed arena)
+	if loaded[player.UserId] ~= player then Analytics.event(player, "session_start") end
 	loaded[player.UserId] = player
-	Analytics.event(player, "session_start")
 	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
 	sendAvatars(player)
 	markVip(player)
@@ -225,6 +228,8 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		return
 	elseif msg.action == "unqueue" then
 		local format = rooms:dequeue(player)
+		rooms:forget(player)
+		if format then Analytics.event(player, "unqueue", { format = format }) end
 		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId))
 		if format then sendQueue(format) end
 		return
@@ -264,13 +269,21 @@ MatchService.onPlayerResult = function(userId: number, results: any, row: any)
 	local out = economy:matchFinished(userId, results, row)
 	if loaded[userId] ~= player then return end
 	sendEconomy(player, { match = out })
-	Analytics.event(player, "match_finished", { counted = out.counted == true, capped = out.capped == true,
-		ranked = results.ranked == true })
+	-- (three fields at most: the format says Ranked; a capped match is sent as its own event)
+	Analytics.event(player, if out.capped then "match_capped" else "match_finished",
+		{ format = results.format or "?", cpu = results.cpu == true, counted = out.counted == true })
 	if out.progress and out.progress.level > (out.progress.from or out.progress.level) then
 		Analytics.event(player, "level_up", { level = out.progress.level })
 	end
 	if out.drop and out.drop.kind == "item" then Net.remote("LockerView"):FireClient(player, locker:view(userId)) end
 end
+-- What only the client sees - a next-goal line shown, the quiet nudge, an invite - counted by name
+-- from a fixed list (Analytics.CLIENT), at most one a second.
+Net.remote("Track").OnServerEvent:Connect(function(player: Player, name: any)
+	if loaded[player.UserId] ~= player or type(name) ~= "string" or not Analytics.CLIENT[name] then return end
+	if not admitted(player, "track", 1) then return end
+	Analytics.event(player, name)
+end)
 Net.remote("Economy").OnServerEvent:Connect(function(player: Player, msg: any)
 	if loaded[player.UserId] ~= player or not admitted(player, "economy", 0.25) then return end
 	local ok, res = economy:apply(player.UserId, msg)
@@ -515,6 +528,7 @@ end)
 Players.PlayerRemoving:Connect(function(player: Player)
 	if loaded[player.UserId] == player then Analytics.event(player, "session_end") end
 	sendQueue(rooms:dequeue(player))
+	rooms:forget(player)
 	leave(player)
 	local id = player.UserId
 	loaded[id], poses[id], limits[id], rooms.profiles[id], presenceSig[id] = nil, nil, nil, nil, nil

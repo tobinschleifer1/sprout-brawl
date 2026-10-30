@@ -81,43 +81,52 @@ function DropBanner.progressText(p: any): (string, string)
 	return table.concat(parts, "  ·  "), colour
 end
 
-local function banner(gui: Instance, name: string, text: string, colour: string, lift: number, seconds: number?)
-	local old = gui:FindFirstChild(name)
+-- Everything a match earned, in the order it is shown: the level and rank line, the next goal
+-- (`goal`, NextGoal's), then the drop's. Each { text, colour }; empty ones left out. Pure.
+function DropBanner.lines(out: any, goal: string?): { { string } }
+	local list = {}
+	local function add(text: string, colour: string) if text ~= "" then table.insert(list, { text, colour }) end end
+	if type(out) == "table" then add(DropBanner.progressText(out.progress)) end
+	add(goal or "", "#9FE8FF")
+	add(DropBanner.text(out))
+	return list
+end
+
+-- One strip across the bottom of `gui` - the room one line takes, over the podium's stat cards -
+-- turning through `list` every EVERY seconds for SHOW_FOR, replacing any earlier one. (Three strips
+-- stacked covered most of the stat cards on a phone: tools/render-ui results 812 375 earned.)
+DropBanner.EVERY, DropBanner.SHOW_FOR = 3, 12
+-- (replaceable, for the tests and the still renders)
+DropBanner.delay = function(seconds: number, fn: () -> ()) task.delay(seconds, fn) end
+function DropBanner.showAll(gui: Instance, list: { { string } })
+	local old = gui:FindFirstChild("DropBanner")
 	if old then old:Destroy() end
-	if text == "" then return end
+	if #list == 0 then return end
 	local label = Instance.new("TextLabel")
-	label.Name = name
+	label.Name = "DropBanner"
 	label.AnchorPoint = Vector2.new(0.5, 1)
-	label.Position = UDim2.new(0.5, 0, 1, -24 - lift)
+	label.Position = UDim2.new(0.5, 0, 1, -24)
 	label.Size = UDim2.new(0.9, 0, 0, 34)
 	label.BackgroundColor3 = Color3.fromHex("#12151C")
 	label.BackgroundTransparency = 0.2
-	label.TextColor3 = Color3.fromHex(colour)
 	label.Font = Enum.Font.Arcade
 	label.TextScaled = true
-	label.Text = text
 	label.ZIndex = 50
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = label
+	local function showLine(k: number)
+		if not label.Parent and k > 1 then return end
+		local line = list[(k - 1) % #list + 1]
+		label.Text, label.TextColor3 = line[1], Color3.fromHex(line[2])
+		if k * DropBanner.EVERY >= DropBanner.SHOW_FOR then
+			DropBanner.delay(DropBanner.EVERY, function() if label.Parent then label:Destroy() end end)
+		else
+			DropBanner.delay(DropBanner.EVERY, function() showLine(k + 1) end)
+		end
+	end
+	showLine(1)
 	label.Parent = gui
-	task.delay(seconds or 9, function()
-		if label.Parent then label:Destroy() end
-	end)
-end
-
--- Show it across the bottom of `gui` for `seconds`, replacing any earlier banner.
-function DropBanner.show(gui: Instance, out: any, seconds: number?)
-	local text, colour = DropBanner.text(out)
-	banner(gui, "DropBanner", text, colour, 0, seconds)
-end
--- Any line in the banner's style, `lift` px above the drop's (the next-goal line uses it).
-DropBanner.line = banner
-DropBanner.LINE = 34 + 8      -- one line's height and gap
--- The level and rank line, just above the drop's.
-function DropBanner.showProgress(gui: Instance, p: any, seconds: number?)
-	local text, colour = DropBanner.progressText(p)
-	banner(gui, "ProgressBanner", text, colour, 34 + 8, seconds)
 end
 
 return DropBanner

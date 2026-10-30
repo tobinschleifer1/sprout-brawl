@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 local Shared = ReplicatedStorage.Shared
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
+local Features = require(Shared.Features)
 local Snapshot = require(Shared.Snapshot)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 local DropBanner = require(script.DropBanner)
@@ -248,6 +249,8 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	fill = function() Net.remote("RoomAction"):FireServer({ action = "fill" }) end,
 	-- Roblox's own invite prompt (retention plan, step 1)
 	invite = function() pcall(function() game:GetService("SocialService"):PromptGameInvite(Players.LocalPlayer) end) end,
+	-- what only this screen sees, counted by name (server Analytics.CLIENT)
+	track = function(name: string) Net.remote("Track"):FireServer(name) end,
 })
 Net.remote("QueueView").OnClientEvent:Connect(function(view: any, why: any)
 	social:setQueue(view)
@@ -597,10 +600,11 @@ Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
 	end
 	shopScreen:setEconomy(view)
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
-		DropBanner.show(hud.gui, view.event.match)
-		DropBanner.showProgress(hud.gui, view.event.match.progress)
-		-- the closest goal still ahead, over both (NextGoal)
-		DropBanner.line(hud.gui, "NextGoal", NextGoal.text(view.event.match.progress), "#9FE8FF", 2 * DropBanner.LINE)
+		-- one strip turning through the level and rank line, the closest goal still ahead (NextGoal)
+		-- and the drop
+		local goal = if Features.STEP1 then NextGoal.text(view.event.match.progress) else ""
+		DropBanner.showAll(hud.gui, DropBanner.lines(view.event.match, goal))
+		if goal ~= "" then Net.remote("Track"):FireServer("goal_shown") end
 	end
 end)
 Net.remote("Results").OnClientEvent:Connect(function(res: any)

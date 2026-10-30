@@ -66,12 +66,13 @@ local Social = luau.load(fs.readFile("src/client/LobbySocial.luau"), { debugName
 local PLAZA = Loader.load("Plaza").DATA      -- (the Roblox lobby's market)
 local Ui = Loader.loadFrom("src/client/", "Ui")
 
-local warps, queued, unqueued, filled = {}, {}, 0, 0
+local warps, queued, unqueued, filled, invited = {}, {}, 0, 0, 0
 local s = Social.new(instance("PlayerGui"), {
 	warp = function(id) table.insert(warps, id); return true end,
 	queue = function(format) table.insert(queued, format) end,
 	unqueue = function() unqueued += 1 end,
 	fill = function() filled += 1 end,
+	invite = function() invited += 1 end,
 })
 s:setEnabled(true)
 
@@ -133,6 +134,35 @@ assert(string.find(find(s.gui, "Rank").Text, "SILVER", 1, true) and string.find(
 click(s.gui, "OpenPlay")
 click(s.gui, "Format_Ranked")
 assert(queued[4] == "Ranked", "a level 10 player could not queue for Ranked")
+-- INVITE FRIENDS asks for Roblox's invite prompt
+click(s.gui, "OpenPlay")
+assert(find(s.gui, "Invite"), "PLAY has no INVITE FRIENDS")
+click(s.gui, "Invite")
+assert(invited == 1, "INVITE FRIENDS did not ask for the invite prompt")
+-- a quiet queue: after QUIET seconds with nobody joining, the card says bots are ready and FILL pulses
+do
+	local t = 100
+	s.now = function() return t end
+	s:setQueue({ queued = true, format = "FFA6", name = "6-WAY FFA", waiting = 1, needed = 6, formAt = 5 })
+	local fillB = find(find(s.gui, "Queue"), "Fill")
+	local before = fillB.BackgroundColor3
+	t += Social.QUIET - 1; s:tick()
+	assert(not string.find(find(s.gui, "Count").Text, "Quiet", 1, true), "the queue called itself quiet too soon")
+	t += 1; s:tick()
+	assert(string.find(find(s.gui, "Count").Text, "Quiet", 1, true), "a quiet queue did not offer its bots")
+	local colours = {}
+	for k = 0, 3 do t += 0.5 * k; s:tick(); colours[tostring(fillB.BackgroundColor3)] = true end
+	local n = 0
+	for _ in colours do n += 1 end
+	assert(n >= 2, "FILL WITH BOTS does not pulse")
+	-- someone joining restarts the clock
+	s:setQueue({ queued = true, format = "FFA6", name = "6-WAY FFA", waiting = 2, needed = 6, formAt = 5 })
+	s:tick()
+	assert(not string.find(find(s.gui, "Count").Text, "Quiet", 1, true), "a queue someone just joined is still called quiet")
+	s:setQueue({ queued = false })
+	s.now = os.clock
+	local _ = before
+end
 -- the server's refusal is shown
 s:refused("Ranked unlocks at level 10.")
 assert(find(s.gui, "Note").Text == "Ranked unlocks at level 10.", "the server's refusal was not shown")
@@ -174,4 +204,4 @@ assert(s:key("Three") and warps[#warps] == PLAZA.market.warps[3].id and s:open()
 assert(s:key("M") and s:open() == "Map", "M opens the map")
 s:setEnabled(false)
 assert(not s:key("M"), "a hidden bar takes no keys")
-print("PASS social UI: the bar is PLAY and MAP; PLAY queues for 1v1/2v2/3v3, 3/4/6 free-for-alls and Ranked by button or digit, in three sections; your level, XP and rank; Ranked locked below level 10; the queue card counts and offers CANCEL and FILL WITH BOTS; the map lists the lobby's three places, padded and bare")
+print("PASS social UI: the bar is PLAY and MAP; PLAY queues for 1v1/2v2/3v3, 3/4/6 free-for-alls and Ranked by button or digit, in three sections; your level, XP and rank; Ranked locked below level 10; INVITE FRIENDS; a quiet queue offers its bots; the queue card counts and offers CANCEL and FILL WITH BOTS; the map lists the lobby's three places, padded and bare")

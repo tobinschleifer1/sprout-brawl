@@ -79,6 +79,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	self.opts = opts
 	self.enabled = false
 	self.queue = { queued = false }
+	self.now = os.clock          -- (replaceable, for the tests)
 	self.progress = { level = 1, into = 0, need = Progression.need(1), points = 0, tier = 1 }
 
 	local gui = Instance.new("ScreenGui")
@@ -144,6 +145,11 @@ function LobbySocial.new(parent: Instance, opts: any): any
 		end
 		y += 44 + gap
 	end
+	-- INVITE FRIENDS: Roblox's invite prompt (retention plan, step 1)
+	local invite = Ui.button(play, "INVITE FRIENDS", Ui.PURPLE, function() if self.opts.invite then self.opts.invite() end end, { size = 15 })
+	invite.Name = "Invite"
+	invite.Position, invite.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 36)
+	y += 36 + gap
 	-- why the last choice was refused (Ranked below its level, or the server's reason)
 	local note = Ui.text(play, "", 12, SUB, Ui.LABEL, true)
 	note.Name, note.Position, note.Size = "Note", UDim2.fromOffset(13, y - gap + 6), UDim2.new(1, -26, 0, 16)
@@ -174,7 +180,7 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	local fillX = 14 + 150 + Ui.GAP + 6
 	local fill = Ui.button(card, "FILL WITH BOTS", Ui.GREEN, function() self:fill() end, { size = 14 })
 	fill.Name, fill.Position, fill.Size = "Fill", UDim2.fromOffset(fillX, 56), UDim2.new(1, -fillX - 14, 0, 30)
-	self.queueCard, self.queueTitle, self.queueCount = card, title, count
+	self.queueCard, self.queueTitle, self.queueCount, self.fillButton = card, title, count, fill
 
 	self.panels = { Play = play, Map = map }
 	self:setProgress(nil)
@@ -265,6 +271,10 @@ end
 -- What the server says about your place in the queue (Rooms.queueView).
 function LobbySocial.setQueue(self: any, view: any)
 	if type(view) ~= "table" then return end
+	-- (the quiet clock restarts when the queue starts, changes format, or someone joins it)
+	local was = self.queue
+	if view.queued and (not was.queued or was.format ~= view.format or was.waiting ~= view.waiting) then self.queuedAt = self.now() end
+	self.quiet = false
 	self.queue = view
 	local on = view.queued == true
 	self.queueCard.Visible = on
@@ -275,6 +285,23 @@ function LobbySocial.setQueue(self: any, view: any)
 		self.queueCount.Text = if waiting >= formAt then "A room is opening..."
 			else `{waiting} waiting  ·  a room opens at {formAt}  ·  or fill it with bots`
 	end
+end
+
+-- A quiet queue: after QUIET seconds with nobody joining and no room forming, the card says bots are
+-- ready and FILL WITH BOTS pulses, so a solo player on a quiet server is never left waiting. Call
+-- every frame while the lobby is up.
+LobbySocial.QUIET = 20
+function LobbySocial.tick(self: any)
+	local view = self.queue
+	if not view.queued or not self.queuedAt then return end
+	local waited = self.now() - self.queuedAt
+	if waited < LobbySocial.QUIET or (view.waiting or 1) >= (view.formAt or 2) then return end
+	if not self.quiet then
+		self.quiet = true
+		self.queueCount.Text = "Quiet right now  ·  bots are ready when you are"
+	end
+	-- (twice a second, between the kit's green and a lighter one)
+	Ui.paint(self.fillButton, if math.floor(waited * 2) % 2 == 0 then Ui.GREEN else Ui.shade(Ui.GREEN, 0.3), Ui.WHITE)
 end
 
 function LobbySocial.warp(self: any, id: string)

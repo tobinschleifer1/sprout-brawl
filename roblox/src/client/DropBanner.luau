@@ -111,6 +111,9 @@ function DropBanner.show(gui: Instance, out: any, seconds: number?)
 	local text, colour = DropBanner.text(out)
 	banner(gui, "DropBanner", text, colour, 0, seconds)
 end
+-- Any line in the banner's style, `lift` px above the drop's (the next-goal line uses it).
+DropBanner.line = banner
+DropBanner.LINE = 34 + 8      -- one line's height and gap
 -- The level and rank line, just above the drop's.
 function DropBanner.showProgress(gui: Instance, p: any, seconds: number?)
 	local text, colour = DropBanner.progressText(p)

@@ -70,7 +70,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "EmoteEvents" or name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" then return Loader.loadFrom("src/server/", name) end
+	if name == "EmoteEvents" or name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" or name == "Analytics" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
@@ -276,6 +276,29 @@ assert(last(9,"RoomView") and last(9,"RoomView").slots[2].bot == "hard", "FILL W
 assert(not last(9,"QueueView").queued, "and takes the player out of the queue")
 edit(9,"ready"); votes({9})
 assert(#last(9,"Match").fighters==2)
+-- NEW OPPONENTS: two players paired in a 1v1; one asks for new opponents. They leave and queue
+-- again, but are never seated back in the room they left (its open place waits for someone else).
+do
+	for i=20,22 do people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}; now += 1.1; send(i,"Hello") end
+	send(20,"RoomAction",{action="queue",format="Duel"})
+	send(21,"RoomAction",{action="queue",format="Duel"})
+	local pair = last(20,"RoomView")
+	assert(pair and pair.id and last(21,"RoomView").id == pair.id, "two queued for a 1v1 meet")
+	send(20,"RoomAction",{action="requeue"})
+	assert(last(20,"RoomView").left, "NEW OPPONENTS takes the player out of the room")
+	assert(last(20,"QueueView").queued and last(20,"QueueView").format == "Duel", "and queues them for the same format")
+	assert(last(21,"RoomView").id == pair.id, "the one left behind keeps the room")
+	messages={}
+	send(22,"RoomAction",{action="queue",format="Duel"})
+	assert(last(22,"RoomView") and last(22,"RoomView").id == pair.id, "the next player takes the open place")
+	assert(not last(20,"RoomView") and (last(20,"QueueView") == nil or last(20,"QueueView").queued), "the one who asked for new opponents was not put back with the same opponent")
+	local Analytics = Loader.loadFrom("src/server/", "Analytics")
+	local names = {}
+	for _, e in Analytics.sent do names[e.name] = (names[e.name] or 0) + 1 end
+	assert(names.session_start and names.queue and names.fill_bots and names.new_opponents, "the retention counters were not sent")
+	send(20,"RoomAction",{action="unqueue"})
+	for i=21,22 do send(i,"RoomAction",{action="leave"}) end
+end
 send(9,"RoomAction",{action="leave"})
 assert(last(9,"RoomView").left)
 messages={}
@@ -370,4 +393,4 @@ do
 	assert(keyframes[90] == k + 1 and not snapDropped[90], "a new match on the same service starts with a keyframe")
 	svc:stop()
 end
-print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight; rooms through PLAY's queue and FILL WITH BOTS; the climb")
+print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight; rooms through PLAY's queue, FILL WITH BOTS and NEW OPPONENTS; the retention counters; the climb")

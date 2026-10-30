@@ -21,6 +21,9 @@ local Passes = require(script.Passes)
 local Shop = require(script.Shop)
 local Products = require(Shared.Products)
 local Economy = require(script.Economy)
+local Analytics = require(script.Analytics)
+-- (counting for the retention plan, step 0: Analytics)
+pcall(function() Analytics.service = game:GetService("AnalyticsService") end)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
 -- Saved characters. GetDataStore itself can fail (no DataStore service in a local test server);
@@ -156,6 +159,7 @@ Net.remote("Hello").OnServerEvent:Connect(function(player: Player)
 	helloBusy[player] = nil
 	if departed[player] then return end      -- left while the DataStore was answering
 	loaded[player.UserId] = player
+	Analytics.event(player, "session_start")
 	presenceSig[player.UserId] = nil         -- a (re)loaded client has no roster yet
 	sendAvatars(player)
 	markVip(player)
@@ -195,9 +199,29 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		-- PLAY: into the queue for a format; anyone it seats goes straight into their room
 		local changed
 		changed, why = rooms:queue(player, msg.format)
+		if not why then Analytics.event(player, "queue", { format = msg.format }) end
 		sendQueue(msg.format)
 		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
 		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r) end
+		return
+	elseif msg.action == "requeue" then
+		-- NEW OPPONENTS: leave this room and queue its format again, in one press (Rooms.requeue)
+		local left, changed
+		left, changed, why = rooms:requeue(player)
+		if not left then
+			local here = rooms:get(player.UserId)
+			local view = if here then rooms:view(here) else { left = true }
+			view.error = why
+			Net.remote("RoomView"):FireClient(player, view)
+			return
+		end
+		if rooms.rooms[left.id] then rooms:advance(left); publish(left) end
+		hub(player)
+		Net.remote("RoomView"):FireClient(player, { left = true })
+		sendQueue(left.format)
+		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
+		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r) end
+		Analytics.event(player, "new_opponents", { format = left.format })
 		return
 	elseif msg.action == "unqueue" then
 		local format = rooms:dequeue(player)
@@ -208,6 +232,7 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		-- FILL WITH BOTS: the queue for this player's format into a room now, bots in the rest
 		local format = rooms:queued(player.UserId)
 		room, why = rooms:fillWithBots(player)
+		if room then Analytics.event(player, "fill_bots", { format = room.format }) end
 		if format then sendQueue(format) end
 		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
 		if not room then return end
@@ -239,6 +264,11 @@ MatchService.onPlayerResult = function(userId: number, results: any, row: any)
 	local out = economy:matchFinished(userId, results, row)
 	if loaded[userId] ~= player then return end
 	sendEconomy(player, { match = out })
+	Analytics.event(player, "match_finished", { counted = out.counted == true, capped = out.capped == true,
+		ranked = results.ranked == true })
+	if out.progress and out.progress.level > (out.progress.from or out.progress.level) then
+		Analytics.event(player, "level_up", { level = out.progress.level })
+	end
 	if out.drop and out.drop.kind == "item" then Net.remote("LockerView"):FireClient(player, locker:view(userId)) end
 end
 Net.remote("Economy").OnServerEvent:Connect(function(player: Player, msg: any)
@@ -483,6 +513,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	end
 end)
 Players.PlayerRemoving:Connect(function(player: Player)
+	if loaded[player.UserId] == player then Analytics.event(player, "session_end") end
 	sendQueue(rooms:dequeue(player))
 	leave(player)
 	local id = player.UserId

@@ -241,6 +241,10 @@ function SelectScreen.new(parent: Instance): any
 	self.leave.Name = "Leave"
 	self.hideButton = button(root, "HIDE", Ui.PANEL2, function() self:minimise() end)
 	self.hideButton.Name = "Hide"
+	-- NEW OPPONENTS: out of this room and back into its format's queue in one press (Rooms.requeue);
+	-- the room's own rematch stays the default (retention plan, step 1)
+	self.requeue = button(root, "NEW OPPONENTS", Ui.BLUE, function() self:send("requeue") end)
+	self.requeue.Name = "Requeue"
 	self.ready = button(self.pickPage, "READY", GREEN, function() self:send("ready") end)
 	self.ready.Name = "Ready"
 	self.status = text(root, "", 14, WHITE)
@@ -371,7 +375,8 @@ function SelectScreen.build(self: any, L: any)
 	place(self.bar, L.W / 2 - 300 * s, 14 * s, 600 * s, 38 * s)
 	place(self.rules, 14 * s, 0, 572 * s, 38 * s)
 	self.rules.TextSize = Ui.px(15 * s)
-	for _, b in { self.leave, self.hideButton, self.ready } do b.TextSize = Ui.px(18 * s) end
+	for _, b in { self.leave, self.hideButton, self.ready, self.requeue } do b.TextSize = Ui.px(18 * s) end
+	place(self.requeue, L.W - 24 * s - 210 * s, L.buttonsY, 210 * s, 44 * s)
 	place(self.leave, 24 * s, L.buttonsY, 110 * s, 44 * s)
 	place(self.hideButton, 134 * s + Ui.GAP, L.buttonsY, 96 * s, 44 * s)
 	place(self.ready, L.W / 2 - 110 * s, L.buttonsY, 220 * s, 48 * s)

@@ -22,6 +22,7 @@ local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
 local DropBanner = require(script.DropBanner)
+local NextGoal = require(script.NextGoal)
 local LockerScreen = require(script.LockerScreen)
 local ShopScreen = require(script.ShopScreen)
 local ItemArt = require(script.ItemArt)
@@ -245,6 +246,8 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	queue = function(format: string) Net.remote("RoomAction"):FireServer({ action = "queue", format = format }) end,
 	unqueue = function() Net.remote("RoomAction"):FireServer({ action = "unqueue" }) end,
 	fill = function() Net.remote("RoomAction"):FireServer({ action = "fill" }) end,
+	-- Roblox's own invite prompt (retention plan, step 1)
+	invite = function() pcall(function() game:GetService("SocialService"):PromptGameInvite(Players.LocalPlayer) end) end,
 })
 Net.remote("QueueView").OnClientEvent:Connect(function(view: any, why: any)
 	social:setQueue(view)
@@ -596,6 +599,8 @@ Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
 		DropBanner.show(hud.gui, view.event.match)
 		DropBanner.showProgress(hud.gui, view.event.match.progress)
+		-- the closest goal still ahead, over both (NextGoal)
+		DropBanner.line(hud.gui, "NextGoal", NextGoal.text(view.event.match.progress), "#9FE8FF", 2 * DropBanner.LINE)
 	end
 end)
 Net.remote("Results").OnClientEvent:Connect(function(res: any)
@@ -694,6 +699,7 @@ end
 -- simulation consumes, and it is measurably what the README always said this did.
 local poseElapsed = 0
 RunService.Heartbeat:Connect(function(dt: number)
+	social:tick()          -- a quiet queue offers its bots (LobbySocial.QUIET)
 	if launch:expired(os.clock()) and select_ then
 		select_:show("Arena delayed. Rejoining your match…")
 		Net.remote("Hello"):FireServer()

@@ -300,6 +300,27 @@ do
 	if not m:edit(p, { id = room.id, revision = room.revision, action = "weapon2", value = "Pike" }) then fail("a level 1 player could not take the Pike") end
 end
 
+-- 6b. NEW OPPONENTS (Rooms.requeue): out of the room into its format's queue; FILL WITH BOTS after
+-- it opens a new room rather than the one left; refused once the fight has started.
+do
+	local m = Rooms.new()
+	local A, B = player(30), player(31)
+	m:queue(A, "Duel"); m:queue(B, "Duel")
+	local old = m:get(30)
+	if not old or m:get(31) ~= old then fail("two queued for a 1v1 did not meet") end
+	local left, _, why = m:requeue(A)
+	if left ~= old or why or m:get(30) or m:queued(30) ~= "Duel" then fail("NEW OPPONENTS did not move the player from the room to the queue") end
+	local fresh = m:fillWithBots(A)
+	if not fresh or fresh == old or m:get(30) == old then fail("FILL WITH BOTS after NEW OPPONENTS put the player back in the room they left") end
+	-- refused mid-fight
+	local m2 = Rooms.new()
+	local C = player(32)
+	m2:queue(C, "Duel"); m2:fillWithBots(C)
+	m2:get(32).state = "playing"
+	local l2, _, why2 = m2:requeue(C)
+	if l2 or not why2 or not m2:get(32) then fail("NEW OPPONENTS left a fight in progress") end
+end
+
 -- 7. The line over the drop's: XP, a level, an unlock, Ranked opening, rank points and promotions.
 do
 	local text = DropBanner.progressText({ xp = 160, level = 5, from = 4, unlocked = { "Hammer" }, into = 0, need = 200 })
@@ -318,7 +339,29 @@ do
 	if DropBanner.progressText(nil) ~= "" then fail("a match that did not count showed a progress line") end
 end
 
+-- 8. The near-miss line (NextGoal): the closest goal by the share still to go; a tie to the level.
+do
+	local NextGoal = Loader.loadFrom("src/client/", "NextGoal")
+	local lv = NextGoal.text({ level = 8, into = 100, need = 245, xp = 160, from = 8, unlocked = {} })
+	if lv ~= "NEXT: 145 XP to level 9 - Shield" then fail("the next level line is " .. lv) end
+	if NextGoal.text({ level = 9, into = 0, need = 260 }) ~= "NEXT: 260 XP to level 10 - Ranked" then fail("level 10 does not say Ranked opens") end
+	if NextGoal.text({ level = 15, into = 10, need = 350 }) ~= "NEXT: 340 XP to level 16" then fail("a level with no reward has a reward") end
+	-- a ranked player 40 RP from Gold (40/150 to go) is closer to Gold than to a level 200/300 away
+	local rank = NextGoal.text({ level = 12, into = 100, need = 305, rank = { points = 210, tier = 2 } })
+	if rank ~= "NEXT: 40 RP to GOLD - 2 wins" then fail("the next tier line is " .. rank) end
+	-- and a level 10 XP away beats a tier half a span away
+	local near = NextGoal.text({ level = 12, into = 295, need = 305, rank = { points = 175, tier = 2 } })
+	if not string.find(near, "XP to level 13", 1, true) then fail("a nearly-reached level lost to a far tier: " .. near) end
+	-- a tie goes to the level (both exactly half way)
+	local tie = NextGoal.text({ level = 12, into = 150, need = 300, rank = { points = 175, tier = 2 } })
+	if not string.find(tie, "XP to level", 1, true) then fail("a tie went to the tier: " .. tie) end
+	if NextGoal.text({ level = 12, into = 1, need = 300, rank = { points = 249, tier = 2 } }) ~= "NEXT: 1 RP to GOLD - 1 win" then fail("one win to go is not singular") end
+	if NextGoal.text(nil) ~= "" then fail("a match that did not count showed a next goal") end
+	if NextGoal.text({ level = 50, into = 0, need = 0, rank = { points = 1200, tier = 6 } }) ~= "" then fail("the top of everything still shows a goal") end
+end
+
 print("PASS progression: the first six weapons for everyone, the rest from level 3 to 15; level 15 about thirty matches in; Ranked at level 10")
 print("  six tiers, never dropping one reached, each paying keys and Sparks once; ranked wins pay Sparks and a key every three; ranked moves the drop meter further")
 print("  Studio reaches Ranked on the drawn 3rd-6th match, and only Studio")
+print("  the near-miss line names the closest goal - level or tier - by share to go, a tie to the level")
 print("  free-for-alls of 3, 4 and 6 (own teams, FFA modes); Ranked's fixed rules and competitive maps, no rules vote; weapons and Ranked refused below their level")

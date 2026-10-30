@@ -289,8 +289,9 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	-- at random, so those two never met. Fullest-first always completes a room before feeding
 	-- another, and the choice no longer depends on hash order.
 	local room: any, place: number?, bestOpen = nil, nil, math.huge
+	local avoid = self.avoid and self.avoid[player.UserId]
 	for _, candidate in self.rooms do
-		if candidate.format == format and candidate.state == "setup" then
+		if candidate.format == format and candidate.state == "setup" and candidate.id ~= avoid then
 			local open, first = 0, nil
 			for i, slot in candidate.slots do
 				if not slot.player and not slot.bot then
@@ -328,6 +329,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	local slot = room.slots[place]
 	slot.player, slot.weapon, slot.weapon2, slot.avatar = player, profile.weapon, profile.weapon2, profile.avatar
 	self.membership[player.UserId] = room.id
+	if self.avoid then self.avoid[player.UserId] = nil end
 	room.lastJoin = self.clock()
 	invalidate(room)
 	-- a newcomer takes a vote's slot (cancelling it) or joins the electorate
@@ -396,6 +398,20 @@ function Rooms.queue(self: any, player: any, format: any): ({ any }?, string?)
 	table.insert(self.queues[format], player)
 	return self:matchQueue(format), nil
 end
+-- NEW OPPONENTS: out of your room (in setup) and into the queue for its format, never to be seated
+-- back in the room you left. Returns the room left (for the caller to resend), the rooms the queue
+-- changed, and why not.
+function Rooms.requeue(self: any, player: any): (any, { any }?, string?)
+	local room = self:get(player.UserId)
+	if not room then return nil, nil, "You are not in a room." end
+	if room.state ~= "setup" then return nil, nil, "This fight has already started." end
+	local format = room.format
+	self:leave(player)
+	self.avoid = self.avoid or {}
+	self.avoid[player.UserId] = room.id
+	local changed, why = self:queue(player, format)
+	return room, changed, why
+end
 -- Seat whoever the queue for `format` can seat now. Returns the rooms that changed.
 function Rooms.matchQueue(self: any, format: string): { any }
 	self.queues = self.queues or {}
@@ -403,17 +419,29 @@ function Rooms.matchQueue(self: any, format: string): { any }
 	local f = formatOf(format)
 	local changed: { any } = {}
 	local function mark(room: any) if not table.find(changed, room) then table.insert(changed, room) end end
-	-- into the open places of rooms already forming (Rooms.join fills the fullest first)
-	local function openRoom(): boolean
+	-- into the open places of rooms already forming (Rooms.join fills the fullest first) - but not
+	-- a room the player just left with NEW OPPONENTS (Rooms.requeue), who waits for another instead
+	local function openRoomFor(p: any): boolean
+		local avoid = self.avoid and self.avoid[p.UserId]
 		for _, room in self.rooms do
-			if room.format == format and room.state == "setup" and (room.phase or "pick") == "pick" and not full(room) then return true end
+			if room.format == format and room.state == "setup" and (room.phase or "pick") == "pick" and not full(room)
+				and room.id ~= avoid then return true end
 		end
 		return false
 	end
 	-- (each taken off the queue as they are seated, so no loop can seat the same player twice)
-	while #list > 0 and openRoom() do
-		local room = self:join(table.remove(list, 1), format)
-		if room then mark(room) end
+	local seated = true
+	while seated do
+		seated = false
+		for i, p in list do
+			if openRoomFor(p) then
+				table.remove(list, i)
+				local room = self:join(p, format)
+				if room then mark(room) end
+				seated = true
+				break
+			end
+		end
 	end
 	-- a new room, once enough are waiting
 	while f and #list >= Rooms.formAt(f.players) do

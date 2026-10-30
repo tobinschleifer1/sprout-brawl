@@ -423,6 +423,15 @@ if not screen.open then fail("the room back from its fight did not bring the scr
 screen:update({ left = true }, 1)
 if screen.open or screen.gui.Enabled then fail("leaving did not close the screen") end
 
+-- NEW OPPONENTS: leaves the room for the queue in one press (Rooms.requeue), clear of LEAVE and READY
+do
+	screen:update(room({ id = 9 }), 1)
+	find("Requeue").Activated:Fire()
+	if lastSent().action ~= "requeue" then fail("NEW OPPONENTS did not ask to requeue") end
+	local rq, rd = find("Requeue"), find("Ready")
+	if rq.Position.X.Offset < rd.Position.X.Offset + rd.Size.X.Offset + 8 then fail("NEW OPPONENTS crowds READY") end
+	if rq.Position.X.Offset + rq.Size.X.Offset > screen.L.W then fail("NEW OPPONENTS runs off the screen") end
+end
 -- levels (Progression): at level 1 only the six starters can be picked. A locked portrait is veiled
 -- and named by its level, and clicking it says so instead of sending anything.
 do

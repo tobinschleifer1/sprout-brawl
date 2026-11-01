@@ -318,6 +318,7 @@ local active=instances[2]
 Loader.load("Match").finish(active.match)
 active:tick(1/60)
 assert(last(7,"Results") and last(8,"Results") and not last(2,"Results") and not last(9,"Results"), "results stay inside their room")
+for _, r in last(7,"Results").rows do assert(r.humanFoe == true, "two people in a 1v1 had no human opponent") end
 for _, job in tasks do job.fn(table.unpack(job.args)) end
 assert(not active.match and last(7,"RoomView").state=="setup", "completed matches tear down and return to ready check")
 for _, slot in last(7,"RoomView").slots do assert(not slot.bot and not slot.ready,"rematch resets readiness and bots") end

@@ -7,6 +7,7 @@ local Loader = require("./loader")
 local Progression = Loader.load("Progression")
 local Weapons = Loader.load("Weapons")
 local Inventory = Loader.load("Inventory")
+local Cosmetics = Loader.load("Cosmetics")
 local Stages = Loader.load("Data/Stages")
 local Mint = Loader.loadFrom("src/server/", "Mint")
 local Economy = Loader.loadFrom("src/server/", "Economy")
@@ -107,7 +108,13 @@ end
 -- 5. Economy: a counted match pays XP; a ranked one rank points, the tier rewards once, Sparks for
 -- a win and a key every few wins; nothing for a match that did not count.
 local function records() return AvatarStore.new(nil, function() return 1 end, { sessionOnly = true }) end
-local row = { index = 0, team = 0, damage = 20, taken = 10, fightFrames = 3600 }
+local row = { index = 0, team = 0, damage = 20, taken = 10, fightFrames = 3600, humanFoe = true }
+-- Sparks a match paid other than the ranked boost: first win, a Sparks drop, and the Road to 50's levels
+local function otherSparks(o: any): number
+	local n = (o.firstWin or 0) + (if o.drop and o.drop.kind == "sparks" then o.drop.amount else 0)
+	for _, r in (o.progress and o.progress.rewards) or {} do n += r.sparks end
+	return n
+end
 local function results(won: boolean, ranked: boolean, cpu: boolean?): any
 	return { mode = "StockTeams", winnerTeam = if won then 0 else 1, rows = { row }, ranked = ranked, cpu = cpu == true }
 end
@@ -135,10 +142,39 @@ do
 	local before = inv.progress.xp
 	econ:matchFinished(1, { mode = "Training", frames = 9999, rows = {} }, row)
 	if inv.progress.xp ~= before then fail("a Training match paid XP") end
-	-- the hourly cap stops XP with the drops (a fresh hour: the matches above are all older)
+	-- the hourly cap (a fresh hour: the matches above are all older). Past it, three states:
 	t += 3600
-	for _ = 1, Economy.HOURLY_CAP + 2 do econ:matchFinished(1, results(true, false), row) end
-	if inv.progress.xp ~= before + Economy.HOURLY_CAP * Progression.xpFor(true, false) then fail("XP was paid past the hourly cap") end
+	for _ = 1, Economy.HOURLY_CAP do econ:matchFinished(1, results(true, false), row) end
+	local capXp, meter, sparks = inv.progress.xp, inv.meter, inv.sparks
+	if capXp ~= before + Economy.HOURLY_CAP * Progression.xpFor(true, false) then fail("a counted match did not pay its XP") end
+	-- against bots only: nothing at all, and how long the rest is
+	local bots = econ:matchFinished(1, results(true, false, true), { index = 0, team = 0, damage = 20, taken = 10, fightFrames = 3600, humanFoe = false })
+	if bots.counted or not bots.capped or bots.progressing or bots.progress or inv.progress.xp ~= capXp then fail("a bot match past the hourly cap paid") end
+	if type(bots.rest) ~= "number" or bots.rest < 1 or bots.rest > 60 then fail("a capped match does not say how long drops rest") end
+	-- against people: XP (and levels) still pay; the drop meter and first win rest
+	local people = econ:matchFinished(1, results(true, false), row)
+	if people.counted or not people.capped or not people.progressing then fail("a match against people past the cap is not 'progressing'") end
+	if inv.progress.xp ~= capXp + Progression.xpFor(true, false) then fail("XP stopped at the hourly cap against people") end
+	if inv.meter ~= meter or people.drop or people.firstWin then fail("the drop meter or first win moved past the hourly cap") end
+	local levelSparks = 0
+	for _, r in people.progress.rewards or {} do levelSparks += r.sparks end
+	if inv.sparks ~= sparks + levelSparks then fail("Sparks other than level rewards were paid past the hourly cap") end
+end
+-- past the cap, a ranked win moves rank points but its Sparks and key rest
+do
+	local t = 0
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0.99 end,
+		time = function() return t end })
+	for _ = 1, Economy.HOURLY_CAP do econ:matchFinished(1, results(false, false), row) end
+	local inv = econ:inventory(1)
+	local sparks, keys, points = inv.sparks, inv.keys.forge.earned, inv.progress.points
+	local o = econ:matchFinished(1, results(true, true), row)
+	if not o.progressing or inv.progress.points ~= points + Progression.RANK_WIN then fail("rank points stopped past the hourly cap") end
+	local levelSparks = 0
+	for _, r in o.progress.rewards or {} do levelSparks += r.sparks end
+	if inv.sparks ~= sparks + levelSparks or o.progress.rank.sparks or inv.keys.forge.earned ~= keys + 0 and not o.progress.rewards then
+		fail("ranked Sparks were paid past the hourly cap")
+	end
 end
 do
 	local t = 0
@@ -162,18 +198,16 @@ do
 	local wantSparks = sparks + silver.sparks + 4 * Progression.RANKED_SPARKS
 	if inv.keys.forge.earned ~= wantKeys then fail(`ranked paid {inv.keys.forge.earned - keys} keys, not {wantKeys - keys}`) end
 	-- (a first win of the day, and a Sparks drop, pay Sparks too: counted from what each match said)
-	for _, o in outs do
-		wantSparks += (o.firstWin or 0) + (if o.drop and o.drop.kind == "sparks" then o.drop.amount else 0)
-	end
+	for _, o in outs do wantSparks += otherSparks(o) end
 	if inv.sparks ~= wantSparks then fail(`ranked paid {inv.sparks - sparks} Sparks, not {wantSparks - sparks}`) end
 	-- a loss: points down, never below Silver, and Silver never pays twice
-	local paid = inv.sparks
 	for _ = 1, 3 do t += 3600; econ:matchFinished(1, results(false, true), row) end
 	if inv.progress.points ~= 100 then fail(`three losses left {inv.progress.points} points: below the Silver a player reached`) end
+	local paid = inv.sparks
 	t += 3600
 	local again = econ:matchFinished(1, results(true, true), row)
 	if again.progress.rank.promoted then fail("Silver paid twice") end
-	if inv.sparks ~= paid + Progression.RANKED_SPARKS + (again.firstWin or 0) + (if again.drop and again.drop.kind == "sparks" then again.drop.amount else 0) then fail("a win back to Silver paid its reward again") end
+	if inv.sparks ~= paid + Progression.RANKED_SPARKS + otherSparks(again) then fail("a win back to Silver paid its reward again") end
 	-- a big jump pays every tier passed, crates too
 	inv.progress.points = 240
 	local crates = inv.crates.scrap
@@ -185,6 +219,117 @@ do
 	local a = m:matchFinished(1, results(false, false), row).left
 	local b = m:matchFinished(2, results(false, true), row).left
 	if math.abs((a - b) - Progression.RANKED_METER) > 1e-9 then fail("a ranked match did not move the drop meter further") end
+end
+
+-- 5c. The Road to 50 (retention plan, step 2): every level from 2 pays Sparks, every 5th a Scrap Crate,
+-- every 10th a Forge Key, titles at 15/25/50; paid once by a watermark, all of a jump at once; a title
+-- even into a full locker; VIP on top. And: the weekly ranked key cap, a new player's first match and
+-- first drop, and welcome back.
+do
+	local total, crates, keys, titles = 0, 0, 0, {}
+	for l = 1, Progression.MAX_LEVEL + 1 do
+		local r = Progression.levelReward(l)
+		if (l < 2 or l > Progression.MAX_LEVEL) ~= (r == nil) then fail(`level {l} pays {if r then "something" else "nothing"}`) end
+		if r then
+			if r.sparks ~= 20 + 2 * l then fail(`level {l} pays {r.sparks} Sparks`) end
+			total += r.sparks; keys += r.keys
+			if r.crate then crates += 1 end
+			if r.title then table.insert(titles, l) end
+		end
+	end
+	if total < 3400 or total > 3600 or crates ~= 10 or keys ~= 5 or table.concat(titles, ",") ~= "15,25,50" then
+		fail(`the Road to 50 pays {total} Sparks, {crates} crates, {keys} keys, titles at {table.concat(titles, ",")}`)
+	end
+	for _, l in { 15, 25, 50 } do
+		local it = Cosmetics.get(Progression.TITLES[l])
+		if not it or it.type ~= "title" or it.source ~= "level" then fail(`level {l}'s title is not an earned-only title`) end
+	end
+	-- a jump from level 1 to 10 pays levels 2-10 at once, then nothing again
+	local inv = Inventory.sanitize(nil)
+	local o = Economy._progress(inv, false, false, false, Progression.xpTo(10), { now = 5 })
+	local sum = 0
+	for _, r in o.rewards or {} do sum += r.sparks end
+	if o.level ~= 10 or #(o.rewards or {}) ~= 9 or sum ~= 288 or inv.sparks ~= 288 or inv.crates.scrap ~= 2 or inv.keys.forge.earned ~= 1 then
+		fail(`levels 2-10 paid {#(o.rewards or {})} rewards, {inv.sparks} Sparks, {inv.crates.scrap} crates, {inv.keys.forge.earned} keys`)
+	end
+	if inv.progress.paid ~= 10 then fail("the watermark did not move to the level reached") end
+	local again = Economy._progress(inv, false, false, false, 1, { now = 6 })
+	if again.rewards or inv.sparks ~= 288 then fail("a level was paid twice") end
+	-- level 15's title, into a locker already full
+	local full = Inventory.sanitize(nil)
+	for k = 1, Inventory.MAX_OWNED do full.items["u" .. k] = { i = "hit_sakura", s = k, p = false, t = 0, src = "drop" } end
+	full.seq = Inventory.MAX_OWNED + 1
+	Economy._progress(full, false, false, false, Progression.xpTo(15), { now = 7 })
+	if not Inventory.owns(full, "title_veteran") then fail("a full locker lost the Veteran title") end
+	local kept = Inventory.sanitize(full)
+	if not kept.owned.title_veteran then fail("the Veteran title did not survive the record being read back") end
+	-- whatever order the items come back in: a title among more items than a locker holds survives
+	-- every time (twenty records, so luck cannot pass it)
+	for trial = 1, 20 do
+		local over = { items = {}, seq = 1 }
+		for k = 1, Inventory.MAX_OWNED * 2 do over.items["u" .. (k * 7 + trial)] = { i = "hit_sakura", s = k, p = false, t = 0, src = "drop" } end
+		over.items["u" .. (trial * 13 + 3)] = { i = "title_veteran", s = 0, p = false, t = 0, src = "level" }
+		local back = Inventory.sanitize(over)
+		if not back.owned.title_veteran then fail("the Veteran title did not survive the record being read back") end
+		local n = 0
+		for _ in back.items do n += 1 end
+		if n > Inventory.MAX_OWNED + 1 then fail(`an over-full record kept {n} items`) end
+	end
+	-- VIP adds its Sparks share to level rewards
+	local vipInv = Inventory.sanitize(nil)
+	Economy._progress(vipInv, false, false, false, Progression.xpTo(2), { vip = true, now = 8 })
+	if vipInv.sparks ~= math.floor(24 * (1 + Economy.VIP_SPARKS)) then fail(`VIP's level 2 paid {vipInv.sparks} Sparks`) end
+end
+-- the weekly ranked key cap: at most KEY_WEEK a UTC week from the ranked boost, then a new week
+do
+	local inv = Inventory.sanitize(nil)
+	inv.progress.paid = Progression.MAX_LEVEL        -- (no level rewards muddying the key count)
+	local monday = 4 * 86400                           -- 1970-01-05, a Monday
+	local function rankedWins(n: number, at: number): (number, boolean)
+		local before = inv.keys.forge.earned
+		local capped = false
+		for _ = 1, n do
+			local o = Economy._progress(inv, true, false, true, 0, { now = at })
+			if o.rank.keyCapped then capped = true end
+		end
+		return inv.keys.forge.earned - before, capped
+	end
+	inv.progress.points = 2000; inv.progress.best = #Progression.TIERS      -- (no promotions either)
+	local got, capped = rankedWins(Progression.KEY_EVERY * (Progression.KEY_WEEK + 2), monday + 3600)
+	if got ~= Progression.KEY_WEEK or not capped then fail(`a week's ranked wins paid {got} keys`) end
+	local sunday = monday + 6 * 86400 + 3600
+	if rankedWins(Progression.KEY_EVERY, sunday) ~= 0 then fail("the key cap reset before the week ended") end
+	if rankedWins(Progression.KEY_EVERY, monday + 7 * 86400 + 60) ~= 1 then fail("the key cap did not reset on Monday") end
+	if Progression.week(4) ~= Progression.week(10) or Progression.week(10) == Progression.week(11) then fail("weeks do not run Monday to Sunday") end
+end
+-- a new player: the first match that pays reaches level 2, win or lose, and the first drop comes
+-- within two matches; a player away 7+ days gets a Scrap Crate, at most once in 30 days
+do
+	local t = 0
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0.99 end,
+		time = function() return t end })
+	t = 100 * 86400
+	local first = econ:matchFinished(1, results(false, false, true), row)
+	if first.progress.level < 2 then fail("a new player's first match did not reach level 2") end
+	t += 3600
+	local second = econ:matchFinished(1, results(false, false), row)
+	t += 3600
+	local third = econ:matchFinished(1, results(false, false), row)
+	if not (first.drop or second.drop or third.drop) then fail("a new player's first drop did not come within their first matches") end
+	local inv = econ:inventory(1)
+	local crates = inv.crates.scrap
+	t += 8 * 86400
+	local back = econ:matchFinished(1, results(false, false), row)
+	if not back.welcome or back.welcome.away ~= 8 or inv.crates.scrap < crates + 1 then fail("a player back after 8 days was not welcomed") end
+	t += 3600
+	if econ:matchFinished(1, results(false, false), row).welcome then fail("welcome back paid twice in a row") end
+	t += 9 * 86400
+	if econ:matchFinished(1, results(false, false), row).welcome then fail("welcome back paid again within 30 days") end
+	t += 31 * 86400
+	if not econ:matchFinished(1, results(false, false), row).welcome then fail("welcome back never paid again") end
+	-- a player who has never played is not "back"
+	local other = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0.5 end, time = function() return t end })
+	if other:matchFinished(2, results(false, false), row).welcome then fail("a new player was welcomed back") end
 end
 
 -- 5b. Studio's boost: a playtest reaches Ranked on the 3rd to 6th counted match (drawn once), losing
@@ -383,6 +528,20 @@ do
 	local loss = DropBanner.progressText({ xp = 100, level = 12, from = 12, unlocked = {}, rank = { delta = -10, points = 140, tier = 2 } })
 	if not string.find(loss, "(-10)", 1, true) then fail("a ranked loss did not show its points: " .. loss) end
 	if DropBanner.progressText(nil) ~= "" then fail("a match that did not count showed a progress line") end
+	-- the Road to 50 adds up what the levels reached paid
+	local road = DropBanner.progressText({ xp = 900, level = 10, from = 8, unlocked = { "Shield" },
+		rewards = { { level = 9, sparks = 38, keys = 0 }, { level = 10, sparks = 40, crate = "scrap", keys = 1 } } })
+	for _, want in { "LEVEL 10!", "+78 Sparks", "Scrap Crate", "Forge Key", "Shield" } do
+		if not string.find(road, want, 1, true) then fail(`a two-level jump does not say {want}: {road}`) end
+	end
+	local titled = DropBanner.progressText({ xp = 200, level = 15, from = 14, unlocked = {}, rewards = { { level = 15, sparks = 50, crate = "scrap", keys = 0, title = "title_veteran" } } })
+	if not string.find(titled, "Title: Veteran", 1, true) then fail("a title earned is not named: " .. titled) end
+	local capped = DropBanner.progressText({ xp = 160, level = 20, from = 20, unlocked = {}, rank = { delta = 25, points = 300, tier = 3, sparks = 15, keyCapped = true } })
+	if not string.find(capped, "weekly ranked keys reached", 1, true) then fail("the weekly key cap is not explained") end
+	local welcome = DropBanner.lines({ counted = true, left = 3, welcome = { crate = "scrap", away = 9 }, progress = { xp = 100, level = 5, from = 5, unlocked = {} } }, "")
+	local said = false
+	for _, l in welcome do if string.find(l[1], "Welcome back", 1, true) and string.find(l[1], "9 days", 1, true) then said = true end end
+	if not said then fail("welcome back is not said") end
 end
 
 -- 8b. One strip, not three: the level line, then the goal, then the drop, empty ones left out
@@ -446,7 +605,9 @@ do
 	local NextGoal = Loader.loadFrom("src/client/", "NextGoal")
 	local lv = NextGoal.text({ level = 8, into = 100, need = 245, xp = 160, from = 8, unlocked = {} })
 	if lv ~= "NEXT: 145 XP to level 9 - Shield" then fail("the next level line is " .. lv) end
-	if NextGoal.text({ level = 9, into = 0, need = 260 }) ~= "NEXT: 260 XP to level 10 - Ranked" then fail("level 10 does not say Ranked opens") end
+	local ten = NextGoal.text({ level = 9, into = 0, need = 260 })
+	if ten ~= "NEXT: 260 XP to level 10 - Ranked + Forge Key + Scrap Crate" then fail("level 10 does not say Ranked opens, with its key and crate: " .. ten) end
+	if NextGoal.levelReward(15) ~= "Rocket Boots + Scrap Crate + Veteran title" then fail("level 15's reward reads " .. NextGoal.levelReward(15)) end
 	if NextGoal.text({ level = 15, into = 10, need = 350 }) ~= "NEXT: 340 XP to level 16" then fail("a level with no reward has a reward") end
 	-- a ranked player 40 RP from Gold (40/150 to go) is closer to Gold than to a level 200/300 away
 	local rank = NextGoal.text({ level = 12, into = 100, need = 305, rank = { points = 210, tier = 2 } })
@@ -464,6 +625,7 @@ end
 
 print("PASS progression: the first six weapons for everyone, the rest from level 3 to 15; level 15 about thirty matches in; Ranked at level 10")
 print("  six tiers, never dropping one reached, each paying keys and Sparks once; ranked wins pay Sparks and a key every three; ranked moves the drop meter further")
+print("  every level 2-50 pays once (watermark), titles even into a full locker; ranked keys capped 3 a week; first match level 2; welcome back")
 print("  Studio reaches Ranked on the drawn 3rd-6th match, and only Studio")
 print("  NEW OPPONENTS avoids the players left (both ways, 60 s, through queue and FILL WITH BOTS); Analytics never throws")
 print("  the near-miss line names the closest goal - level or tier - by share to go, a tie to the level")

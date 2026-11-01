@@ -137,7 +137,11 @@ do
 	assert(math.abs(kinds.crate / drops - 0.72) < 0.05 and math.abs((kinds.sparks or 0) / drops - 0.20) < 0.04, "drops do not follow their table")
 	local inv = econ:inventory(1)
 	assert(inv.crates.scrap > 0 and inv.crates.forge > 0 and inv.keys.forge.earned > 0 and inv.sparks > 0 and next(inv.items), "drops were not paid out")
-	for _, inst in inv.items do assert(inst.src == "drop" and inst.p == false and inst.s > 0, "a dropped item is not an earned, serialled copy") end
+	for _, inst in inv.items do
+		-- (the Road to 50's titles come with levels: earned, never minted, so no serial)
+		if inst.src == "level" then assert(Cosmetics.get(inst.i).source == "level" and inst.p == false, "a level item is not a level title")
+		else assert(inst.src == "drop" and inst.p == false and inst.s > 0, "a dropped item is not an earned, serialled copy") end
+	end
 end
 
 -- 5. The hourly cap: twelve counted matches an hour, the thirteenth not, the next hour again.
@@ -227,7 +231,10 @@ do
 	t = 86400 * 500 + 10
 	local sparks = inv.sparks
 	local w = econ:matchFinished(1, winRes, winRow)
-	assert(w.firstWin == Economy.FIRST_WIN and inv.sparks == sparks + Economy.FIRST_WIN, "the first win of the day did not pay")
+	-- (a level reached on the Road to 50, or a Sparks drop, pays its own Sparks too)
+	local besides = if w.drop and w.drop.kind == "sparks" then w.drop.amount else 0
+	for _, r in (w.progress and w.progress.rewards) or {} do besides += r.sparks end
+	assert(w.firstWin == Economy.FIRST_WIN and inv.sparks == sparks + Economy.FIRST_WIN + besides, "the first win of the day did not pay")
 	t += 400
 	assert(econ:matchFinished(1, winRes, winRow).firstWin == nil, "a second win the same day paid the bonus")
 	t += 86400
@@ -314,7 +321,8 @@ do
 	assert(t == "DROP!  Legendary Starforged  #57  ·  next drop in 4 games" and c == Loot.RARITY.Legendary.colour, t)
 	t = DropBanner.text({ counted = true, left = 2, drop = { kind = "crate", crate = "forge" } })
 	assert(string.find(t, "Forge Crate", 1, true), t)
-	assert(DropBanner.text({ counted = false, capped = true }) == "Drops are resting: back next hour", "the cap is not explained")
+	assert(DropBanner.text({ counted = false, capped = true, rest = 12 }) == "Drops rest for 12 min  ·  bot matches pay again then", "the cap is not explained")
+	assert(DropBanner.text({ counted = false, capped = true, progressing = true, rest = 5 }) == "Drops rest for 5 min  ·  XP still counts", "a capped match against people does not say XP still counts")
 	assert(DropBanner.text({ counted = false }) == "This match did not count toward a drop", "an uncounted match is not explained")
 end
 print("PASS economy: instances cleaned and migrated, the owned index rebuilt; serials unique across servers in growing blocks, copies counted, failures reported; Training, short and hitless matches do not count; a drop every 2-5 counted matches following its table, twelve an hour; crates open with keys (earned first, paid marked), guarantees saved and firing; a failed vault spends nothing and never loses a drop; crafting and salvaging pay as listed; the results line says it")

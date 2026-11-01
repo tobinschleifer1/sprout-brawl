@@ -39,7 +39,11 @@ function DropBanner.text(out: any): (string, string)
 			return `DROP!  {rarity} {it and it.name or d.id}{serial}{after}{bonus}`, colour
 		end
 	end
-	if out.capped then return "Drops are resting: back next hour", "#9AA3B4" end
+	-- past the hourly cap (Economy): against people XP still counts; against bots nothing does
+	if out.capped then
+		local rest = if type(out.rest) == "number" then `Drops rest for {out.rest} min` else "Drops are resting"
+		return rest .. (if out.progressing then "  ·  XP still counts" else "  ·  bot matches pay again then"), "#9AA3B4"
+	end
 	if not out.counted then return "This match did not count toward a drop", "#9AA3B4" end
 	return `Next drop in {games(left or 0)}{bonus}`, if bonus ~= "" then "#9FE8FF" else "#E9EBF1"
 end
@@ -54,6 +58,21 @@ function DropBanner.progressText(p: any): (string, string)
 	if type(p.from) == "number" and level > p.from then
 		parts[1] = `LEVEL {level}!  +{p.xp} XP`
 		colour = "#FEE761"
+	end
+	-- the Road to 50: what the levels reached paid, added up (several land at once after a big match)
+	if type(p.rewards) == "table" and #p.rewards > 0 then
+		local sparks, crates, keys, titles = 0, 0, 0, {}
+		for _, r in p.rewards do
+			sparks += tonumber(r.sparks) or 0
+			if r.crate then crates += 1 end
+			keys += tonumber(r.keys) or 0
+			local it = r.title and Cosmetics.get(r.title)
+			if it then table.insert(titles, it.name) end
+		end
+		if sparks > 0 then table.insert(parts, `+{sparks} Sparks`) end
+		if crates > 0 then table.insert(parts, if crates == 1 then "Scrap Crate" else `{crates} Scrap Crates`) end
+		if keys > 0 then table.insert(parts, if keys == 1 then "Forge Key" else `{keys} Forge Keys`) end
+		for _, name in titles do table.insert(parts, `Title: {name}`) end
 	end
 	if type(p.unlocked) == "table" and #p.unlocked > 0 then
 		local names = {}
@@ -77,6 +96,7 @@ function DropBanner.progressText(p: any): (string, string)
 		end
 		if r.sparks then table.insert(parts, `+{r.sparks} Sparks`) end
 		if r.key then table.insert(parts, "+1 Forge Key") end
+		if r.keyCapped then table.insert(parts, "weekly ranked keys reached") end
 	end
 	return table.concat(parts, "  ·  "), colour
 end
@@ -87,6 +107,9 @@ function DropBanner.lines(out: any, goal: string?): { { string } }
 	local list = {}
 	local function add(text: string, colour: string) if text ~= "" then table.insert(list, { text, colour }) end end
 	if type(out) == "table" then add(DropBanner.progressText(out.progress)) end
+	if type(out) == "table" and type(out.welcome) == "table" then
+		add(`Welcome back!  Away {out.welcome.away or 7} days  ·  a Scrap Crate`, CRATE_COLOUR.scrap)
+	end
 	add(goal or "", "#9FE8FF")
 	add(DropBanner.text(out))
 	return list

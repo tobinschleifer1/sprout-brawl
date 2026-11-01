@@ -146,7 +146,7 @@ end
 -- Participation stops at elimination and during pauses, and is what the result row carries.
 do
 	service:start({ { player = player, avatar = "Classic", weapon = "Sword" },
-		{ avatar = "Classic", weapon = "Sword" }, { avatar = "Classic", weapon = "Sword" } }, { stocks = 5, seed = 9 })
+		{ avatar = "Classic", weapon = "Sword", cosmetics = { title = "title_veteran" } }, { avatar = "Classic", weapon = "Sword" } }, { stocks = 5, seed = 9 })
 	for _ = 1, 270 do service:tick(1/60) end
 	local m = service.match
 	local f = m.fighters[1]
@@ -167,6 +167,13 @@ do
 	end
 	assert(found)
 	assert(service:results().ranked == false, "a match that was not ranked says it was")
+	-- a player among bots had no human opponent (Economy pays nothing past the hourly cap then); a
+	-- fighter's worn title reaches the podium by name
+	for _, row in service:results().rows do
+		if row.index == 0 then assert(row.humanFoe == false, "a player among bots had a human opponent") end
+		if row.index == 1 then assert(row.title == "Veteran", "a worn title did not reach the results") end
+		if row.index == 2 then assert(row.title == nil, "a fighter wearing no title has one") end
+	end
 end
 -- A Ranked room's match says so in its results (Economy pays rank points from them), and a
 -- free-for-all room's is a free-for-all.

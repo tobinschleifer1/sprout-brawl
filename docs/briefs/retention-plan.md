@@ -69,6 +69,8 @@ podium's stats on a phone). NEW OPPONENTS avoids the people left, both ways, for
    losing to bots, a gentler first opponent is the owner's decision to revisit.)
 
 ### Step 2 - Progress never stops mid-session, and every level pays
+*Built (`feature/retention`): items 1-5 and the ranked key cap. Titles show on the results podium;
+the lobby name tag and the "What's new" card are still to do. Reviewed in round 4.*
 1. **The cap moves**, and a match now has three states (`Economy._matchFinished`):
    - *counted* (under the cap): everything, as today;
    - *progressing* (past the cap, **with at least one human opponent**): XP, rank points and quest

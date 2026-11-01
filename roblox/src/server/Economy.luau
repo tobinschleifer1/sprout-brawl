@@ -91,10 +91,26 @@ function Economy.qualifies(results: any, row: any): boolean
 end
 
 -- A match ended. Returns what the player is told: { counted, left, capped?, drop? }.
+-- A match past the hourly cap: how long until the oldest counted match leaves the hour, in minutes.
+local function restMinutes(times: { number }, now: number): number
+	local oldest = math.huge
+	for _, t in times do oldest = math.min(oldest, t) end
+	return math.max(1, math.ceil((oldest + 3600 - now) / 60))
+end
+-- Economy.FIRST_METER: a new player's first drop comes within this many matches (retention plan, step 2).
+Economy.FIRST_METER = 2
+
+-- A match ended. Returns what the player is told: { counted, left, capped?, progressing?, drop?, ... }.
+-- Three states (retention plan, step 2):
+--   counted      under the hourly cap: everything - XP, rank, level rewards, the drop meter, first win
+--   progressing  past the cap, with a person among the opponents (`row.humanFoe`): XP, rank points
+--                and level rewards still pay; the drop meter, first win and ranked Sparks/keys rest
+--   not counted  too short, no hit, Training, or past the cap against CPU only: nothing
 function Economy._matchFinished(self: any, inv: any, results: any, row: any, userId: number?): any
 	if not Economy.qualifies(results, row) then return { counted = false, left = inv.meter } end
 	local now = self.time()
 	local hour = math.floor(now / 3600)
+	local day = math.floor(now / 86400)
 	local times = inv.earn.times
 	-- Old records only know an hour bucket. Conservatively place their matches at that hour's
 	-- end once, so a boundary/rejoin cannot erase matches whose exact timestamps were not saved.
@@ -105,13 +121,27 @@ function Economy._matchFinished(self: any, inv: any, results: any, row: any, use
 	end
 	for i = #times, 1, -1 do if times[i] <= now - 3600 then table.remove(times, i) end end
 	if inv.earn.hour ~= hour then inv.earn.hour, inv.earn.count = hour, 0 end
-	if #times >= Economy.HOURLY_CAP then return { counted = false, capped = true, left = inv.meter } end
-	table.insert(times, now)
-	inv.earn.count += 1
 	local vip = isVip(self, userId)
 	local ranked = results.ranked == true
-	inv.meter = (inv.meter or Loot.nextMeter(self.rand)) - (if results.cpu then Economy.CPU_STEP else 1)
-		- (if ranked then Progression.RANKED_METER else 0)
+	local won = Economy.won(results, row)
+	local p = inv.progress
+	-- the least XP a match that pays gives: the first match a player ever plays that pays reaches
+	-- level 2, win or lose; and Studio's boost (asked only when XP is paid: it counts matches)
+	local function least(): number
+		return math.max(self:studioBoost(userId, p.xp), if p.xp == 0 then Progression.need(1) else 0)
+	end
+	if #times >= Economy.HOURLY_CAP then
+		local rest = restMinutes(times, now)
+		if row.humanFoe ~= true then return { counted = false, capped = true, rest = rest, left = inv.meter } end
+		p.seen = day
+		return { counted = false, capped = true, progressing = true, rest = rest, left = inv.meter,
+			progress = Economy._progress(inv, won, results.cpu == true, ranked, least(), { rested = true, vip = vip, now = now }) }
+	end
+	table.insert(times, now)
+	inv.earn.count += 1
+	local fresh = p.xp == 0
+	inv.meter = (inv.meter or (if fresh then Economy.FIRST_METER else Loot.nextMeter(self.rand)))
+		- (if results.cpu then Economy.CPU_STEP else 1) - (if ranked then Progression.RANKED_METER else 0)
 	local out: any = { counted = true, cpu = results.cpu == true }
 	if inv.meter <= 0 then
 		out.drop = self:_dropInto(inv, Loot.rollDrop(self.rand), vip)
@@ -119,21 +149,31 @@ function Economy._matchFinished(self: any, inv: any, results: any, row: any, use
 		inv.meter = Loot.nextMeter(self.rand) + inv.meter
 	end
 	-- the first win of the day
-	local day = math.floor(now / 86400)
-	if Economy.won(results, row) and inv.firstWin ~= day then
+	if won and inv.firstWin ~= day then
 		inv.firstWin = day
 		local bonus = Economy.FIRST_WIN * (if vip then 2 else 1)
 		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + bonus)
 		out.firstWin = bonus
 	end
-	out.progress = Economy._progress(inv, Economy.won(results, row), results.cpu == true, ranked,
-		self:studioBoost(userId, inv.progress.xp))
+	-- welcome back: away WELCOME_AWAY days or more, a Scrap Crate (at most once in WELCOME_EVERY days)
+	if p.seen > 0 and day - p.seen >= Economy.WELCOME_AWAY and (p.welcomed == 0 or day - p.welcomed >= Economy.WELCOME_EVERY) then
+		inv.crates.scrap = math.min(Inventory.MAX_COUNT, inv.crates.scrap + 1)
+		p.welcomed = day
+		out.welcome = { crate = "scrap", away = day - p.seen }
+	end
+	p.seen = day
+	out.progress = Economy._progress(inv, won, results.cpu == true, ranked, least(), { vip = vip, now = now })
 	out.left = inv.meter
 	return out
 end
+Economy.WELCOME_AWAY, Economy.WELCOME_EVERY = 7, 30
 
--- Levels and the Ranked ladder (Progression), for a match that counted. Returns what changed.
-function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean, least: number?): any
+-- Levels, the Road to 50 and the Ranked ladder (Progression), for a match that pays. Returns what
+-- changed. `opts.rested`: past the hourly cap (ranked Sparks and keys rest); `opts.vip` adds
+-- VIP_SPARKS to every Sparks reward here; `opts.now` (os.time) dates the weekly key cap.
+function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean, least: number?, opts: any?): any
+	local o = opts or {}
+	local vipK = if o.vip then 1 + Economy.VIP_SPARKS else 1
 	local p = inv.progress
 	local before = Progression.level(p.xp)
 	local gained = math.max(Progression.xpFor(won, cpu), least or 0)
@@ -141,6 +181,26 @@ function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean
 	local level, into, need = Progression.level(p.xp)
 	local out: any = { xp = gained, level = level, into = into, need = need, from = before,
 		unlocked = Progression.unlocksBetween(before, level) }
+	-- the Road to 50: every level from the watermark up to the one reached pays, once
+	if level > p.paid then
+		out.rewards = {}
+		for l = p.paid + 1, level do
+			local r = Progression.levelReward(l)
+			if r then
+				local sparks = math.floor(r.sparks * vipK)
+				inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + sparks)
+				if r.crate then inv.crates[r.crate] = math.min(Inventory.MAX_COUNT, inv.crates[r.crate] + 1) end
+				inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + r.keys)
+				-- (a title is earned, not minted: no serial, and room past a full locker - Inventory.HEADROOM)
+				local title = nil
+				if r.title and not Inventory.owns(inv, r.title) and Inventory.add(inv, r.title, 0, false, "level", o.now or 0, true) then
+					title = r.title
+				end
+				table.insert(out.rewards, { level = l, sparks = sparks, crate = r.crate, keys = r.keys, title = title })
+			end
+		end
+		p.paid = level
+	end
 	if not ranked then return out end
 	local points = Progression.rankAfter(p.points, p.best, won, cpu)
 	local tier = Progression.tier(points)
@@ -153,21 +213,30 @@ function Economy._progress(inv: any, won: boolean, cpu: boolean, ranked: boolean
 			local r = Progression.TIERS[t].reward
 			if r then
 				inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + (r.keys or 0))
-				inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + (r.sparks or 0))
+				inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + math.floor((r.sparks or 0) * vipK))
 				if r.crate then inv.crates[r.crate] = math.min(Inventory.MAX_COUNT, inv.crates[r.crate] + (r.crates or 1)) end
 			end
 			table.insert(rank.promoted, t)
 		end
 		p.best = tier
 	end
-	-- the ranked boost: Sparks for a win, and a Forge Key every KEY_EVERY wins
-	if won then
-		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + Progression.RANKED_SPARKS)
-		rank.sparks = Progression.RANKED_SPARKS
+	-- the ranked boost: Sparks for a win, and a Forge Key every KEY_EVERY wins, at most KEY_WEEK a
+	-- week; both rest past the hourly cap
+	if won and not o.rested then
+		local sparks = math.floor(Progression.RANKED_SPARKS * vipK)
+		inv.sparks = math.min(Inventory.MAX_COUNT, inv.sparks + sparks)
+		rank.sparks = sparks
 		p.wins = math.min(Inventory.MAX_COUNT, p.wins + 1)
 		if p.wins % Progression.KEY_EVERY == 0 then
-			inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + 1)
-			rank.key = true
+			local week = Progression.week(math.floor((o.now or 0) / 86400))
+			if p.keyWeek ~= week then p.keyWeek, p.keyCount = week, 0 end
+			if p.keyCount < Progression.KEY_WEEK then
+				inv.keys.forge.earned = math.min(Inventory.MAX_COUNT, inv.keys.forge.earned + 1)
+				p.keyCount += 1
+				rank.key = true
+			else
+				rank.keyCapped = true
+			end
 		end
 	end
 	out.rank = rank

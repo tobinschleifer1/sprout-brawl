@@ -15,6 +15,7 @@ local Realms = require(Shared.Realms)
 local Progression = require(Shared.Progression)
 local Features = require(Shared.Features)
 local Ui = require(script.Parent.Ui)
+local NextGoal = require(script.Parent.NextGoal)
 
 local PLAZA: any = Plaza.DATA      -- the Roblox lobby's market (Plaza.luau), not the web's
 
@@ -123,8 +124,14 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	track.Position, track.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 8)
 	local fillBar = Ui.make("Frame", track, { Name = "Fill", BackgroundColor3 = Ui.GOLD, BorderSizePixel = 0 })
 	fillBar.Position, fillBar.Size = UDim2.fromOffset(1, 1), UDim2.new(0, 0, 1, -2)
-	y += 8 + 10
-	self.levelText, self.rankText, self.xpFill = level, rank, fillBar
+	y += 8 + 4
+	-- what the next level brings (the Road to 50, a weapon, Ranked)
+	local nextLine = Ui.text(play, "", 12, SUB, Ui.LABEL, true)
+	nextLine.Name, nextLine.Position, nextLine.Size = "NextReward", UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 16)
+	nextLine.TextXAlignment = Enum.TextXAlignment.Left
+	nextLine.TextTruncate = Enum.TextTruncate.AtEnd
+	y += 16 + 8
+	self.levelText, self.rankText, self.xpFill, self.nextReward = level, rank, fillBar, nextLine
 	self.formatButtons = {}
 	local i = 1
 	while i <= #LobbySocial.FORMATS do
@@ -268,6 +275,10 @@ function LobbySocial.setProgress(self: any, view: any)
 	local p = self.progress
 	local level, into, need = p.level or 1, p.into or 0, p.need or 0
 	self.levelText.Text = if need > 0 then `LEVEL {level}  ·  {into} / {need} XP` else `LEVEL {level}  ·  MAX`
+	local nextR = Progression.levelReward(level + 1)
+	local named = if nextR then NextGoal.levelReward(level + 1) else ""
+	self.nextReward.Text = if not nextR then "Every level reached: the Road to 50 is done"
+		else `LEVEL {level + 1}:  +{nextR.sparks} Sparks` .. (if named ~= "" then `  ·  {named}` else "")
 	self.xpFill.Size = UDim2.new(if need > 0 then math.clamp(into / need, 0, 1) else 1, -2, 1, -2)
 	local tier = Progression.TIERS[math.clamp(p.tier or 1, 1, #Progression.TIERS)]
 	self.rankText.Text = if level >= Progression.RANKED_LEVEL then `{tier.name}  ·  {p.points or 0} RP` else ""

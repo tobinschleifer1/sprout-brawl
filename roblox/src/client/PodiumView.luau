@@ -159,9 +159,18 @@ function PodiumView.new(parent: Instance, res: any, chars: { any }, size: Vector
 			if not Ui.flat() then Ui.outline(place, math.max(2, math.floor(rh * 0.08))) end
 			if Ui.light(bandColour) > 0.62 then place.TextColor3 = Ui.INK end
 		end
-		local name = text(card, pad, rh * 1.35, s.card.w - pad * 2, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, if LIGHT then -0.3 else 0.45))
+		-- the title they wear (the Road to 50's, a mastery's), at the right of the name line
+		local titled = type(row.title) == "string" and row.title ~= ""
+		local nameW = (s.card.w - pad * 2) * (if titled then 0.6 else 1)
+		local name = text(card, pad, rh * 1.35, nameW, rh * 0.75, `{HudColors.MARKS[(row.index % 8) + 1]} {row.name}`, rt * 0.72, Ui.shade(colour, if LIGHT then -0.3 else 0.45))
 		name.Name = "Name"
 		name.Font = Ui.DISPLAY
+		name.TextTruncate = Enum.TextTruncate.AtEnd
+		if titled then
+			local t = text(card, pad + nameW, rh * 1.35, s.card.w - pad * 2 - nameW, rh * 0.75, string.upper(row.title), rt * 0.5, STAT, Enum.TextXAlignment.Right)
+			t.Name = "PlayerTitle"
+			t.TextTruncate = Enum.TextTruncate.AtEnd
+		end
 		-- (dark words on a pale card are never outlined: the outline closes their counters up)
 		if not Ui.flat() and not LIGHT then Ui.outline(name, 2) end
 		for k, stat in Podium.STATS do

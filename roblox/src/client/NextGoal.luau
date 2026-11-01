@@ -5,9 +5,11 @@
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Progression = require(Shared.Progression)
 local Weapons = require(Shared.Weapons)
+local Cosmetics = require(Shared.Cosmetics)
 local NextGoal = {}
 
--- What reaching `level` gives, in words, or "" (a weapon, Ranked opening).
+-- What reaching `level` gives that is worth naming, in words, or "": a weapon, Ranked opening, and the
+-- Road to 50's crate, key or title (not its Sparks: every level pays those, so they say nothing).
 function NextGoal.levelReward(level: number): string
 	local parts = {}
 	for _, id in Progression.unlocksBetween(level - 1, level) do
@@ -15,6 +17,13 @@ function NextGoal.levelReward(level: number): string
 		table.insert(parts, if w then w.name else id)
 	end
 	if level == Progression.RANKED_LEVEL then table.insert(parts, "Ranked") end
+	local r = Progression.levelReward(level)
+	if r then
+		if r.keys > 0 then table.insert(parts, "Forge Key") end
+		if r.crate then table.insert(parts, "Scrap Crate") end
+		local it = r.title and Cosmetics.get(r.title)
+		if it then table.insert(parts, `{it.name} title`) end
+	end
 	return table.concat(parts, " + ")
 end
 

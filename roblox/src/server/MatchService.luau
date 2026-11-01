@@ -18,6 +18,7 @@ local Match = require(Shared.Match)
 local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
 local Inventory = require(Shared.Inventory)
+local Cosmetics = require(Shared.Cosmetics)
 local Config = require(Shared.Config)
 local Net = require(Shared.Net)
 local Snapshot = require(Shared.Snapshot)
@@ -301,6 +302,20 @@ function MatchService.results(self: any): any
 			damage = row.damage, taken = row.taken, percent = row.percent,
 			fightFrames = self.fightFrames[m.fighters[row.index + 1].source] or 0,
 			stocks = row.stocks, score = row.score,
+			-- was any opponent a person? (Economy pays past the hourly cap only then)
+			humanFoe = (function()
+				local f = m.fighters[row.index + 1]
+				for _, g in m.fighters do
+					if g ~= f and g.team ~= f.team and self.userIds[g.source] then return true end
+				end
+				return false
+			end)(),
+			-- the title they wear, by name, for the podium (the Road to 50's, a mastery's, VIP's)
+			title = (function()
+				local wears = self.cosmetics[m.fighters[row.index + 1].source]
+				local it = wears and wears.title and Cosmetics.get(wears.title)
+				return if it then it.name else nil
+			end)(),
 		})
 	end
 	-- whether CPU fighters took part: such a match counts less toward the drop meter (Economy)

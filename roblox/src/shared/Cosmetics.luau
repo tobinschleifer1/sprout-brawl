@@ -13,6 +13,7 @@
 --   "shop"    sold directly in the featured shop, never random
 --   "free"    permanently owned by everyone, no inventory instance or trading
 --   "pass"    granted by a game pass
+--   "level"   reached on the Road to 50 (Progression.TITLES), never sold, never in a crate
 -- `crates` lists which crates it can come out of when source is "crate".
 local Cosmetics = {}
 
@@ -159,6 +160,10 @@ add({ id = "title_ringleader", type = "title", name = "Ringleader", rarity = "Ra
 add({ id = "title_untouchable", type = "title", name = "Untouchable", rarity = "Epic", source = "mastery" })
 add({ id = "title_legend", type = "title", name = "Legend", rarity = "Legendary", source = "season" })
 add({ id = "title_vip", type = "title", name = "VIP", rarity = "Epic", source = "pass" })
+-- Road to 50 (Progression.TITLES): earned by levelling, never sold, never in a crate
+add({ id = "title_veteran", type = "title", name = "Veteran", rarity = "Rare", source = "level" })
+add({ id = "title_elite", type = "title", name = "Elite", rarity = "Epic", source = "level" })
+add({ id = "title_master", type = "title", name = "Master", rarity = "Legendary", source = "level" })
 -- VIP's Series 1 cosmetic, and its respawn sparkle (Products.PASS_ITEMS): kept forever, not random.
 add({ id = "trail_vipgold", type = "swing_trail", name = "VIP Gold Rush", rarity = "Epic", source = "pass" })
 add({ id = "spawn_vipsparkle", type = "spawn_effect", name = "VIP Sparkle", rarity = "Epic", source = "pass" })

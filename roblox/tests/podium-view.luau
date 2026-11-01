@@ -90,6 +90,7 @@ local checked = 0
 
 -- Free for all: finishing order 2, 0, 3, 1.
 local ffa = { rows = rowsFor({ 1, 0, 3, 2 }, { 1, 0, 3, 2 }), winnerTeam = 1, teams = false }
+ffa.rows[2].title = "Veteran"     -- (a worn title: the Road to 50's)
 local gui = instance("ScreenGui")
 local gg = 0
 local view = View.new(gui, ffa, chars, Rbx.Vector2.new(W, H), function() gg += 1 end)
@@ -105,6 +106,15 @@ for i, row in ffa.rows do
 	assert(px(c.Size.X.Offset, s.card.w) and px(c.Size.Y.Offset, s.card.h), `card {i} is not the layout's size`)
 	assert(c:FindFirstChild("Place").Text == string.upper(Podium.ordinal(i)), `card {i} says {c:FindFirstChild("Place").Text}`)
 	assert(string.find(c:FindFirstChild("Name").Text, row.name, 1, true), `card {i} names the wrong fighter`)
+	-- the title they wear, on the name line's right, and none where none is worn
+	local pt = c:FindFirstChild("PlayerTitle")
+	if row.title then
+		assert(pt and pt.Text == "VETERAN", `card {i} does not show its title`)
+		assert(pt.Size.X.Offset >= c.Size.X.Offset * 0.25, `card {i}'s title has no room ({pt.Size.X.Offset} px)`)
+		assert(c:FindFirstChild("Name").Position.X.Offset + c:FindFirstChild("Name").Size.X.Offset <= pt.Position.X.Offset + 1, `card {i}'s title overlaps the name`)
+	else
+		assert(not pt, `card {i} shows a title nobody wears`)
+	end
 	for k, stat in Podium.STATS do
 		assert(c:FindFirstChild(`Label{k}`).Text == string.upper(stat[1]), `card {i} row {k} label`)
 		local v = c:FindFirstChild(`Value{k}`).Text

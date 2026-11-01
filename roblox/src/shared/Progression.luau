@@ -86,6 +86,19 @@ function Progression.unlocksBetween(from: number, to: number): { string }
 	return out
 end
 
+-- ------------------------------------------------------------------ Road to 50 ----
+-- Every level from 2 to MAX_LEVEL pays (docs/briefs/retention-plan.md, step 2): 20 + 2 x level
+-- Sparks (about 3,500 in all), a Scrap Crate every 5th level, a Forge Key every 10th, a title at 15,
+-- 25 and 50 (earnable only: Cosmetics source "level"), and the weapons that unlock there. Paid once
+-- per level, by a watermark (Economy).
+Progression.TITLES = { [15] = "title_veteran", [25] = "title_elite", [50] = "title_master" } :: { [number]: string }
+function Progression.levelReward(level: number): any
+	if level < 2 or level > Progression.MAX_LEVEL then return nil end
+	return { level = level, sparks = 20 + 2 * level, crate = if level % 5 == 0 then "scrap" else nil,
+		keys = if level % 10 == 0 then 1 else 0, title = Progression.TITLES[level],
+		weapons = Progression.unlocksBetween(level - 1, level) }
+end
+
 -- ---------------------------------------------------------------------- ranked ----
 Progression.RANKED_LEVEL = 10
 -- rank points: a win, a loss; a match with CPU fighters moves them half as far
@@ -94,6 +107,13 @@ Progression.RANK_WIN, Progression.RANK_LOSS, Progression.RANK_CPU = 25, 10, 0.5
 -- step, so half as far again; in quarters, as the meter is saved), a win pays RANKED_SPARKS, and
 -- every KEY_EVERY ranked wins pay an earned Forge Key
 Progression.RANKED_METER, Progression.RANKED_SPARKS, Progression.KEY_EVERY = 0.5, 15, 3
+-- at most KEY_WEEK of those keys in a UTC week (Monday to Sunday): unlimited, a two-hour-a-day
+-- Ranked player earned about twenty a week (retention plan, round 2)
+Progression.KEY_WEEK = 3
+-- The UTC week a UTC day is in, weeks starting on Monday (day 0, 1970-01-01, was a Thursday).
+function Progression.week(day: number): number
+	return (day + 3) // 7
+end
 -- `at` is the points the tier begins at; `reward` is paid once, the first time it is reached
 Progression.TIERS = {
 	{ id = "bronze", name = "BRONZE", at = 0, colour = "#C98A4B" },

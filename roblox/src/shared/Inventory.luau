@@ -41,7 +41,11 @@ Inventory.RECEIPTS = 50                -- purchase ids granted inside the record
 Inventory.MAX_PRESETS = 5              -- saved cosmetic loadouts (VIP: five; everyone else: one)
 Inventory.MAX_COUNT = 1000000          -- any balance (Sparks, crates, keys) is clamped to this
 Inventory.CRATES = { "scrap", "forge" }
-Inventory.SOURCES = { drop = true, crate = true, craft = true, shop = true, grant = true, migrated = true, pass = true }
+Inventory.SOURCES = { drop = true, crate = true, craft = true, shop = true, grant = true, migrated = true, pass = true,
+	level = true, mastery = true }
+-- Room past MAX_OWNED for earned titles only (Inventory.add's `headroom`): a full locker must not lose
+-- a level title (retention plan, step 2).
+Inventory.HEADROOM = 8
 Inventory.CREDIT_RARITIES = { "Uncommon", "Rare", "Epic", "Legendary" }
 -- clothing purchases with no remembered piece (or a pack's piece bought singly meanwhile): one
 -- piece of that price tier each
@@ -99,9 +103,15 @@ function Inventory.sanitize(raw: any): any
 	local n = 0
 	local seq = integer(src.seq, Inventory.MAX_INTEGER - 1)
 	if type(src.items) == "table" then
+		-- (MAX_OWNED of everything; past it, HEADROOM more for the Road to 50's titles only, whatever
+		-- order the record's items come back in - a full locker must not lose a level title on reading)
+		local titles = 0
 		for uid, inst in src.items do
-			if n >= Inventory.MAX_OWNED then break end
-			if type(uid) == "string" and #uid <= 17 and type(inst) == "table" and item(inst.i) and item(inst.i).source ~= "free" then
+			local it = type(inst) == "table" and item(inst.i)
+			local levelTitle = it and it.source == "level"
+			local room = if levelTitle then titles < Inventory.HEADROOM else n - titles < Inventory.MAX_OWNED
+			if room and type(uid) == "string" and #uid <= 17 and it and it.source ~= "free" then
+				if levelTitle then titles += 1 end
 				items[uid] = { i = inst.i, s = integer(inst.s, Inventory.MAX_INTEGER), p = inst.p ~= false, t = integer(inst.t, Inventory.MAX_INTEGER),
 					src = if type(inst.src) == "string" and Inventory.SOURCES[inst.src] then inst.src else "grant" }
 				n += 1
@@ -173,7 +183,13 @@ function Inventory.sanitize(raw: any): any
 			local src2 = if type(src.progress) == "table" then src.progress else {}
 			local best = count(src2.best)
 			return { xp = count(src2.xp), points = count(src2.points), best = math.clamp(best, 1, #Progression.TIERS),
-				wins = count(src2.wins) }
+				wins = count(src2.wins),
+				-- the highest level whose Road to 50 reward is paid (1: none yet)
+				paid = math.clamp(count(src2.paid), 1, Progression.MAX_LEVEL),
+				-- ranked keys this UTC week (Progression.KEY_WEEK)
+				keyWeek = count(src2.keyWeek), keyCount = count(src2.keyCount),
+				-- the UTC day of the last match that paid, and of the last welcome-back crate
+				seen = count(src2.seen), welcomed = count(src2.welcomed) }
 		end)(),
 		earn = { times = times, hour = integer(type(src.earn) == "table" and src.earn.hour, Inventory.MAX_INTEGER), count = count(type(src.earn) == "table" and src.earn.count) },
 	}
@@ -201,11 +217,12 @@ function Inventory.copies(inv: any, id: string): number
 end
 
 -- Add an owned copy; returns its uid, or nil when the inventory is full.
-function Inventory.add(inv: any, id: string, serial: number, paid: boolean, src: string, now: number): string?
+function Inventory.add(inv: any, id: string, serial: number, paid: boolean, src: string, now: number, headroom: boolean?): string?
 	if not item(id) or item(id).source == "free" then return nil end
 	local n = 0
 	for _ in inv.items do n += 1 end
-	if n >= Inventory.MAX_OWNED or inv.seq >= Inventory.MAX_INTEGER then return nil end
+	local cap = Inventory.MAX_OWNED + (if headroom then Inventory.HEADROOM else 0)
+	if n >= cap or inv.seq >= Inventory.MAX_INTEGER then return nil end
 	local uid = "u" .. inv.seq
 	inv.seq += 1
 	inv.items[uid] = { i = id, s = serial, p = paid, t = now, src = src }

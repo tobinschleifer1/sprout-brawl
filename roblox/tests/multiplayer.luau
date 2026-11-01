@@ -315,10 +315,19 @@ send(9,"RoomAction",{action="leave"})
 assert(last(9,"RoomView").left)
 messages={}
 local active=instances[2]
+-- (7 fought, 8 stood idle: a person counts as an opponent only if they dealt damage - MatchService humanFoe)
+for _, f in active.match.fighters do f.stats.damageDealt = if f.source == active.sources[7] then 12 else 0 end
 Loader.load("Match").finish(active.match)
 active:tick(1/60)
 assert(last(7,"Results") and last(8,"Results") and not last(2,"Results") and not last(9,"Results"), "results stay inside their room")
-for _, r in last(7,"Results").rows do assert(r.humanFoe == true, "two people in a 1v1 had no human opponent") end
+do
+	local seen = 0
+	for _, r in last(7,"Results").rows do
+		if r.name == people[8].DisplayName then seen += 1; assert(r.humanFoe == true, "a person fought by a person had no human opponent") end
+		if r.name == people[7].DisplayName then seen += 1; assert(r.humanFoe == false, "an idle person counted as a human opponent") end
+	end
+	assert(seen == 2, "the 1v1's rows were not found by name")
+end
 for _, job in tasks do job.fn(table.unpack(job.args)) end
 assert(not active.match and last(7,"RoomView").state=="setup", "completed matches tear down and return to ready check")
 for _, slot in last(7,"RoomView").slots do assert(not slot.bot and not slot.ready,"rematch resets readiness and bots") end

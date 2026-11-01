@@ -167,14 +167,42 @@ do
 		time = function() return t end })
 	for _ = 1, Economy.HOURLY_CAP do econ:matchFinished(1, results(false, false), row) end
 	local inv = econ:inventory(1)
+	-- one win short of the boost key, no level or tier reward due: a win now would pay a key, if it paid
+	inv.progress.wins = Progression.KEY_EVERY - 1
+	inv.progress.paid = Progression.MAX_LEVEL
+	inv.progress.points, inv.progress.best = 2000, #Progression.TIERS
 	local sparks, keys, points = inv.sparks, inv.keys.forge.earned, inv.progress.points
 	local o = econ:matchFinished(1, results(true, true), row)
 	if not o.progressing or inv.progress.points ~= points + Progression.RANK_WIN then fail("rank points stopped past the hourly cap") end
-	local levelSparks = 0
-	for _, r in o.progress.rewards or {} do levelSparks += r.sparks end
-	if inv.sparks ~= sparks + levelSparks or o.progress.rank.sparks or inv.keys.forge.earned ~= keys + 0 and not o.progress.rewards then
-		fail("ranked Sparks were paid past the hourly cap")
+	if inv.sparks ~= sparks or o.progress.rank.sparks then fail("ranked Sparks were paid past the hourly cap") end
+	if inv.keys.forge.earned ~= keys or o.progress.rank.key then fail("a ranked boost key was paid past the hourly cap") end
+	if inv.progress.wins ~= Progression.KEY_EVERY - 1 then fail("a rested ranked win counted toward the next key") end
+	-- tier promotions DO pay past the cap: rank points still move, and each tier pays once (by design)
+	local inv2 = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0.99 end,
+		time = function() return t end })
+	for _ = 1, Economy.HOURLY_CAP do inv2:matchFinished(2, results(false, false), row) end
+	local i2 = inv2:inventory(2)
+	i2.progress.points, i2.progress.paid = 90, Progression.MAX_LEVEL
+	local k2 = i2.keys.forge.earned
+	local p2 = inv2:matchFinished(2, results(true, true), row)
+	if not p2.progressing or not p2.progress.rank.promoted or i2.keys.forge.earned ~= k2 + Progression.TIERS[2].reward.keys then
+		fail("a promotion past the hourly cap did not pay its tier reward")
 	end
+end
+-- back-pay: a record from before the Road to 50 (XP at level 30, no watermark) is paid levels 2-30
+-- once, on its next match, and never again
+do
+	local old = Inventory.sanitize({ progress = { xp = Progression.xpTo(30) } })
+	if old.progress.paid ~= 1 then fail("a record with no watermark did not read as nothing paid") end
+	local o = Economy._progress(old, false, false, false, 0, { now = 1 })
+	if #(o.rewards or {}) ~= 29 or old.progress.paid ~= 30 then fail(`back-pay paid {#(o.rewards or {})} levels`) end
+	local keys, crates = old.keys.forge.earned, old.crates.scrap
+	if keys ~= 3 or crates ~= 6 or not Inventory.owns(old, "title_veteran") or not Inventory.owns(old, "title_elite") then
+		fail(`back-pay to 30 paid {keys} keys, {crates} crates`)
+	end
+	local after = Inventory.sanitize(old)
+	local again = Economy._progress(after, false, false, false, 0, { now = 2 })
+	if again.rewards then fail("back-pay paid twice after the record was read back") end
 end
 do
 	local t = 0
@@ -311,6 +339,12 @@ do
 	t = 100 * 86400
 	local first = econ:matchFinished(1, results(false, false, true), row)
 	if first.progress.level < 2 then fail("a new player's first match did not reach level 2") end
+	-- (the meter: a new record starts at FIRST_METER, so after one match against people one is left)
+	local fresh = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0.99 end,
+		time = function() return t end })
+	if fresh:matchFinished(9, results(false, false), row).left ~= Economy.FIRST_METER - 1 or Economy.FIRST_METER ~= 2 then
+		fail("a new player's first drop is not two matches away")
+	end
 	t += 3600
 	local second = econ:matchFinished(1, results(false, false), row)
 	t += 3600
@@ -529,13 +563,29 @@ do
 	if not string.find(loss, "(-10)", 1, true) then fail("a ranked loss did not show its points: " .. loss) end
 	if DropBanner.progressText(nil) ~= "" then fail("a match that did not count showed a progress line") end
 	-- the Road to 50 adds up what the levels reached paid
-	local road = DropBanner.progressText({ xp = 900, level = 10, from = 8, unlocked = { "Shield" },
-		rewards = { { level = 9, sparks = 38, keys = 0 }, { level = 10, sparks = 40, crate = "scrap", keys = 1 } } })
+	local jump = { xp = 900, level = 10, from = 8, unlocked = { "Shield" },
+		rewards = { { level = 9, sparks = 38, keys = 0 }, { level = 10, sparks = 40, crate = "scrap", keys = 1 } } }
+	local road = DropBanner.progressText(jump) .. " " .. DropBanner.rewardsText(jump)
 	for _, want in { "LEVEL 10!", "+78 Sparks", "Scrap Crate", "Forge Key", "Shield" } do
 		if not string.find(road, want, 1, true) then fail(`a two-level jump does not say {want}: {road}`) end
 	end
-	local titled = DropBanner.progressText({ xp = 200, level = 15, from = 14, unlocked = {}, rewards = { { level = 15, sparks = 50, crate = "scrap", keys = 0, title = "title_veteran" } } })
-	if not string.find(titled, "Title: Veteran", 1, true) then fail("a title earned is not named: " .. titled) end
+	local titled = DropBanner.titlesText({ xp = 200, level = 15, from = 14, unlocked = {}, rewards = { { level = 15, sparks = 50, crate = "scrap", keys = 0, title = "title_veteran" } } })
+	if titled ~= "NEW TITLE: Veteran" then fail("a title earned is not named: " .. titled) end
+	-- the biggest strip there is - back-pay to level 30 in one match - reads in short lines, each its
+	-- own turn of the strip (one line, TextScaled, across 90% of a phone: past ~64 characters it shrinks)
+	local inv30 = Inventory.sanitize({ progress = { xp = Progression.xpTo(30) } })
+	local back = Economy._progress(inv30, true, false, false, 0, { now = 1 })
+	back.from = 1
+	for _, l in DropBanner.lines({ counted = true, left = 2, drop = { kind = "item", id = "hit_sakura", rarity = "Rare", serial = 1234 }, progress = back },
+		"NEXT: 860 XP to level 31") do
+		if #l[1] > 64 then fail(`a strip line is {#l[1]} characters: {l[1]}`) end
+	end
+	local said = {}
+	for _, l in DropBanner.lines({ counted = true, left = 2, progress = back }, "") do said[#said + 1] = l[1] end
+	local all = table.concat(said, " | ")
+	if not string.find(all, "3 Forge Keys", 1, true) or not string.find(all, "NEW TITLES: Veteran, Elite", 1, true) then
+		fail("the strip does not carry the back-pay's rewards and titles: " .. all)
+	end
 	local capped = DropBanner.progressText({ xp = 160, level = 20, from = 20, unlocked = {}, rank = { delta = 25, points = 300, tier = 3, sparks = 15, keyCapped = true } })
 	if not string.find(capped, "weekly ranked keys reached", 1, true) then fail("the weekly key cap is not explained") end
 	local welcome = DropBanner.lines({ counted = true, left = 3, welcome = { crate = "scrap", away = 9 }, progress = { xp = 100, level = 5, from = 5, unlocked = {} } }, "")

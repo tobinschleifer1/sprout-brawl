@@ -59,21 +59,6 @@ function DropBanner.progressText(p: any): (string, string)
 		parts[1] = `LEVEL {level}!  +{p.xp} XP`
 		colour = "#FEE761"
 	end
-	-- the Road to 50: what the levels reached paid, added up (several land at once after a big match)
-	if type(p.rewards) == "table" and #p.rewards > 0 then
-		local sparks, crates, keys, titles = 0, 0, 0, {}
-		for _, r in p.rewards do
-			sparks += tonumber(r.sparks) or 0
-			if r.crate then crates += 1 end
-			keys += tonumber(r.keys) or 0
-			local it = r.title and Cosmetics.get(r.title)
-			if it then table.insert(titles, it.name) end
-		end
-		if sparks > 0 then table.insert(parts, `+{sparks} Sparks`) end
-		if crates > 0 then table.insert(parts, if crates == 1 then "Scrap Crate" else `{crates} Scrap Crates`) end
-		if keys > 0 then table.insert(parts, if keys == 1 then "Forge Key" else `{keys} Forge Keys`) end
-		for _, name in titles do table.insert(parts, `Title: {name}`) end
-	end
 	if type(p.unlocked) == "table" and #p.unlocked > 0 then
 		local names = {}
 		for _, id in p.unlocked do
@@ -101,12 +86,41 @@ function DropBanner.progressText(p: any): (string, string)
 	return table.concat(parts, "  ·  "), colour
 end
 
+-- What the Road to 50's levels paid, added up, as its own line (a big jump - back-pay to level 30 -
+-- would not fit beside the level line): "+1508 Sparks · 6 Scrap Crates · 3 Forge Keys".
+function DropBanner.rewardsText(p: any): (string, string)
+	if type(p) ~= "table" or type(p.rewards) ~= "table" or #p.rewards == 0 then return "", "#FFFFFF" end
+	local sparks, crates, keys = 0, 0, 0
+	for _, r in p.rewards do
+		sparks += tonumber(r.sparks) or 0
+		if r.crate then crates += 1 end
+		keys += tonumber(r.keys) or 0
+	end
+	local parts = {}
+	if sparks > 0 then table.insert(parts, `+{sparks} Sparks`) end
+	if crates > 0 then table.insert(parts, if crates == 1 then "Scrap Crate" else `{crates} Scrap Crates`) end
+	if keys > 0 then table.insert(parts, if keys == 1 then "Forge Key" else `{keys} Forge Keys`) end
+	return table.concat(parts, "  ·  "), "#FEE761"
+end
+-- The titles those levels gave, as a line of their own (a title is the rarest thing levels pay).
+function DropBanner.titlesText(p: any): (string, string)
+	if type(p) ~= "table" or type(p.rewards) ~= "table" then return "", "#FFFFFF" end
+	local titles = {}
+	for _, r in p.rewards do
+		local it = r.title and Cosmetics.get(r.title)
+		if it then table.insert(titles, it.name) end
+	end
+	if #titles == 0 then return "", "#FFFFFF" end
+	return `NEW {if #titles == 1 then "TITLE" else "TITLES"}: {table.concat(titles, ", ")}`, "#FF6B8A"
+end
+
 -- Everything a match earned, in the order it is shown: the level and rank line, the next goal
 -- (`goal`, NextGoal's), then the drop's. Each { text, colour }; empty ones left out. Pure.
 function DropBanner.lines(out: any, goal: string?): { { string } }
 	local list = {}
 	local function add(text: string, colour: string) if text ~= "" then table.insert(list, { text, colour }) end end
 	if type(out) == "table" then add(DropBanner.progressText(out.progress)) end
+	if type(out) == "table" then add(DropBanner.rewardsText(out.progress)); add(DropBanner.titlesText(out.progress)) end
 	if type(out) == "table" and type(out.welcome) == "table" then
 		add(`Welcome back!  Away {out.welcome.away or 7} days  ·  a Scrap Crate`, CRATE_COLOUR.scrap)
 	end

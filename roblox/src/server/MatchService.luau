@@ -302,11 +302,12 @@ function MatchService.results(self: any): any
 			damage = row.damage, taken = row.taken, percent = row.percent,
 			fightFrames = self.fightFrames[m.fighters[row.index + 1].source] or 0,
 			stocks = row.stocks, score = row.score,
-			-- was any opponent a person? (Economy pays past the hourly cap only then)
+			-- was any opponent a person who fought - dealt damage? (Economy pays past the hourly cap only
+			-- then: a person standing idle among bots, an alt, does not make a bot match a real one)
 			humanFoe = (function()
 				local f = m.fighters[row.index + 1]
 				for _, g in m.fighters do
-					if g ~= f and g.team ~= f.team and self.userIds[g.source] then return true end
+					if g ~= f and g.team ~= f.team and self.userIds[g.source] and (g.stats.damageDealt or 0) > 0 then return true end
 				end
 				return false
 			end)(),

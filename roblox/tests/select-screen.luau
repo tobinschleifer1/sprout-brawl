@@ -485,7 +485,7 @@ do
 	if find("Status").Text ~= "" and string.find(find("Status").Text, "Confirm", 1, true) then fail("a closed purchase window is still said") end
 	find("PickDaggers").Activated:Fire(); find("PickDaggers").Activated:Fire()
 	screen:purchase({ error = "Starter Picks is not on sale yet" })
-	if not string.find(find("Status").Text, "not on sale", 1, true) then fail("a refused purchase was not said") end
+	if find("Status").Text ~= "Starter Picks is not on sale yet." then fail(`a refused purchase was not said plainly: {find("Status").Text}`) end
 	screen:purchase({ error = "something else" })                -- (no longer buying: not this screen's)
 	if string.find(find("Status").Text, "something else", 1, true) then fail("an unrelated shop error was shown here") end
 	find("PickDaggers").Activated:Fire(); find("PickDaggers").Activated:Fire()

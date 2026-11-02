@@ -354,7 +354,8 @@ function SelectScreen.purchase(self: any, e: any)
 	if not self.buyingPicks or type(e) ~= "table" then return end
 	if e.error then
 		self.buyingPicks = nil
-		self.lockNote = `Starter Picks: {e.error}.`
+		-- (the Shop's reasons mostly name the pass already: "Starter Picks is not on sale yet")
+		self.lockNote = if string.find(e.error, "Starter Picks", 1, true) then `{e.error}.` else `Starter Picks: {e.error}.`
 	elseif e.prompt then
 		self.lockNote = "Confirm in Roblox's purchase window."
 	elseif e.purchased and e.purchased.kind == "pass" then

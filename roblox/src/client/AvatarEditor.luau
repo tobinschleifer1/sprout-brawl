@@ -420,20 +420,29 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.viewport = vp
 	local W, H = math.min(vp.X - 24, 1440), math.min(vp.Y - 24, 900)
 	self.size = Vector2.new(W, H)
-	local wide = W >= 760 and W >= H * 1.05
+	-- side by side on any landscape screen from 560 across: a phone on its side (~640) was given the
+	-- stacked portrait arrangement, which piled the rows into each other in 350 px (the owner's
+	-- screenshot, 2026-11-03)
+	local wide = W >= 560 and W >= H * 1.05
 	self.wide = wide
-	local topH, footH = 56, 56
+	-- (a short screen's title band and footer give the editor 12 px back; the band no shorter than 52,
+	-- or the tools' strokes come within 8 px of the tab row's - tools/ui-lint)
+	local tight = H < 420
+	local topH, footH = if tight then 52 else 56, if tight then 48 else 56
 	local bodyY, bodyH = topH, H - topH - footH
 	self.top.Size = UDim2.new(1, 0, 0, topH)
-	self.title.Visible = W >= 640
+	-- the title only where it leaves the saved characters room (on a phone it ran under UNDO and REDO)
+	local titleW = if LIGHT then 30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE) + 16 else 250
+	self.title.Visible = W - titleW - AvatarEditor.TOOLS_W - 22 >= 160
 	-- (the saved characters start after the title's own width: the pixel title ran under them)
-	local chipsX = if W < 640 then 12 elseif LIGHT then 30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE) + 16 else 250
+	local chipsX = if self.title.Visible then titleW else 12
 	-- (on the tools' line and at their height: 44 tall, the chips' strokes met the tab row's)
 	self.chipBar.Position = UDim2.fromOffset(chipsX, 6)
 	self.chipBar.Size = UDim2.fromOffset(math.max(60, W - chipsX - AvatarEditor.TOOLS_W - 22), 32)
 	local pw, ph, ex, ey, ew, eh
 	if wide then
-		pw = math.clamp(W * 0.34, 260, 470)
+		-- (narrower on a phone: the options need the width more than the big preview does)
+		pw = if tight then math.clamp(W * 0.3, 190, 470) else math.clamp(W * 0.34, 260, 470)
 		ph = bodyH - 8
 		ex, ey, ew, eh = pw + 24, bodyY, W - pw - 36, bodyH - 8
 	else
@@ -479,9 +488,11 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	-- (the rows BAR_GAP apart down as well as across: at 6 the strokes of one row met the next's)
 	local GP = AvatarEditor.BAR_GAP
 	local catY = 38 + GP
-	self.catBar.Position, self.catBar.Size = UDim2.fromOffset(0, catY), UDim2.fromOffset(ew - 136 - 100 - 2 * GP, 34)
-	self.lockButton.Position, self.lockButton.Size = UDim2.fromOffset(ew - 136 - GP - 100, catY), UDim2.fromOffset(100, 34)
-	self.randPartButton.Position, self.randPartButton.Size = UDim2.fromOffset(ew - 136, catY), UDim2.fromOffset(136, 34)
+	-- (LOCK and RANDOM PART narrower in a narrow column, so the parts' own tabs keep room)
+	local lockW, randW = if ew < 560 then 70 else 100, if ew < 560 then 104 else 136
+	self.catBar.Position, self.catBar.Size = UDim2.fromOffset(0, catY), UDim2.fromOffset(ew - randW - lockW - 2 * GP, 34)
+	self.lockButton.Position, self.lockButton.Size = UDim2.fromOffset(ew - randW - GP - lockW, catY), UDim2.fromOffset(lockW, 34)
+	self.randPartButton.Position, self.randPartButton.Size = UDim2.fromOffset(ew - randW, catY), UDim2.fromOffset(randW, 34)
 	local colourRows = if self.group == "presets" then 0 else #self:paintSlots()
 	self.paletteRows = if short then 1 else 2
 	-- (a short screen in a light theme: every palette side by side in one strip, each scrolling sideways;
@@ -516,11 +527,12 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	self.tilePx = Vector2.new(tile - 8, tileH - 28)
 	-- Footer.
 	self.footer.Position, self.footer.Size = UDim2.new(0, 0, 1, -footH), UDim2.new(1, 0, 0, footH)
-	local saveW = if W >= 640 then 150 else 110
-	self.saveButton.Position, self.saveButton.Size = UDim2.new(1, -12 - saveW, 0, 8), UDim2.fromOffset(saveW, 40)
+	local saveW = if W >= 760 then 150 else 120
+	local btnH = footH - 16
+	self.saveButton.Position, self.saveButton.Size = UDim2.new(1, -12 - saveW, 0, 8), UDim2.fromOffset(saveW, btnH)
 	local GP = AvatarEditor.BAR_GAP
-	self.saveNewButton.Position, self.saveNewButton.Size = UDim2.new(1, -12 - GP - saveW * 2, 0, 8), UDim2.fromOffset(saveW, 40)
-	self.deleteButton.Position, self.deleteButton.Size = UDim2.new(1, -12 - 2 * GP - saveW * 2 - 90, 0, 8), UDim2.fromOffset(90, 40)
+	self.saveNewButton.Position, self.saveNewButton.Size = UDim2.new(1, -12 - GP - saveW * 2, 0, 8), UDim2.fromOffset(saveW, btnH)
+	self.deleteButton.Position, self.deleteButton.Size = UDim2.new(1, -12 - 2 * GP - saveW * 2 - 90, 0, 8), UDim2.fromOffset(90, btnH)
 	local statusW = math.max(80, W - 60 - saveW * 2 - 90 - 24)
 	self.status.Position, self.status.Size = UDim2.fromOffset(16, 4), UDim2.fromOffset(statusW, 24)
 	self.hint.Visible = W >= 900 and self.hintW <= statusW

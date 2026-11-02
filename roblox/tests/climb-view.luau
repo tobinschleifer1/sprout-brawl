@@ -52,6 +52,47 @@ do
 	end
 end
 
+-- 00b. A touch screen (setTouch; the owner's screenshot, 2026-11-03): the readout a small box at the
+--      top left, no key hints, LOBBY / RECORDS / RESTART a compact column at the top right (Roblox
+--      draws no player list there on a phone), SKIP along the bottom between the stick and JUMP -
+--      none of them on a touch control or on each other, on the phones that are tightest. And the
+--      keyboard's layout back when touch goes.
+do
+	local Layout = Loader.load("TouchLayout")
+	local v0 = View.new({}, { input = { sample = function() return {} end, reset = function() end }, send = function() end })
+	local function box(o, w, h)
+		local a = o.AnchorPoint or { X = 0, Y = 0 }
+		local x = o.Position.X.Scale * w + o.Position.X.Offset - a.X * o.Size.X.Offset
+		local y = o.Position.Y.Scale * h + o.Position.Y.Offset - a.Y * o.Size.Y.Offset
+		return { x, y, o.Size.X.Offset, o.Size.Y.Offset }
+	end
+	for _, size in { { 568, 320 }, { 666, 374 }, { 844, 390 }, { 1180, 820 } } do
+		local w, h = size[1], size[2]
+		local placed = Layout.layout(w, h)
+		local stick, jump = placed.stick, placed.jump
+		v0:setTouch({ left = stick.x + stick.r, right = jump.x - jump.r })
+		assert(not v0.hint.Visible and not v0.fallsLabel.Visible, "a touch screen's climb still shows the key hints")
+		v0.skipButton.Visible = true
+		local boxes = { readout = box(v0.readout, w, h) }
+		for _, name in { "leaveButton", "recordsButton", "restartButton", "skipButton" } do boxes[name] = box(v0[name], w, h) end
+		for name, b in boxes do
+			assert(b[1] >= 0 and b[2] >= 58 and b[1] + b[3] <= w and b[2] + b[4] <= h, `{w}x{h}: {name} runs off the screen or under the bar`)
+			for _, c in { stick, jump } do
+				local nx, ny = math.clamp(c.x, b[1], b[1] + b[3]), math.clamp(c.y, b[2], b[2] + b[4])
+				assert((c.x - nx) ^ 2 + (c.y - ny) ^ 2 >= c.r ^ 2, `{w}x{h}: {name} ({b[1]},{b[2]} {b[3]}x{b[4]}) lies on a touch control at {c.x},{c.y} r{c.r}`)
+			end
+			for other, o in boxes do
+				if other ~= name then
+					local apart = b[1] + b[3] <= o[1] or o[1] + o[3] <= b[1] or b[2] + b[4] <= o[2] or o[2] + o[4] <= b[2]
+					assert(apart, `{w}x{h}: {name} overlaps {other}`)
+				end
+			end
+		end
+	end
+	v0:setTouch(nil)
+	assert(v0.hint.Visible and v0.skipButton.Position.Y.Scale == 1 and v0.skipButton.AnchorPoint.X == 1, "the keyboard's climb did not come back")
+end
+
 -- 0. The clock reads as a player expects.
 assert(View.clock(0) == "0:00.00" and View.clock(4995) == "1:23.25" and View.clock(60 * 600) == "10:00.00", "the timer format")
 

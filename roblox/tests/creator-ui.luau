@@ -391,21 +391,56 @@ end
 local function overlap(a: { number }, b: { number }): boolean
 	return a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]
 end
-for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 } } do
+-- (phones on their side too - 640x360 to 932x430: the owner's screenshot showed the studio's rows
+-- piled into each other at 666x374)
+for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 }, { 640, 360 }, { 667, 375 }, { 812, 375 }, { 844, 390 }, { 932, 430 } } do
 	ed:layout(Rbx.Vector2.new(size[1], size[2]))
 	local W, H = ed.size.X, ed.size.Y
 	local preview, editor = rect(ed.preview), rect(ed.editor)
 	local footerTop = H - ed.footer.Size.Y.Offset
 	for name, r0 in { preview = preview, editor = editor } do
-		assert(r0[1] >= 0 and r0[2] >= 56 and r0[1] + r0[3] <= W and r0[2] + r0[4] <= footerTop, `{size[1]}x{size[2]}: the {name} pane leaves its space`)
+		assert(r0[1] >= 0 and r0[2] >= ed.top.Size.Y.Offset and r0[1] + r0[3] <= W and r0[2] + r0[4] <= footerTop, `{size[1]}x{size[2]}: the {name} pane leaves its space`)
 		assert(r0[3] > 150 and r0[4] > 150, `{size[1]}x{size[2]}: the {name} pane is too small ({r0[3]}x{r0[4]})`)
 	end
 	assert(not overlap(preview, editor), `{size[1]}x{size[2]}: preview and editor overlap`)
 	local cell = ed.gridLayout.CellSize.X.Offset
 	assert(cell >= 64 and math.floor((editor[3] - 16) / (cell + 8)) >= 2, `{size[1]}x{size[2]}: option tiles are {cell}px, fewer than two a row`)
-	assert(ed.grid.Size.Y.Offset >= 80, `{size[1]}x{size[2]}: no room for the option grid`)
-	assert(ed.wide == (size[1] >= 760 and size[1] >= size[2] * 1.05), "the wrong arrangement for this shape")
+	local phone = size[2] < 450 and size[1] > size[2]
+	assert(ed.grid.Size.Y.Offset >= (if phone then 60 else 80), `{size[1]}x{size[2]}: no room for the option grid`)
+	assert(ed.wide == (W >= 560 and W >= H * 1.05), "the wrong arrangement for this shape")
+	if phone then assert(ed.wide, `{size[1]}x{size[2]}: a phone on its side is stacked`) end
+	-- the editor's own rows, top to bottom, inside it on every tab
+	for _, group in { "presets", "body", "face", "hair", "outfit", "extras" } do
+		if ed.groupButtons[group] then
+			ed:selectGroup(group)
+			-- (a tab with no colours: its grid's foot)
+			local bottom = if ed.colourBar.Size.Y.Offset > 0 then ed.colourBar.Position.Y.Offset + ed.colourBar.Size.Y.Offset
+				else ed.grid.Position.Y.Offset + ed.grid.Size.Y.Offset
+			assert(bottom <= ed.editor.Size.Y.Offset, `{size[1]}x{size[2]} {group}: the colours end at {bottom}, past the editor's {ed.editor.Size.Y.Offset}`)
+			assert(ed.grid.Position.Y.Offset >= ed.catBar.Position.Y.Offset + ed.catBar.Size.Y.Offset, `{size[1]}x{size[2]}: the grid starts on the parts row`)
+		end
+	end
+	-- the parts row keeps room for its tabs beside LOCK and RANDOM PART
+	assert(ed.catBar.Size.X.Offset >= 120, `{size[1]}x{size[2]}: the parts row is {ed.catBar.Size.X.Offset} px beside LOCK and RANDOM PART`)
+	-- the title never under the saved characters and tools; the footer's buttons apart and in it
+	-- (and neither the title nor the saved characters under UNDO, REDO, RANDOM and X: on a phone they
+	-- were - the owner's screenshot)
+	local toolsLeft = W - 14 - Editor.TOOLS_W
+	assert(ed.chipBar.Position.X.Offset + ed.chipBar.Size.X.Offset <= toolsLeft, `{size[1]}x{size[2]}: the saved characters run under the tools`)
+	if ed.title.Visible then
+		local Ui = Loader.loadFrom("src/client/", "Ui")
+		assert(30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE) <= toolsLeft, `{size[1]}x{size[2]}: the title runs under the tools`)
+		local titleRight = 30 + Ui.textWidth("CHARACTER STUDIO", Ui.WINDOW_TITLE, Ui.TITLE)
+		assert(titleRight <= ed.chipBar.Position.X.Offset, `{size[1]}x{size[2]}: the title runs under the saved characters`)
+	end
+	local footH = ed.footer.Size.Y.Offset
+	for _, b in { ed.saveButton, ed.saveNewButton, ed.deleteButton } do
+		assert(b.Position.Y.Offset + b.Size.Y.Offset <= footH, `{size[1]}x{size[2]}: a footer button runs past the footer`)
+	end
+	local saveNewLeft = W + ed.saveNewButton.Position.X.Offset
+	assert(saveNewLeft >= W + ed.deleteButton.Position.X.Offset + ed.deleteButton.Size.X.Offset, `{size[1]}x{size[2]}: SAVE AS NEW overlaps DELETE`)
 end
+ed:selectGroup("body")
 -- Earned parts: shown behind a lock and not wearable until earned; picking one says where it is
 -- earned; the arrows and Randomise pass over it; earning it (the server's `unlocked`) opens it.
 do

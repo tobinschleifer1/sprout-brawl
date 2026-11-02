@@ -882,6 +882,11 @@ RunService.Heartbeat:Connect(function(dt: number)
 		end
 		local stick = touch.gui.Enabled and ctx == "lobby" and touch.placed.stick
 		hub.touchLift = if stick then touch.size.Y - (stick.y - stick.r) else 0
+		-- the climb's own layout for a touch screen: SKIP in the gap between the stick and JUMP
+		if parkour.active then
+			local jump = touch.placed.jump
+			parkour:setTouch(if touch:wanted() and stick and jump then { left = stick.x + stick.r, right = jump.x - jump.r } else nil)
+		end
 	end
 	-- settings, saved a second after the last change
 	if settingsSaveAt and os.clock() >= settingsSaveAt then

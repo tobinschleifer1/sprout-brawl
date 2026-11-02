@@ -154,7 +154,52 @@ function ParkourView.new(parent: Instance, opts: any): any
 	skip.AnchorPoint, skip.Position, skip.Size = Vector2.new(1, 1), UDim2.new(1, -16, 1, -44), UDim2.fromOffset(150 + Ui.GAP + 108, 40)
 	skip.Visible = false
 	self.skipButton = skip
+	self.hint = hint
+	self.title = title
+	self.timerPill = pill
+	-- (where everything sits on a keyboard's screen, for setTouch to go back to)
+	self.desk = {}
+	for _, o in { plate, title, self.checkpointLabel, pill, self.timerLabel, self.fallsLabel, self.bestLabel, leave, restart, records, skip } do
+		self.desk[o] = { o.AnchorPoint, o.Position, o.Size }
+	end
 	return self
+end
+
+-- A touch screen (the owner's screenshot, 2026-11-03: on a phone the readout covered the top half,
+-- the key hints showed keys there are none of, and SKIP lay on the touch JUMP). `gap` { left, right }
+-- is the free stretch along the bottom between the stick and JUMP (init.client, from TouchControls);
+-- nil puts the keyboard's layout back.
+--   readout: a small box at the top left - the checkpoint and the clock
+--   LOBBY, RECORDS, RESTART: a compact column at the top right, under the bar
+--   SKIP: along the bottom, between the stick and JUMP
+ParkourView.TOUCH_ROW = 30
+function ParkourView.setTouch(self: any, gap: any?)
+	local key = if gap then `{math.floor(gap.left)}:{math.floor(gap.right)}` else "desk"
+	if self.touchKey == key then return end
+	self.touchKey = key
+	local touch = gap ~= nil
+	self.hint.Visible = not touch
+	self.fallsLabel.Visible, self.bestLabel.Visible, self.title.Visible = not touch, not touch, not touch
+	if not touch then
+		for o, d in self.desk do o.AnchorPoint, o.Position, o.Size = d[1], d[2], d[3] end
+		return
+	end
+	local R, G = ParkourView.TOUCH_ROW, Ui.GAP
+	self.readout.Position, self.readout.Size = UDim2.fromOffset(8, TOP - 6), UDim2.fromOffset(220, 72)
+	self.checkpointLabel.Position, self.checkpointLabel.Size = UDim2.fromOffset(16, TOP + 2), UDim2.fromOffset(204, 18)
+	self.timerPill.Position, self.timerPill.Size = UDim2.fromOffset(16, TOP + 24), UDim2.fromOffset(140, 30)
+	self.timerLabel.Position, self.timerLabel.Size = UDim2.fromOffset(16, TOP + 24), UDim2.fromOffset(140, 30)
+	-- the column, top right
+	for _, b in { self.leaveButton, self.recordsButton, self.restartButton } do b.AnchorPoint = Vector2.new(1, 0) end
+	self.leaveButton.Position, self.leaveButton.Size = UDim2.new(1, -12, 0, TOP - 6), UDim2.fromOffset(120, R)
+	self.recordsButton.Position, self.recordsButton.Size = UDim2.new(1, -(12 + 120 + G), 0, TOP - 6), UDim2.fromOffset(96, R)
+	-- (6 px under the first row, not Ui.GAP: on an iPhone SE the touch JUMP starts at y 132)
+	self.restartButton.Position, self.restartButton.Size = UDim2.new(1, -12, 0, TOP - 6 + R + 6), UDim2.fromOffset(120 + G + 96, R)
+	-- SKIP, centred in the bottom's free stretch
+	local w = math.max(120, math.min(280, gap.right - gap.left - 16))
+	self.skipButton.AnchorPoint = Vector2.new(0.5, 1)
+	self.skipButton.Position = UDim2.new(0, (gap.left + gap.right) / 2, 1, -10)
+	self.skipButton.Size = UDim2.fromOffset(w, 36)
 end
 
 -- The server granted a bought skip: stand on that checkpoint now (Parkour.skipTo - no checkpoint

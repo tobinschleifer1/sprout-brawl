@@ -21,7 +21,7 @@ Economy.QUALIFY_SECONDS, Economy.HOURLY_CAP = 45, 12
 -- A match with CPU fighters in it counts this much toward the drop meter (the owner: "a quarter less").
 Economy.CPU_STEP = 0.75
 -- The first win of each UTC day pays these Sparks; VIP doubles it. VIP adds VIP_SPARKS to Spark drops.
-Economy.FIRST_WIN, Economy.VIP_SPARKS = 25, 0.10
+Economy.FIRST_WIN, Economy.VIP_SPARKS = 25, 0.20     -- (+20%: the owner's call, 2026-11-02)
 
 -- opts: { store = AvatarStore, mint = Mint, rand = () -> number, time = () -> number (os.time),
 --   paidAllowed = (userId) -> boolean (PolicyService), vip = (userId) -> boolean (the VIP pass),

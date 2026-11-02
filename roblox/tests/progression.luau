@@ -307,6 +307,12 @@ do
 	local vipInv = Inventory.sanitize(nil)
 	Economy._progress(vipInv, false, false, false, Progression.xpTo(2), { vip = true, now = 8 })
 	if vipInv.sparks ~= math.floor(24 * (1 + Economy.VIP_SPARKS)) then fail(`VIP's level 2 paid {vipInv.sparks} Sparks`) end
+	-- VIP is +20% (the owner's call), and the pass says the same number it pays
+	if Economy.VIP_SPARKS ~= 0.20 or vipInv.sparks ~= 28 then fail(`VIP pays +{Economy.VIP_SPARKS * 100}%, not +20%`) end
+	local Products = Loader.load("Products")
+	local said = false
+	for _, perk in Products.pass("vip").perks do if string.find(perk, "+20% Sparks", 1, true) then said = true end end
+	if not said then fail("the VIP pass does not say +20% Sparks") end
 end
 -- the weekly ranked key cap: at most KEY_WEEK a UTC week from the ranked boost, then a new week
 do

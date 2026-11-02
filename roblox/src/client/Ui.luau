@@ -553,10 +553,10 @@ Ui.ICONS = {
 		colours = { O = "#14264A", s = "#6FB6FF", S = "#3D7FD0" } },
 } :: { [string]: any }
 -- An icon `px` screen pixels to the art pixel, in a transparent frame the caller places.
-function Ui.icon(parent: Instance?, kind: string, px: number): any
+function Ui.icon(parent: Instance?, kind: string, px: number, z: number?): any
 	local def = Ui.ICONS[kind]
 	local f = Ui.make("Frame", parent, { Name = "Icon", BackgroundTransparency = 1, BorderSizePixel = 0,
-		Size = UDim2.fromOffset(def.w * px, #def.rows * px) })
+		Size = UDim2.fromOffset(def.w * px, #def.rows * px), ZIndex = z or 1 })
 	for y, row in def.rows do
 		local x = 1
 		while x <= #row do
@@ -565,7 +565,7 @@ function Ui.icon(parent: Instance?, kind: string, px: number): any
 			while run < #row and string.sub(row, run + 1, run + 1) == ch do run += 1 end
 			if ch ~= "." then
 				Ui.make("Frame", f, { Name = "Px", BackgroundColor3 = Color3.fromHex(def.colours[ch]), BorderSizePixel = 0,
-					Position = UDim2.fromOffset((x - 1) * px, (y - 1) * px), Size = UDim2.fromOffset((run - x + 1) * px, px) })
+					Position = UDim2.fromOffset((x - 1) * px, (y - 1) * px), Size = UDim2.fromOffset((run - x + 1) * px, px), ZIndex = z or 1 })
 			end
 			x = run + 1
 		end
@@ -633,14 +633,17 @@ function Ui.brackets(parent: Instance, colour: Color3?, arm: number?, thick: num
 end
 
 -- A balance on a dark pill with its icon: [gem] 2,340. Returns the pill and its label.
+-- It sits over a window's title band (ZIndex 2), and these ScreenGuis lay out by Global ZIndex (the
+-- default for one made by Instance.new): its icon and value at 1 were drawn under the band, so the
+-- Shop's and Locker's balances showed as empty dark pills. Pill at 3, everything in it at 4.
 function Ui.currency(parent: Instance?, kind: string, value: string): (any, any)
 	local p = Ui.make("Frame", parent, { Name = "Currency_" .. kind, BackgroundColor3 = Color3.fromRGB(35, 27, 51),
-		BackgroundTransparency = 0.1, BorderSizePixel = 0, Size = UDim2.fromOffset(110, 30) })
+		BackgroundTransparency = 0.1, BorderSizePixel = 0, Size = UDim2.fromOffset(110, 30), ZIndex = 3 })
 	Ui.make("UICorner", p, { CornerRadius = UDim.new(1, 0) })
-	local ic = Ui.icon(p, kind, 3)
+	local ic = Ui.icon(p, kind, 3, 4)
 	ic.AnchorPoint, ic.Position = Vector2.new(0, 0.5), UDim2.new(0, 8, 0.5, 0)
 	local t = Ui.text(p, value, 15, Ui.WHITE, Ui.DISPLAY, true)
-	t.Name, t.TextXAlignment = "Value", Enum.TextXAlignment.Left
+	t.Name, t.TextXAlignment, t.ZIndex = "Value", Enum.TextXAlignment.Left, 4
 	t.Position, t.Size = UDim2.fromOffset(Ui.ICONS[kind].w * 3 + 14, 0), UDim2.new(1, -(Ui.ICONS[kind].w * 3 + 20), 1, 0)
 	return p, t
 end

@@ -174,8 +174,7 @@ Roblox experience notifications (opt-in) to reach lapsed players who have not co
   path is real, and keys/featured items still save weeks.
 - **Ranked keys get a weekly cap of 3** (today: 1 per 3 ranked wins, unlimited - about 20 a week for
   a two-hour-a-day player, ~1,500 R$ of value). Changed in Step 2 alongside the cap rework.
-- **VIP** (+10% Sparks in code today, first win doubled) applies to every Sparks reward above.
-  The monetisation plan said +20%; the code's 10% stands until the owner says otherwise.
+- **VIP** (+20% Sparks, first win doubled) applies to every Sparks reward above.
 
 ## What is NOT in this plan, deliberately
 - No energy, no timers to wait out, no losing progress for missing a day.

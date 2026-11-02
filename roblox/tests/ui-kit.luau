@@ -313,6 +313,19 @@ do
 			fail(`a currency pill is {pill.Size.X.Offset} px for a value that needs more`)
 		end
 	end
+	-- a currency pill draws over a window's band: these ScreenGuis lay out by Global ZIndex, and its
+	-- icon and value at 1 under the band at 2 left the Shop's balance an empty dark pill
+	do
+		local _, band = Ui.panel(new("Frame"), "P", Ui.RED, "SHOP", 60)
+		local pill = Ui.currency(new("Frame"), "gem", "12")
+		local function over(node: any, path: string)
+			if node.ClassName == "Frame" or node.ClassName == "TextLabel" then
+				if (node.ZIndex or 1) <= (band.ZIndex or 1) then fail(`a currency pill's {path} is drawn under the window's band`) end
+			end
+			for _, c in node._children do over(c, path .. "/" .. tostring(c.Name)) end
+		end
+		over(pill, "pill")
+	end
 	-- repainting a band recolours its title's outline too
 	local _, pb, pt = Ui.panel(new("Frame"), "P", Ui.BLUE, "NOTICE", 34)
 	Ui.paintBand(pb, Ui.RED)

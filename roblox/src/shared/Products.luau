@@ -50,7 +50,7 @@ Products.PACKS = {
 -- as coming soon and never prompts it.
 Products.PASSES = {
 	{ id = "vip", name = "VIP", price = 199, pass = 0, available = true, perks = {
-		"Gold name and [VIP] chat tag", "+10% Sparks from drops", "A VIP cosmetic every season",
+		"Gold name and [VIP] chat tag", "+20% Sparks from drops and rewards", "A VIP cosmetic every season",
 		"A gold sparkle when you respawn", "Double Sparks for your first win each day", "Five saved outfits", "Royal Welcome emote" } },
 	{ id = "wardrobe", name = "Wardrobe", price = 79, pass = 0, available = true, perks = {
 		"16 saved characters instead of 8" } },

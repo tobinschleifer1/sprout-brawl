@@ -16,7 +16,13 @@ local function instance(class: string): any
 	local children = {}
 	local self: any
 	props.GetChildren = function() return table.clone(children) end
-	props.IsA = function(_, c) return props.ClassName == c end
+	props.IsA = function(_, c)
+		if c == "GuiObject" then return props.ClassName ~= "UICorner" and props.ClassName ~= "UIStroke" and props.ClassName ~= "UIPadding"
+			and props.ClassName ~= "UIListLayout" and props.ClassName ~= "UIGradient" and props.ClassName ~= "ScreenGui" end
+		return props.ClassName == c
+	end
+	props.GetPropertyChangedSignal = function() return signal() end
+	props.AbsoluteSize = Rbx.Vector2.new(1280, 720)
 	props.Destroy = function()
 		for _, child in table.clone(children) do child:Destroy() end
 		if props.Parent then
@@ -233,4 +239,23 @@ assert(s:key("Three") and warps[#warps] == PLAZA.market.warps[3].id and s:open()
 assert(s:key("M") and s:open() == "Map", "M opens the map")
 s:setEnabled(false)
 assert(not s:key("M"), "a hidden bar takes no keys")
+-- PLAY fits a phone on its side: 412 px of window on a 375 px screen ran its level, rank and TEAMS
+-- off the top. On a short screen it is as tall as the room above the button row, its contents
+-- scrolling under its band; on a tall one, as tall as its contents.
+do
+	local play, scroll = s.playPanel, s.playScroll
+	s:fit(375)
+	local shown = play.Size.Y.Offset
+	local bottom = 10 + Social.ICON + 8
+	if shown > 375 - bottom - 58 or shown < 160 then error(`on a 375 px screen PLAY is {shown} px tall`) end
+	if scroll.CanvasSize.Y.Offset ~= s.playH - Social.BAND or scroll.Parent ~= play then error("PLAY's contents do not scroll under its band") end
+	for _, name in { "Level", "Rank", "Format_Duel", "Format_Ranked", "Invite" } do
+		local c = find(scroll, name)
+		if not c then error(`{name} is not in PLAY's scrolling contents`) end
+		if c.Position.Y.Offset < 0 then error(`{name} starts above the scrolling contents`) end
+	end
+	s:fit(1080)
+	if play.Size.Y.Offset ~= s.playH then error("on a tall screen PLAY is not as tall as its contents") end
+	s:fit(720)
+end
 print("PASS social UI: the bar is PLAY and MAP; PLAY queues for 1v1/2v2/3v3, 3/4/6 free-for-alls and Ranked by button or digit, in three sections; your level, XP and rank; Ranked locked below level 10; INVITE FRIENDS; a quiet queue offers its bots; the queue card counts and offers CANCEL and FILL WITH BOTS; the map lists the lobby's three places, padded and bare")

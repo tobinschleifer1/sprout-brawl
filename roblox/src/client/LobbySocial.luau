@@ -76,6 +76,18 @@ end
 
 -- `opts.warp(id)` moves you to a warp point; `opts.queue(format)`, `opts.unqueue()` and
 -- `opts.fill()` go to the room remote.
+-- PLAY's window on a screen `h` px tall: as tall as its contents, or - on a short screen - as tall as
+-- the room between Roblox's top bar and the button row, its contents scrolling under its band.
+LobbySocial.BAND = 30
+LobbySocial.TOP_CLEAR = 64                -- (Roblox's top bar, and a little)
+function LobbySocial.fit(self: any, h: number)
+	if not self.playPanel or not h or h <= 0 then return end
+	local bottom = if LIGHT then 10 + LobbySocial.ICON + 8 else 62
+	local room = math.max(160, h - bottom - LobbySocial.TOP_CLEAR)
+	local shown = math.min(self.playH, room)
+	self.playPanel.Size = UDim2.fromOffset(LobbySocial.PLAY_W, shown)
+	self.playScroll.CanvasPosition = Vector2.new(0, 0)
+end
 function LobbySocial.new(parent: Instance, opts: any): any
 	local self: any = setmetatable({}, LobbySocial)
 	self.opts = opts
@@ -113,6 +125,9 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	local y = 38
 	local playH = 0
 	local play = panel(gui, "Play", "PLAY  ·  FIND A FIGHT", LobbySocial.PLAY_W, 10, SPECS[1][4])
+	-- (the window's own frame, band and title: everything made after them is its contents)
+	local frameParts: { [Instance]: boolean } = {}
+	for _, c in play:GetChildren() do frameParts[c] = true end
 	local level = Ui.text(play, "", 14, ON_PANEL, Ui.LABEL, true)
 	level.Name, level.Position, level.Size = "Level", UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 18)
 	level.TextXAlignment = Enum.TextXAlignment.Left
@@ -171,6 +186,18 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	playH = y - gap + 28
 	play.Size = UDim2.fromOffset(LobbySocial.PLAY_W, playH)
 	self.playPanel = play
+	-- Its contents scroll under its band when the screen is too short for all of them (a phone on its
+	-- side is 375 tall and the window 412: its level, rank and TEAMS were off the top - fit()).
+	local scroll = Ui.make("ScrollingFrame", play, { Name = "Scroll", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, LobbySocial.BAND), Size = UDim2.new(1, 0, 1, -LobbySocial.BAND),
+		CanvasSize = UDim2.fromOffset(0, playH - LobbySocial.BAND), ScrollBarThickness = 4, ScrollingDirection = Enum.ScrollingDirection.Y })
+	for _, c in play:GetChildren() do
+		if c ~= scroll and not frameParts[c] and c:IsA("GuiObject") then
+			c.Position = c.Position - UDim2.fromOffset(0, LobbySocial.BAND)
+			c.Parent = scroll
+		end
+	end
+	self.playScroll, self.playH = scroll, playH
 
 	-- The roof map.
 	local map = panel(gui, "Map", "BAZAAR MAP  ·  WARP", 300, 38 + #PLAZA.market.warps * 44 + 8, SPECS[2][4])
@@ -197,6 +224,8 @@ function LobbySocial.new(parent: Instance, opts: any): any
 
 	self.panels = { Play = play, Map = map }
 	self:setProgress(nil)
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() self:fit(gui.AbsoluteSize.Y) end)
+	self:fit(gui.AbsoluteSize.Y)
 	return self
 end
 

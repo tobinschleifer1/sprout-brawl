@@ -31,6 +31,17 @@ shop-odds|shop|1280|720|odds
 shop-phone|shop|390|844|
 studio-outfit-phone|studio|844|390|clothing
 studio-outfit-small|studio|1024|600|clothing
+studio-phone-se|studio|667|375|body
+studio-outfit-phone-se|studio|667|375|clothing
+plaza-phone-se|plaza|667|375|
+hud-fight-phone|hud|667|375|fight
+results-phone|results|667|375|
+records-phone|records|667|375|
+play-phone|play|667|375|
+climb-phone|climb|667|375|
+locker-phone|locker|667|375|
+locker-crates-phone|locker|667|375|crates
+shop-phone-side|shop|667|375|
 LIST
 # (and the select screen on phones: its roster and bot-vote cards crowded at 667 and 844 wide)
 for s in "select-pick|1v1|pick|1280|720" "select-map|2v2|map|1280|720" "select-rules|3v3|rules|1280|720" \

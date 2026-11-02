@@ -164,8 +164,11 @@ do
 	for _, st in PLAZA.market.stations do if st.kind == "Wardrobe" then wardrobe = st end end
 	hub:drawWardrobe(c, wardrobe, 0)
 	-- (the reflection is your character unarmed: its sword reached out past the glass)
-	local mirror = hub.mirrorChar and hub.mirrorChar.char
-	assert(mirror and mirror.weapon == nil and hub.char.weapon ~= nil, "the reflection in the mirror is armed")
+	local mirror = hub.char
+	assert(mirror and mirror.weapon == nil, "the reflection in the mirror is armed")
+	-- and so are you, everywhere in the lobby (the owner's call, 2026-11-02), while the rack still
+	-- knows which weapon you chose
+	assert(hub.char.weapon == nil and hub.weaponId ~= nil, "you carry a weapon round the lobby")
 	before = poses[mirror]
 	for _ = 1, 12 do hub:step(1/60, false); hub:drawWardrobe(c, wardrobe, 0) end
 	after = poses[mirror]
@@ -176,6 +179,7 @@ do
 	-- Remote peers use their interpolated depth travel, not a wall clock or their fixed X.
 	hub:setPeers({ { userId = 42, name = "Walker", avatar = "Noir", weapon = "Sword", x = 10, z = 4, y = 0, facing = 1, moving = true } }, 1)
 	local peer = hub.peers[42]
+	assert(peer.char and peer.char.weapon == nil, "another player carries a weapon round the lobby")
 	peer.x, peer.z, peer.y = 10, 4, 0
 	hub:draw(c, 1/60)
 	before = poses[peer.char]

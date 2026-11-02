@@ -513,7 +513,11 @@ function Plaza2D.configure(self: any, cfg: any)
 	local sl = cfg.slots[1]
 	local key = sl.avatarId .. "/" .. sl.weaponId
 	if key == self.loadout then return end
-	self.char = Loadout.build(sl.avatarId, sl.weaponId)
+	-- Unarmed in the lobby (the owner's call, 2026-11-02: a whip carried round the market read as a
+	-- bug). The chosen weapon is still what the weapon rack marks (`weaponId`).
+	local char = table.clone(Loadout.build(sl.avatarId, sl.weaponId))
+	char.weapon = nil
+	self.char, self.weaponId = char, sl.weaponId
 	self.loadout = key
 	if not self.model then self.model = Plaza.new(PLAZA.market) end
 end
@@ -583,7 +587,10 @@ function Plaza2D.setPeers(self: any, entries: any, localId: number)
 				self.peers[entry.userId] = peer
 			end
 			if peer.key ~= key then
-				peer.char = Loadout.build(entry.avatar, entry.weapon)
+				-- (everyone in the lobby is unarmed, as you are: see configure)
+				local char = table.clone(Loadout.build(entry.avatar, entry.weapon))
+				char.weapon = nil
+				peer.char = char
 				peer.key = key
 			end
 			peer.target, present[entry.userId] = entry, true
@@ -1023,7 +1030,7 @@ function Plaza2D.loungeItems(self: any, c: any, add: (number, () -> ()) -> (), c
 				Canvas.translate(c, s.x, (s.z + 1) * D)
 				Canvas.scale(c, k, k)
 				Canvas.translate(c, -s.x, 0)
-				local top = stationArt(c, s, near == s, self.room, self.char and self.char.weapon and self.char.weapon.id)
+				local top = stationArt(c, s, near == s, self.room, self.weaponId)
 				Canvas.restore(c)
 				self:placeSign(c, "st" .. s.id, s.name, s.x, (s.z + 1) * D + top * k + Plaza2D.SIGN_GAP, 14, Plaza2D.STATION_COLOURS[s.kind] or Ui.INDIGO)
 			end)
@@ -1049,13 +1056,9 @@ function Plaza2D.drawWardrobe(self: any, c: any, s: any, clock: number)
 		Fighter2D.draw(c, st, m.char, clock + k * 0.7, baseY + 0.5)
 	end
 	if self.char then
-		-- (unarmed: the reflection's sword reached out past the glass, at full strength on the shop wall)
-		if not self.mirrorChar or self.mirrorChar.from ~= self.char then
-			local m = table.clone(self.char)
-			m.weapon = nil
-			self.mirrorChar = { from = self.char, char = m }
-		end
-		local mc = self.mirrorChar.char
+		-- (your character as the lobby has it: unarmed - a reflected sword once reached out past the
+		-- glass, at full strength on the shop wall; configure keeps every lobby fighter unarmed now)
+		local mc = self.char
 		local p = self.model.p
 		local r = posed(mc, p.state, p.sf, s.x, 17.4, 0.6 + math.max(0, p.y) * 0.3, -p.facing, p.vx, p)
 		r.onGround = p.y <= 0.01

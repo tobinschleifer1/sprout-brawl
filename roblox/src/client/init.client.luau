@@ -303,6 +303,9 @@ local tutorialSig = ""
 -- until it is, so a lost one can never leave the player in a Training match that never ends.
 local tutorialLeaving: { action: string, at: number }? = nil
 local tutorialOffered = false
+-- this player's first tutorial (their record said not done when they arrived): finishing it goes on
+-- to the character studio (the owner's ask, 2026-11-02)
+local firstTutorial = false
 local function endTutorial()
 	tutorial, tutorialSig = nil, ""
 end
@@ -322,8 +325,14 @@ tutorialView = TutorialView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 		input:reset()
 		if tutorial:continue() == "fight" then Net.remote("Tutorial"):FireServer("fight") end
 	end,
-	-- (the fight already ended when the last lesson did: this only closes the end card)
-	onFinish = function() end,
+	-- (the fight already ended when the last lesson did: this closes the end card, and the first time
+	-- opens the character studio)
+	onFinish = function()
+		if tutorialView.nextStep == "creator" then
+			tutorialView.nextStep, firstTutorial = nil, false
+			task.delay(0.3, function() openStudio() end)
+		end
+	end,
 })
 local settingsMenu = SettingsMenu.new(Players.LocalPlayer:WaitForChild("PlayerGui"), SHIPPED_KEYS, {
 	onChange = function(s: any)
@@ -413,6 +422,7 @@ Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 		applySettings(view.settings)
 		settingsMenu:set(settings)
 		-- (not on a phone or tablet without a keyboard: the lessons are taught on keys)
+		firstTutorial = view.tutorial == false
 		if view.tutorial == false and not matchCfg and (UIS.KeyboardEnabled or not UIS.TouchEnabled) then tutorialView:offer() end
 	end
 	local worn = view.slots and view.slots[view.active]
@@ -837,6 +847,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		if moved == "next" then audio:play("lesson") end
 		-- the last lesson done: the fight ends now (the CPU no longer hits a player held behind a card)
 		if moved == "finished" then
+			tutorialView.nextStep = if firstTutorial then "creator" else nil
 			Net.remote("Tutorial"):FireServer("done")
 			tutorialLeaving = { action = "done", at = now }
 			audio:play("game")

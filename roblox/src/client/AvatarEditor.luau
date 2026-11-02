@@ -588,14 +588,42 @@ function AvatarEditor.redo(self: any)
 	self:refresh()
 end
 
--- A category's options in the creator: its free parts, then its clothing pieces (k2; Roblox only).
-function AvatarEditor.optionsOf(_self: any, c: any): { any }
-	local out = table.clone(c.options)
-	for _, it in Clothing.items do
-		if it.category == c.id then table.insert(out, AvatarKit.option(c.id, it.id)) end
+-- `paid` spread evenly through `free`, never first (the first option is the plain default): the
+-- owner's ask (2026-11-02) that a new player see what the Shop's packs hold among what they already
+-- have, not in a block at the end that they never scroll to.
+function AvatarEditor.spread(free: { any }, paid: { any }): { any }
+	local out = {}
+	local n, m = #free, #paid
+	local k = 1
+	for i, o in free do
+		table.insert(out, o)
+		-- after free option i, every paid one whose even share of the list falls here
+		while k <= m and k * (n + 1) / (m + 1) <= i + 0.5 do
+			table.insert(out, paid[k])
+			k += 1
+		end
 	end
+	for j = k, m do table.insert(out, paid[j]) end
 	return out
 end
+-- A category's options in the creator: its free parts with its clothing pieces (k2; Roblox only)
+-- spread among them.
+function AvatarEditor.optionsOf(_self: any, c: any): { any }
+	local paid = {}
+	for _, it in Clothing.items do
+		if it.category == c.id then table.insert(paid, AvatarKit.option(c.id, it.id)) end
+	end
+	return AvatarEditor.spread(c.options, paid)
+end
+-- A clothing piece's price on its own, in Robux (nil for anything that is not sold).
+function AvatarEditor.priceOf(optionId: string): number?
+	for _, it in Clothing.items do
+		if it.id == optionId then return Products.CLOTHING[it.priceTier] and Products.CLOTHING[it.priceTier].price end
+	end
+	return nil
+end
+-- What the studio says about its tiles: what is free, and what the greyed ones are.
+AvatarEditor.FREE_NOTE = "In colour: free to wear. Greyed: in the Shop's clothing packs."
 
 -- An earned part (the Skyline Climb's rewards) can be worn once it is earned, a clothing piece once
 -- it is owned; anything else always.
@@ -974,8 +1002,10 @@ function AvatarEditor.rebuildTiles(self: any)
 				-- An earned part not yet earned still shows on your character - it is the reason to go
 				-- and earn it - behind a lock; so does clothing not yet bought.
 				local locked = not self:wearable(self.category, o.id)
-				local tag = if AvatarKit.piece(o.id) then "SHOP" else "LOCKED"
-				table.insert(entries, { kind = "Option_", id = o.id, name = if locked then `{tag} · {o.name}` else o.name, locked = locked })
+				-- (a Shop piece not owned says its price on a pill instead of a word in its name)
+				local shop = locked and AvatarKit.piece(o.id) ~= nil
+				table.insert(entries, { kind = "Option_", id = o.id, name = if locked and not shop then `LOCKED · {o.name}` else o.name,
+					locked = locked, price = if shop then AvatarEditor.priceOf(o.id) else nil })
 			end
 		end
 		self.tileCount = #entries
@@ -991,6 +1021,21 @@ function AvatarEditor.rebuildTiles(self: any)
 			thumb.Position, thumb.Size = UDim2.fromOffset(4, 4), UDim2.new(1, -8, 1, -28)
 			local name = label(b, "Label", string.upper(e.name), if LIGHT then 12 else 10, if LIGHT then TEXT else Ui.KEY)
 			if e.locked then b.BackgroundTransparency = 0.5 end
+			-- not yours yet: greyed over (the fighter still shows through, wearing it) and priced -
+			-- it never goes on (pick only says where it is sold)
+			local veil = nil
+			if e.locked then
+				veil = Ui.make("Frame", b, { Name = "Veil", BackgroundColor3 = Color3.fromRGB(120, 116, 128), BackgroundTransparency = 0.35,
+					BorderSizePixel = 0, Position = UDim2.fromOffset(4, 4), Size = UDim2.new(1, -8, 1, -28), ZIndex = 2 })
+				b.AutoButtonColor = false
+				if e.price then
+					local tag = label(b, "Price", `{e.price} R$`, 11, Ui.WHITE)
+					tag.Name, tag.ZIndex = "Price", 3
+					tag.BackgroundTransparency, tag.BackgroundColor3 = 0, INK
+					tag.TextXAlignment = Enum.TextXAlignment.Center
+					tag.Position, tag.Size = UDim2.fromOffset(6, 6), UDim2.fromOffset(44, 18)
+				end
+			end
 			name.TextXAlignment = Enum.TextXAlignment.Center
 			-- (6 px inside the tile's face each side, shrinking to fit: RIMEGUARD COAT ran past it)
 			name.Position, name.Size = UDim2.new(0, 6, 1, -22), UDim2.new(1, -12, 0, 20)
@@ -999,7 +1044,7 @@ function AvatarEditor.rebuildTiles(self: any)
 			pick.Enabled = false
 			-- (the picked tile also wears the pixel kit's stepped corner brackets; its name stays dark)
 			local marks = if LIGHT then Ui.brackets(b, Ui.SELECTED) else nil
-			self.tiles[e.id] = { button = b, canvas = Canvas2D.inFrame(thumb), pick = pick, label = name, kind = e.kind, marks = marks }
+			self.tiles[e.id] = { button = b, canvas = Canvas2D.inFrame(thumb), pick = pick, label = name, kind = e.kind, marks = marks, veil = veil }
 		end
 	end
 	self:renderTiles()
@@ -1173,7 +1218,8 @@ function AvatarEditor.refreshFooter(self: any)
 	elseif not self.saving and self.note then
 		self.status.Text, self.status.TextColor3 = self.note, AMBER
 	else
-		self.status.Text, self.status.TextColor3 = if self:dirty() then "Unsaved changes" else "", DIM
+		-- (with nothing else to say, what is free and what the greyed tiles are)
+		self.status.Text, self.status.TextColor3 = if self:dirty() then "Unsaved changes" else AvatarEditor.FREE_NOTE, DIM
 	end
 end
 

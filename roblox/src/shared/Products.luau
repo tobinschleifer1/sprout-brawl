@@ -55,7 +55,10 @@ Products.PASSES = {
 	-- Starter Picks: a new player's shortcut (the owner's idea, 2026-11-02). Two weapons of their
 	-- choice now, whatever their level; Progression.PICKS. A pass, not a product: Roblox sells a pass
 	-- once, so nobody can pay twice for the same two picks.
-	{ id = "starter", name = "Starter Picks", price = 19, pass = 0, available = true, perks = {
+	-- (`studioOwned = false`: a Studio playtest does NOT count it as owned, as it does every other
+	-- pass - the owner pressed a locked weapon twice in Studio, got it free, and rightly took that for
+	-- the payment being skipped. Studio shows the purchase path instead.)
+	{ id = "starter", name = "Starter Picks", price = 19, pass = 0, available = true, studioOwned = false, perks = {
 		"Unlock any 2 weapons now", "No waiting for their level", "Yours to keep" } },
 	{ id = "wardrobe", name = "Wardrobe", price = 79, pass = 0, available = true, perks = {
 		"16 saved characters instead of 8" } },

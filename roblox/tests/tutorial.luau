@@ -301,6 +301,11 @@ do
 	t.finished, t.phase = true, "finished"
 	view:render(t)
 	if view.mode ~= "end" or find(root, "Skip").Visible then fail("the end card offers to skip a finished tutorial") end
+	if view.go.Text ~= "TO THE LOBBY" then fail("a replayed tutorial's end card does not go to the lobby") end
+	-- the first time, it goes on to make your fighter (init.client opens the studio on its press)
+	view.nextStep = "creator"
+	view:render(t)
+	if view.go.Text ~= "MAKE YOUR FIGHTER" then fail("a first tutorial's end card does not go on to the character studio") end
 	view:pressContinue()
 	if calls[4] ~= "finish" or view.gui.Enabled then fail("TO THE LOBBY did not finish the tutorial") end
 end

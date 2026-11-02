@@ -129,7 +129,8 @@ function TutorialView.render(self: any, t: any)
 		self.step.Text = ""
 		self.body.Text = "That's every move you need. Press PLAY in the lobby to find a real fight - you start against "
 			.. "players near your own level, and CPUs that go easy on you."
-		self.go.Text = "TO THE LOBBY"
+		-- (a first-time player goes on to make their fighter: init.client sets `nextStep`)
+		self.go.Text = if self.nextStep == "creator" then "MAKE YOUR FIGHTER" else "TO THE LOBBY"
 		self.skip.Visible = false
 		self.keys.Visible = false
 	elseif lesson then

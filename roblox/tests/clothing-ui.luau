@@ -42,7 +42,9 @@ local function load(name: string): any
 end
 local playerGui = new("PlayerGui")
 
--- 1. The Studio: free parts first, then the category's pieces, owned ones wearable.
+-- 1. The Studio: the free parts in order, the category's pieces spread among them (the owner's ask,
+-- 2026-11-02: what the packs hold seen among what you have, not in a block at the end), owned ones
+-- wearable.
 local Editor = load("AvatarEditor")
 local ed = Editor.new(playerGui, { send = function() end, weapon = function() return "Sword" end })
 ed.gui.AbsoluteSize = Rbx.Vector2.new(1280, 720)
@@ -53,8 +55,32 @@ local opts = ed:optionsOf(top)
 local tops = {}
 for _, it in Clothing.items do if it.category == "top" then table.insert(tops, it.id) end end
 assert(#opts == #top.options + #tops, "the Studio does not offer every top piece")
-for i, o in top.options do assert(opts[i].id == o.id, "the free parts are not first, in order") end
-for k, id in tops do assert(opts[#top.options + k].id == id and opts[#top.options + k].layers, `{id} is not offered as a drawable option`) end
+do
+	local freeAt, paidAt = {}, {}
+	for i, o in opts do
+		if AvatarKit.piece(o.id) then table.insert(paidAt, i); assert(o.layers, `{o.id} is not offered as a drawable option`)
+		else table.insert(freeAt, i) end
+	end
+	for k, o in top.options do assert(opts[freeAt[k]].id == o.id, "the free parts are out of their order") end
+	for k, id in tops do assert(opts[paidAt[k]].id == id, "the pieces are out of their order") end
+	assert(not AvatarKit.piece(opts[1].id), "a Shop piece is first, before the plain default")
+	-- spread: never two pieces together, and no free run longer than an even share and one
+	local share = math.ceil(#top.options / (#tops + 1)) + 1
+	for k = 2, #paidAt do assert(paidAt[k] - paidAt[k - 1] > 1, "two Shop pieces sit together") end
+	assert(paidAt[1] - 1 <= share and #opts - paidAt[#paidAt] <= share, "the Shop pieces are bunched at one end")
+	for k = 2, #paidAt do assert(paidAt[k] - paidAt[k - 1] - 1 <= share, "the Shop pieces are not spread evenly") end
+	-- and every category: the same, whatever its counts
+	for _, c in AvatarKit.KIT.categories do
+		local list = ed:optionsOf(c)
+		if #list > 0 then assert(not AvatarKit.piece(list[1].id), `{c.id}'s first option is a Shop piece`) end
+		for k = 2, #list do
+			assert(not (AvatarKit.piece(list[k].id) and AvatarKit.piece(list[k - 1].id)) or #c.options < 2, `{c.id} has two Shop pieces together`)
+		end
+	end
+	local edge = Editor.spread({ "a" }, { "x", "y" })
+	assert(#edge == 3 and edge[1] == "a", "spreading two pieces over one free part lost one, or put one first")
+	assert(#Editor.spread({}, { "x" }) == 1 and #Editor.spread({ "a", "b" }, {}) == 2, "spreading an empty list lost options")
+end
 ed:setView({ slots = { { name = "Me", code = AvatarKit.defaultCode() } }, active = 1, max = 8, saving = true, unlocked = {},
 	pieces = { "neon_circuit_bomber" } })
 assert(ed:wearable("top", "neon_circuit_bomber") and not ed:wearable("top", "frost_rimeguard_coat") and ed:wearable("top", top.options[2].id),
@@ -68,17 +94,40 @@ assert(string.find(said, "Rimeguard Coat", 1, true) and string.find(said, "8 R$"
 	"an unowned piece does not say where it is sold: " .. said)
 ed:pick("top", "neon_circuit_bomber")
 assert(string.sub(ed:code(), 1, 2) == "k2" and AvatarKit.decode(ed:code()).parts.top == "neon_circuit_bomber", "an owned piece was not put on")
--- the arrows step from the last free top onto the owned piece and past the unowned ones
-ed:pick("top", top.options[#top.options].id)
-ed:selectCategory("top")
-ed:step(1)
-assert(AvatarKit.decode(ed:code()).parts.top == "neon_circuit_bomber", "the arrows did not reach the owned piece")
-ed:step(1)
-assert(AvatarKit.decode(ed:code()).parts.top == top.options[1].id, "the arrows stopped on an unowned piece")
--- tiles: the unowned piece behind a SHOP lock, the owned one plain
+-- the arrows step onto the owned piece from the wearable option before it, and never stop on an
+-- unowned one
+do
+	local i = 0
+	for k, o in opts do if o.id == "neon_circuit_bomber" then i = k end end
+	local prev = i - 1
+	while prev >= 1 and not ed:wearable("top", opts[prev].id) do prev -= 1 end
+	ed:pick("top", opts[prev].id)
+	ed:selectCategory("top")
+	ed:step(1)
+	assert(AvatarKit.decode(ed:code()).parts.top == "neon_circuit_bomber", "the arrows did not reach the owned piece")
+	for _ = 1, #opts do
+		ed:step(1)
+		local on = AvatarKit.decode(ed:code()).parts.top
+		assert(not AvatarKit.piece(on) or on == "neon_circuit_bomber", "the arrows stopped on an unowned piece")
+	end
+end
+-- tiles: the unowned piece greyed over and priced, the owned one plain; the free one plain too
 ed:rebuildTiles()
-assert(string.find(string.lower(ed.tiles["frost_rimeguard_coat"].label.Text), "shop · ", 1, true) == 1 and string.lower(ed.tiles["neon_circuit_bomber"].label.Text) == "circuit bomber",
-	"the tiles do not tell owned clothing from clothing in the Shop")
+do
+	local locked, owned = ed.tiles["frost_rimeguard_coat"], ed.tiles["neon_circuit_bomber"]
+	local price = locked.button:FindFirstChild("Price")
+	assert(locked.veil and locked.veil.Visible ~= false and price and price.Text == "8 R$", "an unowned Shop piece is not greyed and priced")
+	assert(string.lower(locked.label.Text) == "rimeguard coat", "an unowned Shop piece's name carries a tag as well as its price")
+	assert(not owned.veil and not owned.button:FindFirstChild("Price") and string.lower(owned.label.Text) == "circuit bomber",
+		"an owned piece is greyed or priced")
+	local free = ed.tiles[top.options[2].id]
+	assert(not free.veil and not free.button:FindFirstChild("Price"), "a free part is greyed or priced")
+	-- and the studio says which is which, when it has nothing else to say
+	ed:loadSlot(ed.editing)                         -- (nothing unsaved)
+	ed.message, ed.note = nil, nil
+	ed:refreshFooter()
+	assert(not ed:dirty() and ed.status.Text == Editor.FREE_NOTE, `the studio does not say what is free and what is greyed: {ed.status.Text}`)
+end
 -- randomising never hands out an unowned piece
 for _ = 1, 20 do
 	ed:randomizePart("top")
@@ -121,4 +170,4 @@ for _, it in Clothing.items do
 	assert(arg[2] == (if head then "head" else "figure"), `{it.id}'s thumbnail shows the wrong view`)
 end
 local _ = made
-print(`PASS clothing ui: the Studio offers {#tops} tops after {#top.options} free ones, wears what the server says is owned, says where the rest are sold, steps and randomises past them, shows them behind SHOP, unlocks a purchase; the Locker sends clothing to the Studio; every piece's thumbnail wears it`)
+print(`PASS clothing ui: the Studio offers {#tops} tops after {#top.options} free ones, wears what the server says is owned, says where the rest are sold, steps and randomises past them, spreads them through the free ones greyed and priced, unlocks a purchase; the Locker sends clothing to the Studio; every piece's thumbnail wears it`)

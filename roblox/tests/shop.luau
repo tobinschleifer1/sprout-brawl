@@ -168,6 +168,13 @@ do
 	end
 	local studio = Passes.new({ studio = true })
 	assert(studio:owns(1, "vip") and not studio:owns(1, "season"), "Studio owns passes that are not built, or not VIP")
+	-- Starter Picks is not owned in Studio: its purchase is what a playtest needs to see (the owner
+	-- got picks free in Studio and took it for the payment being skipped)
+	assert(not studio:owns(1, "starter"), "Studio counts Starter Picks as owned, so a pick skips the payment")
+	local bought = Passes.new({ studio = true })
+	Products.pass("starter").pass = 777
+	assert(bought:bought(1, 777) == "starter" and bought:owns(1, "starter"), "Starter Picks bought in Studio is still not owned")
+	Products.pass("starter").pass = 0
 end
 
 -- 7. VIP's saved outfits: five slots with VIP, one without; saving and wearing; only owned items put on.

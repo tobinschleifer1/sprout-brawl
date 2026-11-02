@@ -1,7 +1,8 @@
 --!strict
 -- Who owns which game pass (Roblox only; Products.PASSES). Asked of MarketplaceService once per
 -- player per session and remembered; a purchase in this session is recorded when Roblox reports it.
--- In Studio every available pass is owned, so its perks can be playtested before the passes exist.
+-- In Studio every available pass is owned, so its perks can be playtested before the passes exist -
+-- except one marked `studioOwned = false` (Starter Picks), whose purchase is what needs seeing.
 local Products = require(game:GetService("ReplicatedStorage").Shared.Products)
 local Passes = {}
 Passes.__index = Passes
@@ -14,7 +15,7 @@ end
 function Passes.owns(self: any, userId: number, id: string): boolean
 	local p = Products.pass(id)
 	if not p then return false end
-	if self.studio then return p.available end
+	if self.studio and p.studioOwned ~= false then return p.available end
 	local mine = self.owned[userId]
 	if not mine then mine = {}; self.owned[userId] = mine end
 	if mine[id] == nil then

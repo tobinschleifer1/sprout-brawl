@@ -864,6 +864,10 @@ RunService.Heartbeat:Connect(function(dt: number)
 		local ctx = if covered then "off" elseif acceptingSnapshots and matchCfg then "fight"
 			elseif parkour.active then "lobby" elseif hub.active then "lobby" else "off"
 		touch:setContext(ctx, if hub.active and not parkour.active then LOBBY_ROW else 0)
+		-- the fight's cards go to the top while touch buttons are wanted (Hud.touchMode); the ULT
+		-- button lights when the ultimate is full
+		Hud.touchMode = touch:wanted()
+		touch:setReady(hud ~= nil and hud.ultReady == true and ctx == "fight")
 		local stick = touch.gui.Enabled and ctx == "lobby" and touch.placed.stick
 		hub.touchLift = if stick then touch.size.Y - (stick.y - stick.r) else 0
 	end
@@ -1092,7 +1096,8 @@ RunService.RenderStepped:Connect(function(dt: number)
 	if #bodies > 0 then
 		cam2d.shake = if settings.shake then fx.shake * canvas:viewport().Y / 270 else 0
 		-- (room for the HUD's cards along the bottom: nothing set it, and floor fights went behind them)
-		cam2d:setHudBand(if hud and hud.bandHeight then hud.bandHeight else 0, canvas:viewport().Y, if hud then Hud.TOP_HEIGHT else 0)
+		cam2d:setHudBand(if hud and hud.bandHeight then hud.bandHeight else 0, canvas:viewport().Y,
+			if hud then math.max(Hud.TOP_HEIGHT, hud.topHeight or 0) else 0)
 		cam2d:setFloor(if stageView and stageView.main then stageView.main.top else nil)
 		cam2d:update(bodies, dt, canvas:viewport())
 	end

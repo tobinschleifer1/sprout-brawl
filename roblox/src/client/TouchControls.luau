@@ -160,6 +160,17 @@ function TouchControls.up(self: any, key: any)
 		end
 	end
 end
+-- The ultimate is full (Hud.ultReady): the ULT button lights gold, as the HUD's ultimate pill
+-- would say if it were not hidden on a touch screen.
+function TouchControls.setReady(self: any, ready: boolean)
+	if self.ultReady == ready then return end
+	self.ultReady = ready
+	local v = self.views.ult
+	v.stroke.Color = if ready then Ui.GOLD else Ui.WHITE
+	v.stroke.Thickness = if ready then 5 else 3
+	v.label.Text = if ready then "ULT!" else "ULT"
+	v.label.TextColor3 = if ready then Ui.GOLD else Ui.WHITE
+end
 function TouchControls.releaseAll(self: any)
 	for key in self.owners do self:up(key) end
 	self.owners, self.held = {}, {}
@@ -167,9 +178,15 @@ function TouchControls.releaseAll(self: any)
 	self.input.touch.x, self.input.touch.y = 0, 0
 end
 
+-- Where on this ScreenGui an input is. InputObject.Position is measured from BELOW Roblox's top
+-- bar, and this ScreenGui ignores the bar (IgnoreGuiInset): read raw, every press landed `inset` px
+-- higher than the finger, and the bottom of each button missed (the owner's report, 2026-11-03).
+function TouchControls.point(position: Vector3, inset: number): (number, number)
+	return position.X, position.Y + inset
+end
 function TouchControls.bind(self: any)
 	local function point(io: InputObject): (number, number)
-		return io.Position.X, io.Position.Y
+		return TouchControls.point(io.Position, Ui.topInset())
 	end
 	-- (a mouse drives them too when the settings switch them ON: a desktop can try the layout)
 	local function ours(io: InputObject): boolean

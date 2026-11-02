@@ -113,6 +113,30 @@ if math.abs(tc.views.light.frame.Position.X.Offset - (mine.x - mine.r)) > 1 or m
 	fail("the player's own layout or see-through was not applied")
 end
 
+-- 1b. Where a finger is (the owner's report, 2026-11-03: presses did not land in the circles).
+-- Roblox measures an input from below its top bar; these controls are drawn from the very top
+-- (IgnoreGuiInset). A finger on a button's drawn centre, reported 58 px higher, must hit it - and
+-- its lowest point must too, which read raw missed.
+do
+	local INSET = 58
+	tc:apply("on", nil)                         -- (the default layout: no button moved onto another)
+	for _, id in { "light", "grab", "heavy", "jump" } do
+		local q = tc.placed[id]
+		for _, dy in { 0, q.r * 0.9 } do
+			local x, y = Controls.point(Rbx.Vector3.new(q.x, q.y + dy - INSET, 0), INSET)
+			tc:setContext("off"); tc:setContext("fight")
+			if tc:hit(x, y) ~= id then fail(`a finger on {id} {if dy == 0 then "at its centre" else "near its foot"} hit {tostring(tc:hit(x, y))}`) end
+		end
+	end
+	-- a full ultimate lights ULT (the HUD's pill is hidden on touch)
+	tc:setReady(true)
+	if tc.views.ult.label.Text ~= "ULT!" or tc.views.ult.stroke.Color ~= Ui.GOLD then fail("a full ultimate did not light the ULT button") end
+	tc:setReady(false)
+	if tc.views.ult.label.Text ~= "ULT" or tc.views.ult.stroke.Color ~= Ui.WHITE then fail("an empty ultimate left ULT lit") end
+	local rx, ry = Controls.point(Rbx.Vector3.new(10, 20, 0), 36)
+	if rx ~= 10 or ry ~= 56 then fail("the top bar's height was not added to a finger's y") end
+end
+
 -- 2. The editor.
 local kept
 local ed = Editor.new(instance("Folder"), { onDone = function(c) kept = c end })

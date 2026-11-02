@@ -63,7 +63,8 @@ function TouchEditor.new(parent: Instance?, opts: any): any
 		local d = self.dragging
 		if not d or not self.gui.Enabled then return end
 		if io == d.input or (d.input.UserInputType == Enum.UserInputType.MouseButton1 and io.UserInputType == Enum.UserInputType.MouseMovement) then
-			self:drag(d.id, io.Position.X, io.Position.Y)
+			-- (below the top bar, as TouchControls.point explains: this ScreenGui ignores it)
+			self:drag(d.id, io.Position.X, io.Position.Y + Ui.topInset())
 		end
 	end)
 	UIS.InputEnded:Connect(function(io: InputObject)

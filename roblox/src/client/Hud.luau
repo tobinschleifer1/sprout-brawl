@@ -30,6 +30,11 @@ local Ui = require(script.Parent.Ui)
 local Hud = {}
 -- the screen pixels along the top the clock and the key hints take, for the camera (Camera2D.safeTop)
 Hud.TOP_HEIGHT = 92
+-- A touch screen's fight (the owner's screenshots, 2026-11-03: the cards filled the bottom of a phone
+-- under the stick and the buttons): the cards go to the top, one row of small ones under the clock,
+-- and the bottom is the thumbs'. Set by init.client while touch controls are wanted (TouchControls).
+Hud.touchMode = false
+Hud.TOUCH_ROW_Y, Hud.TOUCH_CARD_H = 56, 38
 Hud.__index = Hud
 
 -- The look is the shared pixel kit's (Ui): outlined pixel numbers, square ink-framed cards, key caps.
@@ -254,11 +259,21 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 	-- under the percent instead of beside it
 	local compact = W < 170
 	if compact then H = 84 end
+	-- on a touch screen: one row of small cards at the top (Hud.touchMode)
+	local mini = Hud.touchMode == true
+	self.boundTouch = mini
+	if mini then
+		GAP, H = 4, Hud.TOUCH_CARD_H
+		W = math.clamp(math.floor((avail - (n - 1) * GAP) / math.max(1, n)), 60, 140)
+		columns, compact = n, true
+	end
 	local total = columns * W + (columns - 1) * GAP
 	self.layoutWidth = self.gui.AbsoluteSize.X
 	-- the screen pixels the card rows cover from the bottom edge, for the camera (Camera2D.safeBottom):
 	-- left at 0, it framed fighters on the floor behind these cards whenever someone was launched high
-	self.bandHeight = 14 + math.ceil(n / columns) * (H + GAP)
+	self.bandHeight = if mini then 0 else 14 + math.ceil(n / columns) * (H + GAP)
+	-- (and from the top, when they are up there)
+	self.topHeight = if mini then Hud.TOUCH_ROW_Y + H + 2 else 0
 	for i, entry in roster do
 		-- In a team match the tile wears the team's colour, as the web's does.
 		local colour = if self.teamsOn then HudColors.TEAM[((entry.team or 0) % 2) + 1] else HudColors.PLAYER[(entry.index % 8) + 1]
@@ -270,8 +285,9 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		-- (opaque on a light theme: a see-through card dropped the percent under 4.5:1 over a dark stage)
 		local root = Ui.make("Frame", self.gui, { Name = "Tile" .. i, BackgroundColor3 = PANEL, BackgroundTransparency = if Ui.lightPanels() then 0 else 0.08,
 			BorderSizePixel = 0, Size = UDim2.fromOffset(W, H) })
-		root.Position = UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
-			-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
+		root.Position = if mini then UDim2.new(0.5, -total / 2 + (i - 1) * (W + GAP), 0, Hud.TOUCH_ROW_Y)
+			else UDim2.new(0.5, -total / 2 + ((i - 1) % columns) * (W + GAP), 1,
+				-14 - (math.ceil(n / columns) - math.floor((i - 1) / columns)) * (H + GAP))
 		Ui.corner(root, 0)
 		-- (your own card's gold edge stays bold whatever the theme does to borders: it is how you
 		-- find yourself among six)
@@ -280,24 +296,28 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		Ui.rim(root, if yours then Ui.shade(GOLD, -0.35) else Ui.PANEL2, 2, 0)
 		-- (deepened on a light theme, so the white name reads on it; outlined in its own shade)
 		local bandColour = if Ui.lightPanels() then Ui.shade(colour, -0.22) else colour
-		local band = Ui.band(root, bandColour, 20)
+		local band = Ui.band(root, bandColour, if mini then 14 else 20)
 
 		-- (in the label face: small Fredoka capitals run together - RIVAL read as RVAL)
-		local name = label(band, UDim2.fromOffset(W - 16, 20), UDim2.fromOffset(8, 0),
-			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, 13, Color3.new(1, 1, 1))
+		local name = label(band, UDim2.fromOffset(W - (if mini then 8 else 16), if mini then 14 else 20), UDim2.fromOffset(if mini then 4 else 8, 0),
+			`{HudColors.MARKS[(entry.index % 8) + 1]} {string.upper(entry.name)}`, if mini then 10 else 13, Color3.new(1, 1, 1))
 		name.TextTruncate = Enum.TextTruncate.AtEnd
 		if Ui.lightPanels() then Ui.outline(name, 1, Ui.tone(bandColour)) end
 		local weapon = label(root, UDim2.fromOffset(W - 16, 13), UDim2.fromOffset(8, 23),
 			string.upper(chars[i] and chars[i].name or entry.weapon), 11, DIM)
 		weapon.TextTruncate = Enum.TextTruncate.AtEnd
-		local pct, pctOutline = display(root, UDim2.fromOffset(96, 32), UDim2.fromOffset(8, 33), "0%", if compact then 22 else 30, Hud.cardPercent(0))
+		weapon.Visible = not mini
+		local pct, pctOutline = display(root, if mini then UDim2.fromOffset(W - 8, 18) else UDim2.fromOffset(96, 32),
+			if mini then UDim2.fromOffset(4, 14) else UDim2.fromOffset(8, 33), "0%", if mini then 16 elseif compact then 22 else 30, Hud.cardPercent(0))
 		-- (dark on a pale card: bare, as every dark word on a window)
 		if Ui.lightPanels() then pctOutline.Enabled = false end
 		-- Stocks as pixel blocks in the player's colour, right-aligned, capped at eight.
 		local pips = {}
-		for k = 1, 8 do
+		-- (a small card shows as many as fit right of its percent)
+		for k = 1, if mini then math.clamp(math.floor((W - 44) / 8), 1, 8) else 8 do
 			local pip = Ui.make("Frame", root, { Name = "Stock" .. k, BackgroundColor3 = colour, BorderSizePixel = 0,
-				Position = UDim2.fromOffset(W - 8 - k * 13, 26), Size = UDim2.fromOffset(10, 10), Visible = false })
+				Position = if mini then UDim2.fromOffset(W - 4 - k * 8, 19) else UDim2.fromOffset(W - 8 - k * 13, 26),
+				Size = if mini then UDim2.fromOffset(6, 6) else UDim2.fromOffset(10, 10), Visible = false })
 			Ui.stroke(pip, Ui.INK, 2)
 			local hi = Ui.make("Frame", pip, { Name = "Hi", BackgroundColor3 = Ui.shade(colour, 0.45), BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 2) })
 			if Ui.flat() then hi.BackgroundTransparency = 1 end
@@ -308,9 +328,10 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		-- The ultimate meter: a row of blocks along the card's foot. Hidden outright for a loadout
 		-- with no ultimate, so it never shows a meter that cannot fill.
 		-- (a segmented bar in an ink tray: chunks read faster than a smooth fill)
-		local meterW = if compact then W - 16 else 78
+		local meterW = if mini then W - 8 elseif compact then W - 16 else 78
+		local meterH = if mini then 5 else 10
 		local ultBack = Ui.make("Frame", root, { Name = "Ultimate", BackgroundColor3 = Ui.INK, BorderSizePixel = 0,
-			Position = UDim2.new(1, -8 - meterW, 1, -16), Size = UDim2.fromOffset(meterW, 10) })
+			Position = if mini then UDim2.new(0, 4, 1, -7) else UDim2.new(1, -8 - meterW, 1, -16), Size = UDim2.fromOffset(meterW, meterH) })
 		Ui.pip(ultBack)
 		local step = (meterW - 2) / ULT_BLOCKS
 		-- (with weapon drops a fighter starts on fists, which have none - but the meter fills on fists
@@ -319,12 +340,12 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 		local blocks = {}
 		for k = 1, ULT_BLOCKS do
 			blocks[k] = Ui.make("Frame", ultBack, { BackgroundColor3 = SLATE, BorderSizePixel = 0,
-				Position = UDim2.fromOffset(1 + (k - 1) * step, 1), Size = UDim2.fromOffset(math.floor(step) - 1, 8) })
+				Position = UDim2.fromOffset(1 + (k - 1) * step, 1), Size = UDim2.fromOffset(math.floor(step) - 1, meterH - 2) })
 			Ui.pip(blocks[k])
 		end
 		-- Your own card says when your shield is up.
 		local shield = nil
-		if yours then
+		if yours and not mini then
 			shield = label(root, UDim2.fromOffset(76, 12), UDim2.new(1, -8 - 76, 1, if compact then -36 else -29), "SHIELD", if Ui.lightPanels() then (if compact then 10 else 12) elseif compact then 8 else 10, DIM)
 			shield.Name = "Shield"
 			shield.TextXAlignment = Enum.TextXAlignment.Right
@@ -332,9 +353,10 @@ function Hud.bind(self: any, roster: { any }, chars: { any }, localIndex: number
 
 		-- The combo this fighter is running, above their tile: the hit count and damage, and their
 		-- streak of timed links under it. Their own combo-break cooldown sits in the tile's corner.
-		local combo = display(root, UDim2.fromOffset(W, 24), UDim2.fromOffset(0, -50), "", 20, Color3.new(1, 1, 1))
+		-- (under a card at the top, over one at the bottom)
+		local combo = display(root, UDim2.fromOffset(W, 24), UDim2.fromOffset(0, if mini then H + 2 else -50), "", if mini then 16 else 20, Color3.new(1, 1, 1))
 		combo.Name = "Combo"
-		local perfect = display(root, UDim2.fromOffset(W, 18), UDim2.fromOffset(0, -26), "", 15, GOLD)
+		local perfect = display(root, UDim2.fromOffset(W, 18), UDim2.fromOffset(0, if mini then H + 24 else -26), "", if mini then 12 else 15, GOLD)
 		perfect.Name = "Perfect"
 		local breakCd = label(root, UDim2.fromOffset(70, 12), UDim2.fromOffset(W - 78, 22), "", 10, BROKE)
 		breakCd.Name = "BreakCooldown"
@@ -440,7 +462,9 @@ end
 
 function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: { any }, cfg: any)
 	if self.results then self.results:draw(os.clock()) end
-	if self.layoutWidth ~= self.gui.AbsoluteSize.X and cfg then self:bind(cfg.fighters, chars, self.localIndex, self.teamsOn) end
+	if (self.layoutWidth ~= self.gui.AbsoluteSize.X or self.boundTouch ~= Hud.touchMode) and cfg then
+		self:bind(cfg.fighters, chars, self.localIndex, self.teamsOn)
+	end
 	-- Timer. A stock match has no clock, and says so by showing nothing rather than 0:00.
 	if snap and snap.state == "suddendeath" then
 		write(self.timer, "Text", "SUDDEN DEATH")
@@ -533,7 +557,9 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	-- (a touch screen has no key to press: just say it is ready)
 	if said and Hud.touchOnly() then said = string.gsub(said, "%s*—%s*press%s+%w+$", "") end
 	write(self.abilities, "Text", if said then string.upper(said) else "")
-	write(self.abilityPill, "Visible", said ~= nil)
+	-- (not on a touch screen: centred under the clock, it lay across the right-hand buttons; the ULT
+	-- button lights instead)
+	write(self.abilityPill, "Visible", said ~= nil and not Hud.touchMode)
 	if said then write(self.abilityPill, "Size", UDim2.fromOffset(math.clamp(Ui.textWidth(said, 15) + 44, 200, 640), 30)) end
 
 	local combos = ComboHud.view(self.combo, states, now)
@@ -596,6 +622,8 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 				local meter = math.min(1, st.ultCharge / Config.ULTIMATE.hitsRequired)
 				local lit = math.floor(meter * ULT_BLOCKS + 1e-9)
 				local ready = st.ultCharge >= Config.ULTIMATE.hitsRequired
+				-- (yours lights the touch ULT button: TouchControls.setReady)
+				if tile.index == self.localIndex then self.ultReady = ready end
 				for k, block in tile.ult do
 					write(block, "BackgroundColor3", if k > lit then SLATE elseif ready then GOLD else tile.colour)
 				end

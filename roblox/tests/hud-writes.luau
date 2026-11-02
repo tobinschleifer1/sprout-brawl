@@ -99,4 +99,50 @@ assert(not h.ultName.Visible and not h.ultCaster.Visible, "ultimate banner faile
 h:bind(scene.cfg.fighters, S.chars, 0, false)
 quiet()
 assert(h.tiles[1].pct.Text == "117%" and h.floats[1].Visible, "rebind reused stale widget cache")
+-- A touch screen (Hud.touchMode): the cards go to the top in one row of small cards, clear of the
+-- touch buttons below (TouchLayout keeps those under y 96), on the smallest phone; the camera is
+-- told the top band, not a bottom one; your full ultimate lights the ULT button (ultReady); the
+-- ultimate's pill, which lay across the right-hand buttons, stays hidden. Then back again.
+do
+	local Layout = P:load("src/shared/TouchLayout")
+	HudModule.touchMode = true
+	local w = 568
+	h.gui.AbsoluteSize = Rbx.Vector2.new(w, 320)
+	draw()
+	assert(h.boundTouch == true and h.bandHeight == 0 and h.topHeight > 0 and h.topHeight <= 96,
+		`the touch HUD's band is {h.bandHeight} at the bottom and {h.topHeight} at the top`)
+	local lastRight = -math.huge
+	for _, t in h.tiles do
+		local pos, size = t.root.Position, t.root.Size
+		local left = pos.X.Scale * w + pos.X.Offset
+		assert(pos.Y.Scale == 0 and pos.Y.Offset == HudModule.TOUCH_ROW_Y, "a touch card is not in the top row")
+		assert(left >= 8 and left + size.X.Offset <= w - 8, "a touch card runs off a 568 px screen")
+		assert(left >= lastRight, "two touch cards overlap")
+		lastRight = left + size.X.Offset
+		assert(pos.Y.Offset + size.Y.Offset <= 96, "a touch card reaches down among the touch buttons")
+		assert(not t.weapon.Visible and t.shield == nil, "a touch card kept the full card's extra lines")
+	end
+	-- ultimate full: the ULT button's cue; the pill stays hidden
+	S.states[1].ultCharge = 999
+	h.localIndex = S.states[1].index
+	draw()
+	assert(h.ultReady == true, "a full ultimate did not light the touch ULT button")
+	assert(not h.abilityPill.Visible, "the ultimate's pill shows over the touch buttons")
+	S.states[1].ultCharge = 0
+	draw()
+	assert(h.ultReady == false, "an empty ultimate left the ULT button lit")
+	-- (the controls never come up into the cards' band on any phone: tests/touch-layout holds y >= 96)
+	local placed = Layout.layout(w, 320)
+	for _, c in Layout.CONTROLS do assert(placed[c.id].y - placed[c.id].r >= 96, "a touch button reaches the cards") end
+	HudModule.touchMode = false
+	h.gui.AbsoluteSize = Rbx.Vector2.new(1280, 720)
+	draw()
+	assert(h.boundTouch == false and h.bandHeight > 0 and h.tiles[1].root.Position.Y.Scale == 1, "leaving touch did not put the cards back along the bottom")
+	-- (touch switched on with the screen unchanged - the settings' ON - moves them too)
+	HudModule.touchMode = true
+	draw()
+	assert(h.boundTouch == true and h.tiles[1].root.Position.Y.Scale == 0, "switching touch on, same screen, left the cards at the bottom")
+	HudModule.touchMode = false
+	draw()
+end
 print("PASS HUD writes: repeated frames are quiet; damage, stocks, meter, prompts, fades, banners and rebind update")

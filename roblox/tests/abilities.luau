@@ -16,7 +16,7 @@ local Sampler = luau.load(fs.readFile("src/client/InputClient.luau"), {environme
 	require=function(n) return if n=="Bindings" then Loader.loadFrom("src/client/",n) else Input end,
 	game={GetService=function(_,n)
 		if n=="ReplicatedStorage" then return {Shared={Input="Input"}} end
-		if n=="ContextActionService" then return {BindActionAtPriority=function() end} end
+		if n=="ContextActionService" then return {BindActionAtPriority=function() end, UnbindAction=function() end} end
 		return {WindowFocusReleased={Connect=function() end}, InputBegan={Connect=function(_,fn) began=fn end}, GetFocusedTextBox=function() return if focused then {} else nil end,
 			GetConnectedGamepads=function() return {} end, IsKeyDown=function(_,k) return held==k end, IsGamepadButtonDown=function() return false end}
 	end},

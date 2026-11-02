@@ -99,6 +99,9 @@ lune run tests/bot-vote
 echo "== the PLAY queue: rooms form at all-but-one, bots after a wait, fill with bots =="
 lune run tests/queue
 lune run tests/progression
+echo "== settings (keys, volume, sound) and the first-time tutorial, played through =="
+lune run tests/settings
+lune run tests/tutorial
 lune run tests/room-phases
 lune run tests/multiplayer
 lune run tests/presence-codec

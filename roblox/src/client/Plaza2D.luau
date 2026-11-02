@@ -145,17 +145,17 @@ end
 
 -- The bottom row's right end: the CHARACTER button, and LobbySocial's button bar to its left
 -- (LobbySocial.RIGHT_GAP leaves the button its room). The controls row stays clear of the lot.
--- the block at the bottom right: three stacked buttons this wide, or (a light theme) a row of three
--- square icon buttons, as the reference simulator's
+-- the block at the bottom right: four stacked buttons this wide, or (a light theme) a row of four
+-- square icon buttons, as the reference simulator's (CHARACTER, LOCKER, SHOP, SETTINGS)
 Plaza2D.ICON = 76
-Plaza2D.CHARACTER_W = if Ui.lightPanels() then 3 * Plaza2D.ICON + 2 * Ui.GAP else 168
+Plaza2D.CHARACTER_W = if Ui.lightPanels() then 4 * Plaza2D.ICON + 3 * Ui.GAP else 168
 Plaza2D.SOCIAL_BAR_W = if Ui.lightPanels() then 2 * (Plaza2D.ICON + Ui.GAP) - Ui.GAP + Ui.GAP + Plaza2D.CHARACTER_W
 	else 4 * 124 - 8 + 8 + Plaza2D.CHARACTER_W
 
 -- ------------------------------------------------------------------ construction ----
 function Plaza2D.new(parent: Instance): any
 	local self: any = setmetatable({ active = false, held = false, camX = 0, peers = {}, pool = {}, used = {},
-		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, onShop = nil, isVip = nil, blocked = false, bannerAt = -10 }, Plaza2D)
+		mannequins = {}, vendors = {}, onInteract = nil, onCharacter = nil, onLocker = nil, onShop = nil, onSettings = nil, isVip = nil, blocked = false, bannerAt = -10 }, Plaza2D)
 	self.input = InputClient.new()
 	local gui = Instance.new("ScreenGui")
 	gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "BlockfallHub", false, true
@@ -248,6 +248,15 @@ function Plaza2D.new(parent: Instance): any
 	if LIGHT then shopButton.Position = UDim2.new(1, -16 - 2 * (Plaza2D.ICON + Ui.GAP), 1, -10)
 	else shopButton.Position, shopButton.Size = UDim2.new(1, -16, 1, -106), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
 	self.shopButton = shopButton
+	-- SETTINGS, beside the Shop: keys, volume, the tutorial again.
+	local function openSettings() if self.active and not self.blocked and self.onSettings then self.onSettings() end end
+	local settingsButton = if LIGHT then Ui.iconButton(gui, "gear", "SETTINGS", Ui.INDIGO, openSettings, Plaza2D.ICON)
+		else Ui.button(gui, "SETTINGS", Ui.PANEL2, openSettings)
+	settingsButton.Name = "SettingsButton"
+	settingsButton.AnchorPoint = Vector2.new(1, 1)
+	if LIGHT then settingsButton.Position = UDim2.new(1, -16 - 3 * (Plaza2D.ICON + Ui.GAP), 1, -10)
+	else settingsButton.Position, settingsButton.Size = UDim2.new(1, -16, 1, -154), UDim2.fromOffset(Plaza2D.CHARACTER_W, 42) end
+	self.settingsButton = settingsButton
 	self:placeTop(Ui.topInset())
 	return self
 end

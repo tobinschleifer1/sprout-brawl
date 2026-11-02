@@ -103,6 +103,7 @@ Rooms.BOT_LEVEL = "hard"
 -- BOT_HARD, hard from there. Ranked's are always hard: it opens at level 10.
 Rooms.BOT_NORMAL, Rooms.BOT_HARD = 4, 8
 function Rooms.botLevel(self: any, room: any): string
+	if room.tutorial then return room.tutorialBot or "dummy" end
 	if room.ranked then return "hard" end
 	local least = math.huge
 	for _, slot in room.slots do
@@ -588,6 +589,30 @@ function Rooms.fillWithBots(self: any, player: any): (any, string?)
 	fillBots(room, self.rand)
 	return room, nil
 end
+-- The first-time tutorial (the owner's ask, 2026-11-02; the lessons are the client's, Tutorial):
+-- a room of its own, straight into play - the player with the Sword (only the Sword: no drops, no
+-- second weapon) against a CPU that stands still until the last lesson sets it fighting
+-- (`tutorialBot`). Training rules: stocks never run out, and Economy pays nothing for it.
+-- (AshfallSummit: no hazards, and both fighters land on its main floor. On the Foundry Floor a still
+-- CPU lands on a ledge 14 units up, out of a new player's reach.)
+Rooms.TUTORIAL_STAGE = "AshfallSummit"
+function Rooms.tutorial(self: any, player: any): (any, string?)
+	if self:get(player.UserId) then return nil, "Leave your room first." end
+	self:dequeue(player)
+	Rooms.forget(self, player)
+	self.nextId += 1
+	local profile = self:profile(player.UserId)
+	local room = { id = self.nextId, host = player.UserId, format = "Tutorial", name = "Tutorial", tutorial = true,
+		tutorialBot = "dummy", state = "playing", phase = "playing", revision = 0, stage = Rooms.TUTORIAL_STAGE, stocks = 3,
+		items = false, disasters = "off", mapChoice = "host", mapSet = "all", mode = "training", time = 600,
+		slots = {
+			{ team = 0, player = player, weapon = "Sword", weapon2 = "Sword", avatar = profile.avatar, ready = true },
+			{ team = 1, bot = "dummy", weapon = "Sword", weapon2 = "Sword", avatar = BOT_LOOKS[1] or "Classic" },
+		} :: { any } }
+	self.rooms[room.id] = room
+	self.membership[player.UserId] = room.id
+	return room, nil
+end
 -- What a queued player sees: their format, how many are waiting, and how many a fight needs.
 function Rooms.queueView(self: any, id: number): any
 	local format = self:queued(id)
@@ -827,8 +852,10 @@ function Rooms.roster(self: any, room: any, rand: ((number) -> number)?): ({ any
 			kit = { slot.weapon, slot.weapon2 or slot.weapon }, team = slot.team, botLevel = if slot.bot then Rooms.botLevel(self, room) else nil })
 	end
 	local mode = (if room.mode == "timed" then "Timed" else "Stock") .. (if room.ffa then "FFA" else "Teams")
+	if room.tutorial then mode = "Training" end
 	return roster, { mode = mode, timeLimit = room.time,
 		stage = stage, stocks = room.stocks, items = room.items,
-		disasters = room.disasters, weaponDrops = true, ranked = room.ranked == true, format = room.format }
+		disasters = room.disasters, weaponDrops = not room.tutorial, ranked = room.ranked == true, format = room.format,
+		tutorial = room.tutorial == true }
 end
 return Rooms

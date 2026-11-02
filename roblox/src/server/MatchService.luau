@@ -89,6 +89,7 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 	-- a Ranked fight (Rooms): its results say so, and Economy pays rank points and the boost
 	self.ranked = o.ranked == true
 	self.format = o.format         -- the room's (Rooms.FORMATS id), for the counters
+	self.tutorial = o.tutorial == true   -- the first-time tutorial: the client runs its lessons over it
 	self:stop()
 	self.generation += 1
 
@@ -174,6 +175,13 @@ function MatchService.start(self: any, roster: { any }, opts: any?)
 	return self.match
 end
 
+-- The tutorial's last lesson: its CPU stops standing still (an easy one: a first fight, not a wall).
+function MatchService.setBotLevel(self: any, level: string)
+	if not self.match then return end
+	for _, f in self.match.fighters do
+		if f.isBot then f.botLevel = level end
+	end
+end
 -- Reused for startup and recovery when a client reloads or retries during its own match.
 function MatchService.description(self: any): any
 	return {
@@ -185,6 +193,7 @@ function MatchService.description(self: any): any
 		timed = self.match.timed,
 		timeLimit = self.match.timeLimit,
 		weaponDrops = self.match.dropsOn,
+		tutorial = self.tutorial == true,
 		fighters = self:roster(),
 		emotes = (function() local list = {}; for _, e in self.emotes do table.insert(list, e) end; return list end)(),
 	}

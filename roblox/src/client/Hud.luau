@@ -107,6 +107,17 @@ local function display(parent: Instance, size: UDim2, pos: UDim2, text: string, 
 	return t, Ui.outline(t, if px >= 40 then 4 elseif px >= 20 then 3 else 2)
 end
 
+-- The fight's key hints under the clock, as the player has their keys now (Settings: rebinding
+-- builds them again). `Hud.hintsOn`: the settings' "Control hints" switch.
+Hud.hintsOn = true
+function Hud.makeHints(self: any)
+	if self.hints then self.hints:Destroy() end
+	local KB: any = Bindings.keyboard
+	local hints = Ui.hintRow(self.gui, "CombatBindings", { { KB.ult[1], "ULTIMATE" }, { KB.guard[1], "SHIELD" },
+		{ KB.pickup[1], "PICKUP" }, { Hud.COMBO_KEY, "COMBOS" } }, 26)
+	hints.Position, hints.Size = UDim2.new(0, 0, 0, 58), UDim2.new(1, 0, 0, 28)
+	self.hints = hints
+end
 function Hud.new(parent: Instance): any
 	local self = setmetatable({}, Hud)
 	local gui = Instance.new("ScreenGui")
@@ -127,11 +138,7 @@ function Hud.new(parent: Instance): any
 	self.timer = display(pill, UDim2.fromScale(1, 1), UDim2.new(), "", 30, Ui.WHITE)
 	self.timer.TextXAlignment = Enum.TextXAlignment.Center
 	-- The keys that matter mid-fight, as caps, under the clock.
-	local KB: any = Bindings.keyboard
-	local hints = Ui.hintRow(gui, "CombatBindings", { { KB.ult[1], "ULTIMATE" }, { KB.guard[1], "SHIELD" },
-		{ KB.pickup[1], "PICKUP" }, { Hud.COMBO_KEY, "COMBOS" } }, 26)
-	hints.Position, hints.Size = UDim2.new(0, 0, 0, 58), UDim2.new(1, 0, 0, 28)
-	self.hints = hints
+	self:makeHints()
 	-- What your ultimate is waiting on, or what just happened to it, in a gold pill (empty: hidden).
 	local abilityPill = Ui.pill(gui, "AbilityPill", GOLD)
 	abilityPill.AnchorPoint = Vector2.new(0.5, 0)
@@ -447,7 +454,7 @@ function Hud.update(self: any, states: { any }, snap: any, canvas: any, chars: {
 	end
 	write(self.timerPill, "Visible", self.timer.Text ~= "")
 	-- key caps teach a keyboard: not on a touch screen, and not on a screen too narrow to spare them
-	write(self.hints, "Visible", self.gui.AbsoluteSize.X >= 900 and not Hud.touchOnly())
+	write(self.hints, "Visible", self.gui.AbsoluteSize.X >= 900 and not Hud.touchOnly() and Hud.hintsOn)
 	-- (the ultimate's pill closes up under the clock when the key row is not there)
 	write(self.abilityPill, "Position", UDim2.new(0.5, 0, 0, if self.hints.Visible then 94 else 58))
 	write(self.timerPill, "Size", UDim2.fromOffset(math.max(124, Ui.textWidth(self.timer.Text, 30) + 40), 42))

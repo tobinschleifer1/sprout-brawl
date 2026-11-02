@@ -52,6 +52,13 @@ local Hud = require(script.Hud)
 local Select = require(script.RoomPanel)
 local SelectScreen = require(script.SelectScreen)
 local Ui = require(script.Ui)
+local Bindings = require(script.Bindings)
+local Settings = require(Shared.Settings)
+local Input = require(Shared.Input)
+local Audio = require(script.Audio)
+local SettingsMenu = require(script.SettingsMenu)
+local Tutorial = require(script.Tutorial)
+local TutorialView = require(script.TutorialView)
 local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
@@ -268,6 +275,63 @@ local function askClimb(from: any)
 end
 -- The climb's leaderboards: from the CLIMB RECORDS board at its foot, or the climb's RECORDS button.
 local records = ClimbRecords.new(Players.LocalPlayer:WaitForChild("PlayerGui"), { localId = Players.LocalPlayer.UserId })
+-- ---------------------------------------------------------------- settings and sound ----
+-- The keys as the game ships them, copied before any settings touch Bindings (Settings applies
+-- a player's own keys over these, into Bindings.keyboard, which the input sampler reads).
+local SHIPPED_KEYS: { [string]: { string } } = {}
+for action, keys in Bindings.keyboard :: any do SHIPPED_KEYS[action] = table.clone(keys) end
+local audio = Audio.attach()
+Ui.clickSound = function() audio:play("ui") end
+local settings = Settings.sanitize(nil)
+local settingsSaveAt: number? = nil
+local function applySettings(s: any)
+	settings = Settings.sanitize(s)
+	local kb = Settings.keyboard(settings, SHIPPED_KEYS)
+	for action in SHIPPED_KEYS do (Bindings.keyboard :: any)[action] = kb[action] end
+	InputClient.rebind()
+	audio:setVolumes(settings.music, settings.sfx)
+	Hud.hintsOn = settings.hints
+	if hud then hud:makeHints() end
+end
+-- the tutorial: its lessons (Tutorial) while one runs, and its cards (TutorialView)
+local tutorial: any = nil
+local tutorialSig = ""
+local tutorialOffered = false
+local function endTutorial()
+	tutorial, tutorialSig = nil, ""
+end
+local tutorialView: any
+tutorialView = TutorialView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	keyOf = function(action: string): string return Settings.keyName(Settings.first(settings, SHIPPED_KEYS, action)) end,
+	onStart = function() Net.remote("Tutorial"):FireServer("start") end,
+	onSkip = function()
+		Net.remote("Tutorial"):FireServer("skip")
+		endTutorial()
+		tutorialView:hide()
+	end,
+	onContinue = function()
+		if not tutorial then return end
+		-- (the press that closed the card is not the first move of the lesson)
+		input:reset()
+		if tutorial:continue() == "fight" then Net.remote("Tutorial"):FireServer("fight") end
+	end,
+	onFinish = function()
+		Net.remote("Tutorial"):FireServer("done")
+		endTutorial()
+	end,
+})
+local settingsMenu = SettingsMenu.new(Players.LocalPlayer:WaitForChild("PlayerGui"), SHIPPED_KEYS, {
+	onChange = function(s: any)
+		applySettings(s)
+		settingsSaveAt = os.clock() + 1          -- saved once the player stops changing things
+	end,
+	onTutorial = function()
+		if hub.active and not hub.room and not roomOverlay() then Net.remote("Tutorial"):FireServer("start") end
+	end,
+})
+hub.onSettings = function()
+	if hub.active and not hub.room and not roomOverlay() then settingsMenu:toggle() end
+end
 Net.remote("ClimbBoards").OnClientEvent:Connect(function(view: any)
 	records:set(view)
 	-- The board in the lobby shows who leads, so the boards are worth walking over to.
@@ -338,6 +402,13 @@ Net.remote("ClimbView").OnClientEvent:Connect(function(view: any)
 end)
 Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 	editor:setView(view)
+	-- the first view of this visit: the saved settings, and a first-time player's tutorial offer
+	if not tutorialOffered and type(view) == "table" then
+		tutorialOffered = true
+		applySettings(view.settings)
+		settingsMenu:set(settings)
+		if view.tutorial == false and not matchCfg then tutorialView:offer() end
+	end
 	local worn = view.slots and view.slots[view.active]
 	if worn and select_ then
 		select_.cfg.slots[1].avatarId = worn.code
@@ -346,6 +417,12 @@ Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 end)
 UIS.InputBegan:Connect(function(input: InputObject)
 	if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+	-- a key being chosen in SETTINGS takes the press; Enter closes a tutorial card
+	if settingsMenu:isOpen() and settingsMenu:key(input.KeyCode.Name) then return end
+	if input.KeyCode == Enum.KeyCode.Return and tutorialView.mode and not UIS:GetFocusedTextBox() then
+		tutorialView:pressContinue()
+		return
+	end
 	if records:key(input.KeyCode) then return end
 	if hub.active and not editor:isOpen() and not roomOverlay() and not UIS:GetFocusedTextBox() then
 		social:key(input.KeyCode)
@@ -358,6 +435,10 @@ end)
 -- The server says "pick a match". It also says when it refused one, and why.
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 	acceptingSnapshots = false
+	-- back in the lobby: a tutorial that was running is over (left, or ended by the server)
+	if tutorial then endTutorial(); tutorialView:hide() end
+	-- (the loading screen waits for this: src/first)
+	Players.LocalPlayer:SetAttribute("BlockfallReady", true)
 	fighterWarmup = nil
 	predictor = nil
 	launch:reset()
@@ -518,6 +599,14 @@ Net.remote("Match").OnClientEvent:Connect(function(cfg: any)
 		teamHex = hexes
 	end
 	hud:bind(roster, chars, localIndex, string.find(cfg.mode or "", "Teams", 1, true) ~= nil)
+	-- the first-time tutorial: its lessons over this match (Rooms.tutorial)
+	if cfg.tutorial and localIndex ~= nil then
+		if not tutorial or tutorial.me ~= localIndex then tutorial = Tutorial.new(localIndex) end
+		tutorialSig = ""
+	elseif tutorial then
+		endTutorial()
+		tutorialView:hide()
+	end
 	fighterWarmup = FighterWarmup.new(canvas, chars, cam2d.ppu)
 
 	predictor = nil
@@ -714,6 +803,23 @@ end
 local poseElapsed = 0
 RunService.Heartbeat:Connect(function(dt: number)
 	social:tick()          -- a quiet queue offers its bots (LobbySocial.QUIET)
+	-- settings, saved a second after the last change
+	if settingsSaveAt and os.clock() >= settingsSaveAt then
+		settingsSaveAt = nil
+		Net.remote("Settings"):FireServer(settings)
+	end
+	-- the tutorial: lessons move on, and the cards and goal are redrawn when something changed
+	if tutorial then
+		local now = os.clock()
+		local moved = tutorial:tick(now)
+		if moved == "next" then audio:play("lesson") end
+		local sig = `{tutorial.index}:{tutorial.phase}:{tutorial.progress}`
+		if sig ~= tutorialSig then
+			if tutorialSig ~= "" and tutorial.phase == "done" then audio:play("lesson") end
+			tutorialSig = sig
+			tutorialView:render(tutorial)
+		end
+	end
 	if launch:expired(os.clock()) and select_ then
 		select_:show("Arena delayed. Rejoining your match…")
 		Net.remote("Hello"):FireServer()
@@ -721,7 +827,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if records:isOpen() then records:tick() end
 	if parkour.active then parkour:step(dt, records:isOpen() or skipPrompt) end
 	if hub.active then
-		hub:step(dt, roomOverlay() or editor:isOpen() or records:isOpen())
+		hub:step(dt, roomOverlay() or editor:isOpen() or records:isOpen() or settingsMenu:isOpen() or tutorialView.mode ~= nil)
 		-- the select screen covers the plaza: its prompts and the social panel step aside under it
 		local covered = selectScreen ~= nil and selectScreen.open
 		if hub.gui.Enabled == covered then hub.gui.Enabled = not covered end
@@ -737,15 +843,23 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if not acceptingSnapshots or not matchCfg then
 		return
 	end
-	for _, f in input:sample(dt, FRAME) do
+	for _, sampled in input:sample(dt, FRAME) do
+		-- a tutorial card stops the fight: the player's frames go up empty while it is up
+		local f = sampled
+		if tutorial then
+			if tutorial:stopped() then f = Input.emptyFrame() else tutorial:frame(f, os.clock()) end
+		end
 		table.insert(pendingFrames, Net.packFrame(f))
 		-- Simulated here, immediately. The server counts exactly the frames we send, so this has
 		-- to see every one of them and no others or the replay window drifts.
 		if predictor then
 			predictor:push(f)
 			for _, e in predictor:drain() do
-				if LOCAL_FX[e.type] then Effects.spawn(fx, e, glowOf, math.random, heightOf)
+				if LOCAL_FX[e.type] then
+					Effects.spawn(fx, e, glowOf, math.random, heightOf)
+					audio:event(e)
 				elseif e.predicted then
+					audio:event(e)
 					-- our swing met a foe as drawn: its sparks and drawn moment now (HitConfirm)
 					confirm:drawn(e, os.clock())
 					local ok, err = pcall(FightScene.spawn :: any, fx, fxPlayer, e, lastStates, chars, glowOf, math.random, heightOf, true)
@@ -905,7 +1019,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		end
 	end
 	if #bodies > 0 then
-		cam2d.shake = fx.shake * canvas:viewport().Y / 270
+		cam2d.shake = if settings.shake then fx.shake * canvas:viewport().Y / 270 else 0
 		-- (room for the HUD's cards along the bottom: nothing set it, and floor fights went behind them)
 		cam2d:setHudBand(if hud and hud.bandHeight then hud.bandHeight else 0, canvas:viewport().Y, if hud then Hud.TOP_HEIGHT else 0)
 		cam2d:setFloor(if stageView and stageView.main then stageView.main.top else nil)
@@ -951,7 +1065,10 @@ RunService.RenderStepped:Connect(function(dt: number)
 		local ok, err = true, nil
 		if not drawnAlready then
 			ok, err = pcall(FightScene.spawn :: any, fx, fxPlayer, e, states, chars, glowOf, math.random, heightOf, sparks)
+			-- (our own moves and hits sounded when they were predicted)
+			if sparks then audio:event(e) end
 		end
+		if tutorial and tutorial:event(e, os.clock()) then tutorialSig = "" end
 		if not ok and not posedWarned[-4] then
 			posedWarned[-4] = true
 			warn(`[Blockfall] an ultimate effect failed to start, and will not be reported again: {err}`)

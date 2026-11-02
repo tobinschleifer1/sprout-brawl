@@ -28,6 +28,45 @@ InputClient.__index = InputClient
 local LIVE: { any } = {}
 local bound = false
 
+-- (Re)binds every key the game uses through ContextActionService, from Bindings as they are now:
+-- the settings menu changes them (Settings), and a key added there - say Q for Shield - must be
+-- heard above the camera's binding too.
+local function handler(_: string, state: any, input: InputObject): any
+	for _, client in LIVE do
+		if state == Enum.UserInputState.Begin then
+			-- Letters typed into chat are not holds or presses.
+			if not UserInputService:GetFocusedTextBox() then
+				client.heldCodes[input.KeyCode] = true
+				client:press(input.KeyCode)
+			end
+		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			client.heldCodes[input.KeyCode] = nil
+		end
+	end
+	return Enum.ContextActionResult.Pass
+end
+function InputClient.rebind()
+	local byCode: { [any]: boolean } = {}
+	local codes = {}
+	for _, keys in (KB :: { [string]: { string } }) do
+		for _, key in keys do
+			local code = (Enum.KeyCode :: any)[key]
+			if code and not byCode[code] then byCode[code] = true; table.insert(codes, code) end
+		end
+	end
+	for _, key in PAD do
+		local code = (Enum.KeyCode :: any)[key]
+		if code and not byCode[code] then byCode[code] = true; table.insert(codes, code) end
+	end
+	-- ONE binding for every sampler. The match, the lobby and the Skyline Climb each have one, and a
+	-- binding made under a name already bound REPLACES the old one: with a binding per sampler, only
+	-- the newest heard I and O at all - the Climb's, created last - and a live game's shield and
+	-- ultimate went deaf in every fight. So one binding, remade here, feeds them all.
+	ContextActionService:UnbindAction("BlockfallCombatKeys")
+	ContextActionService:BindActionAtPriority("BlockfallCombatKeys", handler, false, Enum.ContextActionPriority.High.Value + 1, table.unpack(codes))
+	for _, client in LIVE do client.heldCodes = {} end
+end
+
 function InputClient.new(): any
 	local self: any = setmetatable({}, InputClient)
 	self.prev = {} :: { [string]: boolean }
@@ -46,39 +85,10 @@ function InputClient.new(): any
 	-- So the game binds its own keys through ContextActionService above the camera's priority: it
 	-- hears the press first, keeps its own held state from Begin and End, and passes the input on so
 	-- nothing else - the hub's walking, the camera - loses anything it had.
-	local byCode: { [any]: boolean } = {}
-	local codes = {}
-	for _, keys in (KB :: { [string]: { string } }) do
-		for _, key in keys do
-			local code = (Enum.KeyCode :: any)[key]
-			if not byCode[code] then byCode[code] = true; table.insert(codes, code) end
-		end
-	end
-	for _, key in PAD do
-		local code = (Enum.KeyCode :: any)[key]
-		if not byCode[code] then byCode[code] = true; table.insert(codes, code) end
-	end
-	-- ONE binding for every sampler. The match, the lobby and the Skyline Climb each have one, and a
-	-- binding made under a name already bound REPLACES the old one: with a binding per sampler, only
-	-- the newest heard I and O at all - the Climb's, created last - and a live game's shield and
-	-- ultimate went deaf in every fight. So the first sampler binds, and the binding feeds them all.
 	table.insert(LIVE, self)
 	if not bound then
 		bound = true
-		ContextActionService:BindActionAtPriority("BlockfallCombatKeys", function(_: string, state: any, input: InputObject)
-			for _, client in LIVE do
-				if state == Enum.UserInputState.Begin then
-					-- Letters typed into chat are not holds or presses.
-					if not UserInputService:GetFocusedTextBox() then
-						client.heldCodes[input.KeyCode] = true
-						client:press(input.KeyCode)
-					end
-				elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
-					client.heldCodes[input.KeyCode] = nil
-				end
-			end
-			return Enum.ContextActionResult.Pass
-		end, false, Enum.ContextActionPriority.High.Value + 1, table.unpack(codes))
+		InputClient.rebind()
 		-- A key released while the window is unfocused never delivers End; forget every hold then.
 		UserInputService.WindowFocusReleased:Connect(function()
 			for _, client in LIVE do

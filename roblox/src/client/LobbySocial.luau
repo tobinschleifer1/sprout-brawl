@@ -24,7 +24,7 @@ LobbySocial.__index = LobbySocial
 
 -- Room at the right end of the bottom row for the plaza's buttons (Plaza2D.CHARACTER_W): one wide
 -- CHARACTER button, or in a light theme the row of three square icon buttons.
-LobbySocial.RIGHT_GAP = if Ui.lightPanels() then 3 * 76 + 3 * Ui.GAP else 168 + 8
+LobbySocial.RIGHT_GAP = if Ui.lightPanels() then 4 * 76 + 4 * Ui.GAP else 168 + 8
 
 local LIGHT = Ui.lightPanels()
 local PANEL2 = if LIGHT then Ui.PANEL2 else Color3.fromRGB(46, 52, 63)

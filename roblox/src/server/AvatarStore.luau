@@ -18,6 +18,7 @@
 local AvatarKit = require(game:GetService("ReplicatedStorage").Shared.AvatarKit)
 local Clothing: any = require(game:GetService("ReplicatedStorage").Shared.RobloxClothing)
 local Inventory = require(game:GetService("ReplicatedStorage").Shared.Inventory)
+local Settings = require(game:GetService("ReplicatedStorage").Shared.Settings)
 
 local AvatarStore = {}
 AvatarStore.__index = AvatarStore
@@ -89,8 +90,10 @@ function AvatarStore.sanitize(raw: any): any
 	end
 	-- Cosmetics owned and worn (Inventory cleans them against the catalogue).
 	local inventory = Inventory.sanitize(src.inventory)
+	-- The player's settings (keys, volume, shake, hints), and whether they have finished - or
+	-- skipped - the first-time tutorial.
 	return { v = AvatarStore.VERSION, slots = slots, active = active, climb = climb, receipts = receipts, rewards = rewards,
-		inventory = inventory }
+		inventory = inventory, settings = Settings.sanitize(src.settings), tutorial = src.tutorial == true }
 end
 
 function AvatarStore.new(dataStore: any, clock: (() -> number)?, opts: any?): any
@@ -188,7 +191,8 @@ function AvatarStore.view(self: any, userId: number): any
 		if ok and has == true then table.insert(pieces, it.id) end
 	end
 	return { slots = slots, active = rec.active, max = self:slotsFor(userId),
-		saving = self.loaded[userId] == true, note = self.notes[userId], unlocked = table.clone(rec.rewards), pieces = pieces }
+		saving = self.loaded[userId] == true, note = self.notes[userId], unlocked = table.clone(rec.rewards), pieces = pieces,
+		settings = Settings.sanitize(rec.settings), tutorial = rec.tutorial == true }
 end
 
 -- An edit from the creator. Returns ok, error text. `slot` may be one past the end to add a slot.
@@ -256,6 +260,20 @@ end
 
 -- Write one player's record now. Only a record that was read successfully is ever written:
 -- writing a default wardrobe over a record we failed to read would delete their characters.
+-- New settings from the menu: kept as sanitize rebuilds them. Returns what was kept.
+function AvatarStore.setSettings(self: any, userId: number, raw: any): any
+	local rec = self:load(userId)
+	rec.settings = Settings.sanitize(raw)
+	self.dirty[userId] = self.dirty[userId] or self.clock()
+	return rec.settings
+end
+-- The first-time tutorial finished or skipped: it is not offered again on its own.
+function AvatarStore.finishTutorial(self: any, userId: number)
+	local rec = self:load(userId)
+	if rec.tutorial then return end
+	rec.tutorial = true
+	self.dirty[userId] = self.dirty[userId] or self.clock()
+end
 -- A reward earned: kept in the record, and its part can now be saved. False if already had.
 function AvatarStore.grant(self: any, userId: number, id: string): boolean
 	local rec = self:load(userId)

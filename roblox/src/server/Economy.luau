@@ -260,7 +260,7 @@ function Economy.pick(self: any, userId: number, weapon: any, owns: boolean): (b
 		if #p.picks >= Progression.PICKS then return false, "You have used both of your picks." end
 		if not Progression.pickable((Progression.level(p.xp)), weapon, p.picks) then return false, "That weapon cannot be picked." end
 		table.insert(p.picks, weapon)
-		return true, { weapon = weapon, left = Progression.PICKS - #p.picks }
+		return true, ({ weapon = weapon, left = Progression.PICKS - #p.picks } :: any)
 	end)
 end
 -- Their level and rank, as the client shows them.

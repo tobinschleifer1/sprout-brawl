@@ -140,7 +140,7 @@ local function leave(player: Player)
 	local room = rooms:leave(player)
 	if not room then return end
 	if room.state == "playing" then
-		Analytics.event(player, "left_match", { format = room.format })
+		if not room.tutorial then Analytics.event(player, "left_match", { format = room.format }) end
 		resetRoom(room, "A player left. Fight cancelled; ready up again.")
 	else rooms:advance(room); publish(room) end
 end
@@ -322,6 +322,36 @@ Net.remote("Input").OnServerEvent:Connect(function(player: Player, packed: any, 
 	local room = rooms:get(player.UserId)
 	local service = room and services[room.id]
 	if service then service:receiveInput(player, packed, matchId, epoch, view) end
+end)
+-- Settings: kept in the player's record as Settings.sanitize rebuilds them (AvatarStore).
+Net.remote("Settings").OnServerEvent:Connect(function(player: Player, raw: any)
+	if loaded[player.UserId] ~= player or not admitted(player, "settings", 0.5) then return end
+	avatars:setSettings(player.UserId, raw)
+end)
+-- The first-time tutorial (Rooms.tutorial; the lessons are the client's): "start" puts the player in
+-- a room of their own and starts it; "fight" sets its CPU fighting; "done" and "skip" end it, and
+-- either way it is not offered again on its own.
+Net.remote("Tutorial").OnServerEvent:Connect(function(player: Player, action: any)
+	if loaded[player.UserId] ~= player or not admitted(player, "tutorial", 0.5) then return end
+	local room = rooms:get(player.UserId)
+	if action == "start" then
+		local made, why = rooms:tutorial(player)
+		if not made then hub(player, why); return end
+		Analytics.event(player, "tutorial_start")
+		launchRoom(made)
+	elseif action == "fight" then
+		local service = room and room.tutorial and services[room.id]
+		if service then room.tutorialBot = "easy"; service:setBotLevel("easy") end
+	elseif action == "done" or action == "skip" then
+		avatars:finishTutorial(player.UserId)
+		Analytics.event(player, if action == "done" then "tutorial_done" else "tutorial_skip")
+		if room and room.tutorial then
+			rooms:leave(player)
+			local service = services[room.id]
+			if service then service:stop(); services[room.id] = nil end
+			hub(player)
+		end
+	end
 end)
 Net.remote("Setup").OnServerEvent:Connect(function(player: Player)
 	if admitted(player, "hello", 1) then hub(player, "Press PLAY to find a fight.") end

@@ -223,6 +223,8 @@ Ui.SHINE, Ui.LIP = 0.38, -0.42
 local parts: { [any]: any } = setmetatable({}, { __mode = "k" }) :: any
 
 -- opts: small (no outline on the letters - it fills small ones in), textColour, font, size
+-- Played on every button press (Audio's "ui" click), once the client sets it.
+Ui.clickSound = nil :: (() -> ())?
 function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: (() -> ())?, opts: any?): any
 	local o = opts or {}
 	local face = o.font or Ui.DISPLAY
@@ -263,7 +265,7 @@ function Ui.button(parent: Instance?, value: string, colour: Color3, onClick: ((
 		if outline then outline.Thickness = 0 end
 	end
 	parts[b].small = o.small
-	if onClick then b.Activated:Connect(onClick) end
+	if onClick then b.Activated:Connect(function() if Ui.clickSound then Ui.clickSound() end; onClick() end) end
 	return b
 end
 
@@ -549,6 +551,9 @@ Ui.ICONS = {
 	-- PLAY: two swords crossed
 	swords = { w = 9, rows = { "O.......O", "OwO...OwO", ".OwO.OwO.", "..OwOwO..", "...OwO...", "..OyOyO..", ".OyO.OyO.", "OyO...OyO", "OO.....OO" },
 		colours = { O = "#2A1A10", w = "#E8F0F8", y = "#F2B33A" } },
+	-- SETTINGS: a cog
+	gear = { w = 9, rows = { "...OOO...", ".OOgggOO.", ".OgggggO.", "OggOOOggO", "OggO.OggO", "OggOOOggO", ".OgggggO.", ".OOgggOO.", "...OOO..." },
+		colours = { O = "#22243A", g = "#C8D0DC" } },
 	shirt = { w = 9, rows = { "..OO.OO..", ".OsOOOsO.", "OssssssSO", "OOssssSOO", ".OssssSO.", ".OssssSO.", ".OOOOOOO." },
 		colours = { O = "#14264A", s = "#6FB6FF", S = "#3D7FD0" } },
 } :: { [string]: any }

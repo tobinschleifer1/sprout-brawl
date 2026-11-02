@@ -76,11 +76,15 @@ local uis = {
 -- ContextActionService, as the game binds it: the handler, its priority and the keys it claims.
 local bound: any = nil
 local binds = 0
+local unbound: string? = nil
+-- (one Bindings, the same table InputClient reads, so a test can rebind it as the settings menu does)
+local SharedBindings = Loader.loadFrom("src/client/", "Bindings")
 local cas = {
 	BindActionAtPriority = function(_, name, fn, touch, priority, ...)
 		binds += 1
 		bound = { name = name, fn = fn, touch = touch, priority = priority, codes = { ... } }
 	end,
+	UnbindAction = function(_, name) unbound = name end,
 }
 local enums = {
 	KeyCode = codes, UserInputType = codes, UserInputState = codes, ContextActionResult = codes,
@@ -95,7 +99,7 @@ local InputClient = luau.load(fs.readFile("src/client/InputClient.luau"), {
 			return { Shared = { Input = "Input" } }
 		end },
 		script = { Parent = { Bindings = "Bindings" } },
-		require = function(name) return if name == "Bindings" then Loader.loadFrom("src/client/", "Bindings") else Input end,
+		require = function(name) return if name == "Bindings" then SharedBindings else Input end,
 	}, injectGlobals = true,
 })()
 local sampler = InputClient.new()
@@ -256,4 +260,26 @@ check(service.input:get("p7").x == 1, "current rejoin epoch accepts input")
 callbacks.leave({ UserId = 7 })
 check(service.input:get("p7").x == 0, "disconnected fighters stop repeating their last movement")
 -- The room panel's real buttons and layout are exercised by room-ui.luau.
+-- Settings rebinding: Shield moved to Q is bound again in place of the old binding (Q heard above
+-- the camera, as I was), and the old key no longer shields.
+do
+	local before = binds
+	local guard = SharedBindings.keyboard.guard
+	SharedBindings.keyboard.guard = { "Q" }
+	InputClient.rebind()
+	check(unbound == "BlockfallCombatKeys" and binds == before + 1, "rebinding does not replace the one shared binding")
+	local claimsNow = {}
+	for _, c in bound.codes do claimsNow[c] = true end
+	check(claimsNow.Q == true and claimsNow.I ~= true, "a key moved in the settings is not what the binding claims")
+	sampler.prev = {}
+	cam("Q", "Begin")
+	check(sampler:build(sampler:levels()).guardHeld, "Q bound to Shield does not shield")
+	cam("Q", "End")
+	sampler.prev = {}
+	cam("I", "Begin")
+	check(not sampler:build(sampler:levels()).guardHeld, "I still shields after Shield moved to Q")
+	cam("I", "End")
+	SharedBindings.keyboard.guard = guard
+	InputClient.rebind()
+end
 print("PASS runtime input: packet bounds, D-pad order, chat focus, combat bindings, reliable transport and disconnects")

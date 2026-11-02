@@ -858,6 +858,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 	do
 		local covered = settingsMenu:isOpen() or touchEditor:isOpen() or shopScreen:isOpen() or locker:isOpen() or editor:isOpen()
 			or records:isOpen() or roomOverlay() or tutorialView.mode ~= nil or (tutorial ~= nil and tutorial:stopped())
+			-- (and the lobby's PLAY and MAP panels: open, PLAY covered the stick, and a thumb meant for
+			-- the stick pressed a fight's button - seen in Studio)
+			or (hub.active and social:anyOpen())
 		local ctx = if covered then "off" elseif acceptingSnapshots and matchCfg then "fight"
 			elseif parkour.active then "lobby" elseif hub.active then "lobby" else "off"
 		touch:setContext(ctx, if hub.active and not parkour.active then LOBBY_ROW else 0)

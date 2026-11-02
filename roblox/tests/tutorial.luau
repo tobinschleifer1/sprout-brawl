@@ -288,6 +288,13 @@ do
 	view.opts.touch = function() return true end
 	view:render(t)
 	if view.hint.Visible then fail("a touch screen's card says to press Enter") end
+	-- the stick's directions are STICK once on the goal line
+	local keyOf = view.opts.keyOf
+	view.opts.keyOf = function(a) return ({ left = "STICK LEFT", right = "STICK RIGHT", light = "ATTACK" })[a] or "?" end
+	if view:keyLine({ "left", "right" }) ~= "STICK" or view:keyLine({ "left", "light" }) ~= "STICK  ATTACK" then
+		fail(`the goal line names the stick twice: {view:keyLine({ "left", "right" })}`)
+	end
+	view.opts.keyOf = keyOf
 	view.opts.touch = nil
 	view:pressContinue()
 	if calls[2] ~= "continue" then fail("CONTINUE on a lesson did not continue") end

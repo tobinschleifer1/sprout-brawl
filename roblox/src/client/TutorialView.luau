@@ -72,6 +72,7 @@ function TutorialView.new(parent: Instance?, opts: any): any
 	local goalKeys = Ui.text(goal, "", 15, Ui.TEXT, Ui.DISPLAY, true)
 	goalKeys.Name, goalKeys.AnchorPoint, goalKeys.Position, goalKeys.Size = "GoalKeys", Vector2.new(1, 0), UDim2.new(1, -14, 0, 26), UDim2.fromOffset(90, 30)
 	goalKeys.TextXAlignment = Enum.TextXAlignment.Right
+	Ui.fit(goalKeys, 9)                     -- (a long one shrinks inside its box, never over the goal)
 	local bar = Ui.make("Frame", goal, { Name = "Bar", BackgroundColor3 = Ui.GREEN, BorderSizePixel = 0,
 		Position = UDim2.new(0, 3, 1, -7), Size = UDim2.new(0, 0, 0, 4) })
 	self.goal, self.goalTitle, self.goalText, self.goalKeys, self.goalBar = goal, goalTitle, goalText, goalKeys, bar
@@ -83,10 +84,15 @@ function TutorialView.new(parent: Instance?, opts: any): any
 	return self
 end
 
--- The keys of `actions`, as the player has them now: "J" or "W / S + J".
+-- The keys of `actions`, as the player has them now: "J" or "A  D". The stick's directions say
+-- STICK once (on a phone "STICK LEFT  STICK RIGHT" ran over the goal's own words).
 function TutorialView.keyLine(self: any, actions: { string }): string
 	local out = {}
-	for _, a in actions do table.insert(out, self.opts.keyOf(a)) end
+	for _, a in actions do
+		local k = self.opts.keyOf(a)
+		if string.sub(k, 1, 6) == "STICK " then k = "STICK" end
+		if not table.find(out, k) then table.insert(out, k) end
+	end
 	return table.concat(out, "  ")
 end
 

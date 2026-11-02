@@ -84,8 +84,45 @@ local function humans(room: any): number
 	return n
 end
 
--- Bots play on hard, always (the owner's call: one level, and a hard one).
+-- A bot slot holds BOT_LEVEL; the level it plays at is decided when the room is shown and when it
+-- launches (Rooms.botLevel), from the people in it at that moment.
 Rooms.BOT_LEVEL = "hard"
+-- Bots go easier on new players (the owner's call, 2026-11-02; it was hard for everyone): a room's
+-- bots play at what its least experienced player needs - easy below level BOT_NORMAL, normal below
+-- BOT_HARD, hard from there. Ranked's are always hard: it opens at level 10.
+Rooms.BOT_NORMAL, Rooms.BOT_HARD = 4, 8
+function Rooms.botLevel(self: any, room: any): string
+	if room.ranked then return "hard" end
+	local least = math.huge
+	for _, slot in room.slots do
+		if slot.player then least = math.min(least, self:level(slot.player.UserId)) end
+	end
+	if least < Rooms.BOT_NORMAL then return "easy" elseif least < Rooms.BOT_HARD then return "normal" end
+	return "hard"
+end
+-- New players meet new players: the queue seats people of the same BRACKET of levels (1-4, 5-11,
+-- 12 and up) together first. Someone left waiting widens it - one bracket either side after
+-- BRACKET_WAIT[1] seconds queued, anyone after BRACKET_WAIT[2] - so a quiet server still finds
+-- everyone a fight; FILL WITH BOTS is always there sooner. Not Ranked: it opens at level 10, and
+-- its few players would wait longest of all.
+Rooms.BRACKETS = { 5, 12 }
+Rooms.BRACKET_WAIT = { 20, 45 }
+function Rooms.bracket(level: number): number
+	local b = 1
+	for _, from in Rooms.BRACKETS do if level >= from then b += 1 end end
+	return b
+end
+-- How many brackets away a queued player will now meet (0 until they have waited).
+function Rooms.reach(self: any, id: number): number
+	local t = self.queuedAt and self.queuedAt[id]
+	local waited = if t then self.clock() - t else 0
+	return if waited >= Rooms.BRACKET_WAIT[2] then #Rooms.BRACKETS elseif waited >= Rooms.BRACKET_WAIT[1] then 1 else 0
+end
+-- May players `a` and `b` (user ids) be seated together? (Whichever has waited longer decides.)
+function Rooms.near(self: any, a: number, b: number): boolean
+	local gap = math.abs(Rooms.bracket(self:level(a)) - Rooms.bracket(self:level(b)))
+	return gap <= math.max(Rooms.reach(self, a), Rooms.reach(self, b))
+end
 -- Puts a bot in (or takes one out of) slot `i`: what a passed vote, or FILL WITH BOTS, does. A bot
 -- takes two different weapons at random from the roster (`rand(n)` returns 1..n).
 local function applyBot(room: any, i: number, value: any, rand: (number) -> number)
@@ -240,7 +277,9 @@ end
 
 -- Close every vote and phase whose time is up. Returns the rooms that changed, for the caller to
 -- resend (and to start the fight in, if one now is "playing").
-function Rooms.tick(self: any): { any }
+-- Also seats whoever waiting has now made near enough (Rooms.near); the formats whose queue that
+-- changed come back second, for their counts to be resent.
+function Rooms.tick(self: any): ({ any }, { string })
 	local changed = {}
 	for _, room in self.rooms do
 		local moved = false
@@ -248,7 +287,18 @@ function Rooms.tick(self: any): { any }
 		if self:advance(room) then moved = true end
 		if moved then table.insert(changed, room) end
 	end
-	return changed
+	local formats = {}
+	for format, list in self.queues or {} do
+		if #list > 0 then
+			local seated = self:matchQueue(format)
+			if #seated > 0 then table.insert(formats, format) end
+			for _, room in seated do
+				self:advance(room)
+				if not table.find(changed, room) then table.insert(changed, room) end
+			end
+		end
+	end
+	return changed, formats
 end
 function Rooms.profile(self: any, id: number): any
 	if not self.profiles[id] then self.profiles[id] = { weapon = FIRST, weapon2 = SECOND, avatar = "Classic" } end
@@ -290,7 +340,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	-- another, and the choice no longer depends on hash order.
 	local room: any, place: number?, bestOpen = nil, nil, math.huge
 	for _, candidate in self.rooms do
-		if candidate.format == format and candidate.state == "setup" and not Rooms.clashes(self, player, candidate) then
+		if candidate.format == format and candidate.state == "setup" and Rooms.fits(self, player, candidate) then
 			local open, first = 0, nil
 			for i, slot in candidate.slots do
 				if not slot.player and not slot.bot then
@@ -328,6 +378,7 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	local slot = room.slots[place]
 	slot.player, slot.weapon, slot.weapon2, slot.avatar = player, profile.weapon, profile.weapon2, profile.avatar
 	self.membership[player.UserId] = room.id
+	if self.queuedAt then self.queuedAt[player.UserId] = nil end
 	if self.avoid then self.avoid[player.UserId] = nil end
 	room.lastJoin = self.clock()
 	invalidate(room)
@@ -395,6 +446,9 @@ function Rooms.queue(self: any, player: any, format: any): ({ any }?, string?)
 	self.queues = self.queues or {}
 	self.queues[format] = self.queues[format] or {}
 	table.insert(self.queues[format], player)
+	-- (from when they first queued: switching format is the same wait; seated or out, it is forgotten)
+	self.queuedAt = self.queuedAt or {}
+	self.queuedAt[player.UserId] = self.queuedAt[player.UserId] or self.clock()
 	return self:matchQueue(format), nil
 end
 -- NEW OPPONENTS: out of your room (in setup) and into the queue for its format, never to be seated
@@ -421,9 +475,19 @@ function Rooms.clashes(self: any, player: any, room: any): boolean
 	end
 	return false
 end
--- Forget whom a player avoids (they left the queue, or the server).
+-- May `player` be seated in `room`: nobody there they avoid, and everyone there near their level.
+function Rooms.fits(self: any, player: any, room: any): boolean
+	if Rooms.clashes(self, player, room) then return false end
+	if room.ranked then return true end
+	for _, slot in room.slots do
+		if slot.player and slot.player ~= player and not Rooms.near(self, player.UserId, slot.player.UserId) then return false end
+	end
+	return true
+end
+-- Forget whom a player avoids, and how long they had waited (they left the queue, or the server).
 function Rooms.forget(self: any, player: any)
 	if self.avoid then self.avoid[player.UserId] = nil end
+	if self.queuedAt then self.queuedAt[player.UserId] = nil end
 end
 function Rooms.requeue(self: any, player: any): (any, { any }?, string?)
 	local room = self:get(player.UserId)
@@ -453,7 +517,7 @@ function Rooms.matchQueue(self: any, format: string): { any }
 	local function openRoomFor(p: any): boolean
 		for _, room in self.rooms do
 			if room.format == format and room.state == "setup" and (room.phase or "pick") == "pick" and not full(room)
-				and not Rooms.clashes(self, p, room) then return true end
+				and Rooms.fits(self, p, room) then return true end
 		end
 		return false
 	end
@@ -471,14 +535,21 @@ function Rooms.matchQueue(self: any, format: string): { any }
 			end
 		end
 	end
-	-- a new room, once enough are waiting who do not avoid each other (first come, first in)
+	-- a new room, once enough are waiting who do not avoid each other and are near each other's
+	-- level (first come, first in: each waiting player in turn tries to gather a group round them)
 	while f do
 		local group: { any } = {}
-		for _, p in list do
-			local ok = true
-			for _, q in group do if Rooms.shuns(self, p.UserId, q.UserId) then ok = false end end
-			if ok then table.insert(group, p) end
-			if #group >= f.players then break end
+		for _, anchor in list do
+			group = { anchor }
+			for _, p in list do
+				if #group >= f.players then break end
+				local ok = p ~= anchor
+				for _, q in group do
+					if ok and (Rooms.shuns(self, p.UserId, q.UserId) or (not f.ranked and not Rooms.near(self, p.UserId, q.UserId))) then ok = false end
+				end
+				if ok then table.insert(group, p) end
+			end
+			if #group >= Rooms.formAt(f.players) then break end
 		end
 		if #group < Rooms.formAt(f.players) then break end
 		for _, p in group do table.remove(list, table.find(list, p) :: number) end
@@ -502,7 +573,7 @@ function Rooms.fillWithBots(self: any, player: any): (any, string?)
 	-- (the others queued for it, but not anyone this room's players avoid)
 	local k = 1
 	while k <= #list and not full(room) do
-		if Rooms.clashes(self, list[k], room) then k += 1 else self:join(table.remove(list, k), format) end
+		if not Rooms.fits(self, list[k], room) then k += 1 else self:join(table.remove(list, k), format) end
 	end
 	fillBots(room, self.rand)
 	return room, nil
@@ -529,7 +600,7 @@ function Rooms.view(self: any, room: any): any
 	for _, slot in room.slots do
 		table.insert(slots, { userId = if slot.player then slot.player.UserId else nil,
 			name = if slot.player then slot.player.DisplayName else if slot.bot then "CPU" else "Open · bots off",
-			team = slot.team, bot = slot.bot, ready = slot.ready == true, weapon = slot.weapon, weapon2 = slot.weapon2, avatar = slot.avatar,
+			team = slot.team, bot = if slot.bot then Rooms.botLevel(self, room) else nil, ready = slot.ready == true, weapon = slot.weapon, weapon2 = slot.weapon2, avatar = slot.avatar,
 			vote = slot.vote, ruleVote = slot.ruleVote })
 	end
 	local vote = nil
@@ -738,12 +809,12 @@ function Rooms.resolveStage(room: any, rand: (number) -> number): string
 	end
 	return pick(room.stage)
 end
-function Rooms.roster(_self: any, room: any, rand: ((number) -> number)?): ({ any }, any)
+function Rooms.roster(self: any, room: any, rand: ((number) -> number)?): ({ any }, any)
 	local stage = Rooms.resolveStage(room, rand or function(n: number): number return math.random(1, n) end)
 	local roster = {}
 	for _, slot in room.slots do
 		table.insert(roster, { player = slot.player, avatar = slot.avatar, weapon = slot.weapon,
-			kit = { slot.weapon, slot.weapon2 or slot.weapon }, team = slot.team, botLevel = slot.bot })
+			kit = { slot.weapon, slot.weapon2 or slot.weapon }, team = slot.team, botLevel = if slot.bot then Rooms.botLevel(self, room) else nil })
 	end
 	local mode = (if room.mode == "timed" then "Timed" else "Stock") .. (if room.ffa then "FFA" else "Teams")
 	return roster, { mode = mode, timeLimit = room.time,

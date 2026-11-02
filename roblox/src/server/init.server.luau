@@ -477,7 +477,9 @@ RunService.Heartbeat:Connect(function(dt: number)
 		task.spawn(boardsJob)
 	end
 	-- bot votes whose ten seconds ran out (Rooms.BOT_VOTE_TIME): closed, and the room resent
-	for _, room in rooms:tick() do publish(room); launchRoom(room) end
+	local ticked, requeued = rooms:tick()
+	for _, room in ticked do publish(room); launchRoom(room) end
+	for _, format in requeued do sendQueue(format) end
 	if saveClock >= 1 then
 		saveClock = 0
 		task.spawn(function() avatars:tick() end)

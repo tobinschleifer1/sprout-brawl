@@ -3,7 +3,7 @@
 -- once the queue holds all but one of a fight's players (2 of 2, 3 of 4, 5 of 6), a newcomer takes
 -- an open place in a room already forming, ADD BOT may be proposed BOT_WAIT seconds after the last
 -- one in and a passed vote fills every open place, FILL WITH BOTS takes the queue into a room at
--- once, and every bot plays on hard with two different weapons.
+-- once, and every bot has two different weapons and plays at the room's newest player's level.
 --     lune run tests/queue
 local Loader = require("./loader")
 local Rooms = Loader.loadFrom("src/server/", "Rooms")
@@ -143,4 +143,108 @@ do
 	m:queue(c, "Doubles"); m:queue(c, "Triples")
 	if m:queued(6) ~= "Triples" or #m.queues.Doubles ~= 0 then fail("switching formats left you in the old queue") end
 end
-print("PASS queue: one waits in the lobby, a room forms at all-but-one (2/2, 3/4, 5/6), a newcomer takes an open place, ADD BOT waits 10s, a passed vote fills every place, FILL WITH BOTS brings the queue, bots hard with two different weapons, leave and switch")
+
+-- Bots go easier on new players (Rooms.botLevel): the least experienced person in the room decides
+-- - easy below level 4, normal below 8, hard from 8 - and Ranked's are hard. The room shows it and
+-- the match plays it.
+do
+	now = 0
+	local levels: { [number]: number } = {}
+	local m = model()
+	m.levelOf = function(id: number): number return levels[id] or 1 end
+	for _, case in { { 1, "easy" }, { 3, "easy" }, { 4, "normal" }, { 7, "normal" }, { 8, "hard" }, { 30, "hard" } } do
+		levels[50] = case[1]
+		m:queue(player(50), "Duel")
+		local room = m:fillWithBots(player(50))
+		if not room then fail("FILL WITH BOTS opened no room") end
+		local roster = m:roster(room, function() return 1 end)
+		if roster[2].botLevel ~= case[2] or m:view(room).slots[2].bot ~= case[2] then
+			fail(`a level {case[1]} player's bot plays {tostring(roster[2].botLevel)}, not {case[2]}`)
+		end
+		m:leave(player(50))
+	end
+	-- a mixed room: its newest player decides
+	levels[51], levels[52] = 20, 2
+	local p51, p52 = player(51), player(52)
+	m:queue(p51, "Triples"); m:queue(p52, "Triples")
+	now = 100                                   -- (waited past both brackets, so they share a room)
+	local room = m:fillWithBots(p51)
+	if not room or m:get(52) ~= room then fail("the two were not seated together") end
+	if m:roster(room)[3].botLevel ~= "easy" then fail("a room with a level 2 player in it plays hard bots") end
+	m:leave(p52)
+	if m:view(room).slots[3].bot ~= "hard" then fail("with the new player gone the bots stayed easy") end
+	-- Ranked: hard, whoever is in it (a level 1 cannot be in Ranked; this asks the rule, not the gate)
+	local r = { rooms = {}, ranked = true, slots = { { player = player(53) }, { bot = "hard" } } }
+	levels[53] = 1
+	if Rooms.botLevel(m, r) ~= "hard" then fail("Ranked's bots are not hard") end
+end
+
+-- New players meet new players (Rooms.bracket, Rooms.near): levels 1-4, 5-11 and 12+ are seated
+-- with their own first; after 20 s queued one bracket either side, after 45 s anyone; Ranked has
+-- no brackets.
+do
+	if Rooms.bracket(1) ~= 1 or Rooms.bracket(4) ~= 1 or Rooms.bracket(5) ~= 2 or Rooms.bracket(11) ~= 2 or Rooms.bracket(12) ~= 3 then
+		fail("the brackets are not 1-4, 5-11, 12+")
+	end
+	local levels: { [number]: number } = { [61] = 1, [62] = 30, [63] = 2, [64] = 6, [65] = 13 }
+	local function setup(): any
+		local m = model()
+		m.levelOf = function(id: number): number return levels[id] or 1 end
+		return m
+	end
+	-- a level 1 and a level 30 do not meet at once; a second level 2 meets the level 1 at once
+	now = 0
+	local m = setup()
+	m:queue(player(61), "Duel")
+	m:queue(player(62), "Duel")
+	if m:get(61) or m:get(62) then fail("a level 1 and a level 30 player were paired at once") end
+	m:queue(player(63), "Duel")
+	local room = m:get(61)
+	if not room or m:get(63) ~= room then fail("two new players queued together were not paired") end
+	if not m:queued(62) then fail("the level 30 player lost their place in the queue") end
+	-- the veteran waits on; a newcomer's open room is not theirs either, until they have waited
+	now = 0
+	m = setup()
+	m:queue(player(61), "Doubles"); m:queue(player(63), "Doubles"); m:queue(player(1), "Doubles")
+	local newRoom = m:get(61)
+	if not newRoom or #m.queues.Doubles ~= 0 then fail("three new players did not form a 2v2") end
+	m:queue(player(65), "Doubles")
+	if m:get(65) then fail("a level 13 player took a place in a room of new players at once") end
+	now = 19
+	m:tick()
+	if m:get(65) then fail("a level 13 player was seated with level 1s before 20 s") end
+	now = 30
+	m:tick()
+	if m:get(65) then fail("one bracket's reach seated a level 13 with level 1s (two brackets apart)") end
+	now = 45
+	local changed, formats = m:tick()
+	if m:get(65) ~= newRoom then fail("after 45 s the level 13 player was still not seated") end
+	if not table.find(changed, newRoom) or not table.find(formats, "Doubles") then fail("the tick that seated them did not report it") end
+	-- one bracket apart: after 20 s, not before
+	now = 0
+	m = setup()
+	m:queue(player(61), "Duel"); m:queue(player(64), "Duel")
+	if m:get(61) then fail("a level 1 and a level 6 were paired at once") end
+	now = 19.9
+	m:tick()
+	if m:get(61) then fail("a level 1 and a level 6 were paired before 20 s") end
+	now = 20
+	m:tick()
+	if not m:get(61) or m:get(61) ~= m:get(64) then fail("a level 1 and a level 6 were not paired after 20 s") end
+	-- leaving the queue forgets the wait
+	now = 0
+	m = setup()
+	local p61 = player(61)                      -- (the same player object: the queue finds people by it)
+	m:queue(p61, "Duel")
+	now = 50
+	m:dequeue(p61); m:forget(p61)
+	m:queue(p61, "Duel"); m:queue(player(62), "Duel")
+	if m:get(61) then fail("a wait from an earlier queue counted") end
+	-- Ranked: no brackets
+	now = 0
+	m = setup()
+	levels[66], levels[67] = 10, 40
+	m:queue(player(66), "Ranked"); m:queue(player(67), "Ranked")
+	if not m:get(66) or m:get(66) ~= m:get(67) then fail("Ranked kept a level 10 and a level 40 apart") end
+end
+print("PASS queue: one waits in the lobby, a room forms at all-but-one (2/2, 3/4, 5/6), a newcomer takes an open place, ADD BOT waits 10s, a passed vote fills every place, FILL WITH BOTS brings the queue, bots with two different weapons and gentler for new players (easy <4, normal <8, hard, Ranked hard), level brackets that widen at 20 s and 45 s, leave and switch")

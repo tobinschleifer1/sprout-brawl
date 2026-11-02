@@ -268,11 +268,12 @@ for _, peer in last(9,"HubPresence") do
 	assert(peer.x==12 and peer.z==5, "inside the kiosk, NaN and over the gap are all refused; the last good pose stands")
 end
 -- Explicit bot match can finish and cleanly return; completion targets no other room.
--- FILL WITH BOTS: alone in the 1v1 queue, into a room at once with a hard bot
+-- FILL WITH BOTS: alone in the 1v1 queue, into a room at once with a bot - an easy one, for a
+-- level 1 player (Rooms.botLevel)
 send(9,"RoomAction",{action="queue",format="Duel"})
 assert(last(9,"QueueView").queued and not last(9,"RoomView"), "one 1v1 player waits")
 send(9,"RoomAction",{action="fill"})
-assert(last(9,"RoomView") and last(9,"RoomView").slots[2].bot == "hard", "FILL WITH BOTS seats a hard bot")
+assert(last(9,"RoomView") and last(9,"RoomView").slots[2].bot == "easy", "FILL WITH BOTS seats an easy bot for a new player")
 assert(not last(9,"QueueView").queued, "and takes the player out of the queue")
 edit(9,"ready"); votes({9})
 assert(#last(9,"Match").fighters==2)

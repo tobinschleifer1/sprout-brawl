@@ -122,6 +122,8 @@ function TutorialView.render(self: any, t: any)
 		self.body.Text = lesson.body
 		self.go.Text = if lesson.fight then "FIGHT!" else "CONTINUE"
 		self.skip.Visible = true
+		-- (no Enter on a touch screen: the button is the way on)
+		self.hint.Visible = not (self.opts.touch and self.opts.touch())
 		showKeys(self, lesson)
 		self.keys.Visible = true
 	elseif t.finished then

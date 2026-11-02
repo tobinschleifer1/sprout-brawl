@@ -316,7 +316,12 @@ local function endTutorial()
 end
 local tutorialView: any
 tutorialView = TutorialView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
-	keyOf = function(action: string): string return Settings.keyName(Settings.first(settings, SHIPPED_KEYS, action)) end,
+	-- (a touch screen's cards name its buttons; a keyboard's, the player's own keys)
+	keyOf = function(action: string): string
+		if touch and touch:wanted() then return TouchLayout.labelFor(action) end
+		return Settings.keyName(Settings.first(settings, SHIPPED_KEYS, action))
+	end,
+	touch = function(): boolean return touch ~= nil and touch:wanted() end,
 	onStart = function() Net.remote("Tutorial"):FireServer("start") end,
 	onSkip = function()
 		Net.remote("Tutorial"):FireServer("skip")
@@ -439,9 +444,9 @@ Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 		tutorialOffered = true
 		applySettings(view.settings)
 		settingsMenu:set(settings)
-		-- (not on a phone or tablet without a keyboard: the lessons are taught on keys)
+		-- (phones and tablets too: the cards name the touch buttons there - keyOf)
 		firstTutorial = view.tutorial == false
-		if view.tutorial == false and not matchCfg and (UIS.KeyboardEnabled or not UIS.TouchEnabled) then tutorialView:offer() end
+		if view.tutorial == false and not matchCfg then tutorialView:offer() end
 	end
 	local worn = view.slots and view.slots[view.active]
 	if worn and select_ then

@@ -91,5 +91,11 @@ do
 	if #TouchLayout.overlaps(stacked) == 0 then fail("two buttons on top of each other were not found overlapping") end
 end
 
+-- the tutorial's cards name a touch screen's controls
+if TouchLayout.labelFor("light") ~= "ATTACK" or TouchLayout.labelFor("guard") ~= "SHIELD" or TouchLayout.labelFor("left") ~= "STICK LEFT"
+	or TouchLayout.labelFor("ult") ~= "ULT" then fail("a touch control is named wrongly for the tutorial's cards") end
+for _, c in TouchLayout.CONTROLS do
+	if c.action and TouchLayout.labelFor(c.action) ~= c.label then fail(`{c.id}'s card name is not its button's`) end
+end
 print(`PASS touch layout: {#TouchLayout.CONTROLS} controls on {#SCREENS} phones and tablets, each on screen, under the HUD, apart, thumb-sized and unsqueezed,`)
 print("  two thumbs' room between stick and buttons, the lobby's lifted over its row; customisations sanitised, dropped where dragged, per class, never off screen")

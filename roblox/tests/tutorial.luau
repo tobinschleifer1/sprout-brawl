@@ -283,6 +283,12 @@ do
 	if view.step.Text ~= `LESSON 3 / {#Tutorial.LESSONS}` or view.cardTitle.Text ~= "LIGHT ATTACK" then fail("the card names the wrong lesson") end
 	local cap = find(find(view.keys, "Key_light"), "Key")
 	if not cap or cap.Text ~= "J" then fail("the card does not show the player's own key for a light attack") end
+	if not view.hint.Visible then fail("a keyboard's card does not say Enter continues") end
+	-- on a touch screen: no Enter to press
+	view.opts.touch = function() return true end
+	view:render(t)
+	if view.hint.Visible then fail("a touch screen's card says to press Enter") end
+	view.opts.touch = nil
 	view:pressContinue()
 	if calls[2] ~= "continue" then fail("CONTINUE on a lesson did not continue") end
 	t:continue()

@@ -113,6 +113,16 @@ function TouchLayout.offsetFor(w: number, h: number, id: string, x: number, y: n
 	return cx - c.x, cy - (if lift and c.lobbyY then c.lobbyY else c.y)
 end
 
+-- What a touch screen calls an action's control (the tutorial's cards): its button's word, or the
+-- stick for a direction.
+local STICK = { left = "STICK LEFT", right = "STICK RIGHT", up = "STICK UP", down = "STICK DOWN" }
+function TouchLayout.labelFor(action: string): string
+	if STICK[action] then return STICK[action] end
+	for _, c in TouchLayout.CONTROLS do
+		if c.action == action then return c.label or string.upper(action) end
+	end
+	return string.upper(action)
+end
 -- Pairs of controls whose circles overlap (the editor warns; the defaults never do).
 function TouchLayout.overlaps(placed: { [string]: any }): { { string } }
 	local out = {}

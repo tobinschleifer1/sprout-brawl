@@ -1240,6 +1240,12 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		self.prompt.Position = UDim2.new(0.5, 0, 1, -62)
 	end
 	if not high and Ui.lightPanels() and self.prompt.Visible then self.controls.Visible = false end
+	-- a touch screen's stick is at the bottom left: the card goes above it (`touchLift`: the stick's
+	-- top, in px from the bottom; init.client sets it), and the key hints - no keys there - go
+	if (self.touchLift or 0) > 0 then
+		self.controls.Visible = false
+		if self.prompt.AnchorPoint.X == 0 then self.prompt.Position = UDim2.new(0, 16, 1, -(self.touchLift + 8)) end
+	end
 	local promptMax = if high then math.max(gw / 2 - 16 - Plaza2D.FIGHTER_CLEAR, 160)
 		elseif Ui.lightPanels() then math.max(gw - Plaza2D.SOCIAL_BAR_W - 48, 200)
 		else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)

@@ -59,6 +59,9 @@ local Audio = require(script.Audio)
 local SettingsMenu = require(script.SettingsMenu)
 local Tutorial = require(script.Tutorial)
 local TutorialView = require(script.TutorialView)
+local TouchControls = require(script.TouchControls)
+local TouchEditor = require(script.TouchEditor)
+local TouchLayout = require(Shared.TouchLayout)
 local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
@@ -285,6 +288,7 @@ local SHIPPED_KEYS: { [string]: { string } } = {}
 for action, keys in Bindings.keyboard :: any do SHIPPED_KEYS[action] = table.clone(keys) end
 local audio = Audio.attach()
 Ui.clickSound = function() audio:play("ui") end
+local touch: any               -- (TouchControls, made below with the settings menu)
 local settings = Settings.sanitize(nil)
 local settingsSaveAt: number? = nil
 local function applySettings(s: any)
@@ -295,6 +299,7 @@ local function applySettings(s: any)
 	audio:setVolumes(settings.music, settings.sfx)
 	Hud.hintsOn = settings.hints
 	if hud then hud:makeHints() end
+	if touch then touch:apply(settings.touchMode, settings.touch) end
 end
 -- the tutorial: its lessons (Tutorial) while one runs, and its cards (TutorialView)
 local tutorial: any = nil
@@ -334,6 +339,13 @@ tutorialView = TutorialView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 		end
 	end,
 })
+-- Phones and tablets: buttons on the screen (TouchControls), laid out per device and moved in
+-- SETTINGS (TouchEditor). Played sideways.
+pcall(function() (Players.LocalPlayer:WaitForChild("PlayerGui") :: any).ScreenOrientation = Enum.ScreenOrientation.LandscapeSensor end)
+touch = TouchControls.new(Players.LocalPlayer:WaitForChild("PlayerGui"), { input = InputClient })
+local touchEditor: any
+-- (the lobby's bottom-right icon row: JUMP sits over it - TouchLayout's `lift`)
+local LOBBY_ROW = 96
 local settingsMenu = SettingsMenu.new(Players.LocalPlayer:WaitForChild("PlayerGui"), SHIPPED_KEYS, {
 	onChange = function(s: any)
 		applySettings(s)
@@ -342,6 +354,12 @@ local settingsMenu = SettingsMenu.new(Players.LocalPlayer:WaitForChild("PlayerGu
 	onTutorial = function()
 		if hub.active and not hub.room and not roomOverlay() then Net.remote("Tutorial"):FireServer("start") end
 	end,
+	onEditTouch = function()
+		touchEditor:open(settings.touch, touch.gui.AbsoluteSize.X > 0 and touch.gui.AbsoluteSize or workspace.CurrentCamera.ViewportSize)
+	end,
+})
+touchEditor = TouchEditor.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	onDone = function(custom: any) settingsMenu:setTouch(custom) end,
 })
 hub.onSettings = function()
 	if hub.active and not hub.room and not roomOverlay() then settingsMenu:toggle() end
@@ -834,6 +852,17 @@ RunService.Heartbeat:Connect(function(dt: number)
 	if tutorialLeaving and os.clock() - tutorialLeaving.at > 3 then
 		tutorialLeaving.at = os.clock()
 		Net.remote("Tutorial"):FireServer(tutorialLeaving.action)
+	end
+	-- the touch buttons: every one in a fight, the stick and JUMP in the lobby and on the climb, none
+	-- while a window or a card is up (their taps are the window's)
+	do
+		local covered = settingsMenu:isOpen() or touchEditor:isOpen() or shopScreen:isOpen() or locker:isOpen() or editor:isOpen()
+			or records:isOpen() or roomOverlay() or tutorialView.mode ~= nil or (tutorial ~= nil and tutorial:stopped())
+		local ctx = if covered then "off" elseif acceptingSnapshots and matchCfg then "fight"
+			elseif parkour.active then "lobby" elseif hub.active then "lobby" else "off"
+		touch:setContext(ctx, if hub.active and not parkour.active then LOBBY_ROW else 0)
+		local stick = touch.gui.Enabled and ctx == "lobby" and touch.placed.stick
+		hub.touchLift = if stick then touch.size.Y - (stick.y - stick.r) else 0
 	end
 	-- settings, saved a second after the last change
 	if settingsSaveAt and os.clock() >= settingsSaveAt then

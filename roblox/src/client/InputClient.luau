@@ -26,6 +26,14 @@ InputClient.__index = InputClient
 
 -- Every sampler made, for the one shared ContextActionService binding to feed (see new()).
 local LIVE: { any } = {}
+-- The touch controls (TouchControls), read like a third device: the actions held down on screen
+-- and the stick's x, y (-1..1, up positive). One for every sampler, as the keyboard is.
+InputClient.touch = { held = {} :: { [string]: boolean }, x = 0, y = 0 }
+-- A touch button went down: its action's press edge for every sampler, so a tap between two
+-- samples is never lost (the keyboard's InputBegan does the same).
+function InputClient.pressAction(action: string)
+	for _, client in LIVE do client.pending[action] = true end
+end
 local bound = false
 
 -- (Re)binds every key the game uses through ContextActionService, from Bindings as they are now:
@@ -169,9 +177,12 @@ function InputClient.levels(self: any): { [string]: any }
 		return UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, c) or self.heldCodes[c] == true
 	end
 	local ax, ay = padAxis()
+	-- (the touch stick when the gamepad's is at rest)
+	local touch = InputClient.touch
+	if ax == 0 and ay == 0 and (math.abs(touch.x) > DEAD or math.abs(touch.y) > DEAD) then ax, ay = touch.x, touch.y end
 	local l: { [string]: any } = {}
 	for _, k in LEVEL_KEYS do
-		l[k] = down(KB[k]) or (PAD[k] ~= nil and pad(PAD[k]))
+		l[k] = down(KB[k]) or (PAD[k] ~= nil and pad(PAD[k])) or touch.held[k] == true
 	end
 	l.left = l.left or ax < -DEAD
 	l.right = l.right or ax > DEAD

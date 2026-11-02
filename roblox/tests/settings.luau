@@ -211,6 +211,39 @@ do
 	end
 end
 
+-- 4b. Touch: AUTO by default, ON and OFF kept, anything else AUTO; the layout kept as TouchLayout
+-- keeps it; the menu turns AUTO -> ON -> OFF and hands EDIT LAYOUT on, and keeps what the editor
+-- hands back.
+do
+	if Settings.sanitize(nil).touchMode ~= "auto" or Settings.sanitize({ touchMode = "off" }).touchMode ~= "off"
+		or Settings.sanitize({ touchMode = "sideways" }).touchMode ~= "auto" then fail("the touch mode is not kept as AUTO, ON or OFF") end
+	local t = Settings.sanitize({ touch = { phone = { light = { dx = 2, s = 99 } } } }).touch
+	if t.phone.light.dx ~= 2 or t.phone.light.s ~= 1.6 then fail("a touch layout was not kept as TouchLayout keeps it") end
+	local Menu = Loader.loadFrom("src/client/", "SettingsMenu")
+	local changes, edits = {}, 0
+	local root = Loader.gui.Instance.new("Folder")
+	local menu = Menu.new(root, SHIPPED, { onChange = function(s) table.insert(changes, s) end, onEditTouch = function() edits += 1 end })
+	menu:open()
+	local function find(node, name)
+		for _, c in node._children do
+			if c.Name == name then return c end
+			local d = find(c, name)
+			if d then return d end
+		end
+		return nil
+	end
+	local mode = find(find(root, "TouchMode"), "Mode")
+	if mode.Text ~= "AUTO" then fail("the touch mode does not read AUTO") end
+	mode.Activated:Fire()
+	if changes[#changes].touchMode ~= "on" or mode.Text ~= "ON" then fail("AUTO did not turn to ON") end
+	mode.Activated:Fire(); mode.Activated:Fire()
+	if changes[#changes].touchMode ~= "auto" then fail("the touch mode does not go round AUTO, ON, OFF") end
+	find(find(root, "TouchLayout"), "EditTouch").Activated:Fire()
+	if edits ~= 1 or menu:isOpen() then fail("EDIT LAYOUT did not close the menu for the editor") end
+	menu:setTouch({ phone = { jump = { dx = 1, dy = 0, s = 1 } } })
+	if changes[#changes].touch.phone.jump.dx ~= 1 then fail("the editor's layout was not kept") end
+end
+
 -- 5. The record: settings and the tutorial's flag survive a save and a hand edit; a change from
 -- the menu is kept as sanitize rebuilds it and marks the record to save.
 do

@@ -260,6 +260,27 @@ check(service.input:get("p7").x == 1, "current rejoin epoch accepts input")
 callbacks.leave({ UserId = 7 })
 check(service.input:get("p7").x == 0, "disconnected fighters stop repeating their last movement")
 -- The room panel's real buttons and layout are exercised by room-ui.luau.
+-- Touch (TouchControls feeds InputClient.touch): a held button is held, a press between samples
+-- is not lost, the stick drives the fighter (up positive), and the gamepad's stick still wins when
+-- it is pushed.
+do
+	local t = InputClient.touch
+	sampler.prev, sampler.pending = {}, {}
+	t.held.guard = true
+	local f = sampler:build(sampler:levels())
+	check(f.guard and f.guardHeld, "a touch SHIELD held does not shield")
+	t.held.guard = nil
+	check(not sampler:build(sampler:levels()).guardHeld, "a touch SHIELD let go still shields")
+	InputClient.pressAction("light")
+	check(sampler:build(sampler:levels()).light, "a touch ATTACK tapped between samples was lost")
+	t.x, t.y = 0.6, 0.8
+	f = sampler:build(sampler:levels())
+	check(f.x == 0.6 and f.y == 0.8, "the touch stick does not drive the fighter")
+	t.x, t.y = 0.1, 0
+	check(sampler:build(sampler:levels()).x == 0, "a touch stick inside the dead zone moved the fighter")
+	t.x, t.y = 0, 0
+	sampler.prev = {}
+end
 -- Settings rebinding: Shield moved to Q is bound again in place of the old binding (Q heard above
 -- the camera, as I was), and the old key no longer shields.
 do

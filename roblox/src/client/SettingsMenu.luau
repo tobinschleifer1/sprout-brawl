@@ -95,6 +95,21 @@ function SettingsMenu.new(parent: Instance?, defaults: { [string]: { string } },
 	end)
 	tb.Name, tb.AnchorPoint, tb.Position, tb.Size = "StartTutorial", Vector2.new(1, 0.5), UDim2.new(1, 0, 0.5, 0), UDim2.fromOffset(170, 34)
 
+	-- TOUCH: the on-screen buttons of a phone or tablet, and their layout (TouchControls, TouchEditor)
+	heading("TOUCH")
+	local mr = row("TouchMode")
+	label(mr, "Touch buttons")
+	local mode = Ui.button(mr, "", Ui.PANEL2, function() self:cycleTouch() end)
+	mode.Name, mode.AnchorPoint, mode.Position, mode.Size = "Mode", Vector2.new(1, 0.5), UDim2.new(1, 0, 0.5, 0), UDim2.fromOffset(150, 34)
+	self.touchMode = mode
+	local lr = row("TouchLayout")
+	label(lr, "Move and resize them")
+	local edit = Ui.button(lr, "EDIT LAYOUT", Ui.BLUE, function()
+		self:close()
+		if self.opts.onEditTouch then self.opts.onEditTouch() end
+	end)
+	edit.Name, edit.AnchorPoint, edit.Position, edit.Size = "EditTouch", Vector2.new(1, 0.5), UDim2.new(1, 0, 0.5, 0), UDim2.fromOffset(150, 34)
+
 	-- CONTROLS: every action and its keys
 	heading("CONTROLS")
 	local note = Ui.text(body, "Press a key box, then the key you want. Escape cancels.", 13, Ui.SUB, Ui.LABEL, true)
@@ -133,6 +148,22 @@ end
 function SettingsMenu.flip(self: any, key: string)
 	local s = table.clone(self.settings)
 	s[key] = not s[key]
+	self.settings = Settings.sanitize(s)
+	changed(self)
+end
+-- AUTO (on a touch screen) -> ON -> OFF.
+SettingsMenu.TOUCH_MODES = { "auto", "on", "off" }
+function SettingsMenu.cycleTouch(self: any)
+	local s = table.clone(self.settings)
+	local i = table.find(SettingsMenu.TOUCH_MODES, s.touchMode) or 1
+	s.touchMode = SettingsMenu.TOUCH_MODES[i % #SettingsMenu.TOUCH_MODES + 1]
+	self.settings = Settings.sanitize(s)
+	changed(self)
+end
+-- The layout the editor kept (TouchEditor's DONE).
+function SettingsMenu.setTouch(self: any, custom: any)
+	local s = table.clone(self.settings)
+	s.touch = custom
 	self.settings = Settings.sanitize(s)
 	changed(self)
 end
@@ -181,6 +212,7 @@ function SettingsMenu.render(self: any)
 		b.Text = if s[key] then "ON" else "OFF"
 		Ui.paint(b, if s[key] then Ui.GREEN else Ui.shade(Ui.PANEL2, -0.2))
 	end
+	self.touchMode.Text = if s.touchMode == "on" then "ON" elseif s.touchMode == "off" then "OFF" else "AUTO"
 	local kb = Settings.keyboard(s, self.defaults)
 	for action, b in self.rows do
 		local names = {}

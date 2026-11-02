@@ -102,6 +102,9 @@ lune run tests/progression
 echo "== settings (keys, volume, sound) and the first-time tutorial, played through =="
 lune run tests/settings
 lune run tests/tutorial
+echo "== touch controls: a layout for every phone and tablet, the buttons, the editor =="
+lune run tests/touch-layout
+lune run tests/touch-controls
 lune run tests/room-phases
 lune run tests/multiplayer
 lune run tests/presence-codec

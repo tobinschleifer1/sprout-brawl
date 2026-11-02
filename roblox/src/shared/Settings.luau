@@ -9,6 +9,7 @@
 -- given this action's old one - a swap, so nothing is ever keyless - unless the two shipped sharing
 -- it (Jump and Aim up both have W): then it simply keeps its other keys, and Jump to W leaves Aim up
 -- its arrow and Jump its Space, rather than moving Space to Aim up.
+local TouchLayout = require(script.Parent.TouchLayout)
 local Settings = {}
 
 Settings.DEFAULTS = { music = 0.6, sfx = 0.8, shake = true, hints = true }
@@ -58,6 +59,9 @@ function Settings.sanitize(raw: any): any
 		shake = if type(src.shake) == "boolean" then src.shake else Settings.DEFAULTS.shake,
 		hints = if type(src.hints) == "boolean" then src.hints else Settings.DEFAULTS.hints,
 		binds = binds,
+		-- touch buttons: "auto" (on a touch screen), "on" or "off", and the player's own layout
+		touchMode = if src.touchMode == "on" or src.touchMode == "off" then src.touchMode else "auto",
+		touch = TouchLayout.sanitize(src.touch),
 	}
 end
 

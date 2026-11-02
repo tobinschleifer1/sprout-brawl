@@ -469,6 +469,9 @@ do
 	local buys = 0
 	screen.onBuyPicks = function() buys += 1 end
 	find("PickDaggers").Activated:Fire()
+	-- the pick phase's countdown, written every second, leaves the note up (it wiped it, in Studio)
+	screen.phaseEndsAt, screen.clockShown = 100, nil
+	screen:tickPhase(70)
 	local ask = find("Status").Text
 	if not string.find(ask, "Starter Picks", 1, true) or not string.find(ask, "19 R$", 1, true) then fail(`a locked weapon does not offer Starter Picks at its price: {ask}`) end
 	fits()

@@ -909,7 +909,9 @@ function SelectScreen.tickPhase(self: any, t: number)
 	if self.clockShown == left then return end
 	self.clockShown = left
 	self.clock.Text = tostring(left)
-	if (room.phase or "pick") == "pick" and not room.error then
+	-- (not over a locked weapon's note: written every second, it wiped "Press again: Starter Picks"
+	-- before anyone could read it - found in Studio. The clock still counts.)
+	if (room.phase or "pick") == "pick" and not room.error and not self.lockNote then
 		self.status.Text = `Map vote in {left}s - or as soon as everyone is ready.`
 	end
 end

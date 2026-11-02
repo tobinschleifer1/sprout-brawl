@@ -58,7 +58,8 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local passes = Passes.new({ market = MarketplaceService, studio = RunService:IsStudio() })
 avatars.wardrobe = function(userId: number) return passes:owns(userId, "wardrobe") end
 -- Clothing is worn only by its owner (AvatarStore: on save, and every time a character is used).
-avatars.owns = function(userId: number, id: string): boolean return locker:owns(userId, id) end
+-- (truly owned, even in Studio: the studio's greyed Shop pieces are what a playtest should see)
+avatars.owns = function(userId: number, id: string): boolean return locker:ownsTruly(userId, id) end
 locker.vip = function(userId: number) return passes:owns(userId, "vip") end
 local economy = Economy.new({ store = avatars, mint = mint,
 	paidAllowed = function(userId: number): boolean return not restricted(userId) end,

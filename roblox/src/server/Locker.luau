@@ -51,6 +51,11 @@ end
 
 function Locker.owns(self: any, userId: number, id: string): boolean
 	if self.studio then return Cosmetics.get(id) ~= nil end
+	return Locker.ownsTruly(self, userId, id)
+end
+-- What the player's record really holds, Studio or not: the character studio's clothing goes by
+-- this, so a playtest shows the greyed Shop pieces a new player sees (the owner's ask, 2026-11-02).
+function Locker.ownsTruly(self: any, userId: number, id: string): boolean
 	return self:inventory(userId).owned[id] == true
 end
 

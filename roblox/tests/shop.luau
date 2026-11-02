@@ -175,6 +175,14 @@ do
 	Products.pass("starter").pass = 777
 	assert(bought:bought(1, 777) == "starter" and bought:owns(1, "starter"), "Starter Picks bought in Studio is still not owned")
 	Products.pass("starter").pass = 0
+	-- the character studio's clothing goes by what is truly owned, Studio or not, so a playtest sees
+	-- the greyed Shop pieces; the Locker's Studio still owns everything
+	local sw = world()
+	local studioLocker = Locker.new({ store = sw.store, studio = true })
+	assert(studioLocker:owns(1, "neon_circuit_bomber") and not studioLocker:ownsTruly(1, "neon_circuit_bomber"),
+		"in Studio the character studio would show every Shop piece as owned")
+	sw.econ:grant(1, "neon_circuit_bomber", true, "shop")
+	assert(studioLocker:ownsTruly(1, "neon_circuit_bomber"), "a piece really owned does not count in the character studio")
 end
 
 -- 7. VIP's saved outfits: five slots with VIP, one without; saving and wearing; only owned items put on.

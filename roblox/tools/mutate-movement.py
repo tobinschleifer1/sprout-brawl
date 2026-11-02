@@ -686,6 +686,7 @@ unarmed = [
 ]
 # Starter Picks in Studio, the studio's greyed pieces, the tutorial's next step (2026-11-02)
 studiopicks = [
+    ('truly owns all', 'server/Locker', '\treturn self:inventory(userId).owned[id] == true\nend\n\n', '\treturn Cosmetics.get(id) ~= nil\nend\n\n', 'would show every Shop piece'),
     ('studio owns picks', 'server/Passes', '\tif self.studio and p.studioOwned ~= false then return p.available end\n', '\tif self.studio then return p.available end\n', 'skips the payment'),
 ]
 greyed = [

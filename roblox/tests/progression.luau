@@ -679,10 +679,57 @@ do
 	if NextGoal.text({ level = 50, into = 0, need = 0, rank = { points = 1200, tier = 6 } }) ~= "" then fail("the top of everything still shows a goal") end
 end
 
+-- Starter Picks (the 19 R$ pass): two locked weapons of the player's choice, now, for good. Only with
+-- the pass; never a starter, a weapon already unlocked, an unknown one or one picked already; never a
+-- third. The picks survive the record being read back (and a hand-edited one is cleaned), and the
+-- rooms let a picked weapon in at level 1.
+do
+	local t = 0
+	local econ = Economy.new({ store = records(), mint = Mint.new(nil, function() return t end, true), rand = function() return 0.5 end,
+		time = function() return t end })
+	local Products = Loader.load("Products")
+	local pass = Products.pass("starter")
+	if not pass or pass.price ~= 19 or not pass.available or Progression.PICKS ~= 2 then fail("Starter Picks is not a 19 R$ pass of two picks") end
+	local ok, why = econ:pick(7, "Daggers", false)
+	if ok or #econ:picks(7) ~= 0 or not string.find(tostring(why), "Starter Picks", 1, true) then fail("a pick was spent without the pass") end
+	for _, bad in { "Sword", "Grimoire", "NotAWeapon", 42, nil } do
+		if econ:pick(7, bad, true) then fail(`{tostring(bad)} was picked`) end
+	end
+	if #econ:picks(7) ~= 0 then fail("a refused pick was spent") end
+	ok = econ:pick(7, "RocketBoots", true)
+	if not ok or econ:picks(7)[1] ~= "RocketBoots" then fail("the first pick was refused") end
+	if econ:pick(7, "RocketBoots", true) then fail("the same weapon was picked twice") end
+	local ok2, res2 = econ:pick(7, "Whip", true)
+	if not ok2 or res2.left ~= 0 or #econ:picks(7) ~= 2 then fail("the second pick was refused") end
+	local ok3, why3 = econ:pick(7, "Chakram", true)
+	if ok3 or #econ:picks(7) ~= 2 or not string.find(tostring(why3), "both", 1, true) then fail("a third weapon was picked") end
+	if not table.find(econ:view(7).progress.picks or {}, "Whip") then fail("the client is not told its picks") end
+	-- a weapon already unlocked by level is not worth a pick
+	econ:inventory(8).progress.xp = Progression.xpTo(12)
+	if econ:pick(8, "Daggers", true) then fail("a pick was spent on a weapon level 12 already has") end
+	-- the record
+	local back = Inventory.sanitize({ progress = { picks = { "Whip", "Whip", "Sword", "Nope", 3, "Chakram", "Daggers" } } })
+	if #back.progress.picks ~= 2 or back.progress.picks[1] ~= "Whip" or back.progress.picks[2] ~= "Chakram" then
+		fail(`a hand-edited record kept picks {table.concat(back.progress.picks, ",")}`)
+	end
+	if #Inventory.sanitize({ progress = { picks = "Whip" } }).progress.picks ~= 0 then fail("picks that are not a list were kept") end
+	-- the rooms: a picked weapon at level 1, and nothing else above it
+	local m = Rooms.new()
+	m.picksOf = function(id) return if id == 7 then { "RocketBoots", "Whip" } else {} end
+	local p7 = player(7)
+	m:queue(p7, "Duel")
+	local room = m:fillWithBots(p7)
+	local function try(w) return m:edit(p7, { id = room.id, revision = room.revision, action = "weapon", value = w }) end
+	if not try("RocketBoots") then fail("a picked weapon was refused at level 1") end
+	if try("Chakram") then fail("an unpicked locked weapon was let in") end
+	m.picksOf = function() error("down") end
+	if try("Whip") then fail("picks that could not be read let a locked weapon in") end
+end
 print("PASS progression: the first six weapons for everyone, the rest from level 3 to 15; level 15 about thirty matches in; Ranked at level 10")
 print("  six tiers, never dropping one reached, each paying keys and Sparks once; ranked wins pay Sparks and a key every three; ranked moves the drop meter further")
 print("  every level 2-50 pays once (watermark), titles even into a full locker; ranked keys capped 3 a week; first match level 2; welcome back")
 print("  Studio reaches Ranked on the drawn 3rd-6th match, and only Studio")
 print("  NEW OPPONENTS avoids the players left (both ways, 60 s, through queue and FILL WITH BOTS); Analytics never throws")
 print("  the near-miss line names the closest goal - level or tier - by share to go, a tie to the level")
+print("  Starter Picks: two locked weapons, with the pass only, never a third, kept in the record and honoured by the rooms")
 print("  free-for-alls of 3, 4 and 6 (own teams, FFA modes); Ranked's fixed rules and competitive maps, no rules vote; weapons and Ranked refused below their level")

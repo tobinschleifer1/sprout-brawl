@@ -326,8 +326,27 @@ function SelectScreen.setLevel(self: any, level: number)
 	self.level = level
 	if self.open then self:render() end
 end
+-- Starter Picks (Products "starter"): the weapons picked, and whether they own the pass. A locked
+-- weapon then asks for a second press to spend a pick on it (`onPick`, the server decides).
+function SelectScreen.setPicks(self: any, picks: any, pass: boolean)
+	picks = if type(picks) == "table" then picks else {}
+	local same = pass == self.pickPass and #picks == #(self.picks or {})
+	self.picks, self.pickPass = picks, pass == true
+	-- (the answer to a pick sent: the economy's next view says whether it was spent)
+	local pending = self.pickPending
+	if pending then
+		self.pickPending = nil
+		local name = Weapons.BY_ID[pending] and Weapons.BY_ID[pending].name or pending
+		self.lockNote = if table.find(picks, pending) then `{name} unlocked. Yours to keep.` else `{name} could not be unlocked.`
+		same = false
+	end
+	if not same then
+		self.confirmPick = nil
+		if self.open then self:render() end
+	end
+end
 function SelectScreen.locked(self: any, id: string): boolean
-	return not Progression.unlocked(self.level or 1, id)
+	return not Progression.has(self.level or 1, id, self.picks)
 end
 
 -- Weapon drops: you bring two weapons. A click fills the hand being chosen and moves on to the
@@ -336,10 +355,29 @@ end
 function SelectScreen.pickWeapon(self: any, id: string)
 	-- (a locked weapon says when it unlocks; the server refuses it too)
 	if self:locked(id) then
-		self.lockNote = `{Weapons.BY_ID[id].name} unlocks at level {Progression.unlockLevel(id)}. You are level {self.level}.`
+		local name, picks = Weapons.BY_ID[id].name, self.picks or {}
+		local at = `{name} unlocks at level {Progression.unlockLevel(id)}.`
+		if self.pickPass and Progression.pickable(self.level or 1, id, picks) then
+			-- a pick is for good: the first press asks, the second spends it
+			if self.confirmPick == id then
+				self.confirmPick = nil
+				self.lockNote = `Unlocking {name}…`
+				self.pickPending = id
+				if self.onPick then self.onPick(id) end
+			else
+				self.confirmPick = id
+				local left = Progression.PICKS - #picks
+				self.lockNote = `{at} Press again to unlock it with a Starter Pick ({left} left).`
+			end
+		elseif self.pickPass then
+			self.lockNote = `{at} You have used both Starter Picks.`
+		else
+			self.lockNote = `{at} Or unlock any 2 now with Starter Picks, in the Shop.`
+		end
 		self:render()
 		return
 	end
+	self.confirmPick = nil
 	self.lockNote = nil
 	local mine = nil
 	for _, slot in (self.room and self.room.slots) or {} do if slot.userId == self.userId then mine = slot end end

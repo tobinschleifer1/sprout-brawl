@@ -244,7 +244,7 @@ do
 	assert(vip:matchFinished(1, winRes, winRow).firstWin == Economy.FIRST_WIN * 2, "VIP did not double the first-win bonus")
 	local vinv = vip:inventory(1)
 	local got = vip:_dropInto(vinv, { kind = "sparks", amount = 50 }, true)
-	assert(got.amount == 55, `a VIP Spark drop paid {got.amount}, not 55`)
+	assert(got.amount == 60, `a VIP Spark drop paid {got.amount}, not 60 (+20%)`)
 	assert(econ:_dropInto(inv, { kind = "sparks", amount = 50 }, false).amount == 50, "a Spark drop without VIP was changed")
 end
 

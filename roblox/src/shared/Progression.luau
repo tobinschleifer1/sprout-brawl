@@ -77,6 +77,23 @@ end
 function Progression.unlocked(level: number, weapon: string): boolean
 	return level >= Progression.unlockLevel(weapon)
 end
+-- Starter Picks (the 19 R$ game pass "starter", Products; the owner's idea, 2026-11-02): its owner
+-- picks any PICKS weapons that are still locked and has them now, whatever their level. Two, once:
+-- a pick is never moved to another weapon, and it is kept for good (the record's progress.picks).
+Progression.PICKS = 2
+-- A weapon that unlocks by level (one of UNLOCKS): what a pick may be.
+function Progression.unlockable(weapon: any): boolean
+	return type(weapon) == "string" and (UNLOCK_AT[weapon] or 1) > 1
+end
+-- May a weapon be picked: one still locked by level, not picked already, with a pick left.
+function Progression.pickable(level: number, weapon: any, picks: { string }): boolean
+	return Progression.unlockable(weapon) and not Progression.unlocked(level, weapon) and not table.find(picks, weapon)
+		and #picks < Progression.PICKS
+end
+-- Unlocked by level, or picked.
+function Progression.has(level: number, weapon: string, picks: { string }?): boolean
+	return Progression.unlocked(level, weapon) or (picks ~= nil and Progression.unlockable(weapon) and table.find(picks, weapon) ~= nil)
+end
 -- The weapons unlocked by going from level `from` to level `to`.
 function Progression.unlocksBetween(from: number, to: number): { string }
 	local out = {}

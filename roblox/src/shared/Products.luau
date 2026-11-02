@@ -52,6 +52,11 @@ Products.PASSES = {
 	{ id = "vip", name = "VIP", price = 199, pass = 0, available = true, perks = {
 		"Gold name and [VIP] chat tag", "+20% Sparks from drops and rewards", "A VIP cosmetic every season",
 		"A gold sparkle when you respawn", "Double Sparks for your first win each day", "Five saved outfits", "Royal Welcome emote" } },
+	-- Starter Picks: a new player's shortcut (the owner's idea, 2026-11-02). Two weapons of their
+	-- choice now, whatever their level; Progression.PICKS. A pass, not a product: Roblox sells a pass
+	-- once, so nobody can pay twice for the same two picks.
+	{ id = "starter", name = "Starter Picks", price = 19, pass = 0, available = true, perks = {
+		"Unlock any 2 weapons now", "No waiting for their level", "Yours to keep" } },
 	{ id = "wardrobe", name = "Wardrobe", price = 79, pass = 0, available = true, perks = {
 		"16 saved characters instead of 8" } },
 	{ id = "studio", name = "Character Studio+", price = 149, pass = 0, available = false, perks = {

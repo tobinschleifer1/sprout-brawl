@@ -68,11 +68,14 @@ local economy = Economy.new({ store = avatars, mint = mint,
 local shop = Shop.new({ economy = economy, passes = passes, restricted = restricted })
 -- the weapons a player may pick, and whether Ranked is open to them, go by their saved level
 rooms.levelOf = function(userId: number): number return economy:level(userId) end
+rooms.picksOf = function(userId: number): { string } return economy:picks(userId) end
 local loaded: any = {}
 local function sendEconomy(player: Player, event: any?)
 	if loaded[player.UserId] ~= player then return end
 	local view = economy:view(player.UserId)
 	view.shop = shop:view(player.UserId)
+	-- (Starter Picks: whether they may pick, for the roster to offer it)
+	view.progress.pickPass = passes:owns(player.UserId, "starter")
 	view.event = event
 	Net.remote("EconomyView"):FireClient(player, view)
 end
@@ -286,7 +289,14 @@ Net.remote("Track").OnServerEvent:Connect(function(player: Player, name: any)
 end)
 Net.remote("Economy").OnServerEvent:Connect(function(player: Player, msg: any)
 	if loaded[player.UserId] ~= player or not admitted(player, "economy", 0.25) then return end
-	local ok, res = economy:apply(player.UserId, msg)
+	local ok, res
+	if type(msg) == "table" and msg.action == "pick" then
+		-- Starter Picks: a weapon unlocked now, if they own the pass and have a pick left
+		ok, res = economy:pick(player.UserId, msg.weapon, passes:owns(player.UserId, "starter"))
+		if ok then Analytics.event(player, "starter_pick", { weapon = res.weapon }) end
+	else
+		ok, res = economy:apply(player.UserId, msg)
+	end
 	if loaded[player.UserId] ~= player then return end
 	sendEconomy(player, if ok then { done = type(msg) == "table" and msg.action, result = res } else { error = res })
 	if ok then Net.remote("LockerView"):FireClient(player, locker:view(player.UserId)) end

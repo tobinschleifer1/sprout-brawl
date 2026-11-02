@@ -189,7 +189,15 @@ function Inventory.sanitize(raw: any): any
 				-- ranked keys this UTC week (Progression.KEY_WEEK)
 				keyWeek = count(src2.keyWeek), keyCount = count(src2.keyCount),
 				-- the UTC day of the last match that paid, and of the last welcome-back crate
-				seen = count(src2.seen), welcomed = count(src2.welcomed) }
+				seen = count(src2.seen), welcomed = count(src2.welcomed),
+				-- Starter Picks' weapons (Progression.PICKS): real unlockable weapons, each once, at most two
+				picks = (function()
+					local out = {}
+					for _, w in (if type(src2.picks) == "table" then src2.picks else {}) do
+						if Progression.unlockable(w) and not table.find(out, w) and #out < Progression.PICKS then table.insert(out, w) end
+					end
+					return out
+				end)() }
 		end)(),
 		earn = { times = times, hour = integer(type(src.earn) == "table" and src.earn.hour, Inventory.MAX_INTEGER), count = count(type(src.earn) == "table" and src.earn.count) },
 	}

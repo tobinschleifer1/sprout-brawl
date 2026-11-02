@@ -164,6 +164,7 @@ local select_: any = nil
 local selectScreen: any = nil
 -- your level, from the last EconomyView (Progression): the select screen locks weapons above it
 local progressLevel = 1
+local progressPicks, progressPickPass = {}, false
 -- Is a room overlay up (the select screen open, or the room panel's boards)? The plaza does not
 -- take input, and the social panel steps aside, while one is.
 local function roomOverlay(): boolean
@@ -374,6 +375,11 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 		end
 		selectScreen = SelectScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"))
 		selectScreen:setLevel(progressLevel)
+		selectScreen:setPicks(progressPicks, progressPickPass)
+		-- Starter Picks: spend one on a locked weapon (the server checks the pass and the pick)
+		selectScreen.onPick = function(weapon: string)
+			Net.remote("Economy"):FireServer({ action = "pick", weapon = weapon })
+		end
 		selectScreen.onAction = function(action: any)
 			if action.action == "leave" then selectScreen:hide() end
 			Net.remote("RoomAction"):FireServer(action)
@@ -596,7 +602,11 @@ Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
 	if type(view) == "table" and type(view.progress) == "table" then
 		social:setProgress(view.progress)
 		progressLevel = view.progress.level or 1
-		if selectScreen then selectScreen:setLevel(progressLevel) end
+		progressPicks, progressPickPass = view.progress.picks or {}, view.progress.pickPass == true
+		if selectScreen then
+			selectScreen:setLevel(progressLevel)
+			selectScreen:setPicks(progressPicks, progressPickPass)
+		end
 	end
 	shopScreen:setEconomy(view)
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then

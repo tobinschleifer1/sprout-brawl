@@ -247,12 +247,28 @@ end
 function Economy.level(self: any, userId: number): number
 	return (Progression.level(self:inventory(userId).progress.xp))
 end
+-- The weapons they unlocked with Starter Picks.
+function Economy.picks(self: any, userId: number): { string }
+	return table.clone(self:inventory(userId).progress.picks)
+end
+-- Starter Picks: unlock `weapon` now with one of the pass's picks. `owns`: they own the pass
+-- (Passes, asked by the caller). A pick is spent once and kept for good.
+function Economy.pick(self: any, userId: number, weapon: any, owns: boolean): (boolean, any)
+	if not owns then return false, "Starter Picks unlocks weapons before their level." end
+	return self.store:inventoryTransaction(userId, function(inv)
+		local p = inv.progress
+		if #p.picks >= Progression.PICKS then return false, "You have used both of your picks." end
+		if not Progression.pickable((Progression.level(p.xp)), weapon, p.picks) then return false, "That weapon cannot be picked." end
+		table.insert(p.picks, weapon)
+		return true, { weapon = weapon, left = Progression.PICKS - #p.picks }
+	end)
+end
 -- Their level and rank, as the client shows them.
 function Economy.progressView(inv: any): any
 	local p = inv.progress
 	local level, into, need = Progression.level(p.xp)
 	return { xp = p.xp, level = level, into = into, need = need, points = p.points, tier = Progression.tier(p.points),
-		best = p.best, wins = p.wins }
+		best = p.best, wins = p.wins, picks = table.clone(p.picks) }
 end
 
 -- Apply a drop; returns what it was.

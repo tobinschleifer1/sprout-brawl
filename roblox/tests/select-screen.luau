@@ -451,6 +451,54 @@ do
 	find("PickHammer").Activated:Fire()
 	if lastSent().value ~= "Hammer" then fail("the War Hammer could not be picked at level 5") end
 end
+-- Starter Picks: without the pass a locked weapon points to it; with it, the first press asks and the
+-- second spends a pick (onPick - the server decides); a picked weapon is unlocked whatever the
+-- level; with both spent, it says so. Every line fits the status line.
+do
+	local picked = {}
+	screen.onPick = function(w) table.insert(picked, w) end
+	local Ui = Loader.loadFrom("src/client/", "Ui")
+	local function fits()
+		local t = find("Status").Text
+		if Ui.textWidth(t, 14, Ui.DISPLAY) > 800 then fail(`the status line runs past its 800 px: "{t}"`) end
+	end
+	screen:setLevel(1)
+	screen:setPicks({}, false)
+	screen:update(room({ id = 9 }), 1)
+	local before = #sent
+	find("PickDaggers").Activated:Fire()
+	find("PickDaggers").Activated:Fire()
+	if #picked ~= 0 or #sent ~= before then fail("a locked weapon was picked without the pass") end
+	if not string.find(find("Status").Text, "Starter Picks", 1, true) then fail(`a locked weapon does not point to Starter Picks: {find("Status").Text}`) end
+	fits()
+	screen:setPicks({}, true)
+	find("PickRocketBoots").Activated:Fire()
+	if #picked ~= 0 then fail("one press spent a pick") end
+	if not string.find(find("Status").Text, "again", 1, true) or not string.find(find("Status").Text, "2 left", 1, true) then
+		fail(`the first press does not ask: {find("Status").Text}`)
+	end
+	fits()
+	find("PickDaggers").Activated:Fire()               -- another weapon: asks again, for that one
+	if #picked ~= 0 then fail("pressing a second weapon spent a pick on the first") end
+	find("PickDaggers").Activated:Fire()
+	if #picked ~= 1 or picked[1] ~= "Daggers" then fail("the second press did not spend a pick on the Daggers") end
+	if #sent ~= before then fail("a pick was sent to the room as a weapon") end
+	screen:setPicks({ "Daggers" }, true)
+	if find("PickDaggers"):FindFirstChild("Locked").Visible then fail("a picked weapon is still veiled") end
+	if not string.find(find("Status").Text, "unlocked", 1, true) then fail("the screen did not say the pick worked") end
+	find("PickDaggers").Activated:Fire()
+	if lastSent().value ~= "Daggers" then fail("a picked weapon could not be chosen at level 1") end
+	find("PickWhip").Activated:Fire(); find("PickWhip").Activated:Fire()
+	screen:setPicks({ "Daggers" }, true)                 -- (the server refused it)
+	if not string.find(find("Status").Text, "could not", 1, true) then fail("a refused pick was not reported") end
+	screen:setPicks({ "Daggers", "Whip" }, true)
+	find("PickChakram").Activated:Fire(); find("PickChakram").Activated:Fire()
+	if #picked ~= 2 then fail(`with both picks spent another was asked for ({#picked} asked)`) end
+	if not string.find(find("Status").Text, "both", 1, true) then fail("with both picks spent it does not say so") end
+	fits()
+	screen:setPicks({}, false)
+	screen:setLevel(50)
+end
 -- a free-for-all stands everyone in a row with no VS, each in their own colour; Ranked votes on the
 -- competitive maps only
 do

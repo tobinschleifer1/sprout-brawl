@@ -68,7 +68,18 @@ function Rooms.new(): any
 	-- (userId -> level, Progression) is the server's saved XP, and level 1 until it is set
 	return setmetatable({ rooms = {}, membership = {}, nextId = 0, profiles = {}, clock = os.clock,
 		rand = function(n: number): number return math.random(1, n) end,
-		levelOf = function(_: number): number return 1 end }, Rooms)
+		levelOf = function(_: number): number return 1 end,
+		-- (userId -> the weapons they unlocked with Starter Picks, Economy.picks)
+		picksOf = function(_: number): { string } return {} end }, Rooms)
+end
+-- The weapons a player unlocked with Starter Picks.
+function Rooms.picks(self: any, id: number): { string }
+	local ok, picks = pcall(self.picksOf, id)
+	return if ok and type(picks) == "table" then picks else {}
+end
+-- May a player bring `weapon`: by their level, or picked.
+function Rooms.has(self: any, id: number, weapon: string): boolean
+	return Progression.has(self:level(id), weapon, self:picks(id))
 end
 -- A player's level, as the weapons and Ranked check it.
 function Rooms.level(self: any, id: number): number
@@ -370,9 +381,8 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	end
 	local profile = self:profile(player.UserId)
 	-- (a profile's weapons were checked when chosen, but not against a level read since: keep it so)
-	local level = self:level(player.UserId)
-	if not Progression.unlocked(level, profile.weapon) then profile.weapon = if profile.weapon2 == FIRST then SECOND else FIRST end
-	if not Progression.unlocked(level, profile.weapon2) or profile.weapon2 == profile.weapon then
+	if not Rooms.has(self, player.UserId, profile.weapon) then profile.weapon = if profile.weapon2 == FIRST then SECOND else FIRST end
+	if not Rooms.has(self, player.UserId, profile.weapon2) or profile.weapon2 == profile.weapon then
 		profile.weapon2 = if profile.weapon == FIRST then SECOND else FIRST
 	end
 	local slot = room.slots[place]
@@ -704,7 +714,7 @@ function Rooms.edit(self: any, player: any, msg: any): (boolean, string?)
 		local clean = if action ~= "avatar" then (if type(value) == "string" and Weapons.BY_ID[value] then value else nil)
 			else Loadout.validAvatar(value)
 		if not clean then return false, "Unknown loadout." end
-		if action ~= "avatar" and not Progression.unlocked(self:level(player.UserId), clean) then
+		if action ~= "avatar" and not Rooms.has(self, player.UserId, clean) then
 			return false, `{Weapons.BY_ID[clean].name} unlocks at level {Progression.unlockLevel(clean)}.`
 		end
 		local profile = self:profile(player.UserId)

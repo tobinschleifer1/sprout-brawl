@@ -107,6 +107,27 @@ end
 TutorialView.ACTION_WORDS = { left = "left", right = "right", up = "up", down = "down", jump = "jump", light = "light",
 	heavy = "heavy", dodge = "dodge", guard = "shield (hold)", grab = "grab", ult = "ultimate" }
 
+-- Where the goal bar goes: `rect` { x, y, w } on a touch screen (init.client: under the HUD's cards,
+-- at the left, short of the right-hand buttons - centred, it lay across ULT and PICK UP on a phone),
+-- or nil for its own place, centred under the HUD. Its LEAVE button sits just right of it either way.
+-- (48 on touch: an iPhone SE's stick starts 50 px under the cards)
+TutorialView.GOAL_W, TutorialView.GOAL_H, TutorialView.TOUCH_GOAL_H = 440, 64, 48
+function TutorialView.placeGoal(self: any, rect: any?)
+	local g = self.goal
+	if rect then
+		g.AnchorPoint = Vector2.new(0, 0)
+		g.Position = UDim2.fromOffset(rect.x, rect.y)
+		g.Size = UDim2.fromOffset(math.min(TutorialView.GOAL_W, rect.w), TutorialView.TOUCH_GOAL_H)
+		self.goalTitle.Position, self.goalText.Position, self.goalKeys.Position = UDim2.fromOffset(10, 2), UDim2.fromOffset(10, 18), UDim2.new(1, -10, 0, 18)
+		self.goalText.Size, self.goalKeys.Size = UDim2.new(1, -96, 0, 24), UDim2.fromOffset(80, 24)
+	else
+		g.AnchorPoint = Vector2.new(0.5, 0)
+		g.Position = UDim2.new(0.5, 0, 0, TutorialView.GOAL_Y)
+		g.Size = UDim2.fromOffset(TutorialView.GOAL_W, TutorialView.GOAL_H)
+		self.goalTitle.Position, self.goalText.Position, self.goalKeys.Position = UDim2.fromOffset(14, 6), UDim2.fromOffset(14, 26), UDim2.new(1, -14, 0, 26)
+		self.goalText.Size, self.goalKeys.Size = UDim2.new(1, -110, 0, 30), UDim2.fromOffset(90, 30)
+	end
+end
 -- Draw the tutorial `t` (Tutorial) as it stands.
 function TutorialView.render(self: any, t: any)
 	self.gui.Enabled = true

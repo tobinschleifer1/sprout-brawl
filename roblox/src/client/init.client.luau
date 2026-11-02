@@ -873,6 +873,13 @@ RunService.Heartbeat:Connect(function(dt: number)
 		-- button lights when the ultimate is full
 		Hud.touchMode = touch:wanted()
 		touch:setReady(hud ~= nil and hud.ultReady == true and ctx == "fight")
+		-- a tutorial's goal bar on a touch screen: under the cards, left, short of ULT and its LEAVE
+		if tutorial then
+			local top = (if hud then hud.topHeight else 0) or 0
+			local room = TouchLayout.clearWidth(touch.placed, 8, top + 2, TutorialView.TOUCH_GOAL_H, touch.size.X)
+			-- (the bar's LEAVE sits 10 px right of it, 76 wide, and 8 more short of the nearest button)
+			tutorialView:placeGoal(if Hud.touchMode and next(touch.placed) and hud then { x = 8, y = top + 2, w = room - 94 } else nil)
+		end
 		local stick = touch.gui.Enabled and ctx == "lobby" and touch.placed.stick
 		hub.touchLift = if stick then touch.size.Y - (stick.y - stick.r) else 0
 	end

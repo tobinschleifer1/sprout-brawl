@@ -301,6 +301,30 @@ do
 	find(view.goal, "Leave").Activated:Fire()
 	if calls[3] ~= "skip" then fail("LEAVE during a lesson did nothing") end
 	if view.goal.Position.Y.Offset < 125 then fail("the goal bar sits over the HUD's ability pill (its foot is at 124)") end
+	-- on a touch screen: at the left under the cards, its LEAVE short of ULT, above the buttons below
+	do
+		local Layout = Loader.load("TouchLayout")
+		for _, size in { { 568, 320 }, { 666, 374 }, { 812, 375 }, { 1180, 820 } } do
+			local placed = Layout.layout(size[1], size[2])
+			local ult = placed.ult
+			local room = Layout.clearWidth(placed, 8, 98, View.TOUCH_GOAL_H, size[1])
+			view:placeGoal({ x = 8, y = 98, w = room - 94 })
+			if view.goal.Size.X.Offset < 200 then fail(`{size[1]}x{size[2]}: the goal bar is only {view.goal.Size.X.Offset} px`) end
+			local g = view.goal
+			local right = g.Position.X.Offset + g.Size.X.Offset
+			local leaveRight = right + 10 + 76
+			local bottom = g.Position.Y.Offset + g.Size.Y.Offset
+			if leaveRight > ult.x - ult.r then fail(`{size[1]}x{size[2]}: the goal bar's LEAVE reaches ULT`) end
+			for _, c in Layout.CONTROLS do
+				local p = placed[c.id]
+				local nx = math.clamp(p.x, g.Position.X.Offset, leaveRight)
+				local ny = math.clamp(p.y, g.Position.Y.Offset, bottom)
+				if (p.x - nx) ^ 2 + (p.y - ny) ^ 2 < p.r ^ 2 then fail(`{size[1]}x{size[2]}: the goal bar covers {c.id}`) end
+			end
+		end
+		view:placeGoal(nil)
+		if view.goal.Position.Y.Offset ~= View.GOAL_Y then fail("the goal bar did not go back to its own place") end
+	end
 	table.remove(calls, 3)
 	find(root, "Skip").Activated:Fire()
 	if calls[3] ~= "skip" then fail("SKIP TUTORIAL did nothing") end

@@ -123,6 +123,16 @@ function TouchLayout.labelFor(action: string): string
 	end
 	return string.upper(action)
 end
+-- How wide a bar starting at `x`, `y` and `h` px tall may run before it reaches a placed control
+-- (the tutorial's goal bar, over a touch screen's controls).
+function TouchLayout.clearWidth(placed: { [string]: any }, x: number, y: number, h: number, w: number): number
+	local right = w
+	for _, p in placed do
+		local top, bottom = p.y - p.r, p.y + p.r
+		if bottom > y and top < y + h and p.x + p.r > x then right = math.min(right, p.x - p.r) end
+	end
+	return math.max(0, right - x)
+end
 -- Pairs of controls whose circles overlap (the editor warns; the defaults never do).
 function TouchLayout.overlaps(placed: { [string]: any }): { { string } }
 	local out = {}

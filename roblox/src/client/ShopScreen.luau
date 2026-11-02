@@ -174,7 +174,7 @@ end
 function ShopScreen.pillColour(text: string): (Color3, Color3)
 	if text == "OWNED" then return Ui.GREEN, Ui.INK end      -- (ink: white on the green was 2.1:1)
 	if string.find(text, "CLAIM", 1, true) then return Ui.SUN, Ui.tone(Ui.SUN) end
-	if text == "..." or text == "COMING SOON" or text == "BUY SINGLY" then return Color3.fromRGB(150, 140, 160), Ui.WHITE end
+	if text == "..." or text == "COMING SOON" or text == "BUY SINGLY" or text == "NOT NEEDED" then return Color3.fromRGB(150, 140, 160), Ui.WHITE end
 	return PILL, Ui.WHITE
 end
 local function paintPill(b: any)
@@ -351,12 +351,12 @@ function ShopScreen.refresh(self: any)
 		for _, perk in p.perks or {} do table.insert(perks, "· " .. perk) end
 		c.meta.Text = table.concat(perks, "\n")
 		local key = "pass:" .. p.id
-		c.buy.Text = if p.owned then "OWNED" elseif not p.available then "COMING SOON"
+		c.buy.Text = if p.owned then "OWNED" elseif not p.available then "COMING SOON" elseif p.needless then "NOT NEEDED"
 			elseif self.pending == key then "..." else `{p.price} R$`
 		paintPill(c.buy)
-		c.paint(if not p.available then Color3.fromRGB(150, 140, 160) else PASS_COLOURS[p.id] or Ui.VIOLET)
+		c.paint(if not p.available or p.needless then Color3.fromRGB(150, 140, 160) else PASS_COLOURS[p.id] or Ui.VIOLET)
 		c.onBuy = function()
-			if not p.owned and p.available then self:request(key, { action = "buy", kind = "pass", id = p.id }) end
+			if not p.owned and p.available and not p.needless then self:request(key, { action = "buy", kind = "pass", id = p.id }) end
 		end
 	end
 end

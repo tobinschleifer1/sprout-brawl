@@ -10,6 +10,7 @@ local TutorialView = {}
 TutorialView.__index = TutorialView
 
 TutorialView.CARD_W, TutorialView.CARD_H = 560, 300
+TutorialView.GOAL_Y = 132
 
 -- opts: { keyOf = (action) -> string (the key's name as the menu writes it), onContinue, onSkip,
 -- onStart, onFinish }
@@ -56,8 +57,9 @@ function TutorialView.new(parent: Instance?, opts: any): any
 	skip.Name, skip.AnchorPoint, skip.Position, skip.Size = "Skip", Vector2.new(0, 1), UDim2.new(0, 18, 1, -16), UDim2.fromOffset(160, 40)
 	self.skip = skip
 
-	-- the goal, top centre, while the player does it
-	local goal = Ui.make("Frame", gui, { Name = "Goal", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64),
+	-- the goal, top centre, while the player does it - under the HUD's clock, key hints and ability
+	-- pill (Hud: the pill's foot is at 124)
+	local goal = Ui.make("Frame", gui, { Name = "Goal", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, TutorialView.GOAL_Y),
 		Size = UDim2.fromOffset(440, 64), BackgroundColor3 = Ui.PANEL, BorderSizePixel = 0, Visible = false })
 	Ui.make("UICorner", goal, { CornerRadius = UDim.new(0, 10) })
 	Ui.stroke(goal, Ui.INK, 3)
@@ -73,6 +75,11 @@ function TutorialView.new(parent: Instance?, opts: any): any
 	local bar = Ui.make("Frame", goal, { Name = "Bar", BackgroundColor3 = Ui.GREEN, BorderSizePixel = 0,
 		Position = UDim2.new(0, 3, 1, -7), Size = UDim2.new(0, 0, 0, 4) })
 	self.goal, self.goalTitle, self.goalText, self.goalKeys, self.goalBar = goal, goalTitle, goalText, goalKeys, bar
+	-- a way out while a lesson runs, not only from a card (a player who cannot land the grab, or the
+	-- knock-outs, must never be left to quit Roblox to get out)
+	local leave = Ui.button(goal, "LEAVE", Ui.shade(Ui.PANEL2, -0.2), function() if self.opts.onSkip then self.opts.onSkip() end end, { small = true })
+	leave.Name, leave.AnchorPoint, leave.Position, leave.Size = "Leave", Vector2.new(0, 0.5), UDim2.new(1, 10, 0.5, 0), UDim2.fromOffset(76, 34)
+	self.leave = leave
 	return self
 end
 

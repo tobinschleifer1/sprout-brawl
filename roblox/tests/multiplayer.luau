@@ -416,4 +416,34 @@ do
 	assert(keyframes[90] == k + 1 and not snapDropped[90], "a new match on the same service starts with a keyframe")
 	svc:stop()
 end
+-- The tutorial through the server (the review of 2026-11-02): starting it from the queue takes the
+-- player out (no FINDING A FIGHT card left up); a SKIP at once after START is never dropped by the
+-- rate limit, nor one repeated after the room is gone - each sends the player back to the lobby.
+do
+	for i=30,33 do people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}; now += 1.1; send(i,"Hello") end
+	send(30,"RoomAction",{action="queue",format="Duel"})
+	assert(last(30,"QueueView").queued, "the player is queued")
+	now += 1
+	send(30,"Tutorial","start")
+	assert(not last(30,"QueueView").queued, "starting the tutorial left the queue's card up")
+	local m = last(30,"Match")
+	assert(m and m.tutorial and m.mode == "Training" and #m.fighters == 2, "the tutorial match did not start")
+	messages = {}
+	send(30,"Tutorial","skip")                       -- (0.11 s after START)
+	assert(last(30,"Select"), "a SKIP straight after START was dropped: the player is left in a match that never ends")
+	messages = {}
+	send(30,"Tutorial","skip")
+	assert(last(30,"Select"), "a repeated SKIP, the room gone, was not answered")
+	now += 1
+	send(31,"Tutorial","start")
+	messages = {}
+	send(31,"Tutorial","done")
+	assert(last(31,"Select"), "DONE did not send the player back to the lobby")
+	-- someone seated by another's arrival hears they are out of the queue too
+	now += 1
+	send(32,"RoomAction",{action="queue",format="Duel"})
+	send(33,"RoomAction",{action="queue",format="Duel"})
+	assert(last(32,"RoomView") and last(32,"RoomView").id == last(33,"RoomView").id, "the two were not paired")
+	assert(last(32,"QueueView") and not last(32,"QueueView").queued, "a player seated by another's arrival kept the queue's card")
+end
 print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight; rooms through PLAY's queue, FILL WITH BOTS and NEW OPPONENTS; the retention counters; the climb")

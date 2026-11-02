@@ -290,6 +290,12 @@ do
 	if view.card.Visible or not view.goal.Visible or view.goalKeys.Text ~= "J" or view.goalText.Text ~= "Land light attacks  0 / 3" then
 		fail(`the goal is not on screen as the lesson runs: {view.goalText.Text} [{view.goalKeys.Text}]`)
 	end
+	-- LEAVE on the goal bar: a way out while a lesson runs
+	if not find(view.goal, "Leave") then fail("a running lesson has no way out") end
+	find(view.goal, "Leave").Activated:Fire()
+	if calls[3] ~= "skip" then fail("LEAVE during a lesson did nothing") end
+	if view.goal.Position.Y.Offset < 125 then fail("the goal bar sits over the HUD's ability pill (its foot is at 124)") end
+	table.remove(calls, 3)
 	find(root, "Skip").Activated:Fire()
 	if calls[3] ~= "skip" then fail("SKIP TUTORIAL did nothing") end
 	t.finished, t.phase = true, "finished"

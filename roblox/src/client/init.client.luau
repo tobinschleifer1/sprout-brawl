@@ -299,6 +299,9 @@ end
 -- the tutorial: its lessons (Tutorial) while one runs, and its cards (TutorialView)
 local tutorial: any = nil
 local tutorialSig = ""
+-- A "skip" or "done" sent and not yet answered by the lobby (Select): sent again every few seconds
+-- until it is, so a lost one can never leave the player in a Training match that never ends.
+local tutorialLeaving: { action: string, at: number }? = nil
 local tutorialOffered = false
 local function endTutorial()
 	tutorial, tutorialSig = nil, ""
@@ -309,6 +312,7 @@ tutorialView = TutorialView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	onStart = function() Net.remote("Tutorial"):FireServer("start") end,
 	onSkip = function()
 		Net.remote("Tutorial"):FireServer("skip")
+		if tutorial then tutorialLeaving = { action = "skip", at = os.clock() } end
 		endTutorial()
 		tutorialView:hide()
 	end,
@@ -318,10 +322,8 @@ tutorialView = TutorialView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 		input:reset()
 		if tutorial:continue() == "fight" then Net.remote("Tutorial"):FireServer("fight") end
 	end,
-	onFinish = function()
-		Net.remote("Tutorial"):FireServer("done")
-		endTutorial()
-	end,
+	-- (the fight already ended when the last lesson did: this only closes the end card)
+	onFinish = function() end,
 })
 local settingsMenu = SettingsMenu.new(Players.LocalPlayer:WaitForChild("PlayerGui"), SHIPPED_KEYS, {
 	onChange = function(s: any)
@@ -410,7 +412,8 @@ Net.remote("AvatarView").OnClientEvent:Connect(function(view: any)
 		tutorialOffered = true
 		applySettings(view.settings)
 		settingsMenu:set(settings)
-		if view.tutorial == false and not matchCfg then tutorialView:offer() end
+		-- (not on a phone or tablet without a keyboard: the lessons are taught on keys)
+		if view.tutorial == false and not matchCfg and (UIS.KeyboardEnabled or not UIS.TouchEnabled) then tutorialView:offer() end
 	end
 	local worn = view.slots and view.slots[view.active]
 	if worn and select_ then
@@ -438,8 +441,14 @@ end)
 -- The server says "pick a match". It also says when it refused one, and why.
 Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 	acceptingSnapshots = false
-	-- back in the lobby: a tutorial that was running is over (left, or ended by the server)
-	if tutorial then endTutorial(); tutorialView:hide() end
+	-- back in the lobby: a tutorial that was running is over (left, or ended by the server). A
+	-- finished one keeps its end card up, over the lobby it sends the player to.
+	tutorialLeaving = nil
+	if tutorial then
+		local finished = tutorial.finished
+		endTutorial()
+		if not finished then tutorialView:hide() end
+	end
 	-- (the loading screen waits for this: src/first)
 	Players.LocalPlayer:SetAttribute("BlockfallReady", true)
 	fighterWarmup = nil
@@ -812,6 +821,10 @@ end
 local poseElapsed = 0
 RunService.Heartbeat:Connect(function(dt: number)
 	social:tick()          -- a quiet queue offers its bots (LobbySocial.QUIET)
+	if tutorialLeaving and os.clock() - tutorialLeaving.at > 3 then
+		tutorialLeaving.at = os.clock()
+		Net.remote("Tutorial"):FireServer(tutorialLeaving.action)
+	end
 	-- settings, saved a second after the last change
 	if settingsSaveAt and os.clock() >= settingsSaveAt then
 		settingsSaveAt = nil
@@ -822,6 +835,12 @@ RunService.Heartbeat:Connect(function(dt: number)
 		local now = os.clock()
 		local moved = tutorial:tick(now)
 		if moved == "next" then audio:play("lesson") end
+		-- the last lesson done: the fight ends now (the CPU no longer hits a player held behind a card)
+		if moved == "finished" then
+			Net.remote("Tutorial"):FireServer("done")
+			tutorialLeaving = { action = "done", at = now }
+			audio:play("game")
+		end
 		local sig = `{tutorial.index}:{tutorial.phase}:{tutorial.progress}`
 		if sig ~= tutorialSig then
 			if tutorialSig ~= "" and tutorial.phase == "done" then audio:play("lesson") end

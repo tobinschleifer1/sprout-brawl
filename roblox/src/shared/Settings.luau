@@ -5,8 +5,10 @@
 -- Bindings, the camera).
 --
 -- Keys: each action has its keys (Bindings.keyboard). Rebinding sets an action's FIRST key; the
--- rest of its keys stay unless another action now has them. A key that is already another action's
--- first key is swapped: that action gets the old one, so nothing is ever left with no key.
+-- rest of its keys stay unless another action now has them. An action whose first key that was is
+-- given this action's old one - a swap, so nothing is ever keyless - unless the two shipped sharing
+-- it (Jump and Aim up both have W): then it simply keeps its other keys, and Jump to W leaves Aim up
+-- its arrow and Jump its Space, rather than moving Space to Aim up.
 local Settings = {}
 
 Settings.DEFAULTS = { music = 0.6, sfx = 0.8, shake = true, hints = true }
@@ -18,9 +20,12 @@ Settings.NAMES = { left = "Move left", right = "Move right", up = "Aim up", down
 	pickup = "Pick up / throw", ult = "Ultimate", taunt = "Taunt" }
 
 -- Keys that may be bound. Not Escape (Roblox's menu), Slash (chat), Tab (the player list), Backquote
--- or the F keys (Roblox's and the game's own: F3 is the performance overlay).
+-- or the F keys (Roblox's and the game's own: F3 is the performance overlay), nor H (the fight's
+-- COMBOS guide, Hud.COMBO_KEY).
 local ALLOWED: { [string]: boolean } = {}
-for c = string.byte("A"), string.byte("Z") do ALLOWED[string.char(c)] = true end
+for c = string.byte("A"), string.byte("Z") do
+	if string.char(c) ~= "H" then ALLOWED[string.char(c)] = true end
+end
 for _, k in { "Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Space", "LeftShift",
 	"RightShift", "LeftControl", "RightControl", "LeftAlt", "RightAlt", "Up", "Down", "Left", "Right", "Semicolon", "Quote",
 	"Comma", "Period", "LeftBracket", "RightBracket", "Minus", "Equals", "BackSlash", "Return", "Backspace" } do
@@ -94,18 +99,24 @@ function Settings.bind(s: any, defaults: { [string]: { string } }, action: strin
 	local before = Settings.keyboard(out, defaults)
 	local old = before[action][1]
 	if old == key then return out, nil end
-	local swapped = nil
-	for other, keys in before do
-		if other ~= action and keys[1] == key then
-			swapped = other
-			out.binds[other] = old
-		end
-	end
-	-- (a binding left pointing at the key elsewhere would be dropped by sanitize; drop it here)
+	-- (a binding elsewhere to the same key is given up: the key is this action's first now)
 	for other, k in out.binds do
-		if other ~= action and other ~= swapped and k == key then out.binds[other] = nil end
+		if other ~= action and k == key then out.binds[other] = nil end
 	end
 	out.binds[action] = key
+	-- whoever had the key FIRST gets the old key (a swap), unless both shipped with it and they have
+	-- another key left
+	local swapped = nil
+	local after = Settings.keyboard(out, defaults)
+	for other, keys in before do
+		if other ~= action and keys[1] == key then
+			local shared = table.find(defaults[other], key) ~= nil and table.find(defaults[action], key) ~= nil
+			if old and (not shared or #after[other] == 0) then
+				swapped = other
+				out.binds[other] = old
+			end
+		end
+	end
 	return Settings.sanitize(out), swapped
 end
 

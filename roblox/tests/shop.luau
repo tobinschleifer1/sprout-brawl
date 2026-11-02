@@ -215,4 +215,26 @@ do
 	assert(not FxPlayer.spawn(FxPlayer.new(), { type = "respawn", fighter = 0 }, states, { bare }), "a fighter wearing nothing drew a spawn effect")
 end
 uncreate()
+-- Starter Picks is not sold to someone with fewer than two weapons left to unlock (the review of
+-- 2026-11-02): shown NOT NEEDED, and a request for it refused before any prompt.
+do
+	local function fail(msg: string) error(msg, 0) end
+	createProducts()
+	local Progression = Loader.load("Progression")
+	local w = world()
+	local function starter(id) for _, p in w.shop:view(id).passes do if p.id == "starter" then return p end end return nil end
+	if not starter(41) or starter(41).needless or not w.shop:request(41, { action = "buy", kind = "pass", id = "starter" }) then
+		fail("a level 1 player was not offered Starter Picks")
+	end
+	w.econ:inventory(42).progress.xp = Progression.xpTo(12)        -- Chakram and Rocket Boots left: two
+	if starter(42).needless then fail("with two weapons left to unlock, Starter Picks was not offered") end
+	w.econ:inventory(43).progress.xp = Progression.xpTo(14)        -- only Rocket Boots left
+	local ok, why = w.shop:request(43, { action = "buy", kind = "pass", id = "starter" })
+	if not starter(43).needless or ok or not string.find(tostring(why), "fewer than 2", 1, true) then
+		fail("Starter Picks was sold to a player with one weapon left to unlock")
+	end
+	w.econ:inventory(44).progress.xp = Progression.xpTo(50)
+	if not starter(44).needless then fail("Starter Picks was offered at level 50") end
+	uncreate()
+end
 print("PASS shop: four featured items a day agreed by every server; plain prices, no keys for restricted or unknown players; nothing prompted that is not on sale, restricted, not today's or owned; keys granted once per receipt, featured items as chosen and paid, unchosen ones kept as credits and redeemed without a second charge; every receipt remembered beyond fifty; passes remembered and recorded, VIP's items once and unsalvageable; VIP's five outfits; worn spawn effects")

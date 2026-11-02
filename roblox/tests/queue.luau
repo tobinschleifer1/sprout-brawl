@@ -229,6 +229,8 @@ do
 	m:tick()
 	if m:get(61) then fail("a level 1 and a level 6 were paired before 20 s") end
 	now = 20
+	m:tick(false)                             -- (the server's frames between its once-a-second queue runs)
+	if m:get(61) then fail("a tick told to leave the queue alone seated people") end
 	m:tick()
 	if not m:get(61) or m:get(61) ~= m:get(64) then fail("a level 1 and a level 6 were not paired after 20 s") end
 	-- leaving the queue forgets the wait

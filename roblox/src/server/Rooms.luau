@@ -291,7 +291,7 @@ end
 -- resend (and to start the fight in, if one now is "playing").
 -- Also seats whoever waiting has now made near enough (Rooms.near); the formats whose queue that
 -- changed come back second, for their counts to be resent.
-function Rooms.tick(self: any): ({ any }, { string })
+function Rooms.tick(self: any, queues: boolean?): ({ any }, { string })
 	local changed = {}
 	for _, room in self.rooms do
 		local moved = false
@@ -300,6 +300,7 @@ function Rooms.tick(self: any): ({ any }, { string })
 		if moved then table.insert(changed, room) end
 	end
 	local formats = {}
+	if queues == false then return changed, formats end
 	for format, list in self.queues or {} do
 		if #list > 0 then
 			local seated = self:matchQueue(format)

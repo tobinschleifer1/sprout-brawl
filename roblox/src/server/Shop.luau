@@ -21,6 +21,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Cosmetics = require(Shared.Cosmetics)
 local Inventory = require(Shared.Inventory)
 local Products = require(Shared.Products)
+local Progression = require(Shared.Progression)
 local Clothing: any = require(Shared.RobloxClothing)
 local Shop = {}
 Shop.__index = Shop
@@ -64,6 +65,16 @@ local function today(self: any): number
 	return math.floor(self.time() / 86400)
 end
 
+-- Starter Picks is worth buying only while at least PICKS weapons are still locked: a level 15
+-- player paying 19 R$ for picks with nothing to pick was the review's catch (2026-11-02).
+function Shop.picksWorth(inv: any): boolean
+	local level = Progression.level(inv.progress.xp)
+	local left = 0
+	for _, u in Progression.UNLOCKS do
+		if Progression.pickable(level, u.weapon, {}) then left += 1 end
+	end
+	return left >= Progression.PICKS
+end
 -- The `shop` table the screen draws (the contract in docs/briefs/gpt-shop-screen.md).
 function Shop.view(self: any, userId: number): any
 	local inv = self.economy:inventory(userId)
@@ -78,8 +89,10 @@ function Shop.view(self: any, userId: number): any
 	end
 	local passes = {}
 	for _, p in Products.PASSES do
-		table.insert(passes, { id = p.id, name = p.name, price = p.price, owned = self.passes:owns(userId, p.id),
-			available = p.available, perks = table.clone(p.perks) })
+		local owned = self.passes:owns(userId, p.id)
+		table.insert(passes, { id = p.id, name = p.name, price = p.price, owned = owned,
+			available = p.available, perks = table.clone(p.perks),
+			needless = p.id == "starter" and not owned and not Shop.picksWorth(inv) })
 	end
 	return { restricted = restricted, resetsIn = 86400 - self.time() % 86400, featured = featured, keys = keys, passes = passes,
 		clothing = Shop.clothing(inv) }
@@ -185,6 +198,9 @@ function Shop.request(self: any, userId: number, msg: any): (boolean, any)
 		if not p then return false, "no such pass" end
 		if not p.available then return false, `{p.name} is coming soon` end
 		if self.passes:owns(userId, p.id) then return false, `you already have {p.name}` end
+		if p.id == "starter" and not Shop.picksWorth(self.economy:inventory(userId)) then
+			return false, "you have fewer than 2 weapons left to unlock"
+		end
 		if p.pass == 0 then return false, `{p.name} is not on sale yet` end
 		return true, { prompt = { kind = "pass", id = p.pass } }
 	end

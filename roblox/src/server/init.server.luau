@@ -114,6 +114,11 @@ end
 local function publish(room: any)
 	for _, player in members(room) do Net.remote("RoomView"):FireClient(player, rooms:view(room)) end
 end
+-- Everyone seated in `room` hears they are out of the queue: without it, someone seated by
+-- another's arrival or by the queue widening (Rooms.tick) kept a FINDING A FIGHT card up.
+local function seatedFromQueue(room: any)
+	for _, p in members(room) do Net.remote("QueueView"):FireClient(p, rooms:queueView(p.UserId)) end
+end
 -- Everyone queued for `format` sees the queue's new count.
 local function sendQueue(format: string?)
 	if not format or not rooms.queues or not rooms.queues[format] then return end
@@ -208,7 +213,7 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		if not why then Analytics.event(player, "queue", { format = msg.format }) end
 		sendQueue(msg.format)
 		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
-		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r) end
+		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r); seatedFromQueue(r) end
 		return
 	elseif msg.action == "requeue" then
 		-- NEW OPPONENTS: leave this room and queue its format again, in one press (Rooms.requeue)
@@ -226,7 +231,7 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		Net.remote("RoomView"):FireClient(player, { left = true })
 		sendQueue(left.format)
 		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
-		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r) end
+		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r); seatedFromQueue(r) end
 		Analytics.event(player, "new_opponents", { format = left.format })
 		return
 	elseif msg.action == "unqueue" then
@@ -244,6 +249,7 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 		if format then sendQueue(format) end
 		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
 		if not room then return end
+		seatedFromQueue(room)          -- (the others it brought in from the queue)
 	elseif msg.action == "join" then
 		-- (gone: the gates are; a fight is found through PLAY's queue)
 		room, why = nil, "Press PLAY to find a fight."
@@ -331,12 +337,19 @@ end)
 -- The first-time tutorial (Rooms.tutorial; the lessons are the client's): "start" puts the player in
 -- a room of their own and starts it; "fight" sets its CPU fighting; "done" and "skip" end it, and
 -- either way it is not offered again on its own.
+-- "done" and "skip" are never rate-limited: dropping one left a player in a Training match that
+-- never ends, with no card and no way out (the review of 2026-11-02). They are safe to repeat.
 Net.remote("Tutorial").OnServerEvent:Connect(function(player: Player, action: any)
-	if loaded[player.UserId] ~= player or not admitted(player, "tutorial", 0.5) then return end
+	if loaded[player.UserId] ~= player then return end
+	if action ~= "done" and action ~= "skip" and not admitted(player, "tutorial", 0.5) then return end
 	local room = rooms:get(player.UserId)
 	if action == "start" then
+		local format = rooms:queued(player.UserId)
 		local made, why = rooms:tutorial(player)
 		if not made then hub(player, why); return end
+		-- (out of the queue it was in, if any: its card goes, and the others see the new count)
+		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId))
+		sendQueue(format)
 		Analytics.event(player, "tutorial_start")
 		launchRoom(made)
 	elseif action == "fight" then
@@ -349,8 +362,9 @@ Net.remote("Tutorial").OnServerEvent:Connect(function(player: Player, action: an
 			rooms:leave(player)
 			local service = services[room.id]
 			if service then service:stop(); services[room.id] = nil end
-			hub(player)
 		end
+		-- (always back to the lobby: a repeated "skip" after the room is gone is answered too)
+		if not rooms:get(player.UserId) then hub(player) end
 	end
 end)
 Net.remote("Setup").OnServerEvent:Connect(function(player: Player)
@@ -507,7 +521,7 @@ Net.remote("HubPose").OnServerEvent:Connect(function(player: Player, pose: any)
 		y = if finite(pose.y) then math.clamp(pose.y, 0, 6) else 0, facing = if pose.facing == -1 then -1 else 1,
 		moving = pose.moving == true, at = os.clock() }
 end)
-local elapsed, saveClock, boardsClock, mintClock = 0, 0, 30, 0
+local elapsed, saveClock, boardsClock, mintClock, queueClock = 0, 0, 30, 0, 0
 RunService.Heartbeat:Connect(function(dt: number)
 	elapsed += dt
 	saveClock += dt
@@ -517,9 +531,13 @@ RunService.Heartbeat:Connect(function(dt: number)
 		task.spawn(boardsJob)
 	end
 	-- bot votes whose ten seconds ran out (Rooms.BOT_VOTE_TIME): closed, and the room resent
-	local ticked, requeued = rooms:tick()
+	-- (the queue is re-run once a second, not every frame: Rooms.near is pairwise)
+	queueClock += dt
+	local ticked, requeued = rooms:tick(queueClock >= 1)
+	if queueClock >= 1 then queueClock = 0 end
 	for _, room in ticked do publish(room); launchRoom(room) end
 	for _, format in requeued do sendQueue(format) end
+	for _, room in ticked do seatedFromQueue(room) end
 	if saveClock >= 1 then
 		saveClock = 0
 		task.spawn(function() avatars:tick() end)

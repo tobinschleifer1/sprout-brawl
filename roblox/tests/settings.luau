@@ -47,6 +47,15 @@ do
 	s = Settings.bind(nil, SHIPPED, "grab", "LeftControl")
 	kb = Settings.keyboard(s, SHIPPED)
 	if kb.grab[1] ~= "LeftControl" or table.find(kb.guard, "LeftControl") or kb.guard[1] ~= "I" then fail("taking a second key did not move it alone") end
+	-- jump to W: Aim up shipped with W too, so it keeps its arrow and takes nothing of Jump's;
+	-- Jump keeps Space (the review's case: the old swap moved Space to Aim up)
+	s, swapped = Settings.bind(nil, SHIPPED, "jump", "W")
+	kb = Settings.keyboard(s, SHIPPED)
+	if swapped ~= nil or kb.jump[1] ~= "W" or not table.find(kb.jump, "Space") or table.find(kb.up, "Space") or not same(kb.up, { "Up" }) then
+		fail(`jump to W: jump {table.concat(kb.jump, ",")}, up {table.concat(kb.up, ",")}`)
+	end
+	-- H is the fight's COMBOS key
+	if Settings.bind(nil, SHIPPED, "light", "H") then fail("H, the combo guide's key, could be bound") end
 	-- jump to Q keeps W and Up as jumps too (the second keys stay)
 	s = Settings.bind(nil, SHIPPED, "jump", "Q")
 	kb = Settings.keyboard(s, SHIPPED)

@@ -466,11 +466,38 @@ do
 	screen:setPicks({}, false)
 	screen:update(room({ id = 9 }), 1)
 	local before = #sent
+	local buys = 0
+	screen.onBuyPicks = function() buys += 1 end
 	find("PickDaggers").Activated:Fire()
-	find("PickDaggers").Activated:Fire()
-	if #picked ~= 0 or #sent ~= before then fail("a locked weapon was picked without the pass") end
-	if not string.find(find("Status").Text, "Starter Picks", 1, true) then fail(`a locked weapon does not point to Starter Picks: {find("Status").Text}`) end
+	local ask = find("Status").Text
+	if not string.find(ask, "Starter Picks", 1, true) or not string.find(ask, "19 R$", 1, true) then fail(`a locked weapon does not offer Starter Picks at its price: {ask}`) end
 	fits()
+	if buys ~= 0 then fail("one press opened a purchase") end
+	-- the second press, without the pass, asks Roblox to sell it: never a pick, never a weapon sent
+	find("PickDaggers").Activated:Fire()
+	if buys ~= 1 or #picked ~= 0 or #sent ~= before then fail("without the pass the second press did not open the purchase, or picked") end
+	screen:purchase({ prompt = { kind = "pass", id = 1 } })
+	if not string.find(find("Status").Text, "Confirm", 1, true) then fail("the open purchase window is not said") end
+	screen:purchaseCancelled()
+	if find("Status").Text ~= "" and string.find(find("Status").Text, "Confirm", 1, true) then fail("a closed purchase window is still said") end
+	find("PickDaggers").Activated:Fire(); find("PickDaggers").Activated:Fire()
+	screen:purchase({ error = "Starter Picks is not on sale yet" })
+	if not string.find(find("Status").Text, "not on sale", 1, true) then fail("a refused purchase was not said") end
+	screen:purchase({ error = "something else" })                -- (no longer buying: not this screen's)
+	if string.find(find("Status").Text, "something else", 1, true) then fail("an unrelated shop error was shown here") end
+	find("PickDaggers").Activated:Fire(); find("PickDaggers").Activated:Fire()
+	screen:purchase({ purchased = { kind = "pass", id = "starter" } })
+	if not string.find(find("Status").Text, "yours", 1, true) then fail("the bought pass was not said") end
+	if buys ~= 3 then fail(`{buys} purchases were opened, not 3`) end
+	-- in Studio, where every pass counts as owned, the screen says so rather than look free
+	screen.studio = true
+	screen:setPicks({}, true)
+	find("PickWhip").Activated:Fire()
+	if not string.find(find("Status").Text, "Studio", 1, true) then fail("in Studio a pick looks free") end
+	fits()
+	screen.studio = nil
+	screen:setPicks({}, false)
+	screen.confirmPick = nil
 	screen:setPicks({}, true)
 	find("PickRocketBoots").Activated:Fire()
 	if #picked ~= 0 then fail("one press spent a pick") end

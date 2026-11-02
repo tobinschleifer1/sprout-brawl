@@ -227,7 +227,10 @@ MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId: number
 	if userId == Players.LocalPlayer.UserId and not bought then shopScreen:cancelled() end
 end)
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Player, _: number, bought: boolean)
-	if player == Players.LocalPlayer and not bought then shopScreen:cancelled() end
+	if player == Players.LocalPlayer and not bought then
+		shopScreen:cancelled()
+		if selectScreen then selectScreen:purchaseCancelled() end
+	end
 end)
 hub.onShop = function()
 	if hub.active and not hub.room and not roomOverlay() then shopScreen:toggle() end
@@ -461,6 +464,11 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 		selectScreen.onPick = function(weapon: string)
 			Net.remote("Economy"):FireServer({ action = "pick", weapon = weapon })
 		end
+		-- without the pass: ask the Shop for it, which opens Roblox's purchase window (shopScreen)
+		selectScreen.onBuyPicks = function()
+			Net.remote("Shop"):FireServer({ action = "buy", kind = "pass", id = "starter" })
+		end
+		selectScreen.studio = RunService:IsStudio()
 		selectScreen.onAction = function(action: any)
 			if action.action == "leave" then selectScreen:hide() end
 			Net.remote("RoomAction"):FireServer(action)
@@ -698,6 +706,7 @@ Net.remote("EconomyView").OnClientEvent:Connect(function(view: any)
 		end
 	end
 	shopScreen:setEconomy(view)
+	if selectScreen and type(view) == "table" then selectScreen:purchase(view.event) end
 	if type(view) == "table" and type(view.event) == "table" and view.event.match and hud then
 		-- one strip turning through the level and rank line, the closest goal still ahead (NextGoal)
 		-- and the drop

@@ -18,6 +18,7 @@
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Weapons = require(Shared.Weapons)
 local Progression = require(Shared.Progression)
+local Products = require(Shared.Products)
 local Features = require(Shared.Features)
 local Stages = require(Shared.Data.Stages)
 local Loadout = require(Shared.Loadout)
@@ -328,6 +329,8 @@ function SelectScreen.setLevel(self: any, level: number)
 end
 -- Starter Picks (Products "starter"): the weapons picked, and whether they own the pass. A locked
 -- weapon then asks for a second press to spend a pick on it (`onPick`, the server decides).
+-- Starter Picks' price, as the pass is sold (Products).
+SelectScreen.PICKS_PRICE = (Products.pass("starter") or { price = 19 }).price
 function SelectScreen.setPicks(self: any, picks: any, pass: boolean)
 	picks = if type(picks) == "table" then picks else {}
 	local same = pass == self.pickPass and #picks == #(self.picks or {})
@@ -344,6 +347,30 @@ function SelectScreen.setPicks(self: any, picks: any, pass: boolean)
 		self.confirmPick = nil
 		if self.open then self:render() end
 	end
+end
+-- What the Starter Picks purchase came to (the Shop's answer: an error, the prompt opened, or the
+-- pass bought), while one started here is waiting.
+function SelectScreen.purchase(self: any, e: any)
+	if not self.buyingPicks or type(e) ~= "table" then return end
+	if e.error then
+		self.buyingPicks = nil
+		self.lockNote = `Starter Picks: {e.error}.`
+	elseif e.prompt then
+		self.lockNote = "Confirm in Roblox's purchase window."
+	elseif e.purchased and e.purchased.kind == "pass" then
+		self.buyingPicks = nil
+		self.lockNote = "Starter Picks is yours: press a locked weapon twice to unlock it."
+	else
+		return
+	end
+	if self.open then self:render() end
+end
+-- Roblox's purchase window closed without buying.
+function SelectScreen.purchaseCancelled(self: any)
+	if not self.buyingPicks then return end
+	self.buyingPicks = nil
+	self.lockNote = nil
+	if self.open then self:render() end
 end
 function SelectScreen.locked(self: any, id: string): boolean
 	return not Progression.has(self.level or 1, id, self.picks)
@@ -367,12 +394,22 @@ function SelectScreen.pickWeapon(self: any, id: string)
 			else
 				self.confirmPick = id
 				local left = Progression.PICKS - #picks
-				self.lockNote = `{at} Press again to unlock it with a Starter Pick ({left} left).`
+				-- (a Studio playtest owns every pass - Passes - so say so, or a pick looks free)
+				self.lockNote = if self.studio then `Studio counts every pass as owned: press again to unlock it ({left} left).`
+					else `{at} Press again to unlock it with a Starter Pick ({left} left).`
 			end
 		elseif self.pickPass then
 			self.lockNote = `{at} You have used both Starter Picks.`
+		elseif self.confirmPick == id then
+			-- without the pass, the second press opens Roblox's purchase window for it (onBuyPicks:
+			-- the server's Shop decides, and a pick is spent only once the pass is owned)
+			self.confirmPick = nil
+			self.buyingPicks = true
+			self.lockNote = "Opening Roblox's purchase window…"
+			if self.onBuyPicks then self.onBuyPicks() end
 		else
-			self.lockNote = `{at} Or unlock any 2 now with Starter Picks, in the Shop.`
+			self.confirmPick = id
+			self.lockNote = `{at} Press again: Starter Picks, any 2 now ({SelectScreen.PICKS_PRICE} R$).`
 		end
 		self:render()
 		return

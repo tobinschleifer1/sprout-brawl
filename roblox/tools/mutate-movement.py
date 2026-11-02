@@ -600,10 +600,13 @@ picks = [
     ('client not told', 'server/Economy', 'best = p.best, wins = p.wins, picks = table.clone(p.picks) }', 'best = p.best, wins = p.wins }', 'not told its picks'),
 ]
 pickui = [
-    ('one press spends', 'SelectScreen', '\t\t\tif self.confirmPick == id then\n', '\t\t\tif true then\n', 'one press spent a pick'),
+    ('one press spends', 'SelectScreen', '\t\t\tif self.confirmPick == id then\n', '\t\t\tif true then\n', 'looks free'),
     ('ask carries over', 'SelectScreen', '\t\t\t\tself.confirmPick = id\n', '\t\t\t\tself.confirmPick = self.confirmPick or id\n', 'did not spend a pick on the Daggers'),
-    ('no shop pointer', 'SelectScreen', ' Or unlock any 2 now with Starter Picks, in the Shop.`', '`', 'point to Starter Picks'),
+    ('no shop pointer', 'SelectScreen', ' ({SelectScreen.PICKS_PRICE} R$).`', '.`', 'at its price'),
     ('picks still veiled', 'SelectScreen', '\treturn not Progression.has(self.level or 1, id, self.picks)\n', '\treturn not Progression.unlocked(self.level or 1, id)\n', 'still veiled'),
+    ('buy on one press', 'SelectScreen', '\t\telseif self.confirmPick == id then\n\t\t\t-- without the pass', '\t\telseif true then\n\t\t\t-- without the pass', 'did not say its level'),
+    ('studio looks free', 'SelectScreen', 'self.lockNote = if self.studio then', 'self.lockNote = if false then', 'looks free'),
+    ('buy errors anywhere', 'SelectScreen', '\tif not self.buyingPicks or type(e) ~= "table" then return end\n', '\tif type(e) ~= "table" then return end\n', 'unrelated shop error'),
     ('refusal silent', 'SelectScreen', 'else `{name} could not be unlocked.`', 'else `{name} unlocked. Yours to keep.`', 'refused pick'),
 ]
 # Settings, sound and the tutorial (2026-11-02)

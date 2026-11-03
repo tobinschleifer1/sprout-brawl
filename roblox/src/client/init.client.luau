@@ -872,6 +872,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 		-- the fight's cards go to the top while touch buttons are wanted (Hud.touchMode); the ULT
 		-- button lights when the ultimate is full
 		Hud.touchMode = touch:wanted()
+		Ui.setShortcuts(not Hud.touchMode)
 		touch:setReady(hud ~= nil and hud.ultReady == true and ctx == "fight")
 		-- a tutorial's goal bar on a touch screen: under the cards, left, short of ULT and its LEAVE
 		if tutorial then

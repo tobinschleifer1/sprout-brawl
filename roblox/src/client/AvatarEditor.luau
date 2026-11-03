@@ -67,6 +67,10 @@ function AvatarEditor.swatchRow(rows: number): number
 	return AvatarEditor.SWATCH_TOP + rows * 20 + (rows - 1) * AvatarEditor.SWATCH_GAP + 8
 end
 AvatarEditor.TOOLS_W = 58 + 58 + 80 + 38 + 3 * AvatarEditor.BAR_GAP
+-- the editor column's scroll reaches this far past it at the top and sides, padded back in, so the
+-- outer strokes and a picked one's brackets (5 px out) at its edges are not clipped (not below it:
+-- there what it shows would come 7 px from the save buttons' strokes - tools/ui-lint)
+AvatarEditor.SCROLL_EDGE = Ui.BRACKET_OUT + Ui.BRACKET_INK + 1
 local POSES = { { "idle", "Stand" }, { "run", "Run" }, { "air", "Jump" }, { "attack", "Attack" }, { "victory", "Cheer" } }
 AvatarEditor.POSES = POSES
 
@@ -319,7 +323,15 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	-- Editor: tabs, parts, the option grid, colours.
 	local editor = frame(panel, "Editor")
 	self.editor = editor
-	local groups = frame(editor, "Groups")
+	-- (on a short phone the column's rows run past what it shows, and it scrolls: under Roblox's top
+	-- bar a 749x381 phone has 323 px, and the colours ran into the save buttons - layout)
+	local E = AvatarEditor.SCROLL_EDGE
+	local body = Ui.make("ScrollingFrame", editor, { Name = "Scroll", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(-E, -E), Size = UDim2.new(1, 2 * E, 1, E), CanvasSize = UDim2.new(),
+		ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = E, ScrollBarImageColor3 = Ui.KEY })
+	Ui.make("UIPadding", body, { PaddingTop = UDim.new(0, E), PaddingLeft = UDim.new(0, E), PaddingRight = UDim.new(0, E) })
+	self.editorScroll = body
+	local groups = frame(body, "Groups")
 	local gl = Instance.new("UIListLayout")
 	gl.FillDirection = Enum.FillDirection.Horizontal
 	gl.Padding = UDim.new(0, AvatarEditor.BAR_GAP)
@@ -333,15 +345,15 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 		b.Size = UDim2.new(1 / #KIT.groups, -math.ceil(AvatarEditor.BAR_GAP * (#KIT.groups - 1) / #KIT.groups), 1, 0)
 		self.groupButtons[g.id] = b
 	end
-	local cats = frame(editor, "Categories")
+	local cats = frame(body, "Categories")
 	local cl = Instance.new("UIListLayout")
 	cl.FillDirection = Enum.FillDirection.Horizontal
 	cl.Padding = UDim.new(0, AvatarEditor.BAR_GAP)
 	cl.SortOrder = Enum.SortOrder.LayoutOrder
 	cl.Parent = cats
 	self.catBar = cats
-	local lock = button(editor, "Lock", "LOCK", function() self:toggleLock(self.category) end)
-	local randPart = button(editor, "RandomPart", "RANDOM PART", function() self:randomizePart(self.category) end)
+	local lock = button(body, "Lock", "LOCK", function() self:toggleLock(self.category) end)
+	local randPart = button(body, "RandomPart", "RANDOM PART", function() self:randomizePart(self.category) end)
 	self.lockButton, self.randPartButton = lock, randPart
 	local grid = Instance.new("ScrollingFrame")
 	grid.Name = "Grid"
@@ -352,7 +364,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	grid.ScrollBarImageColor3, grid.ScrollBarImageTransparency = Ui.KEY, 0.2   -- (visible, so it says there is more)
 	grid.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	grid.CanvasSize = UDim2.new()
-	grid.Parent = editor
+	grid.Parent = body
 	corner(grid, 10)
 	Ui.stroke(grid, LINE, 2)
 	local pad = Instance.new("UIPadding")
@@ -360,7 +372,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	pad.Parent = grid
 	-- "more below": a chip on the grid's lower edge while its tiles run past what it shows
 	-- (a dark pill straddling the grid's border, like the shop's price pills: over the frame, not a name)
-	local more = Ui.make("TextLabel", editor, { Name = "More", Text = "SCROLL FOR MORE  ▼", Font = Ui.LABEL, TextSize = Ui.px(11),
+	local more = Ui.make("TextLabel", body, { Name = "More", Text = "SCROLL FOR MORE  ▼", Font = Ui.LABEL, TextSize = Ui.px(11),
 		TextColor3 = if LIGHT then Ui.WHITE else Ui.INK, BackgroundColor3 = if LIGHT then Color3.fromRGB(35, 27, 51) else AMBER,
 		BorderSizePixel = 0, AnchorPoint = Vector2.new(1, 0), ZIndex = 5, Visible = false })
 	if LIGHT then Ui.make("UICorner", more, { CornerRadius = UDim.new(1, 0) }) else Ui.corner(more, 0) end
@@ -370,7 +382,7 @@ function AvatarEditor.new(parent: Instance, opts: any): any
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	gridLayout.Parent = grid
 	self.grid, self.gridLayout = grid, gridLayout
-	local colours = frame(editor, "Colours")
+	local colours = frame(body, "Colours")
 	self.colourBar = colours
 
 	-- Footer: status, delete, save.
@@ -509,6 +521,9 @@ function AvatarEditor.layout(self: any, size: Vector2?)
 	local gridH = eh - gridTop - colourH - (if colourRows > 0 then 8 else 0) - CHIP
 	self.grid.Position, self.grid.Size = UDim2.fromOffset(0, gridTop), UDim2.fromOffset(ew, math.max(gridMin, gridH))
 	self.colourBar.Position, self.colourBar.Size = UDim2.fromOffset(0, gridTop + math.max(gridMin, gridH) + CHIP + 8), UDim2.fromOffset(ew, colourH)
+	-- what the column holds, top to bottom: past what it shows (a short phone), it scrolls to it
+	local rowsEnd = if colourRows > 0 then self.colourBar.Position.Y.Offset + colourH else gridTop + math.max(gridMin, gridH) + CHIP
+	self.editorScroll.CanvasSize = UDim2.fromOffset(0, math.max(eh, rowsEnd) + AvatarEditor.SCROLL_EDGE)
 	-- Tiles: as many columns as fit at 84-128 px, body pictures taller than faces.
 	local view = self:view()
 	local inner = ew - 16 - 6

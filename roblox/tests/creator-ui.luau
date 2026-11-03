@@ -393,7 +393,10 @@ local function overlap(a: { number }, b: { number }): boolean
 end
 -- (phones on their side too - 640x360 to 932x430: the owner's screenshot showed the studio's rows
 -- piled into each other at 666x374)
-for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 }, { 640, 360 }, { 667, 375 }, { 812, 375 }, { 844, 390 }, { 932, 430 } } do
+-- (and as the studio's ScreenGui really gets them, under Roblox's 58 px top bar: Studio's 749x381 phone
+-- is 749x323, where the colours ran into the save buttons; an iPhone 8 is 667x317)
+for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 }, { 640, 360 }, { 667, 375 }, { 812, 375 }, { 844, 390 }, { 932, 430 },
+	{ 749, 323 }, { 667, 317 } } do
 	ed:layout(Rbx.Vector2.new(size[1], size[2]))
 	local W, H = ed.size.X, ed.size.Y
 	local preview, editor = rect(ed.preview), rect(ed.editor)
@@ -408,6 +411,10 @@ for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 }, { 6
 	local phone = size[2] < 450 and size[1] > size[2]
 	assert(ed.grid.Size.Y.Offset >= (if phone then 60 else 80), `{size[1]}x{size[2]}: no room for the option grid`)
 	assert(ed.wide == (W >= 560 and W >= H * 1.05), "the wrong arrangement for this shape")
+	-- (every row in the column's scroll, or scrolling leaves it behind)
+	for name, row in { tabs = ed.groupBar, parts = ed.catBar, lock = ed.lockButton, random = ed.randPartButton, grid = ed.grid, chip = ed.moreChip, colours = ed.colourBar } do
+		assert(row.Parent == ed.editorScroll, `the editor's {name} row is outside its scroll`)
+	end
 	if phone then assert(ed.wide, `{size[1]}x{size[2]}: a phone on its side is stacked`) end
 	-- the editor's own rows, top to bottom, inside it on every tab
 	for _, group in { "presets", "body", "face", "hair", "outfit", "extras" } do
@@ -416,7 +423,9 @@ for _, size in { { 390, 844 }, { 1024, 768 }, { 1920, 1080 }, { 1366, 768 }, { 6
 			-- (a tab with no colours: its grid's foot)
 			local bottom = if ed.colourBar.Size.Y.Offset > 0 then ed.colourBar.Position.Y.Offset + ed.colourBar.Size.Y.Offset
 				else ed.grid.Position.Y.Offset + ed.grid.Size.Y.Offset
-			assert(bottom <= ed.editor.Size.Y.Offset, `{size[1]}x{size[2]} {group}: the colours end at {bottom}, past the editor's {ed.editor.Size.Y.Offset}`)
+			-- inside what the column shows, or it scrolls exactly that far (and only then)
+			local shows, canvas = ed.editor.Size.Y.Offset, ed.editorScroll.CanvasSize.Y.Offset - Editor.SCROLL_EDGE
+			assert(canvas == math.max(shows, bottom), `{size[1]}x{size[2]} {group}: the colours end at {bottom}, the editor shows {shows} and scrolls to {canvas}`)
 			assert(ed.grid.Position.Y.Offset >= ed.catBar.Position.Y.Offset + ed.catBar.Size.Y.Offset, `{size[1]}x{size[2]}: the grid starts on the parts row`)
 		end
 	end

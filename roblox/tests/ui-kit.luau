@@ -337,6 +337,14 @@ do
 	if ib.Size.X.Offset ~= 76 or ib.Size.Y.Offset ~= 76 or not icon or #icon._children < 8 or not wordLabel or wordLabel.Text ~= "LOCKER" or not child(ib, "Key") then
 		fail("an icon button is not a square with its icon, word and key")
 	end
+	-- a touch screen has no keys: the shortcut caps hide, on buttons made before and after, and come
+	-- back with a keyboard; a plain cap (the tutorial's, which names a touch button there) stays
+	Ui.setShortcuts(false)
+	local ib2 = Ui.iconButton(new("Frame"), "chest", "LOCKER", Ui.PURPLE, nil, 76, "L")
+	if child(ib, "Key").Visible ~= false or child(ib2, "Key").Visible ~= false then fail("an icon button shows its keyboard key on a touch screen") end
+	if Ui.keycap(new("Frame"), "ATTACK").Visible == false then fail("a plain keycap was hidden with the shortcuts") end
+	Ui.setShortcuts(true)
+	if child(ib, "Key").Visible ~= true or child(ib2, "Key").Visible ~= true then fail("the shortcut keys did not come back with a keyboard") end
 end
 
 -- widths grow with the words; no top bar outside Roblox

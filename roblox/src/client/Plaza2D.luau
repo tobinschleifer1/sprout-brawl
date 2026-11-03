@@ -1249,13 +1249,15 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 	local promptMax = if high then math.max(gw / 2 - 16 - Plaza2D.FIGHTER_CLEAR, 160)
 		elseif Ui.lightPanels() then math.max(gw - Plaza2D.SOCIAL_BAR_W - 48, 200)
 		else math.max(gw - 2 * (Plaza2D.CHARACTER_W + 28), 200)
-	local promptWant = Ui.textWidth(self.prompt.Text, if action then 20 else 13) + (if action then 64 else 16) + 24
+	-- (no E on a touch screen: the card itself is the button - Ui.setShortcuts)
+	local keyed = action and Ui.shortcutsShown
+	local promptWant = Ui.textWidth(self.prompt.Text, if action then 20 else 13) + (if keyed then 64 else 16) + 24
 	-- (taller when the words must wrap, so two lines keep their padding)
 	self.prompt.Size = UDim2.new(0, math.min(promptMax, promptWant), 0, if promptWant > promptMax then 66 else 50)
 	-- an action (the E key, gold words, a gold rim) or a tip (soft words, no key)
-	if self.promptAction ~= action then
-		self.promptAction = action
-		self.promptKey.Visible = action
+	if self.promptAction ~= action or self.promptKeyed ~= keyed then
+		self.promptAction, self.promptKeyed = action, keyed
+		self.promptKey.Visible = keyed
 		self.prompt.Font = if action then Ui.DISPLAY else Ui.LABEL
 		self.prompt.TextSize = Ui.px(if action then 20 else 13)
 		-- (on a pale card: dark words, a gold edge for an action; on a dark one gold words)
@@ -1263,7 +1265,7 @@ function Plaza2D.drawScene(self: any, c: any, dt: number)
 		self.promptOutline.Enabled = action and not Ui.lightPanels()
 		self.promptEdge.Color = if Ui.lightPanels() and action then Ui.shade(Ui.SUN, -0.2) else Ui.INK
 		self.promptRim.Color = if action then Ui.GOLD else Ui.PANEL2
-		self.promptPad.PaddingLeft = UDim.new(0, if action then 64 else 16)
+		self.promptPad.PaddingLeft = UDim.new(0, if keyed then 64 else 16)
 	end
 	self.gui:SetAttribute("NearbyStation", if near then near.id else "")
 	self.gui:SetAttribute("FighterX", p.x)

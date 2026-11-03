@@ -32,6 +32,8 @@ shop-phone|shop|390|844|
 studio-outfit-phone|studio|844|390|clothing
 studio-outfit-small|studio|1024|600|clothing
 studio-phone-se|studio|667|375|body
+studio-phone-inset|studio|749|323|body
+studio-outfit-phone-inset|studio|749|323|clothing
 studio-outfit-phone-se|studio|667|375|clothing
 plaza-phone-se|plaza|667|375|
 hud-fight-phone|hud|667|375|fight

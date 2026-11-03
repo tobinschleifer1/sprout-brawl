@@ -291,6 +291,23 @@ function Ui.paint(b: any, colour: Color3, textColour: Color3?)
 	end
 end
 
+-- Keyboard shortcuts' caps on buttons (an icon button's corner, the lobby's E): hidden on a touch
+-- screen, which has no keys (the owner's phone screenshots, 2026-11-03: "L" and "M" on LOCKER and MAP).
+-- Not the tutorial's caps, which name a touch screen's own buttons there.
+local shortcuts: { [any]: boolean } = setmetatable({} :: any, { __mode = "k" })
+Ui.shortcutsShown = true
+-- `cap` is a shortcut's: shown while shortcuts are (Ui.setShortcuts). Returns it.
+function Ui.shortcut(cap: any): any
+	shortcuts[cap] = true
+	cap.Visible = Ui.shortcutsShown
+	return cap
+end
+function Ui.setShortcuts(shown: boolean)
+	if shown == Ui.shortcutsShown then return end
+	Ui.shortcutsShown = shown
+	for cap in shortcuts do cap.Visible = shown end
+end
+
 -- A pale square key with its letter. The caller sizes and places it.
 function Ui.keycap(parent: Instance?, key: string, size: number?): any
 	local k = Ui.make("TextLabel", parent, { Name = "Key", Text = Ui.keyLabel(key), Font = Ui.DISPLAY, TextSize = Ui.px(size or 14, Ui.DISPLAY),
@@ -594,7 +611,7 @@ function Ui.iconButton(parent: Instance?, kind: string, value: string, colour: C
 	word.Name, word.AnchorPoint = "Word", Vector2.new(0.5, 1)
 	word.Position, word.Size = UDim2.new(0.5, 0, 1, -math.floor(size * 0.1)), UDim2.new(1, -6, 0, math.floor(size * 0.24))
 	if key then
-		local cap = Ui.keycap(b, key, 10)
+		local cap = Ui.shortcut(Ui.keycap(b, key, 10))
 		cap.Position, cap.Size, cap.ZIndex = UDim2.fromOffset(3, 3), UDim2.fromOffset(15, 15), (b.ZIndex or 1) + 2
 	end
 	return b

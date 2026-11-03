@@ -450,6 +450,14 @@ do
 			assert(top >= band, `on a wide screen the action card's top ({top}) is over the walking band (front edge {band})`)
 			local right = p.Position.X.Scale * 1280 + p.Position.X.Offset - p.AnchorPoint.X * p.Size.X.Offset + p.Size.X.Offset
 			assert(right <= 1280 - Plaza2D.SOCIAL_BAR_W - 16, `the action card reaches x {right}, into the buttons' row`)
+			-- on a touch screen no E: the card itself is the button, and keeps no room for a key
+			local Ui = Loader.loadFrom("src/client/", "Ui")
+			Ui.setShortcuts(false)
+			hub:draw(canvas(1280, 720), 1/60)
+			assert(hub.prompt.Visible and hub.promptKey.Visible == false and hub.promptPad.PaddingLeft.Offset == 16, "beside a station on a touch screen the E key shows")
+			Ui.setShortcuts(true)
+			hub:draw(canvas(1280, 720), 1/60)
+			assert(hub.promptKey.Visible and hub.promptPad.PaddingLeft.Offset == 64, "the E key did not come back with a keyboard")
 			-- away from a station: no card, and the key hints are back
 			hub.model:setScene(hub.model.data, { x = st.x - 9, z = 3 })
 			hub:draw(canvas(1280, 720), 1/60)

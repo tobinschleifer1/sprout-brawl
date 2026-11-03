@@ -200,6 +200,17 @@ function Recorder.nodes(made: { any }, W: number, H: number): { any }
 			end
 			return px + x, py + y, pw * sz.X.Scale + sz.X.Offset, height(o, pw, ph)
 		end
+		-- (and moves in what it holds without a layout too, as Roblox does: the studio's editor column
+		-- scrolls inside a padded edge)
+		if p and p._children then
+			for _, c in p._children do
+				if c.ClassName == "UIPadding" and not c.destroyed then
+					local l, r = c.PaddingLeft and c.PaddingLeft.Offset or 0, c.PaddingRight and c.PaddingRight.Offset or 0
+					local t, b = c.PaddingTop and c.PaddingTop.Offset or 0, c.PaddingBottom and c.PaddingBottom.Offset or 0
+					px, py, pw, ph = px + l, py + t, pw - l - r, ph - t - b
+				end
+			end
+		end
 		local w, h = pw * sz.X.Scale + sz.X.Offset, ph * sz.Y.Scale + sz.Y.Offset
 		for _, ch in o._children do
 			if ch.ClassName == "UISizeConstraint" and ch.MaxSize then w, h = math.min(w, ch.MaxSize.X), math.min(h, ch.MaxSize.Y) end

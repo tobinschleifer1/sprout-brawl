@@ -68,6 +68,7 @@ local AvatarEditor = require(script.AvatarEditor)
 local LobbySocial = require(script.LobbySocial)
 local ParkourView = require(script.ParkourView)
 local ClimbRecords = require(script.ClimbRecords)
+local Windows = require(script.Windows)
 local Plaza = require(Shared.Plaza)
 local PresenceCodec = require(Shared.PresenceCodec)
 local SnapshotCodec = require(Shared.SnapshotCodec)
@@ -192,8 +193,10 @@ local editor = AvatarEditor.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	send = function(msg: any) Net.remote("Avatar"):FireServer(msg) end,
 	weapon = function(): string return if select_ then select_.cfg.slots[1].weaponId else "Sword" end,
 })
+-- One lobby window at a time (Windows): opening one closes the others.
+local windows = Windows.new()
 local function openStudio()
-	if hub.active and not hub.room and not roomOverlay() then editor:open() end
+	if hub.active and not hub.room and not roomOverlay() and not editor:isOpen() then windows:opening("studio"); editor:open() end
 end
 hub.onCharacter = openStudio
 -- The Locker: what you own and wear, crates and keys, the Workshop (LockerScreen). It decides
@@ -213,7 +216,9 @@ local locker = LockerScreen.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	end,
 })
 local function openLocker()
-	if hub.active and not hub.room and not roomOverlay() then locker:toggle() end
+	if hub.active and not hub.room and not roomOverlay() then
+		windows:toggle("locker", function() return locker:isOpen() end, function() locker:open() end, function() locker:close() end)
+	end
 end
 hub.onLocker = openLocker
 -- The Shop (ShopScreen): its prompts go to Roblox's own purchase window.
@@ -236,7 +241,9 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player: Playe
 	end
 end)
 hub.onShop = function()
-	if hub.active and not hub.room and not roomOverlay() then shopScreen:toggle() end
+	if hub.active and not hub.room and not roomOverlay() then
+		windows:toggle("shop", function() return shopScreen:isOpen() end, function() shopScreen:open() end, function() shopScreen:close() end)
+	end
 end
 -- VIP: a gold name over a player in the plaza, and a gold [VIP] tag on their chat lines. Both read
 -- the VIP attribute the server sets on that player (from the pass); nothing here decides it.
@@ -265,6 +272,7 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	invite = function() pcall(function() game:GetService("SocialService"):PromptGameInvite(Players.LocalPlayer) end) end,
 	-- what only this screen sees, counted by name (server Analytics.CLIENT)
 	track = function(name: string) Net.remote("Track"):FireServer(name) end,
+	opened = function() windows:opening("social") end,
 })
 Net.remote("QueueView").OnClientEvent:Connect(function(view: any, why: any)
 	social:setQueue(view)
@@ -281,6 +289,9 @@ local function askClimb(from: any)
 end
 -- The climb's leaderboards: from the CLIMB RECORDS board at its foot, or the climb's RECORDS button.
 local records = ClimbRecords.new(Players.LocalPlayer:WaitForChild("PlayerGui"), { localId = Players.LocalPlayer.UserId })
+local function toggleRecords()
+	windows:toggle("records", function() return records:isOpen() end, function() records:open() end, function() records:close() end)
+end
 -- ---------------------------------------------------------------- settings and sound ----
 -- The keys as the game ships them, copied before any settings touch Bindings (Settings applies
 -- a player's own keys over these, into Bindings.keyboard, which the input sampler reads).
@@ -366,8 +377,17 @@ local settingsMenu = SettingsMenu.new(Players.LocalPlayer:WaitForChild("PlayerGu
 touchEditor = TouchEditor.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	onDone = function(custom: any) settingsMenu:setTouch(custom) end,
 })
+windows:add("locker", { isOpen = function() return locker:isOpen() end, close = function() locker:close() end })
+windows:add("shop", { isOpen = function() return shopScreen:isOpen() end, close = function() shopScreen:close() end })
+windows:add("settings", { isOpen = function() return settingsMenu:isOpen() end, close = function() settingsMenu:close() end })
+windows:add("records", { isOpen = function() return records:isOpen() end, close = function() records:close() end })
+windows:add("social", { isOpen = function() return social:anyOpen() end, close = function() social:closeAll() end })
+-- (it asks before throwing away unsaved work, so nothing closes it; opening it closes the rest)
+windows:add("studio", { isOpen = function() return editor:isOpen() end, close = function() end, keep = true })
 hub.onSettings = function()
-	if hub.active and not hub.room and not roomOverlay() then settingsMenu:toggle() end
+	if hub.active and not hub.room and not roomOverlay() then
+		windows:toggle("settings", function() return settingsMenu:isOpen() end, function() settingsMenu:open() end, function() settingsMenu:close() end)
+	end
 end
 Net.remote("ClimbBoards").OnClientEvent:Connect(function(view: any)
 	records:set(view)
@@ -399,7 +419,7 @@ end)
 local parkour: any
 parkour = ParkourView.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	send = function(msg: any) Net.remote("Climb"):FireServer(msg) end,
-	records = function() records:toggle() end,
+	records = toggleRecords,
 	price = skipPrice,
 	skip = function(index: number)
 		local id = SkipProducts.forCheckpoint(index)
@@ -522,7 +542,7 @@ Net.remote("Select").OnClientEvent:Connect(function(msg: any)
 				elseif station.kind == "Parkour" then
 					askClimb(if parkour.progress.best > 0 then "best" else 0)
 				elseif station.kind == "Records" then
-					records:toggle()
+					toggleRecords()
 				elseif station.kind == "Warp" then
 					social:toggle("Map")
 				elseif station.kind == "Exit" then

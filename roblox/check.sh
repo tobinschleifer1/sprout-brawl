@@ -81,6 +81,7 @@ lune run tests/launch-state
 echo "== the lobby: walking the rooftop market, its stations and its drawing =="
 lune run tests/plaza-view
 lune run tests/social-ui
+lune run tests/windows
 lune run tests/plaza-parity
 lune run tests/parkour-parity
 lune run tests/climb-view

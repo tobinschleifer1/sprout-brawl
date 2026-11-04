@@ -7,6 +7,9 @@
 -- (It was also the lobby's stamps, quick messages and member list; the owner had those taken out,
 -- 2026-10-29, when PLAY replaced the arcade and the fighters' gates.)
 --
+-- PARTY (from PLAY; Parties, the owner's ask 2026-11-04): who is in your party, LEAVE PARTY, and the
+-- other players in this server with INVITE beside each. Your party's leader picks the fight.
+--
 -- Keys, while the lobby is up: M the roof map; 1-9 pick from an open list. Every key has a button.
 
 local Shared = game:GetService("ReplicatedStorage").Shared
@@ -83,6 +86,7 @@ LobbySocial.TOP_CLEAR = 64                -- (Roblox's top bar, and a little)
 function LobbySocial.fit(self: any, h: number)
 	if not self.playPanel or not h or h <= 0 then return end
 	local bottom = if LIGHT then 10 + LobbySocial.ICON + 8 else 62
+	self.screenH = h
 	local room = math.max(160, h - bottom - LobbySocial.TOP_CLEAR)
 	local shown = math.min(self.playH, room)
 	self.playPanel.Size = UDim2.fromOffset(LobbySocial.PLAY_W, shown)
@@ -178,6 +182,12 @@ function LobbySocial.new(parent: Instance, opts: any): any
 		invite.Position, invite.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 36)
 		y += 36 + gap
 	end
+	-- PARTY: invite players in this server to fight beside you
+	local partyButton = Ui.button(play, "PARTY", Ui.TEAL, function() self:toggle("Party") end, { size = 15 })
+	partyButton.Name = "OpenParty"
+	partyButton.Position, partyButton.Size = UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 36)
+	y += 36 + gap
+	self.partyButton = partyButton
 	-- why the last choice was refused (Ranked below its level, or the server's reason)
 	local note = Ui.text(play, "", 12, SUB, Ui.LABEL, true)
 	note.Name, note.Position, note.Size = "Note", UDim2.fromOffset(13, y - gap + 6), UDim2.new(1, -26, 0, 16)
@@ -222,7 +232,16 @@ function LobbySocial.new(parent: Instance, opts: any): any
 	fill.Name, fill.Position, fill.Size = "Fill", UDim2.fromOffset(fillX, 56), UDim2.new(1, -fillX - 14, 0, 30)
 	self.queueCard, self.queueTitle, self.queueCount, self.fillButton = card, title, count, fill
 
-	self.panels = { Play = play, Map = map }
+	-- PARTY: built empty; its rows are made from the server's PartyView (refreshParty)
+	local party = panel(gui, "Party", "PARTY", LobbySocial.PARTY_W, 200, Ui.TEAL)
+	local list = Ui.make("ScrollingFrame", party, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, LobbySocial.BAND + 4), Size = UDim2.new(1, 0, 1, -(LobbySocial.BAND + 8)),
+		CanvasSize = UDim2.new(), ScrollBarThickness = 4, ScrollingDirection = Enum.ScrollingDirection.Y })
+	self.partyPanel, self.partyList = party, list
+	self.party = { members = {}, leader = true, invites = {}, sent = {}, max = 3 }
+	self.partyNote = ""
+
+	self.panels = { Play = play, Map = map, Party = party }
 	self:setProgress(nil)
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() self:fit(gui.AbsoluteSize.Y) end)
 	self:fit(gui.AbsoluteSize.Y)
@@ -256,6 +275,7 @@ end
 function LobbySocial.toggle(self: any, name: string)
 	if not self.enabled then return end
 	local was = self.panels[name].Visible
+	if name == "Party" and not was then self:refreshParty() end
 	self:closeAll()
 	self.panels[name].Visible = not was
 end
@@ -270,6 +290,11 @@ function LobbySocial.choose(self: any, format: string)
 	-- (the server refuses it too: this only says so without the round trip)
 	if f and f.level and (self.progress.level or 1) < f.level then
 		self.note.Text = `Ranked unlocks at level {f.level}. You are level {self.progress.level or 1}.`
+		return
+	end
+	-- (in a party, the leader picks: the server refuses anyone else's pick too)
+	if #self.party.members > 1 and not self.party.leader then
+		self.note.Text = "Your party leader picks the fight."
 		return
 	end
 	self.note.Text = ""
@@ -374,6 +399,92 @@ function LobbySocial.tick(self: any)
 	end
 	-- (twice a second, between the kit's green and a lighter one)
 	Ui.paint(self.fillButton, if math.floor(waited * 2) % 2 == 0 then Ui.GREEN else Ui.shade(Ui.GREEN, 0.3), Ui.WHITE)
+end
+
+-- ------------------------------------------------------------------ PARTY ----
+LobbySocial.PARTY_W = 320
+LobbySocial.PARTY_ROW = 34
+-- The server's PartyView (Parties.view): your party, whether you lead it, whom you have invited.
+-- Its event, if any, is said on the panel: a refusal, or who you just joined.
+function LobbySocial.setParty(self: any, view: any)
+	if type(view) ~= "table" then return end
+	self.party = view
+	local e = view.event
+	if type(e) == "table" then
+		self.partyNote = if e.error then e.error elseif e.joined then `You are in {e.joined}'s party.` else ""
+	end
+	local n = #(view.members or {})
+	self.partyButton.Text = if n > 1 then `PARTY  ·  {n} / {view.max or 3}` else "PARTY"
+	self:refreshParty()
+end
+
+-- Rebuild the PARTY panel's rows: your party, LEAVE PARTY, then everyone else here with INVITE.
+-- `opts.players()` lists this server's players as { id, name }; `opts.party(msg)` goes to the server.
+function LobbySocial.refreshParty(self: any)
+	local list = self.partyList
+	for _, c in list:GetChildren() do if c:IsA("GuiObject") then c:Destroy() end end
+	local view = self.party
+	local W, RH = LobbySocial.PARTY_W, LobbySocial.PARTY_ROW
+	local y = 4
+	local mine: { [number]: boolean } = {}
+	local function line(name: string, text: string, size: number, colour: Color3): any
+		local t = Ui.text(list, text, size, colour, Ui.LABEL, true)
+		t.Name, t.Position, t.Size = name, UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, size + 6)
+		t.TextXAlignment, t.TextTruncate = Enum.TextXAlignment.Left, Enum.TextTruncate.AtEnd
+		y += size + 10
+		return t
+	end
+	local members = view.members or {}
+	line("Head_Party", `YOUR PARTY  ·  {math.max(1, #members)} / {view.max or 3}`, 12, SUB)
+	if #members <= 1 then
+		line("Alone", "Just you. Invite players below to fight beside you.", 13, ON_PANEL)
+	end
+	for _, m in members do
+		mine[m.id] = true
+		if #members > 1 then
+			line("Member_" .. m.id, (if m.leader then "LEADER  ·  " else "") .. m.name .. (if m.id == self.localId then "  (you)" else ""), 14, ON_PANEL)
+		end
+	end
+	if #members > 1 then
+		local leave = Ui.button(list, "LEAVE PARTY", Ui.PANEL2, function()
+			if self.opts.party then self.opts.party({ action = "leave" }) end
+		end, { size = 13, small = true })
+		leave.Name, leave.Position, leave.Size = "Leave", UDim2.fromOffset(13, y), UDim2.new(1, -26, 0, 30)
+		y += 30 + Ui.GAP
+		line("Picks", if view.leader then "You pick the fight from PLAY." else "Your leader picks the fight.", 12, SUB)
+	end
+	line("Head_Players", "PLAYERS IN THIS SERVER", 12, SUB)
+	local sent: { [number]: boolean } = {}
+	for _, id in view.sent or {} do sent[id] = true end
+	local others = {}
+	for _, p in (if self.opts.players then self.opts.players() else {}) do
+		if not mine[p.id] and p.id ~= self.localId then table.insert(others, p) end
+	end
+	table.sort(others, function(a, b) return a.name < b.name end)
+	if #others == 0 then line("Nobody", "Nobody else is here yet: INVITE FRIENDS brings them.", 13, ON_PANEL) end
+	local full = #members >= (view.max or 3)
+	for _, p in others do
+		local nameLabel = Ui.text(list, p.name, 14, ON_PANEL, Ui.LABEL, true)
+		nameLabel.Name, nameLabel.Position, nameLabel.Size = "Player_" .. p.id, UDim2.fromOffset(13, y), UDim2.new(1, -(26 + 96 + Ui.GAP), 0, RH - 4)
+		nameLabel.TextXAlignment, nameLabel.TextTruncate = Enum.TextXAlignment.Left, Enum.TextTruncate.AtEnd
+		local can = view.leader and not full and not sent[p.id]
+		local word = if sent[p.id] then "SENT" elseif full then "FULL" elseif not view.leader then "-" else "INVITE"
+		local b = Ui.button(list, word, if can then Ui.GREEN else Ui.PANEL2, function()
+			if can and self.opts.party then
+				self.opts.party({ action = "invite", id = p.id })
+				self.partyNote = `Invited {p.name}.`
+			end
+		end, { size = 13, small = true })
+		b.Name = "Invite_" .. p.id
+		b.AnchorPoint, b.Position, b.Size = Vector2.new(1, 0), UDim2.new(1, -13, 0, y), UDim2.fromOffset(96, RH - 4)
+		y += RH + 6
+	end
+	if self.partyNote ~= "" then line("Note", self.partyNote, 12, SUB) end
+	list.CanvasSize = UDim2.fromOffset(0, y)
+	-- as tall as its rows, up to the room between Roblox's top bar and the button row
+	local h = LobbySocial.BAND + 8 + y
+	local room = math.max(160, (self.screenH or 720) - (if LIGHT then 10 + LobbySocial.ICON + 8 else 62) - LobbySocial.TOP_CLEAR)
+	self.partyPanel.Size = UDim2.fromOffset(W, math.min(h, room))
 end
 
 function LobbySocial.warp(self: any, id: string)

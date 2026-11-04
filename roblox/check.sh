@@ -88,6 +88,7 @@ lune run tests/records-ui
 echo "== match launch: all roster sizes and snapshot cadence =="
 lune run tests/match-launch
 lune run tests/rooms
+lune run tests/parties
 lune run tests/climb-progress
 lune run tests/climb-boards
 lune run tests/purchases

@@ -66,6 +66,7 @@ local LaunchState = require(script.LaunchState)
 local Plaza2D = require(script.Plaza2D)
 local AvatarEditor = require(script.AvatarEditor)
 local LobbySocial = require(script.LobbySocial)
+local PartyPrompt = require(script.PartyPrompt)
 local ParkourView = require(script.ParkourView)
 local ClimbRecords = require(script.ClimbRecords)
 local Plaza = require(Shared.Plaza)
@@ -265,7 +266,28 @@ local social = LobbySocial.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
 	invite = function() pcall(function() game:GetService("SocialService"):PromptGameInvite(Players.LocalPlayer) end) end,
 	-- what only this screen sees, counted by name (server Analytics.CLIENT)
 	track = function(name: string) Net.remote("Track"):FireServer(name) end,
+	-- PARTY: this server's players, and the party remote (Parties)
+	players = function(): { any }
+		local out = {}
+		for _, p in Players:GetPlayers() do table.insert(out, { id = p.UserId, name = p.DisplayName }) end
+		return out
+	end,
+	party = function(msg: any) Net.remote("Party"):FireServer(msg) end,
 })
+social.localId = Players.LocalPlayer.UserId
+-- a party invite's pop-up: JOIN NAME'S PARTY? (PartyPrompt)
+local partyPrompt = PartyPrompt.new(Players.LocalPlayer:WaitForChild("PlayerGui"), {
+	accept = function(from: number) Net.remote("Party"):FireServer({ action = "accept", id = from }) end,
+	decline = function(from: number) Net.remote("Party"):FireServer({ action = "decline", id = from }) end,
+})
+Net.remote("PartyView").OnClientEvent:Connect(function(view: any)
+	social:setParty(view)
+	partyPrompt:set(view)
+end)
+-- (the PARTY panel lists who is here: it changes as they come and go)
+local function playersChanged() if social.partyPanel.Visible then social:refreshParty() end end
+Players.PlayerAdded:Connect(playersChanged)
+Players.PlayerRemoving:Connect(function() task.defer(playersChanged) end)
 Net.remote("QueueView").OnClientEvent:Connect(function(view: any, why: any)
 	social:setQueue(view)
 	social:refused(why)
@@ -854,6 +876,7 @@ end
 local poseElapsed = 0
 RunService.Heartbeat:Connect(function(dt: number)
 	social:tick()          -- a quiet queue offers its bots (LobbySocial.QUIET)
+	partyPrompt:tick()     -- an invite's countdown
 	if tutorialLeaving and os.clock() - tutorialLeaving.at > 3 then
 		tutorialLeaving.at = os.clock()
 		Net.remote("Tutorial"):FireServer(tutorialLeaving.action)

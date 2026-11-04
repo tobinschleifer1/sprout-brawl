@@ -73,6 +73,7 @@ local PLAZA = Loader.load("Plaza").DATA      -- (the Roblox lobby's market)
 local Ui = Loader.loadFrom("src/client/", "Ui")
 
 local warps, queued, unqueued, filled, invited, tracked = {}, {}, 0, 0, 0, {}
+local partySent = {}
 local s = Social.new(instance("PlayerGui"), {
 	warp = function(id) table.insert(warps, id); return true end,
 	queue = function(format) table.insert(queued, format) end,
@@ -80,7 +81,10 @@ local s = Social.new(instance("PlayerGui"), {
 	fill = function() filled += 1 end,
 	invite = function() invited += 1 end,
 	track = function(name) table.insert(tracked, name) end,
+	players = function() return { { id = 1, name = "Me" }, { id = 2, name = "Zed" }, { id = 3, name = "Ann" }, { id = 4, name = "Bo" } } end,
+	party = function(msg) table.insert(partySent, msg) end,
 })
+s.localId = 1
 s:setEnabled(true)
 
 -- the bar: PLAY and MAP, and nothing of the stamps, quick messages or member list
@@ -258,4 +262,72 @@ do
 	if play.Size.Y.Offset ~= s.playH then error("on a tall screen PLAY is not as tall as its contents") end
 	s:fit(720)
 end
-print("PASS social UI: the bar is PLAY and MAP; PLAY queues for 1v1/2v2/3v3, 3/4/6 free-for-alls and Ranked by button or digit, in three sections; your level, XP and rank; Ranked locked below level 10; INVITE FRIENDS; a quiet queue offers its bots; the queue card counts and offers CANCEL and FILL WITH BOTS; the map lists the lobby's three places, padded and bare")
+-- PARTY (Parties): from PLAY, your party and everyone else here with INVITE; the leader picks.
+s:setEnabled(true)
+s:closeAll()
+click(s.gui, "OpenPlay")
+click(s.gui, "OpenParty")
+assert(s:open() == "Party", "PARTY did not open its panel from PLAY")
+local list = find(s.gui, "Party")
+assert(find(list, "Alone") and not find(list, "Leave"), "alone, the panel offers LEAVE PARTY or does not say so")
+-- everyone else, by name, each with INVITE; not yourself
+assert(not find(list, "Invite_1") and find(list, "Invite_2") and find(list, "Invite_3") and find(list, "Invite_4"), "the players here are not all offered")
+assert(find(list, "Invite_3").Position.Y.Offset < find(list, "Invite_4").Position.Y.Offset
+	and find(list, "Invite_4").Position.Y.Offset < find(list, "Invite_2").Position.Y.Offset, "the players are not in name order")
+click(list, "Invite_3")
+assert(#partySent == 1 and partySent[1].action == "invite" and partySent[1].id == 3, "INVITE did not ask the server")
+-- the server says it is sent: the button says so and sends nothing more
+s:setParty({ members = { { id = 1, name = "Me", leader = false } }, leader = true, invites = {}, sent = { 3 }, max = 3 })
+assert(find(list, "Invite_3").Text == "SENT", "a sent invite is offered again")
+click(list, "Invite_3")
+assert(#partySent == 1, "a sent invite was sent again")
+-- in a party of two that you lead: both listed, LEAVE PARTY, and PLAY says how many
+s:setParty({ members = { { id = 1, name = "Me", leader = true }, { id = 3, name = "Ann", leader = false } }, leader = true,
+	invites = {}, sent = {}, max = 3, event = { to = 1, joined = "Me" } })
+assert(find(list, "Member_1") and find(list, "Member_3") and not find(list, "Invite_3") and not find(list, "Alone"), "the party's members are not listed")
+assert(string.find(find(list, "Member_1").Text, "LEADER", 1, true) and not string.find(find(list, "Member_3").Text, "LEADER", 1, true), "the leader is not marked")
+assert(find(s.gui, "OpenParty").Text == "PARTY  ·  2 / 3", "PLAY does not show the party")
+click(list, "Leave")
+assert(partySent[#partySent].action == "leave", "LEAVE PARTY did not ask the server")
+-- full: nobody else can be invited
+s:setParty({ members = { { id = 1, name = "Me", leader = true }, { id = 3, name = "Ann" }, { id = 4, name = "Bo" } }, leader = true,
+	invites = {}, sent = {}, max = 3 })
+local before = #partySent
+click(list, "Invite_2")
+assert(#partySent == before and find(list, "Invite_2").Text == "FULL", "a full party invited another")
+-- a member, not the leader: no inviting, and PLAY's picks stay with the leader
+s:setParty({ members = { { id = 3, name = "Ann", leader = true }, { id = 1, name = "Me" } }, leader = false,
+	invites = {}, sent = {}, max = 3, event = { to = 1, error = "Only your party leader can invite." } })
+before = #partySent
+click(list, "Invite_2")
+assert(#partySent == before, "a member who does not lead invited")
+assert(find(list, "Note") and string.find(find(list, "Note").Text, "leader", 1, true), "the server's refusal was not shown")
+local queuedBefore = #queued
+s:choose("Doubles")
+assert(#queued == queuedBefore and string.find(find(s.gui, "Note").Text, "leader picks", 1, true), "a member picked the party's fight")
+s:setParty({ members = { { id = 1, name = "Me", leader = false } }, leader = true, invites = {}, sent = {}, max = 3 })
+s:choose("Doubles")
+assert(#queued == queuedBefore + 1, "on your own again, PLAY did not pick")
+
+-- The invite's pop-up (PartyPrompt): JOIN NAME'S PARTY?, its countdown, JOIN and NO, one at a time.
+local Prompt = Loader.loadFrom("src/client/", "PartyPrompt")
+local now, answers = 100, {}
+local pg = instance("PlayerGui")
+local prompt = Prompt.new(pg, { now = function() return now end,
+	accept = function(id) table.insert(answers, { "join", id }) end, decline = function(id) table.insert(answers, { "no", id }) end })
+assert(not prompt.gui.Enabled, "the pop-up shows with no invite")
+prompt:set({ invites = { { from = 7, name = "Ann", left = 30 }, { from = 8, name = "Bo", left = 20 } } })
+assert(prompt.gui.Enabled and find(pg, "Title").Text == "JOIN ANN'S PARTY?", "the invite does not say whose party")
+assert(string.find(find(pg, "Left").Text, "30s", 1, true) and string.find(find(pg, "Left").Text, "1 more", 1, true), "the countdown or the next invite is not shown")
+now = 110; prompt:tick()
+assert(string.find(find(pg, "Left").Text, "20s", 1, true), "the countdown does not count")
+click(pg, "Join")
+assert(answers[1][1] == "join" and answers[1][2] == 7, "JOIN did not ask to join that party")
+assert(find(pg, "Title").Text == "JOIN BO'S PARTY?", "the next invite was not shown")
+now = 121; prompt:tick()
+assert(not prompt.gui.Enabled and #answers == 1, "a run-out invite stayed up, or answered itself")
+prompt:set({ invites = { { from = 9, name = "Cy", left = 30 } } })
+click(pg, "No")
+assert(answers[2][1] == "no" and answers[2][2] == 9 and not prompt.gui.Enabled, "NO did not decline")
+
+print("PASS social UI: the bar is PLAY and MAP; PLAY queues for 1v1/2v2/3v3, 3/4/6 free-for-alls and Ranked by button or digit, in three sections; your level, XP and rank; Ranked locked below level 10; INVITE FRIENDS; a quiet queue offers its bots; the queue card counts and offers CANCEL and FILL WITH BOTS; the map lists the lobby's three places, padded and bare; PARTY lists your party and invites the players here, the leader alone inviting and picking; the invite pop-up counts down, JOIN and NO answer it")

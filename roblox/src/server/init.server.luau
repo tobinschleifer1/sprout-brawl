@@ -7,6 +7,7 @@ local Net = require(Shared.Net)
 local Plaza = require(Shared.Plaza)
 local PresenceCodec = require(Shared.PresenceCodec)
 local Rooms = require(script.Rooms)
+local Parties = require(script.Parties)
 local AvatarStore = require(script.AvatarStore)
 local ClimbProgress = require(script.ClimbProgress)
 local ClimbBoards = require(script.ClimbBoards)
@@ -26,6 +27,8 @@ local Analytics = require(script.Analytics)
 pcall(function() Analytics.service = game:GetService("AnalyticsService") end)
 Players.CharacterAutoLoads = false
 local rooms = Rooms.new()
+-- parties: players in this server who fight together (Parties; the leader picks the fight)
+local parties = Parties.new()
 -- Saved characters. GetDataStore itself can fail (no DataStore service in a local test server);
 -- the store then runs session-only rather than taking the lobby down with it.
 local okStore, dataStore = pcall(function()
@@ -127,6 +130,22 @@ local function sendQueue(format: string?)
 		Net.remote("QueueView"):FireClient(p, rooms:queueView(p.UserId))
 	end
 end
+-- Each of `ids` (user ids) sees their party and the invites waiting for them. `event` goes with it
+-- for one of them: { to = userId, error = why } or { to = userId, joined = name }.
+local function nameOf(id: number): string
+	local p = Players:GetPlayerByUserId(id)
+	return if p then p.DisplayName else "someone"
+end
+local function sendParty(ids: { number }, event: any?)
+	for _, id in ids do
+		local p = loaded[id]
+		if p then
+			local view = parties:view(id, nameOf)
+			if event and event.to == id then view.event = event end
+			Net.remote("PartyView"):FireClient(p, view)
+		end
+	end
+end
 local function hub(player: Player, why: string?)
 	poses[player.UserId] = nil
 	local profile = rooms:profile(player.UserId)
@@ -207,7 +226,24 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 	if not loaded[player.UserId] or type(msg) ~= "table" or not admitted(player, "room", 0.08) then return end
 	if msg.action == "leave" then leave(player); hub(player); Net.remote("RoomView"):FireClient(player, { left = true }); return end
 	local room, why
-	if msg.action == "queue" then
+	if msg.action == "queue" and #parties:members(player.UserId) > 1 then
+		-- PLAY in a party: the leader picks, and the whole party goes into one room (Rooms.queueParty)
+		local changed
+		if not parties:isLeader(player.UserId) then
+			why = "Your party leader picks the fight."
+		else
+			local players = {}
+			for _, id in parties:members(player.UserId) do
+				local p = loaded[id]
+				if p then table.insert(players, p) end
+			end
+			changed, why = rooms:queueParty(players, msg.format)
+			if not why then Analytics.event(player, "queue_party", { format = msg.format, size = #players }) end
+		end
+		Net.remote("QueueView"):FireClient(player, rooms:queueView(player.UserId), why)
+		for _, r in changed or {} do rooms:advance(r); publish(r); launchRoom(r); seatedFromQueue(r) end
+		return
+	elseif msg.action == "queue" then
 		-- PLAY: into the queue for a format; anyone it seats goes straight into their room
 		local changed
 		changed, why = rooms:queue(player, msg.format)
@@ -269,6 +305,33 @@ Net.remote("RoomAction").OnServerEvent:Connect(function(player: Player, msg: any
 	rooms:advance(room)            -- everyone ready, everyone voted: the room moves on (Rooms.PICK_TIME)
 	publish(room)
 	launchRoom(room)
+end)
+-- Parties: invite someone in this server, answer an invite, leave. Every change is sent to everyone
+-- it touches; a refusal goes back to whoever asked, as the event on their PartyView.
+Net.remote("Party").OnServerEvent:Connect(function(player: Player, msg: any)
+	if not loaded[player.UserId] or type(msg) ~= "table" or not admitted(player, "party", 0.2) then return end
+	local me = player.UserId
+	local other = if type(msg.id) == "number" then msg.id else nil
+	if msg.action == "invite" and other then
+		if not loaded[other] then sendParty({ me }, { to = me, error = "They are not in this server." }); return end
+		local ok, why = parties:invite(me, other)
+		if ok then Analytics.event(player, "party_invite") end
+		sendParty({ me }, if why then { to = me, error = why } else nil)
+		if ok then sendParty({ other }) end
+	elseif msg.action == "accept" and other then
+		local party, why = parties:accept(me, other)
+		if not party then sendParty({ me }, { to = me, error = why }); return end
+		Analytics.event(player, "party_join", { size = #party.members })
+		local tell = table.clone(party.members)
+		sendParty(tell, { to = me, joined = nameOf(other) })
+	elseif msg.action == "decline" and other then
+		parties:decline(me, other)
+		sendParty({ me, other })
+	elseif msg.action == "leave" then
+		local left = parties:leave(me)
+		table.insert(left, me)
+		sendParty(left)
+	end
 end)
 -- a finished match counts toward the player's drop meter; a drop arrives with its results
 MatchService.onPlayerResult = function(userId: number, results: any, row: any)
@@ -593,6 +656,8 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	leave(player)
 	local id = player.UserId
 	loaded[id], poses[id], limits[id], rooms.profiles[id], presenceSig[id] = nil, nil, nil, nil, nil
+	-- (after `loaded` forgets them: their party and anyone they invited hear they have gone)
+	sendParty(parties:forget(id))
 	departed[player] = true
 	passes:forget(id)
 	shop:forget(id)

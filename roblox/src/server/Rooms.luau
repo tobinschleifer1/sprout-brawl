@@ -366,21 +366,29 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 			end
 		end
 	end
-	if not room then
-		self.nextId += 1
-		room = { id = self.nextId, host = player.UserId, format = format, name = spec.name,
-			state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true,
-			disasters = "off", slots = {},    -- natural disasters: OFF unless the host turns them on
-			mapChoice = "host", mapSet = "all", mode = "stock", time = 180, phase = "pick",
-			ffa = spec.ffa, ranked = spec.ranked }
-		-- Ranked's rules are fixed, and its maps the competitive rotation: no items, no disasters
-		if spec.ranked then
-			for key, v in Rooms.RANKED_RULES do room[key] = v end
-		end
-		-- (a free-for-all's fighters are each their own team)
-		for i = 1, spec.players do room.slots[i] = { team = if spec.ffa then i - 1 else (i - 1) % 2 } end
-		self.rooms[room.id], place = room, 1
+	if not room then room, place = Rooms.newRoom(self, player.UserId, spec), 1 end
+	Rooms.seat(self, player, room, place :: number)
+	return room, nil
+end
+-- A new room of format `spec`, hosted by `host`, every place empty.
+function Rooms.newRoom(self: any, host: number, spec: any): any
+	self.nextId += 1
+	local room = { id = self.nextId, host = host, format = spec.id, name = spec.name,
+		state = "setup", revision = 0, stage = "FoundryFloor", stocks = 3, items = true,
+		disasters = "off", slots = {},    -- natural disasters: OFF unless the host turns them on
+		mapChoice = "host", mapSet = "all", mode = "stock", time = 180, phase = "pick",
+		ffa = spec.ffa, ranked = spec.ranked }
+	-- Ranked's rules are fixed, and its maps the competitive rotation: no items, no disasters
+	if spec.ranked then
+		for key, v in Rooms.RANKED_RULES do room[key] = v end
 	end
+	-- (a free-for-all's fighters are each their own team)
+	for i = 1, spec.players do room.slots[i] = { team = if spec.ffa then i - 1 else (i - 1) % 2 } end
+	self.rooms[room.id] = room
+	return room
+end
+-- `player` into `room`'s empty place `place`, with their profile's weapons and look.
+function Rooms.seat(self: any, player: any, room: any, place: number)
 	local profile = self:profile(player.UserId)
 	-- (a profile's weapons were checked when chosen, but not against a level read since: keep it so)
 	if not Rooms.has(self, player.UserId, profile.weapon) then profile.weapon = if profile.weapon2 == FIRST then SECOND else FIRST end
@@ -396,7 +404,6 @@ function Rooms.join(self: any, player: any, format: any): (any, string?)
 	invalidate(room)
 	-- a newcomer takes a vote's slot (cancelling it) or joins the electorate
 	if room.botVote then self:settleVote(room) end
-	return room, nil
 end
 -- ------------------------------------------------------------------ the queue ----
 -- PLAY: a player picks a fight - 1v1, 2v2 or 3v3, a free-for-all of 3, 4 or 6, or Ranked - and
@@ -589,6 +596,60 @@ function Rooms.fillWithBots(self: any, player: any): (any, string?)
 	end
 	fillBots(room, self.rand)
 	return room, nil
+end
+-- A party picks a fight (Parties; the leader's PLAY): every member into one room, on one side.
+-- They take the open places of one side of a room already forming that fits them all - or, failing
+-- that, a new room - and the queue fills the rest as it fills any room. A party as big as the whole
+-- fight (two friends picking 1v1) gets a room to itself, split between the sides. Ranked is solo.
+-- `players` leader first. Returns the room in a list (as Rooms.queue returns), or nil and why.
+function Rooms.queueParty(self: any, players: { any }, format: any): ({ any }?, string?)
+	local f = formatOf(format)
+	if not f then return nil, Rooms.CHOOSE end
+	if f.ranked then return nil, "Ranked is played alone: leave your party to queue for it." end
+	local k = #players
+	local side = if f.ffa then f.players else f.teamSize
+	local whole = not f.ffa and k == f.players
+	if k > side and not whole then return nil, `A party of {k} is too many for {f.name}.` end
+	for _, p in players do
+		if self:get(p.UserId) then return nil, `{p.Name} is already in a room.` end
+		if f.level and self:level(p.UserId) < f.level then return nil, `{f.name} unlocks at level {f.level}.` end
+	end
+	for _, p in players do self:dequeue(p); Rooms.forget(self, p) end
+	-- the open places of one side (any open places, in a free-for-all)
+	local function places(room: any): { number }?
+		local byTeam: { [number]: { number } } = {}
+		for i, slot in room.slots do
+			if not slot.player and not slot.bot then
+				local team = if room.ffa then 0 else slot.team
+				byTeam[team] = byTeam[team] or {}
+				table.insert(byTeam[team], i)
+			end
+		end
+		for team = 0, 1 do
+			if byTeam[team] and #byTeam[team] >= k then return byTeam[team] end
+		end
+		return nil
+	end
+	local room: any, open: { number }? = nil, nil
+	if not whole then
+		for _, candidate in self.rooms do
+			if candidate.format == format and candidate.state == "setup" and (candidate.phase or "pick") == "pick"
+				and (not room or candidate.id < room.id) then
+				local fitsAll = true
+				for _, p in players do if not Rooms.fits(self, p, candidate) then fitsAll = false end end
+				local at = if fitsAll then places(candidate) else nil
+				if at then room, open = candidate, at end
+			end
+		end
+	end
+	if not room then
+		room = Rooms.newRoom(self, players[1].UserId, f)
+		open = {}
+		-- (one side's places, or - the whole fight - every place, alternating sides)
+		for i, slot in room.slots do if whole or f.ffa or slot.team == 0 then table.insert(open :: { number }, i) end end
+	end
+	for i, p in players do Rooms.seat(self, p, room, (open :: { number })[i]) end
+	return { room }, nil
 end
 -- The first-time tutorial (the owner's ask, 2026-11-02; the lessons are the client's, Tutorial):
 -- a room of its own, straight into play - the player with the Sword (only the Sword: no drops, no

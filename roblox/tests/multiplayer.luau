@@ -14,6 +14,8 @@ local function signal(): any
 	end }
 end
 local players: any = { PlayerRemoving = signal() }
+local people = {}
+players.GetPlayerByUserId = function(_, id) return people[id] end
 local studio = false          -- RunService:IsStudio(): a live server unless a test says otherwise
 local run: any = { Heartbeat = signal(), PostSimulation = signal(), IsStudio = function() return studio end,
 	PromptGamePassPurchaseFinished = signal(), UserOwnsGamePassAsync = function() return false end,
@@ -70,7 +72,7 @@ local function module(name: string): any
 		table.insert(instances, matchService)
 		return matchService
 	end } end
-	if name == "EmoteEvents" or name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" or name == "Analytics" then return Loader.loadFrom("src/server/", name) end
+	if name == "EmoteEvents" or name == "Rooms" or name == "RemoteInput" or name == "AvatarStore" or name == "Cabinets" or name == "ClimbProgress" or name == "ClimbBoards" or name == "Purchases" or name == "Locker" or name == "Mint" or name == "Economy" or name == "Passes" or name == "Shop" or name == "Analytics" or name == "Parties" then return Loader.loadFrom("src/server/", name) end
 	return Loader.load(name)
 end
 local tasks = {}
@@ -90,7 +92,6 @@ local env: any = {
 }
 service = luau.load(fs.readFile("src/server/MatchService.luau"), {environment=env,injectGlobals=true})()
 luau.load(fs.readFile("src/server/init.server.luau"), {environment=env,injectGlobals=true})()
-local people = {}
 local function send(id: number, name: string, data: any?, a: any?, b: any?, c: any?)
 	now += 0.11
 	remote(name).OnServerEvent:Fire(people[id], data, a, b, c)
@@ -446,4 +447,42 @@ do
 	assert(last(32,"RoomView") and last(32,"RoomView").id == last(33,"RoomView").id, "the two were not paired")
 	assert(last(32,"QueueView") and not last(32,"QueueView").queued, "a player seated by another's arrival kept the queue's card")
 end
-print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight; rooms through PLAY's queue, FILL WITH BOTS and NEW OPPONENTS; the retention counters; the climb")
+-- A party through the real server: an invite shown to the invited by name, JOIN, the leader alone
+-- picking, both seated in one room on one side, the queue filling the rest; a party member who
+-- leaves the server is gone from the party left behind.
+do
+	for i=40,43 do people[i]={UserId=i,Name=`P{i}`,DisplayName=`P{i}`}; now += 1.1; send(i,"Hello") end
+	now += 1
+	send(40,"Party",{action="invite",id=41})
+	local v = last(41,"PartyView")
+	assert(v and #v.invites==1 and v.invites[1].from==40 and v.invites[1].name=="P40", "the invited player was not shown whose party")
+	assert(last(40,"PartyView").sent[1]==41, "the inviter was not shown the invite as sent")
+	now += 1
+	send(40,"Party",{action="invite",id=999})
+	assert(string.find(last(40,"PartyView").event.error, "not in this server", 1, true), "an invite to nobody here was not refused")
+	now += 1
+	send(41,"Party",{action="accept",id=40})
+	for _, id in {40,41} do
+		local pv = last(id,"PartyView")
+		assert(#pv.members==2 and pv.members[1].id==40 and pv.members[1].leader, `P{id} was not told the party`)
+	end
+	assert(last(41,"PartyView").event.joined=="P40", "the joiner was not told whose party they joined")
+	-- only the leader picks
+	send(41,"RoomAction",{action="queue",format="Doubles"})
+	assert(not last(41,"RoomView"), "a member's pick seated someone")
+	now += 1
+	send(40,"RoomAction",{action="queue",format="Doubles"})
+	local r40, r41 = last(40,"RoomView"), last(41,"RoomView")
+	assert(r40 and r41 and r40.id==r41.id, "the party was not seated in one room")
+	local team = {}
+	for _, slot in r40.slots do if slot.userId then team[slot.userId] = slot.team end end
+	assert(team[40] ~= nil and team[40]==team[41], "the party was split between the sides")
+	-- a solo player queued for it takes an open place on the other side
+	now += 1
+	send(43,"RoomAction",{action="queue",format="Doubles"})
+	assert(last(43,"RoomView") and last(43,"RoomView").id==r40.id, "the queue did not fill the party's room")
+	-- the leader leaves the server: the one left is told the party is gone
+	players.PlayerRemoving:Fire(people[40])
+	assert(#last(41,"PartyView").members==1, "the party left behind was not told")
+end
+print("PASS multiplayer: concurrent six/two-player rooms, outsider isolation, 60Hz complete transport, disconnect cancellation, host transfer, bounded presence, bot opt-in, saved characters worn in the hub, the room and the fight; rooms through PLAY's queue, FILL WITH BOTS and NEW OPPONENTS; parties invited, joined and seated together; the retention counters; the climb")

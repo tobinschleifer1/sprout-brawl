@@ -3,6 +3,10 @@
 -- first thing a client runs, so it is up before anything else is - which is also why it needs
 -- nothing from ReplicatedStorage and draws itself: the game's UI kit has not arrived yet.
 --
+-- Behind the title two bots fight (LoadingFight, the owner's ask, 2026-11-04): it lives with the
+-- client's modules, so it starts once they arrive, and until then - or if it fails - the screen is
+-- the falling blocks it always was.
+--
 -- It replaces Roblox's own, holds while the game loads, and goes when the game says it is ready
 -- (the main client sets the player's BlockfallReady attribute once the lobby is up), or after
 -- GIVE_UP seconds whatever happens - a loading screen must never be what stops someone playing.
@@ -11,6 +15,7 @@ local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ContentProvider = game:GetService("ContentProvider")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GIVE_UP = 25
 local TIPS = {
@@ -47,9 +52,20 @@ for i = 1, 14 do
 	b.Size = UDim2.fromOffset(size, size)
 	b.BackgroundColor3 = COLOURS[i % #COLOURS + 1]
 	b.BackgroundTransparency = 0.55
+	b.ZIndex = 1
 	b.Parent = back
 	table.insert(blocks, { f = b, x = ((i * 0.618) % 1), y = (i * 0.37) % 1, speed = 0.05 + (i % 5) * 0.02, spin = (i % 3 - 1) * 40 })
 end
+-- the fight, under a shade so the words over it still read; both hidden until it starts
+local arena = Instance.new("Frame")
+arena.Name, arena.Size, arena.BackgroundTransparency, arena.ClipsDescendants = "Arena", UDim2.fromScale(1, 1), 1, true
+arena.ZIndex, arena.Visible = 2, false
+arena.Parent = back
+local shade = Instance.new("Frame")
+shade.Name, shade.Size, shade.BorderSizePixel = "Shade", UDim2.fromScale(1, 1), 0
+shade.BackgroundColor3, shade.BackgroundTransparency = Color3.fromRGB(24, 20, 37), 0.45
+shade.ZIndex, shade.Visible = 3, false
+shade.Parent = back
 local title = Instance.new("TextLabel")
 title.Name, title.BackgroundTransparency, title.AnchorPoint = "Title", 1, Vector2.new(0.5, 0.5)
 title.Position, title.Size = UDim2.fromScale(0.5, 0.38), UDim2.new(0.9, 0, 0, 90)
@@ -61,6 +77,7 @@ tc.Parent = title
 local stroke = Instance.new("UIStroke")
 stroke.Thickness, stroke.Color = 4, Color3.fromRGB(24, 20, 37)
 stroke.Parent = title
+title.ZIndex = 4
 title.Parent = back
 -- the bar
 local track = Instance.new("Frame")
@@ -73,6 +90,7 @@ ts.Parent = track
 local limit = Instance.new("UISizeConstraint")
 limit.MaxSize = Vector2.new(520, 16)
 limit.Parent = track
+track.ZIndex = 4
 track.Parent = back
 local fill = Instance.new("Frame")
 fill.Name, fill.BorderSizePixel, fill.Size = "Fill", 0, UDim2.fromScale(0, 1)
@@ -83,6 +101,7 @@ status.Name, status.BackgroundTransparency, status.AnchorPoint = "Status", 1, Ve
 status.Position, status.Size = UDim2.new(0.5, 0, 0.56, 18), UDim2.new(0.8, 0, 0, 22)
 status.Font, status.TextSize, status.Text = Enum.Font.BuilderSansBold, 16, "Loading…"
 status.TextColor3 = Color3.fromRGB(214, 228, 250)
+status.ZIndex = 4
 status.Parent = back
 local tip = Instance.new("TextLabel")
 tip.Name, tip.BackgroundTransparency, tip.AnchorPoint = "Tip", 1, Vector2.new(0.5, 1)
@@ -90,9 +109,36 @@ tip.Position, tip.Size = UDim2.new(0.5, 0, 1, -40), UDim2.new(0.86, 0, 0, 48)
 tip.Font, tip.TextSize, tip.TextWrapped = Enum.Font.BuilderSansBold, 18, true
 tip.TextColor3 = Color3.fromRGB(255, 255, 255)
 tip.Text = "TIP: " .. TIPS[math.random(1, #TIPS)]
+tip.ZIndex = 4
 tip.Parent = back
 gui.Parent = player:WaitForChild("PlayerGui")
 ReplicatedFirst:RemoveDefaultLoadingScreen()
+
+local fight: any = nil
+local leaving = false
+local function stopFight(why: string?)
+	if why then warn(`[Blockfall] the loading screen's fight stopped: {why}`) end
+	fight = nil
+	arena.Visible, shade.Visible = false, false
+	for _, b in blocks do b.f.Visible = true end
+end
+task.spawn(function()
+	if not game:IsLoaded() then game.Loaded:Wait() end
+	local scripts = player:WaitForChild("PlayerScripts", GIVE_UP)
+	local client = scripts and scripts:WaitForChild("Client", GIVE_UP)
+	local module = client and client:WaitForChild("LoadingFight", GIVE_UP)
+	local canvasModule = client and client:WaitForChild("Canvas2D", GIVE_UP)
+	if not module or not canvasModule or not ReplicatedStorage:WaitForChild("Shared", GIVE_UP) or leaving then return end
+	local ok, err = pcall(function()
+		local Canvas2D = require(canvasModule :: any) :: any
+		local LoadingFight = require(module :: any) :: any
+		fight = LoadingFight.new(Canvas2D.scratch(arena), function() return arena.AbsoluteSize end, os.time())
+	end)
+	if not ok then stopFight(tostring(err)); return end
+	if leaving then fight = nil; return end
+	arena.Visible, shade.Visible = true, true
+	for _, b in blocks do b.f.Visible = false end
+end)
 
 -- the bar never goes backwards, and creeps while nothing it can measure is moving
 local shown, started, tipAt = 0, os.clock(), os.clock()
@@ -109,6 +155,10 @@ local conn = RunService.RenderStepped:Connect(function(dt: number)
 		tipAt = now
 		tip.Text = "TIP: " .. TIPS[math.random(1, #TIPS)]
 	end
+	if fight then
+		local ok, err = pcall(fight.step, fight, dt)
+		if not ok then stopFight(tostring(err)) end
+	end
 	for _, b in blocks do
 		b.y = (b.y + b.speed * dt) % 1.1
 		b.f.Position = UDim2.fromScale(b.x, b.y - 0.05)
@@ -122,7 +172,8 @@ while player:GetAttribute("BlockfallReady") ~= true and os.clock() - waited < GI
 	task.wait(0.1)
 end
 task.wait(0.3)
--- fade out, then gone
+-- fade out, then gone (the fight holds its last frame while it fades)
+leaving, fight = true, nil
 local info = TweenInfo.new(0.4)
 TweenService:Create(back, info, { BackgroundTransparency = 1 }):Play()
 for _, d in back:GetDescendants() do

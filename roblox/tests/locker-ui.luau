@@ -45,6 +45,39 @@ local Locker = luau.load(fs.readFile("src/client/LockerScreen.luau"), { debugNam
 	Enum = setmetatable({}, { __index = function() return codes end }),
 }, injectGlobals = true })()
 
+-- Odds & Details as pictures (OddsGrid): a heading per rarity with its share, its grid after it,
+-- then a card per item in its rarity's grid, in Loot's order, with its picture, name and odds; and
+-- nothing showing that the rows do not list.
+local function checkOdds(list: any, rows: { any }, art: { [any]: string }, what: string)
+	local want, lastOrder, inTier = {}, 0, 0
+	for _, r in rows do
+		if r.kind == "tier" then
+			local h, g = find(list, "Tier_" .. r.rarity), find(list, "Grid_" .. r.rarity)
+			assert(h and h.Visible and find(h, "Value").Text == r.value and g and g.Visible, `{what}: {r.rarity} has no heading with its share`)
+			assert(h.LayoutOrder > lastOrder and g.LayoutOrder > h.LayoutOrder, `{what}: {r.rarity}'s heading is out of order`)
+			lastOrder, inTier = g.LayoutOrder, 0
+			want[h], want[g] = true, true
+		else
+			local c = find(list, "Item_" .. r.id)
+			assert(c and c.Visible and c.Parent == find(list, "Grid_" .. r.rarity), `{what}: {r.id} has no card under {r.rarity}`)
+			assert(find(c, "Odds").Text == r.value and find(c, "Name").Text == r.name, `{what}: {r.id}'s card is not Loot's`)
+			assert(art[find(c, "Thumb")] == r.id, `{what}: {r.id}'s card has no picture of it`)
+			assert(c.LayoutOrder > inTier, `{what}: {r.id} is out of order`)
+			inTier = c.LayoutOrder
+			want[c] = true
+		end
+	end
+	for _, f in list:GetChildren() do
+		local name = f.Name or ""
+		if f.Visible and (string.sub(name, 1, 5) == "Tier_" or string.sub(name, 1, 5) == "Grid_") then
+			assert(want[f], `{what}: {name} shows but is not in the odds`)
+		end
+		for _, c in f:GetChildren() do
+			if c.Visible and string.sub(c.Name or "", 1, 5) == "Item_" then assert(want[c], `{what}: {c.Name} shows but is not in the odds`) end
+		end
+	end
+end
+
 -- 1. The words.
 assert(Locker.number(1240) == "1,240" and Locker.number(7) == "7" and Locker.number(1234567) == "1,234,567", "numbers are not grouped")
 assert(Locker.existence(1) == "the only one" and Locker.existence(1240) == "1,240 exist" and Locker.existence(0) == "", "copies in existence read wrong")
@@ -113,12 +146,12 @@ end
 
 -- 4. The screen.
 local t = 100
-local sentLocker, sentEconomy, drawn = {}, {}, 0
+local sentLocker, sentEconomy, drawn, art = {}, {}, 0, {}
 local gui = instance("PlayerGui")
 local s = Locker.new(gui, {
 	sendLocker = function(m) table.insert(sentLocker, m) end,
 	sendEconomy = function(m) table.insert(sentEconomy, m) end,
-	drawArt = function() drawn += 1 end,
+	drawArt = function(frame, id) drawn += 1; art[frame] = id end,
 	tween = function(obj, _seconds, props, done) for k, v in props do obj[k] = v end; done() end,
 	now = function() return t end, rand = function() return 0.5 end,
 })
@@ -196,10 +229,19 @@ assert(not opening.Visible and string.find(find(root, "Message").Text, "vault is
 find(forgeCard, "Odds").Activated:Fire()
 local odds = find(root, "OddsPanel")
 local rows = Locker.oddsRows("forge", Loot.CRATES.forge.guarantee.at - 1, false)
-assert(odds.Visible and find(find(odds, "List"), "Row1").Visible and find(find(odds, "List"), "Row1"):GetChildren()[1].Text == rows[1].text, "Odds & Details did not show the crate's odds")
+assert(odds.Visible, "Odds & Details did not open")
+checkOdds(find(odds, "List"), rows, art, "forge")
+-- (the window sits over the crate cards, and their pictures are numbered up from 1 as drawn: by
+-- Global ZIndex they came through it)
+assert(root.ZIndexBehavior == "Sibling", "the Locker lays out by Global ZIndex: pictures show through the odds")
+local before = drawn
 find(odds, "Guaranteed").Activated:Fire()
 local g = Locker.oddsRows("forge", 0, true)
-assert(find(find(odds, "List"), "Row1"):GetChildren()[1].Text == g[1].text, "the guaranteed opening's odds did not show")
+checkOdds(find(odds, "List"), g, art, "forge guaranteed")
+assert(drawn == before, "switching to the guaranteed opening redrew the pictures")
+find(odds, "Back").Activated:Fire()
+find(find(root, "Crate_scrap"), "Odds").Activated:Fire()
+checkOdds(find(odds, "List"), Locker.oddsRows("scrap", 0, false), art, "scrap")
 find(odds, "Back").Activated:Fire()
 assert(not odds.Visible, "BACK did not close the odds")
 -- the Workshop

@@ -130,6 +130,8 @@ echo "== the fight camera: framing at every resolution =="
 lune run tests/camera
 echo "== the ultimates' pixel-art effects, played in real matches =="
 lune run tests/ult-fx
+echo "== the loading screen's fight: top bots, Sword v Grimoire, both casting their ultimates =="
+lune run tests/loading-fight
 echo "== combos on screen: the counter, the break prompt, the guide, and the combo effects =="
 lune run tests/combo-hud
 echo "== hits, the shield and flying: impacts, the shell, speed lines and smoke =="

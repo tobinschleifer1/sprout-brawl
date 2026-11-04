@@ -21,6 +21,7 @@ local Cosmetics = require(Shared.Cosmetics)
 local Loot = require(Shared.Loot)
 local Inventory = require(Shared.Inventory)
 local Ui = require(script.Parent.Ui)
+local OddsGrid = require(script.Parent.OddsGrid)
 local LockerScreen = {}
 LockerScreen.__index = LockerScreen
 
@@ -168,7 +169,8 @@ function LockerScreen.oddsRows(crateId: string, pity: number, guaranteed: boolea
 			table.insert(rows, { kind = "tier", text = rarity, value = `{Loot.format(share)}  ·  each {Loot.format(items[1].percent)}`, rarity = rarity })
 			for _, o in items do
 				local it = Cosmetics.get(o.id) :: any
-				table.insert(rows, { kind = "item", text = `{it.name}  ·  {LockerScreen.TYPE_LABEL[it.type]}`, value = Loot.format(o.percent), rarity = rarity, id = o.id })
+				table.insert(rows, { kind = "item", text = `{it.name}  ·  {LockerScreen.TYPE_LABEL[it.type]}`, value = Loot.format(o.percent), rarity = rarity, id = o.id,
+					name = it.name, kindLabel = LockerScreen.TYPE_LABEL[it.type] })
 			end
 		end
 	end
@@ -194,7 +196,10 @@ function LockerScreen.new(parent: Instance, opts: any): any
 		confirm = nil, pending = nil, now = opts.now or os.clock, rand = opts.rand or math.random,
 		cardPool = {}, craftPool = {}, art = {},
 	}, LockerScreen)
-	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallLocker", ResetOnSpawn = false, Enabled = false, DisplayOrder = 20 })
+	-- (Sibling, as every other screen: by Global ZIndex the pictures' Frames, numbered up from 1 as
+	-- they are drawn, came through the odds window and the opening, which sit at 10)
+	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallLocker", ResetOnSpawn = false, Enabled = false, DisplayOrder = 20,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
 	self.root = root
 	local HEAD = if Ui.lightPanels() then 60 else 40       -- the title band (a heavier header in the arcade theme)
 	local panel = Ui.panel(root, "Locker", Ui.PURPLE, "LOCKER", HEAD)
@@ -658,7 +663,7 @@ function LockerScreen.buildOverlays(self: any)
 	local oBand = Ui.band(odds, Ui.BLUE, 44, "OddsBand")
 	oBand.ZIndex = 11
 	local oTitle = Ui.faceText(oBand, "ODDS & DETAILS", Ui.WINDOW_TITLE, Ui.BLUE, Ui.TITLE)
-	oTitle.Name, oTitle.Position, oTitle.Size, oTitle.ZIndex = "Title", UDim2.fromOffset(16, 0), UDim2.new(1, -32, 1, 0), 12
+	oTitle.Name, oTitle.Position, oTitle.Size, oTitle.ZIndex = "Title", UDim2.fromOffset(16, 0), UDim2.new(1, -(16 + 90 + 16 + Ui.GAP), 1, 0), 12   -- (clear of BACK)
 	oTitle.TextXAlignment = Enum.TextXAlignment.Left
 	local sub = Ui.text(odds, "", 14, Ui.SUB, nil, true)
 	sub.Name, sub.Position, sub.Size, sub.ZIndex = "Sub", UDim2.fromOffset(16, 52), UDim2.new(1, -32, 0, 18), 11
@@ -670,20 +675,21 @@ function LockerScreen.buildOverlays(self: any)
 	gua.Name, gua.ZIndex = "Guaranteed", 11
 	gua.Position, gua.Size = UDim2.fromOffset(16 + 150 + Ui.GAP, 76), UDim2.fromOffset(190, 30)
 	local list = Ui.make("ScrollingFrame", odds, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
-		Position = UDim2.fromOffset(16, 116), Size = UDim2.new(1, -32, 1, -182), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(16, 116), Size = UDim2.new(1, -32, 1, -126), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
-	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
+	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
 	-- its own row under the list, wrapped clear of BACK
-	local foot = Ui.text(odds, "Shown odds are rounded, so they may not add to exactly 100%. Every item in a rarity is equally likely. Duplicates are kept: salvage them for Sparks.", 12, Ui.SUB, nil, true)
-	foot.Name, foot.ZIndex, foot.TextWrapped = "Footer", 11, true
+	-- the note first in the list, and BACK on the title band: on a phone's 375 px a footer row under
+	-- the list left it 70 px, under half a card
+	local foot = Ui.text(list, "Shown odds are rounded, so they may not add to exactly 100%. Every item in a rarity is equally likely. Duplicates are kept: salvage them for Sparks.", 12, Ui.SUB, nil, true)
+	foot.Name, foot.ZIndex, foot.TextWrapped, foot.LayoutOrder = "Footer", 11, true, 0
 	foot.TextXAlignment = Enum.TextXAlignment.Left
-	foot.AnchorPoint = Vector2.new(0, 1)
-	foot.Position, foot.Size = UDim2.new(0, 16, 1, -10), UDim2.new(1, -136, 0, 44)
+	foot.Size = UDim2.new(1, -10, 0, 34)
 	local back = Ui.button(odds, "BACK", Ui.PANEL2, function() odds.Visible = false end, { size = 16 })
 	back.Name, back.ZIndex = "Back", 12
-	back.AnchorPoint = Vector2.new(1, 1)
-	back.Position, back.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(90, 36)
-	self.odds = { frame = odds, sub = sub, now = now, guaranteed = gua, list = list, rows = {} }
+	back.AnchorPoint = Vector2.new(1, 0.5)
+	back.Position, back.Size = UDim2.new(1, -16, 0, 22), UDim2.fromOffset(90, 32)
+	self.odds = { frame = odds, sub = sub, now = now, guaranteed = gua, list = list, grid = OddsGrid.new(list) }
 end
 
 function LockerScreen.showOdds(self: any, crateId: string, guaranteed: boolean)
@@ -694,31 +700,14 @@ function LockerScreen.showOdds(self: any, crateId: string, guaranteed: boolean)
 	for _, m in cards do if m.id == crateId then pity = m.pity end end
 	local rows = LockerScreen.oddsRows(crateId, pity, guaranteed)
 	local c = Loot.CRATES[crateId]
-	o.sub.Text = `{c.name}  ·  {#rows} lines  ·  ` .. (if guaranteed then `the {c.guarantee.at}th opening without {c.guarantee.min} or better`
+	local items = 0
+	for _, r in rows do if r.kind == "item" then items += 1 end end
+	o.sub.Text = `{c.name}  ·  {items} items  ·  ` .. (if guaranteed then `the {c.guarantee.at}th opening without {c.guarantee.min} or better`
 		else `{c.guarantee.min} or better guaranteed by the {c.guarantee.at}th opening`)
 	Ui.paint(o.now, if guaranteed then Ui.PANEL2 else Ui.SELECTED)
 	Ui.paint(o.guaranteed, if guaranteed then Ui.SELECTED else Ui.PANEL2)
-	for i, r in rows do
-		local row = o.rows[i]
-		if not row then
-			local f = Ui.make("Frame", o.list, { Name = "Row" .. i, BackgroundTransparency = 1, LayoutOrder = i, ZIndex = 11, Size = UDim2.new(1, -8, 0, 22) })
-			local l = Ui.text(f, "", 14, Ui.TEXT, nil, true)
-			l.Name, l.ZIndex, l.TextXAlignment, l.Size = "Label", 11, Enum.TextXAlignment.Left, UDim2.new(0.62, 0, 1, 0)
-			local v = Ui.text(f, "", 14, Ui.TEXT, nil, true)
-			v.Name, v.ZIndex, v.TextXAlignment = "Value", 11, Enum.TextXAlignment.Right
-			v.Position, v.Size = UDim2.fromScale(0.62, 0), UDim2.new(0.38, 0, 1, 0)
-			row = { frame = f, label = l, value = v }
-			o.rows[i] = row
-		end
-		row.frame.Visible = true
-		row.label.Text, row.value.Text = r.text, r.value
-		-- tiers in their colour, deepened to read on a pale window
-		local tier: Color3? = if r.kind == "tier" then colourOf(r.rarity) else nil
-		local col = if tier then (if Ui.lightPanels() then Ui.shade(tier, -0.35) else tier) else Ui.TEXT
-		row.label.TextColor3, row.value.TextColor3 = col, if tier then col else Ui.SUB
-		row.label.Font = if r.kind == "tier" then Ui.DISPLAY else Ui.LABEL
-	end
-	for i = #rows + 1, #o.rows do o.rows[i].frame.Visible = false end
+	OddsGrid.fill(o.grid, rows, function(frame, id, w, h) self:drawArt(frame, id, w, h) end)
+	if not o.frame.Visible then o.list.CanvasPosition = Vector2.zero end
 	o.frame.Visible = true
 end
 

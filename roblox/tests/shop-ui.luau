@@ -48,6 +48,7 @@ env = {
 }
 local Shop = luau.load(fs.readFile("src/client/ShopScreen.luau"), { debugName = "ShopScreen", environment = env, injectGlobals = true })()
 local Locker = env.require("LockerScreen")
+local Loot = env.require("Loot")
 
 -- n cells and their Ui.GAP gaps fit a row's width, at every column count used (five used to wrap)
 for _, cols in { 3, 4, 5 } do
@@ -82,10 +83,10 @@ local function view(restricted)
 	} }
 end
 
-local sent, prompted, drawn = {}, {}, 0
+local sent, prompted, drawn, art = {}, {}, 0, {}
 local gui = instance("PlayerGui")
 local s = Shop.new(gui, { send = function(m) table.insert(sent, m) end, prompt = function(k, id) table.insert(prompted, { k, id }) end,
-	drawArt = function() drawn += 1 end })
+	drawArt = function(frame, id) drawn += 1; art[frame] = id end })
 local root = find(gui, "BlockfallShop")
 assert(root and not s:isOpen(), "the Shop is open before it is asked for")
 s:open()
@@ -128,15 +129,31 @@ assert(sent[#sent].kind == "keys" and sent[#sent].bundle == "keys12", "a key bun
 find(root, "Odds").Activated:Fire()
 local odds = find(root, "OddsPanel")
 local rows = Locker.oddsRows("forge", 0, false)
-local items = 0
-for i, r in rows do
-	local row = find(find(odds, "List"), "Row" .. i)
-	assert(row and row.Visible and find(row, "Label").Text == r.text and find(row, "Value").Text == r.value, `odds row {i} is not Loot's`)
-	if r.kind == "item" then items += 1 end
+-- (as pictures, OddsGrid: each rarity's heading and share, each item's card with its picture and odds)
+local function shows(rows: { any }, what: string): number
+	local items = 0
+	for _, r in rows do
+		if r.kind == "tier" then
+			local h = find(find(odds, "List"), "Tier_" .. r.rarity)
+			assert(h and h.Visible and find(h, "Value").Text == r.value, `{what}: {r.rarity}'s share is not Loot's`)
+		else
+			local c = find(find(odds, "List"), "Item_" .. r.id)
+			assert(c and c.Visible and find(c, "Odds").Text == r.value and art[find(c, "Thumb")] == r.id, `{what}: {r.id}'s card is not Loot's`)
+			items += 1
+		end
+	end
+	return items
 end
-assert(items > 20 and odds.Visible, "the odds do not list every outcome")
+assert(shows(rows, "forge") > 20 and odds.Visible, "the odds do not list every outcome")
+assert(root.ZIndexBehavior == "Sibling", "the Shop lays out by Global ZIndex: pictures show through the odds")
+local g = Locker.oddsRows("forge", 0, true)
 find(odds, "Guaranteed").Activated:Fire()
-assert(find(find(find(odds, "List"), "Row1"), "Label").Text == Locker.oddsRows("forge", 0, true)[1].text, "the guaranteed opening's odds are missing")
+shows(g, "forge guaranteed")
+for _, r in rows do
+	if r.kind == "tier" and r.rarity ~= g[1].rarity and Loot.RARITY[r.rarity].rank < Loot.RARITY[g[1].rarity].rank then
+		assert(not find(find(odds, "List"), "Tier_" .. r.rarity).Visible, `the guaranteed opening still shows {r.rarity}`)
+	end
+end
 find(odds, "Back").Activated:Fire()
 assert(not odds.Visible, "BACK did not close the odds")
 -- 3. Passes: perks, price, owned, coming soon.

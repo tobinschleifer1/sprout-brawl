@@ -72,7 +72,7 @@ local Social = luau.load(fs.readFile("src/client/LobbySocial.luau"), { debugName
 local PLAZA = Loader.load("Plaza").DATA      -- (the Roblox lobby's market)
 local Ui = Loader.loadFrom("src/client/", "Ui")
 
-local warps, queued, unqueued, filled, invited, tracked = {}, {}, 0, 0, 0, {}
+local warps, queued, unqueued, filled, invited, tracked, opened = {}, {}, 0, 0, 0, {}, {}
 local partySent = {}
 local s = Social.new(instance("PlayerGui"), {
 	warp = function(id) table.insert(warps, id); return true end,
@@ -83,6 +83,7 @@ local s = Social.new(instance("PlayerGui"), {
 	track = function(name) table.insert(tracked, name) end,
 	players = function() return { { id = 1, name = "Me" }, { id = 2, name = "Zed" }, { id = 3, name = "Ann" }, { id = 4, name = "Bo" } } end,
 	party = function(msg) table.insert(partySent, msg) end,
+	opened = function(name) table.insert(opened, name) end,
 })
 s.localId = 1
 s:setEnabled(true)
@@ -96,6 +97,12 @@ end
 -- PLAY: three formats; one pressed asks to queue for it and closes the panel
 click(s.gui, "OpenPlay")
 assert(s:open() == "Play", "PLAY opens its panel")
+-- (and says so, so the lobby's other windows close: Windows; closing it says nothing)
+assert(#opened == 1 and opened[1] == "Play", "opening PLAY did not tell the lobby")
+click(s.gui, "OpenPlay")
+assert(s:open() == nil and #opened == 1, "closing PLAY told the lobby it opened")
+click(s.gui, "OpenPlay")
+assert(s:open() == "Play" and #opened == 2, "reopening PLAY did not tell the lobby")
 -- (above the bar's real height: the square buttons stand ICON px, and a panel at the old 42 px bar's
 -- height covered their tops)
 if Ui.lightPanels() then

@@ -277,6 +277,8 @@ function LobbySocial.toggle(self: any, name: string)
 	local was = self.panels[name].Visible
 	if name == "Party" and not was then self:refreshParty() end
 	self:closeAll()
+	-- (opening one closes the lobby's other windows: Windows, via opts.opened)
+	if not was and self.opts.opened then self.opts.opened(name) end
 	self.panels[name].Visible = not was
 end
 

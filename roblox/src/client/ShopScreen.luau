@@ -17,6 +17,7 @@ local Cosmetics = require(Shared.Cosmetics)
 local Loot = require(Shared.Loot)
 local Ui = require(script.Parent.Ui)
 local LockerScreen = require(script.Parent.LockerScreen)
+local OddsGrid = require(script.Parent.OddsGrid)
 local ShopScreen = {}
 -- each pass in its own colour; one not built yet goes grey
 local PASS_COLOURS = { vip = Ui.SUN, wardrobe = Ui.TEAL, studio = Ui.VIOLET, season = Ui.PINK, emotes = Ui.SKY }
@@ -38,7 +39,9 @@ end
 function ShopScreen.new(parent: Instance, opts: any): any
 	local self = setmetatable({ opts = opts, view = nil, pending = nil, art = {}, oddsGuaranteed = false,
 		featuredCards = {}, keyCards = {}, passCards = {}, grids = {} }, ShopScreen)
-	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallShop", ResetOnSpawn = false, Enabled = false, DisplayOrder = 21 })
+	-- (Sibling, as every other screen: by Global ZIndex the pictures' Frames came through the odds)
+	local root = Ui.make("ScreenGui", parent, { Name = "BlockfallShop", ResetOnSpawn = false, Enabled = false, DisplayOrder = 21,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling })
 	self.root = root
 	local HEAD = 60                                           -- a heavy header, as the reference shop's
 	local panel = Ui.panel(root, "Shop", Ui.RED, "SHOP", HEAD)
@@ -434,7 +437,7 @@ function ShopScreen.buildOdds(self: any)
 	band.ZIndex = 11
 	local t = Ui.faceText(band, "ODDS & DETAILS  ·  FORGE CRATE", Ui.WINDOW_TITLE, Ui.BLUE, Ui.TITLE)
 	t.Name, t.ZIndex, t.TextXAlignment = "Title", 12, Enum.TextXAlignment.Left
-	t.Position, t.Size = UDim2.fromOffset(16, 0), UDim2.new(1, -32, 1, 0)
+	t.Position, t.Size = UDim2.fromOffset(16, 0), UDim2.new(1, -(16 + 90 + 16 + Ui.GAP), 1, 0)   -- (clear of BACK)
 	local now = Ui.button(o, "THIS OPENING", Ui.BLUE, function() self:showOdds(false) end, { size = 13, small = true })
 	now.Name, now.ZIndex = "Now", 11
 	now.Position, now.Size = UDim2.fromOffset(16, 56), UDim2.fromOffset(150, 30)
@@ -442,18 +445,20 @@ function ShopScreen.buildOdds(self: any)
 	gua.Name, gua.ZIndex = "Guaranteed", 11
 	gua.Position, gua.Size = UDim2.fromOffset(16 + 150 + Ui.GAP, 56), UDim2.fromOffset(190, 30)
 	local list = Ui.make("ScrollingFrame", o, { Name = "List", BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 11,
-		Position = UDim2.fromOffset(16, 96), Size = UDim2.new(1, -32, 1, -162), CanvasSize = UDim2.new(),
+		Position = UDim2.fromOffset(16, 96), Size = UDim2.new(1, -32, 1, -106), CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 6 })
-	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder })
-	local foot = Ui.text(o, "Shown odds are rounded, so they may not add to exactly 100%. Each Forge Key opens one Forge Crate. Paid keys keep their own guarantee count.", 12, Ui.SUB, nil, true)
-	foot.Name, foot.ZIndex, foot.TextWrapped, foot.TextXAlignment = "Footer", 11, true, Enum.TextXAlignment.Left
-	foot.AnchorPoint = Vector2.new(0, 1)
-	foot.Position, foot.Size = UDim2.new(0, 16, 1, -10), UDim2.new(1, -136, 0, 44)
+	Ui.make("UIListLayout", list, { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder })
+	-- the note first in the list, and BACK on the title band: on a phone's 375 px a footer row under
+	-- the list left it 70 px, under half a card
+	local foot = Ui.text(list, "Shown odds are rounded, so they may not add to exactly 100%. Each Forge Key opens one Forge Crate. Paid keys keep their own guarantee count.", 12, Ui.SUB, nil, true)
+	foot.Name, foot.ZIndex, foot.TextWrapped, foot.LayoutOrder = "Footer", 11, true, 0
+	foot.TextXAlignment = Enum.TextXAlignment.Left
+	foot.Size = UDim2.new(1, -10, 0, 34)
 	local back = Ui.button(o, "BACK", Ui.PANEL2, function() o.Visible = false end, { size = 16 })
 	back.Name, back.ZIndex = "Back", 12
-	back.AnchorPoint = Vector2.new(1, 1)
-	back.Position, back.Size = UDim2.new(1, -16, 1, -10), UDim2.fromOffset(90, 36)
-	self.odds = { frame = o, now = now, guaranteed = gua, list = list, rows = {} }
+	back.AnchorPoint = Vector2.new(1, 0.5)
+	back.Position, back.Size = UDim2.new(1, -16, 0, 22), UDim2.fromOffset(90, 32)
+	self.odds = { frame = o, now = now, guaranteed = gua, list = list, grid = OddsGrid.new(list) }
 end
 
 function ShopScreen.showOdds(self: any, guaranteed: boolean)
@@ -461,26 +466,8 @@ function ShopScreen.showOdds(self: any, guaranteed: boolean)
 	local rows = LockerScreen.oddsRows("forge", 0, guaranteed)
 	Ui.paint(o.now, if guaranteed then Ui.PANEL2 else Ui.SELECTED)
 	Ui.paint(o.guaranteed, if guaranteed then Ui.SELECTED else Ui.PANEL2)
-	for i, r in rows do
-		local row = o.rows[i]
-		if not row then
-			local f = Ui.make("Frame", o.list, { Name = "Row" .. i, BackgroundTransparency = 1, LayoutOrder = i, ZIndex = 11, Size = UDim2.new(1, -8, 0, 22) })
-			local l = Ui.text(f, "", 14, Ui.TEXT, nil, true)
-			l.Name, l.ZIndex, l.TextXAlignment, l.Size = "Label", 11, Enum.TextXAlignment.Left, UDim2.new(0.62, 0, 1, 0)
-			local v = Ui.text(f, "", 14, Ui.TEXT, nil, true)
-			v.Name, v.ZIndex, v.TextXAlignment = "Value", 11, Enum.TextXAlignment.Right
-			v.Position, v.Size = UDim2.fromScale(0.62, 0), UDim2.new(0.38, 0, 1, 0)
-			row = { frame = f, label = l, value = v }
-			o.rows[i] = row
-		end
-		row.frame.Visible = true
-		row.label.Text, row.value.Text = r.text, r.value
-		-- tiers in their colour, deepened to read on a pale window
-		local tier: Color3? = if r.kind == "tier" then Color3.fromHex(Loot.RARITY[r.rarity].colour) else nil
-		local col = if tier then (if Ui.lightPanels() then Ui.shade(tier, -0.35) else tier) else Ui.TEXT
-		row.label.TextColor3, row.value.TextColor3 = col, if tier then col else Ui.SUB
-	end
-	for i = #rows + 1, #o.rows do o.rows[i].frame.Visible = false end
+	OddsGrid.fill(o.grid, rows, function(frame, id, w, h) if self.opts.drawArt then self.opts.drawArt(frame, id, w, h) end end)
+	if not o.frame.Visible then o.list.CanvasPosition = Vector2.zero end
 	o.frame.Visible = true
 end
 

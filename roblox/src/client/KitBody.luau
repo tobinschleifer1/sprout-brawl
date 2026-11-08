@@ -6,7 +6,7 @@ local Rig = require(script.Parent.Rig)
 local KIT_PARTS = require(script.Parent.PostureArt).parts
 local KitBody = {}
 function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: boolean,
-	kitPiece: (string, number, boolean?) -> (), foot: ((number, Rig.Limb) -> ())?, backHand: (() -> ())?)
+	kitPiece: (string, number, boolean?) -> (), foot: ((number, Rig.Limb) -> ())?, farHand: (() -> ())?)
 	-- Endpoints are already in the fighter's frame. Width never inherits a torso squash or the
 	-- length stretch of a segment: every arm/leg keeps the same number of PW-wide columns.
 	local function seg(x0: number, y0: number, x1: number, y1: number, id: string, far: boolean)
@@ -40,9 +40,13 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 	Canvas2D.rotate(c, p.hipRot)
 	kitPiece("pelvis", h * 0.10 / KIT_PARTS.pelvis.span)
 	Canvas2D.restore(c)
-	limb(p.backX, p.backY, p.back, "upperarm", "forearm", true)
-	-- what the rear hand holds sits behind the body with it (DualWield's second weapon)
-	if backHand then backHand() end
+	-- The arms keep the legs' sides: the near leg (1) is on the rear side, so the rear arm is the
+	-- near one and the front (weapon) arm is the far one, behind the body and shaded. With them the
+	-- other way round the lit arm and the lit leg were on opposite sides, and the body read as
+	-- twisted the wrong way (the owner, 2026-11-08). The weapon is still drawn over the body.
+	limb(p.frontX, p.frontY, p.front, "upperarm", "forearm", true)
+	-- what the far hand holds sits behind the body with it (DualWield's second weapon)
+	if farHand then farHand() end
 
 	Canvas2D.save(c)
 	Canvas2D.translate(c, p.hipX, p.hipY)
@@ -63,6 +67,6 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 	Canvas2D.scale(c, ch.sx, ch.sy)
 	kitPiece("head", PW)
 	Canvas2D.restore(c)
-	limb(p.frontX, p.frontY, p.front, "upperarm", "forearm", false)
+	limb(p.backX, p.backY, p.back, "upperarm", "forearm", false)
 end
 return KitBody

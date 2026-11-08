@@ -178,9 +178,10 @@ local function check(s, ch, t)
 			local nearLeg, farLeg = by[if half then "legN" else "shinN"], by[if half then "legF" else "thighF"]
 			assert(nearLeg and farLeg and nearLeg.order > farLeg.order, "the near leg is not drawn over the far one")
 			if grip then
-				-- a pair's back-hand strike puts the move's weapon in the rear hand, the other in the front
-				local main, other = "N", "F"
-				if p.dual and p.dual.striker == "back" then main, other = "F", "N" end
+				-- the front hand is the far arm, the rear the near one (KitBody: the arms keep the legs'
+				-- sides); a pair's back-hand strike puts the move's weapon in the rear hand
+				local main, other = "F", "N"
+				if p.dual and p.dual.striker == "back" then main, other = "N", "F" end
 				local ex, ey = pivot(by[if half then "arm" .. main else "forearm" .. main], half, true)
 				near(ex, grip[1], "hand/grip x"); near(ey, grip[2], "hand/grip y")
 				assert((offGrip ~= nil) == (p.dual ~= nil and p.dual.off ~= nil and not p.dual.off.empty), "the second weapon of a pair is missing, or drawn for a single weapon")

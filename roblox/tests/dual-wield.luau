@@ -84,8 +84,9 @@ for wid in DualWield.PAIRED do
 	-- Standing: one unit in each hand, the front one carrying the weapon's pose.
 	local idle = draws(c, state(c, "idle"))
 	assert(#idle == 2 and idle[1].id == wid .. ":one" and idle[2].id == wid .. ":one", `{wid}: standing, it does not hold one in each hand ({#idle} drawn)`)
-	-- the rear hand's is drawn first, behind the body; the front one, carrying the pose, after
-	assert(idle[1].off and not idle[2].off, `{wid}: standing, the second weapon is not the rear hand's, behind`)
+	-- the front (far) hand's, carrying the pose, is drawn first; the rear hand is the near one, so
+	-- its second weapon is the nearest thing drawn (KitBody: the arms keep the legs' sides)
+	assert(not idle[1].off and idle[2].off, `{wid}: standing, the second weapon is not the rear hand's, in front`)
 	local rest = pose(c, state(c, "idle"))
 	-- Through every move: the striking hand is the table's, and the other hand behaves.
 	for id in c.moves do

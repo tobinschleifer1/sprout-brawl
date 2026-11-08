@@ -321,7 +321,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				Canvas2D.sprite(c, "weapon|" .. (unitId :: string), sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 2 then 0.85 else 1)
 				Canvas2D.restore(c)
 			end
-		end, if dual and dual.off and dual.off.hand == "back" then drawOff else nil)
+		end, if dual and dual.off and dual.off.hand == "front" then drawOff else nil)
 	else
 		for _, leg in { { ch.legL, -r * 0.30, 0.74 }, { ch.legR, r * 0.30, 1 } } do
 			Canvas2D.save(c)
@@ -387,8 +387,8 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
 		Canvas2D.restore(c)
 	end
-	-- the front hand's second weapon, while the rear hand strikes, is the nearest thing drawn
-	if dual and dual.off and dual.off.hand == "front" then drawOff() end
+	-- the rear (near) hand's second weapon is the nearest thing drawn
+	if dual and dual.off and dual.off.hand == "back" then drawOff() end
 	Canvas2D.restore(c)   -- bob
 	Canvas2D.restore(c)   -- fighter
 	if scuff then

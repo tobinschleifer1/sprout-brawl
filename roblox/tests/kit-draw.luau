@@ -245,13 +245,25 @@ for _, pair in { { "upperarm", "forearm" }, { "thigh", "shin" } } do
 			`{side} {pair[1]} ends at ({ex}, {ey}), its {pair[2]} hangs from ({jx}, {jy})`)
 	end
 end
--- The hand is the grip: the near forearm ends exactly where the sword is drawn from.
+-- The arms keep the legs' sides (the owner, 2026-11-08: the lit arm and the lit leg were on
+-- opposite sides, so the body read as twisted the wrong way). The near arm hangs from the same
+-- side of the body as the near leg, and is drawn over the chest; the far arm is drawn under it.
+do
+	local ux = root(seg.upperarm.near, "upperarm") - root(seg.upperarm.far, "upperarm")
+	local tx = root(seg.thigh.near, "thigh") - root(seg.thigh.far, "thigh")
+	assert(ux * tx > 0, `the near arm hangs from the other side of the body to the near leg ({ux}, {tx})`)
+	local at = {}
+	for k, sp in sprites do at[sp] = k end
+	assert(at[seg.upperarm.near] > at[by.chest[1]] and at[seg.forearm.near] > at[by.head[1]], "the near arm is drawn under the body")
+	assert(at[seg.upperarm.far] < at[by.chest[1]] and at[seg.forearm.far] < at[by.abdomen[1]], "the far arm is drawn over the body")
+end
+-- The hand is the grip: the weapon arm (the far one) ends exactly where the sword is drawn from.
 assert(grip, "the weapon was never drawn")
-local gx, gy = tip(seg.forearm.near, "forearm")
+local gx, gy = tip(seg.forearm.far, "forearm")
 assert(math.abs(gx - grip[1]) < 1e-9 and math.abs(gy - grip[2]) < 1e-9, `the hand is at ({gx}, {gy}), the grip at ({grip[1]}, {grip[2]})`)
 -- Rest elbows have a small visible bend, under twelve degrees from straight.
-local sx, sy = root(seg.upperarm.near, "upperarm")
-local ex, ey = tip(seg.upperarm.near, "upperarm")
+local sx, sy = root(seg.upperarm.far, "upperarm")
+local ex, ey = tip(seg.upperarm.far, "upperarm")
 local ux, uy, vx, vy = ex - sx, ey - sy, gx - ex, gy - ey
 local elbow = math.acos(math.clamp((ux * vx + uy * vy) / math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy)), -1, 1))
 assert(elbow > math.rad(1) and elbow < math.rad(12), `rest elbow is {math.deg(elbow)} degrees from straight`)
@@ -281,7 +293,7 @@ do
 		Fighter2D.draw(canvas(24), rs, char, fc / 60, 2)
 		Weapons2D.draw = weaponDraw
 		local fore
-		for _, sp in sprites do if sp.list == art.forearm.full then fore = sp end end
+		for _, sp in sprites do if sp.list == art.forearm.farFull then fore = sp end end
 		local rx, ry = tip(fore, "forearm")
 		assert(grip and math.abs(rx - grip[1]) < 1e-9 and math.abs(ry - grip[2]) < 1e-9,
 			`a running hand (frame {fc}) is at ({rx}, {ry}), its grip at ({grip and grip[1]}, {grip and grip[2]})`)
@@ -333,9 +345,9 @@ do
 				assert(math.abs(ex - jx) < 1e-9 and math.abs(ey - jy) < 1e-9, `{pose[1]} {pose[3]}: a {pair[1]} ends off its {pair[2]}`)
 			end
 		end
-		local hx2, hy2 = tip(got.forearmN, "forearm")
+		local hx2, hy2 = tip(got.forearmF, "forearm")
 		assert(grip and math.abs(hx2 - grip[1]) < 1e-9 and math.abs(hy2 - grip[2]) < 1e-9, `{pose[1]} {pose[3]}: the hand is off the grip`)
-		-- And at half detail: the one-piece limbs are shear-free too, and the near arm ends on the grip
+		-- And at half detail: the one-piece limbs are shear-free too, and the weapon (far) arm ends on the grip
 		-- (its cells are handed over twice the size; the limb's length in studs is unchanged).
 		grip = nil
 		Weapons2D.draw = function(cv: any, ...)
@@ -345,7 +357,7 @@ do
 		table.clear(sprites)
 		Fighter2D.draw(canvas(8), ps, char, 0.3, 2)
 		Weapons2D.draw = weaponDraw
-		local nearArm
+		local weaponArm
 		for _, sp in sprites do
 			local id = string.match(sp.key, "|(%a+)|")
 			if id == "arm" or id == "leg" then
@@ -353,10 +365,10 @@ do
 				local ax, ay, cx, cy = m[1] - o[1], m[2] - o[2], u[1] - o[1], u[2] - o[2]
 				local skew = math.abs(ax * cx + ay * cy) / (math.sqrt(ax * ax + ay * ay) * math.sqrt(cx * cx + cy * cy))
 				assert(skew < 1e-9, `{pose[1]} {pose[3]}: a half-detail {id} reaches Canvas2D sheared ({skew})`)
-				if id == "arm" and sp.list == art.arm.half then nearArm = sp end
+				if id == "arm" and sp.list == art.arm.farHalf then weaponArm = sp end
 			end
 		end
-		local ax3, ay3 = nearArm.P(0, nearArm.y1 - (KIT.parts.arm.oy + KIT.parts.arm.span) * nearArm.ph / 2)
+		local ax3, ay3 = weaponArm.P(0, weaponArm.y1 - (KIT.parts.arm.oy + KIT.parts.arm.span) * weaponArm.ph / 2)
 		assert(grip and math.abs(ax3 - grip[1]) < 1e-9 and math.abs(ay3 - grip[2]) < 1e-9,
 			`{pose[1]} {pose[3]}: a half-detail hand is at ({ax3}, {ay3}), the grip at ({grip and grip[1]}, {grip and grip[2]})`)
 	end

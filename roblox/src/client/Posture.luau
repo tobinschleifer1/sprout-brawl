@@ -34,6 +34,10 @@ local function swing(s: any, move: any, delay: number): number
 	return if phase.phase == "wind" then -phase.e else phase.e
 end
 
+-- How far (of the height) a running arm's shoulder comes forward and drops at the front of its
+-- swing, which is SWING_PEAK (Movement's largest swing at a full run).
+Posture.SWING_AHEAD, Posture.SWING_DROP, Posture.SWING_PEAK = 0.045, 0.035, 0.99
+
 function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: number): any
 	local h, r = char.height, char.radius
 	local motion = Movement.For(ch, s, char)
@@ -75,6 +79,9 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local chestH = trunk * 11 / 18
 	local armed = char.weapon ~= nil
 	local armAng = if armed then wpose.angle else ch.armR.z - math.pi / 2 + ch.armR.x
+	-- an empty front hand in a run swings with the feet (Movement), hanging as the rear arm does: the
+	-- torso's lean is undone here, as the rear arm's angle carries only a third of it
+	if not armed and motion.front and not ch.emote then armAng = -math.pi / 2 + motion.front + ch.lean * 0.65 end
 	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
 	local hx, hy = r * 0.55 + math.cos(armAng) * h * 0.30 * ext, trunk + math.sin(armAng) * h * 0.30 * ext
 	local gx, gy = Posture.torsoPoint(ch, h, hx, hy)
@@ -84,6 +91,25 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local twist = if dual then dual.twist else 0
 	local frontX, frontY = chestPoint(r * 0.55 + DualWield.TWIST.front * r * twist, chestH)
 	local backX, backY = chestPoint(-r * 0.65 + DualWield.TWIST.back * r * twist, chestH - h * 0.009)
+	-- In a run, an arm swinging forward brings its shoulder forward and down with it: hung from the
+	-- top corner of the chest, the upper arm's top otherwise rose above the shoulder line as it
+	-- turned. The owner set the amount by posing the near arm at the front of its swing (2026-11-08).
+	-- (the whole arm moves: the front hand, placed apart from its shoulder, is moved the same below)
+	local frontShiftX, frontShiftY = 0, 0
+	if motion.front and not ch.emote then
+		local function reach(swing: number): number return math.clamp(swing / Posture.SWING_PEAK, 0, 1) end
+		if not armed then
+			local k = reach(motion.front)
+			frontShiftX, frontShiftY = h * Posture.SWING_AHEAD * k, -h * Posture.SWING_DROP * k
+			frontX += frontShiftX
+			frontY += frontShiftY
+		end
+		if motion.back then
+			local k = reach(motion.back)
+			backX += h * Posture.SWING_AHEAD * k
+			backY -= h * Posture.SWING_DROP * k
+		end
+	end
 	-- A small scapular rise as the hand goes overhead. No scale is inherited by either arm.
 	frontY += h * 0.012 * math.sin(armAng)
 	backY -= h * 0.006 * math.sin(armAng)
@@ -99,7 +125,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local backBend = math.rad(if ch.emote then ch.emote.backBend else 8 + math.min(16, math.abs(backSwing) * 14))
 	if ch.emote then motion.armLength *= ch.emote.backExt end
 	local bx, by = backX + math.cos(backAng) * h * motion.armLength, backY + math.sin(backAng) * h * motion.armLength
-	local fx, fy = gx, gy
+	local fx, fy = gx + frontShiftX, gy + frontShiftY
 	local offX, offY
 	if dual and dual.off and ch.emote then
 		-- The second weapon follows the authored rear hand, rather than replacing it with a guard.

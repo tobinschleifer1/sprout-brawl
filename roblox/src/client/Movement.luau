@@ -12,6 +12,10 @@ end
 -- The stride, in proportion to the fighter. The legs keep one length (`leg`) through the whole
 -- cycle; the step is set so a planted foot never needs more than that: it lands `contact` ahead
 -- of the hip and leaves after `support` of the step. The rest of each step is flight.
+-- The run's shape: how much sooner (of the swing) the foot reaches its contact and comes down, and
+-- how much further a running arm swings forward than back.
+Movement.REACH_EARLY, Movement.LIFT_EARLY, Movement.ARM_FORWARD = 0.22, 0.2, 0.15
+
 function Movement.gait(char: any): any
 	local h = char.height
 	return { step = h * 0.58, contact = h * 0.14, support = 0.62, leg = h * 0.34 }
@@ -35,7 +39,7 @@ end
 
 function Movement.For(ch: any, s: any, char: any): any
 	local h, r, state, sf = char.height, char.radius, s.state, s.stateFrame
-	local m: any = { feet = nil, hipX = 0, hipY = 0, chest = 0, head = 0, back = nil, armLength = 0.30 }
+	local m: any = { feet = nil, hipX = 0, hipY = 0, chest = 0, head = 0, back = nil, front = nil, armLength = 0.30 }
 	local function feet(x1: number, y1: number, b1: number, x2: number, y2: number, b2: number)
 		m.feet = { { x = x1, y = y1, bend = b1 }, { x = x2, y = y2, bend = b2 } }
 	end
@@ -68,16 +72,30 @@ function Movement.For(ch: any, s: any, char: any): any
 			else
 				-- The swing, classic style: the heel kicks up behind first (the lift peaks before
 				-- the passing point), then the leg unfolds and reaches forward into the next contact.
+				-- A run reaches sooner: the foot is out at its contact a little before the end of the
+				-- swing and drops early, so the leg straightens before it lands (the owner, 2026-11-08,
+				-- posing the run: "it looks like it's running more").
 				local u = (c - DP) / (2 - DP)
 				local xl = x0 - S * DP
-				x = xl + (x0 - xl) * smooth(u)
-				y = heelMax * (1 - u) ^ 2 + h * (0.087 + 0.07 * run) * math.sin(math.pi * u ^ 0.8)
+				x = xl + (x0 - xl) * smooth(math.min(1, u / (1 - Movement.REACH_EARLY * run)))
+				y = heelMax * (1 - u) ^ 2 + h * (0.087 + 0.07 * run) * math.sin(math.pi * u ^ (0.8 - Movement.LIFT_EARLY * run))
 				support = false
 			end
 			local lane = math.clamp(x / x0, -1, 1)
 			m.feet[i] = { x = x, y = y - m.bob, len = G.leg, rootX = lane * r * 0.30, lane = lane, support = support }
 		end
-		m.back = -math.clamp(m.feet[1].x / x0, -1.4, 1.4) * (0.32 + 0.38 * run) - 0.12
+		-- Each arm counter-swings the leg on its own side, on the feet's clock (distance, not time):
+		-- the rear arm against the near leg (1), the front arm against the far leg (2) - so it is
+		-- forward as the near leg reaches forward. The front arm used to swing by Channels' clock
+		-- (frameCount), out of step with the feet and hidden behind the body (the owner, 2026-11-08).
+		local swing = 0.32 + 0.38 * run
+		-- (forward, a running arm swings further than it goes back)
+		local function arm(footX: number): number
+			local a = -math.clamp(footX / x0, -1.4, 1.4) * swing - 0.12
+			return if a > 0 then a * (1 + Movement.ARM_FORWARD * run) else a
+		end
+		m.back = arm(m.feet[1].x)
+		m.front = arm(m.feet[2].x)
 		m.head = -0.025 * math.sin(q * 2 * math.pi - 0.8)
 	elseif state == "jumpsquat" then
 		local load = smooth(sf / Config.MOVE.jumpsquat)

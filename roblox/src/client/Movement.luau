@@ -16,9 +16,50 @@ end
 -- how much further a running arm swings forward than back.
 Movement.REACH_EARLY, Movement.LIFT_EARLY, Movement.ARM_FORWARD = 0.22, 0.2, 0.15
 
-function Movement.gait(char: any): any
-	local h = char.height
-	return { step = h * 0.58, contact = h * 0.14, support = 0.62, leg = h * 0.34 }
+-- A run's stride is longer than a walk's, and lands further ahead (Williams' contact reaches well
+-- out in front): added to the step and the contact, of the height, at a full run. The stride used
+-- to be 0.58 of the height at every speed - 7.6 steps a second at full speed, a scurry.
+Movement.RUN_STEP, Movement.RUN_CONTACT = 0.24, 0.09
+-- And a running arm swings further back than a walking one.
+Movement.ARM_BACK = 0.35
+
+-- How much of a run this is (0 a walk, 1 a full run), from the speed.
+function Movement.runOf(s: any, char: any): number
+	local speed = math.clamp(math.abs(s.vx or 0) / char.runSpeed, 0, 1)
+	return smooth((speed - 0.42) / 0.28)
+end
+
+function Movement.gait(char: any, run: number?): any
+	local h, k = char.height, run or 0
+	return { step = h * (0.58 + Movement.RUN_STEP * k), contact = h * (0.14 + Movement.RUN_CONTACT * k), support = 0.62, leg = h * 0.34 }
+end
+
+-- How many steps along the stride the body is. A pure function of distance while the step length
+-- holds; but a run's step grows with speed, and distance over a changing step would spin the feet
+-- through their cycle as a fighter speeds up. So a drawn fighter carries `stridePhase`, the steps
+-- accumulated frame by frame (Movement.advance), and the distance is only the fallback (a still
+-- pose, a test at one speed).
+function Movement.steps(s: any, char: any, run: number): number
+	if s.stridePhase then return s.stridePhase end
+	return (s.strideDistance or s.x * s.facing) / Movement.gait(char, run).step
+end
+
+-- Steps accumulated for whatever `key` names (a fighter's slot, a plaza actor): each call adds the
+-- distance travelled along `facing` since the last call, over this moment's step - so turning round
+-- does not jump the feet either. A jump of more than two heights (a respawn, a warp) starts afresh
+-- from the distance.
+local phases: { [any]: any } = setmetatable({}, { __mode = "k" }) :: any
+function Movement.advance(key: any, x: number, facing: number, s: any, char: any): number
+	local S = Movement.gait(char, Movement.runOf(s, char)).step
+	local p = phases[key]
+	if not p or math.abs(x - p.x) > char.height * 2 then
+		p = { x = x, phase = x * facing / S }
+		phases[key] = p
+	else
+		p.phase += (x - p.x) * facing / S
+		p.x = x
+	end
+	return p.phase
 end
 
 -- The body's height through the stride, studs above its rest. A walk rides highest over the
@@ -27,9 +68,8 @@ end
 -- steps. A pure function of distance travelled, like the feet, so it lands on the footfalls.
 function Movement.bob(s: any, char: any): number
 	local h = char.height
-	local speed = math.clamp(math.abs(s.vx) / char.runSpeed, 0, 1)
-	local run = smooth((speed - 0.42) / 0.28)
-	local q = ((s.strideDistance or s.x * s.facing) / Movement.gait(char).step) % 1
+	local run = Movement.runOf(s, char)
+	local q = Movement.steps(s, char, run) % 1
 	local k = h / 5.2
 	local passing = Movement.gait(char).support / 2
 	local walk = k * (-0.03 + 0.035 * math.cos(2 * math.pi * (q - passing)))
@@ -43,11 +83,11 @@ end
 -- old curve peaked late and low, so no leg ever straightened. `q` is 0-1 from a contact; heights
 -- are studs for a 5.2-stud body. Smoothed through the keys (periodic Catmull-Rom).
 Movement.RUN_KEYS = {
-	{ 0.00, -0.08 }, -- contact
-	{ 0.18, -0.22 }, -- the down
-	{ 0.42, -0.15 }, -- passing
-	{ 0.62, 0.10 }, -- the up: toe-off (Movement.gait's support)
-	{ 0.80, 0.12 }, -- flight
+	{ 0.00, -0.25 }, -- contact
+	{ 0.18, -0.27 }, -- the down
+	{ 0.42, -0.22 }, -- passing
+	{ 0.62, -0.06 }, -- the up: toe-off (Movement.gait's support)
+	{ 0.80, 0.02 }, -- flight
 }
 function Movement.runHeight(q: number): number
 	local K = Movement.RUN_KEYS
@@ -81,13 +121,12 @@ function Movement.For(ch: any, s: any, char: any): any
 		feet(-r * width, -ch.bob, bend, r * width, -ch.bob, bend)
 	end
 	if state == "run" and s.onGround then
-		local speed = math.clamp(math.abs(s.vx) / char.runSpeed, 0, 1)
-		local run = smooth((speed - 0.42) / 0.28)
-		local G = Movement.gait(char)
+		local run = Movement.runOf(s, char)
+		local G = Movement.gait(char, run)
 		local S, x0, DP = G.step, G.contact, G.support
 		-- The plaza supplies distance along its two-dimensional floor (and to its fixed mirror).
 		-- Match snapshots keep using their actual horizontal travel, preserving planted feet.
-		local base = (s.strideDistance or s.x * s.facing) / S
+		local base = Movement.steps(s, char, run)
 		local q = base % 1
 		m.phase = base * math.pi + math.pi / 2 -- chest/hips counter the same stride as the feet
 		m.bob = Movement.bob(s, char)
@@ -126,7 +165,7 @@ function Movement.For(ch: any, s: any, char: any): any
 		-- (forward, a running arm swings further than it goes back)
 		local function arm(footX: number): number
 			local a = -math.clamp(footX / x0, -1.4, 1.4) * swing - 0.12
-			return if a > 0 then a * (1 + Movement.ARM_FORWARD * run) else a
+			return a * (1 + (if a > 0 then Movement.ARM_FORWARD else Movement.ARM_BACK) * run)
 		end
 		m.back = arm(m.feet[1].x)
 		m.front = arm(m.feet[2].x)

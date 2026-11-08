@@ -66,6 +66,9 @@ local function lagOf(k: number, s: any, char: any, was: any, turn: number): numb
 	local lag = if math.abs(turn) > SNAP then 0 else k * turn
 	if s.state == "run" and s.onGround and char.avatar and char.avatar.kit then
 		-- the body's own bounce: rising, the blade's weight holds its tip back down
+		if s.stridePhase then
+			was.stridePhase = s.stridePhase - (s.x - was.x) * s.facing / Movement.gait(char, Movement.runOf(s, char)).step
+		end
 		lag -= k * 0.9 * (Movement.bob(s, char) - Movement.bob(was, char))
 	end
 	return math.clamp(lag, -MAX_LAG, MAX_LAG)
@@ -141,6 +144,12 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	-- additional waist cut and beveled joints without changing the shared kit/composer.
 	local kitCode = if char.avatar and char.avatar.kit then char.avatar.code else nil
 	local kitArt = if kitCode then PostureArt.sprites(kitCode) else nil
+	-- the run's stride lengthens with speed: the feet follow the steps accumulated for this
+	-- fighter (Movement.advance), not distance over the step of the moment
+	if kitArt and s.stridePhase == nil and s.strideDistance == nil and s.index ~= nil then
+		s = table.clone(s)
+		s.stridePhase = Movement.advance(s.index, s.x, s.facing, s, char)
+	end
 	local posture = if kitArt then Posture.For(ch, s, char, wpose, move, t) else nil
 	local rigRot = if posture and posture.rigRotZ ~= nil then posture.rigRotZ else ch.rigRotZ
 	local yOff = if posture and posture.yOff ~= nil then posture.yOff else ch.yOff

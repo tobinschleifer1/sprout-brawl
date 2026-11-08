@@ -5,6 +5,7 @@ local fs, luau, Rbx = require("@lune/fs"), require("@lune/luau"), require("@lune
 local Loader = require("./loader")
 local Secondary = Loader.loadFrom("src/client/", "Secondary")
 local Posture = Loader.loadFrom("src/client/", "Posture")
+local Movement = Loader.loadFrom("src/client/", "Movement")
 local Art = Loader.loadFrom("src/client/", "PostureArt")
 local Compose = Loader.loadFrom("src/client/", "AvatarCompose")
 local Channels = Loader.loadFrom("src/client/", "Channels")
@@ -139,6 +140,9 @@ for _, case in cases do
 			for _, name in { "run", "jumpsquat", "air", "landing", "shield", "hitstun", "airdodge", "knockdown", "ledgeaction" } do
 				for _, frame in { 1, 5, 15 } do
 					local s = state(c, name, frame); s.facing = facing
+					-- (the stride given, as a still pose would: the draw would otherwise carry this slot's
+					-- steps from the cases before - Movement.advance - and pose a different moment)
+					s.stridePhase = Movement.steps(s, c, Movement.runOf(s, c))
 					local trail, p, ch = posing(c, s, a)
 					local pitch = if a.anchor == "head" then c.radius * 1.15 / 12 else c.height * 0.02
 					local x, y, rot, sx, sy, ox, oy

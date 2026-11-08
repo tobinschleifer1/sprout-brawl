@@ -286,6 +286,21 @@ for side, rot in { far = ch.legR, near = ch.legL } do -- the left leg is the nea
 	local want = s.y + char.height * 0.34 * (1 - math.cos(rot))
 	assert(math.abs(fy / 24 - want) < 1e-9, `the {side} foot is at y {fy / 24}, planted it is at {want} (bob {ch.bob})`)
 end
+-- A drawn fighter's stride is accumulated for its slot (Movement.advance): a run's step grows with
+-- speed, and distance over the step of the moment would spin the feet as it sped up.
+do
+	local MovementMod = Loader.loadFrom("src/client/", "Movement")
+	local advance, seen = MovementMod.advance, nil
+	MovementMod.advance = function(key: any, ...)
+		seen = key
+		return advance(key, ...)
+	end
+	local runner: any = Fighter.new({ index = 1, char = char, x = 3, y = 2, stocks = 3 })
+	runner.state, runner.onGround, runner.vx = "run", true, 22
+	Fighter2D.draw(canvas(24), Snapshot.decode(Snapshot.encode(runner)), char, 0.1, 2)
+	MovementMod.advance = advance
+	assert(seen == 1, `the fighter's stride was not accumulated for its slot (key {seen})`)
+end
 -- Running too: the run writes its arm swing into armR.x, which the weapon never had - an armed arm
 -- that kept it swung a hand-width off its own grip.
 do

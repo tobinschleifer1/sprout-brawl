@@ -30,6 +30,7 @@ local StageThumb = require(script.Parent.StageThumb)
 local Realms = require(Shared.Realms)
 local PlazaArt = require(script.Parent.PlazaArt)
 local RealmArt = require(script.Parent.RealmArt)
+local Movement = require(script.Parent.Movement)
 local PosedFighter = require(script.Parent.PosedFighter)
 local Ui = require(script.Parent.Ui)
 
@@ -702,10 +703,11 @@ local function posed(char: any, state: string, sf: number, x: number, z: number,
 	st.x, st.y, st.facing, st.vx = x, y + z * D, facing, vx
 	st.onGround = y <= 0.01
 	if actor then
-		st.strideDistance = stride(actor, char)
 		if actor.vx ~= nil and actor.vz ~= nil then
 			st.vx = facing * math.sqrt(actor.vx * actor.vx + actor.vz * actor.vz)
 		end
+		-- (the steps, accumulated: a run's stride lengthens with speed - Movement.advance)
+		st.stridePhase = Movement.advance(actor, stride(actor, char), 1, st, char)
 	end
 	return st
 end

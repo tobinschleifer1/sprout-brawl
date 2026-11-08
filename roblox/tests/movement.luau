@@ -26,6 +26,9 @@ local function pose(s)
 	return Posture.For(ch, s, char, WeaponPose.For(s, char, move, s.frameCount / 60), move, s.frameCount / 60), ch
 end
 local G = Movement.gait(char)
+-- a run's stride is longer than a walk's (Movement.RUN_STEP): each speed has its own
+local function gaitAt(ratio: number): any return Movement.gait(char, Movement.runOf({ vx = char.runSpeed * ratio }, char)) end
+local GR = gaitAt(1)
 local function sample(x, ratio, facing)
 	local s = state("run", 0, { x = x * facing, facing = facing, vx = char.runSpeed * ratio * facing })
 	local p, raw = pose(s)
@@ -46,8 +49,9 @@ for _, facing in { -1, 1 } do
 	for _, ratio in { 0.12, 0.28, 0.55, 1 } do
 		local last, lastS, flight = nil, nil, 0
 		local low, high = { math.huge }, { -math.huge }
+		local Gs = gaitAt(ratio)
 		for j = 0, 240 do
-			local x = G.step * 2 * j / 240
+			local x = Gs.step * 2 * j / 240
 			local p, _, s = sample(x, ratio, facing)
 			local a, b = p.legs[1].pose, p.legs[2].pose
 			local la, lb = p.legs[1], p.legs[2]
@@ -89,7 +93,7 @@ for _, facing in { -1, 1 } do
 		assert(math.abs(flat - G.support * 0.6) < 0.03, `gait is flat-footed {flat} of the stride, not {G.support * 0.6}`)
 		-- The bounce rides the step. A run is lowest while a foot is planted (the down) and highest
 		-- with both feet off the ground; a walk rides highest over the planted leg (the passing).
-		local q = function(x) return (x / G.step) % 1 end
+		local q = function(x) return (x / Gs.step) % 1 end
 		if ratio == 1 then
 			assert(q(low[2]) < G.support and q(high[2]) > G.support, `a run's lowest point is at {q(low[2])} and highest at {q(high[2])} of the step`)
 			-- (the authored run bob it replaces rose 0.14 studs, under a pixel at match scale)
@@ -110,7 +114,7 @@ do
 	local pb = Posture.For(raw, b, char, { angle = 0 }, nil, 0)
 	near(pa.hipRot, pb.hipRot, "hips use a different stride clock from the feet")
 	near(pa.chestRot, pb.chestRot, "chest uses a different stride clock from the feet")
-	b.x += G.step -- the next step
+	b.x += GR.step -- the next step
 	local pc = Posture.For(raw, b, char, { angle = 0 }, nil, 0)
 	assert(pa.hipRot * pc.hipRot < -0.001, "hips never exchange weight on the next step")
 	assert((pc.chestRot + raw.lean) * pc.hipRot < -0.001, "chest fails to counter next step")
@@ -125,7 +129,7 @@ for _, ratio in { 0.28, 1 } do
 	assert(kneeForward(front) < h * 0.03, `contact: the leading leg is bent {kneeForward(front)}, not nearly straight`)
 	assert(back.pose.ex < 0 and back.pose.ey + p.bob > h * 0.05, "contact: the trailing foot is not lifted behind")
 	-- Passing: the planted foot under the hip, the swinging one lifted and folded past it.
-	local pass = sample(G.step * G.support / 2, ratio, 1)
+	local pass = sample(gaitAt(ratio).step * G.support / 2, ratio, 1)
 	local plant, swing = pass.legs[1], pass.legs[2]
 	assert(math.abs(plant.pose.ex - plant.x) < h * 0.03 and math.abs(plant.pose.ey + pass.bob) < 1e-8, "passing: the planted foot is not under its hip")
 	assert(swing.pose.ey - plant.pose.ey > h * 0.075, "passing: the swinging foot is not lifted")
@@ -263,7 +267,7 @@ do
 	end
 	local lead, far, nearHand = {}, {}, {}
 	for k = 0, 31 do
-		local p = at(k / 32 * 2 * G.step, 7)
+		local p = at(k / 32 * 2 * GR.step, 7)
 		table.insert(lead, p.legs[1].pose.ex - p.legs[2].pose.ex)
 		table.insert(far, p.front.ex - p.frontX)
 		table.insert(nearHand, p.back.ex - p.backX)
@@ -277,7 +281,7 @@ do
 	-- At the front of its swing an arm's shoulder comes forward and down (the owner posed it: it read
 	-- too high), the whole arm with it, hand and all; swung back, it is where it always was.
 	local function shift(k: number): (any, any)
-		local x = k / 32 * 2 * G.step
+		local x = k / 32 * 2 * GR.step
 		local ahead, drop = Posture.SWING_AHEAD, Posture.SWING_DROP
 		Posture.SWING_AHEAD, Posture.SWING_DROP = 0, 0
 		local still = at(x, 7)
@@ -308,7 +312,7 @@ do
 	bare.weapon = nil
 	local fold, fwd, back = math.huge, -math.huge, math.huge
 	for k = 0, 199 do
-		local d = k / 200 * 2 * G.step
+		local d = k / 200 * 2 * GR.step
 		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
 		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
 		local st = Snapshot.decode(Snapshot.encode(f))
@@ -316,7 +320,7 @@ do
 		local ch = Channels.For(st, bare, nil, 7 / 60)
 		local m = Movement.For(ch, st, bare)
 		fwd, back = math.max(fwd, m.back), math.min(back, m.back)
-		local u = ((d / G.step) % 2 - G.support) / (2 - G.support)
+		local u = ((d / GR.step) % 2 - G.support) / (2 - G.support)
 		if u >= 0.8 then
 			local L = Posture.For(ch, st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60).legs[1]
 			local P = L.pose
@@ -341,12 +345,57 @@ do
 		return math.deg(2 * math.acos(math.min(1, reach / full)))
 	end
 	for i = 1, 2 do
-		local start = (i - 1) * G.step -- (leg i's contact)
-		local up, contact, down = knee(start + G.support * G.step, i), knee(start, i), knee(start + 0.18 * G.step, i)
+		local start = (i - 1) * GR.step -- (leg i's contact)
+		local up, contact, down = knee(start + G.support * GR.step, i), knee(start, i), knee(start + 0.18 * GR.step, i)
 		assert(up < 5, `leg {i} pushes off with its knee bent {up} degrees, not straight`)
 		assert(contact < 30, `leg {i} lands with its knee bent {contact} degrees`)
 		assert(down > 40 and down < 70, `leg {i} takes the down on a {down}-degree knee`)
 	end
-	assert(fwd > -back * 1.15, `a running arm swings no further forward ({fwd}) than back ({back})`)
+	-- the arm swings wider in a run, each way by its own amount (forward ARM_FORWARD, back ARM_BACK -
+	-- the owner wanted the arm well back, as in Williams' up), measured against the plain swing
+	local function swingRange(): (number, number)
+		local hi, lo = -math.huge, math.huge
+		for k = 0, 63 do
+			local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+			f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
+			local st = Snapshot.decode(Snapshot.encode(f))
+			st.x, st.vx = k / 64 * 2 * GR.step, bare.runSpeed
+			local m = Movement.For(Channels.For(st, bare, nil, 7 / 60), st, bare)
+			hi, lo = math.max(hi, m.back), math.min(lo, m.back)
+		end
+		return hi, lo
+	end
+	local wideF, wideB = swingRange()
+	local af, ab = Movement.ARM_FORWARD, Movement.ARM_BACK
+	Movement.ARM_FORWARD, Movement.ARM_BACK = 0, 0
+	local plainF, plainB = swingRange()
+	Movement.ARM_FORWARD, Movement.ARM_BACK = af, ab
+	assert(wideF > plainF * 1.1, `a running arm swings no further forward ({wideF}) than the plain swing ({plainF})`)
+	assert(wideB < plainB * 1.25, `a running arm swings no further back ({wideB}) than the plain swing ({plainB})`)
 end
-print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties; both arms counter-swing their legs on the stride", samples, clearance))
+-- Speeding up far from the stage's middle: the run's step grows with speed, so steps counted as
+-- distance over the step of the moment would spin the feet through the cycle (40 studs out, a few
+-- steps' worth in a frame). Accumulated (Movement.advance) the planted foot holds and no foot jumps.
+do
+	local bare = table.clone(char)
+	bare.weapon = nil
+	local key = {}
+	local x, worst, lastFeet = 40, 0, nil
+	for frame = 0, 90 do
+		local vx = bare.runSpeed * math.min(1, 0.3 + frame / 60)
+		x += vx / 60
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", frame, frame, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx = x, vx
+		st.stridePhase = Movement.advance(key, st.x, st.facing, st, bare)
+		local p = Posture.For(Channels.For(st, bare, nil, frame / 60), st, bare, WeaponPose.For(st, bare, nil, frame / 60), nil, frame / 60)
+		local feet = { x + p.legs[1].pose.ex, x + p.legs[2].pose.ex }
+		if lastFeet then
+			for k = 1, 2 do worst = math.max(worst, math.abs(feet[k] - lastFeet[k])) end
+		end
+		lastFeet = feet
+	end
+	assert(worst < h * 0.2, `speeding up, a foot jumped {worst} studs in a frame`)
+end
+print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties; the stride holds through speeding up; both arms counter-swing their legs on the stride", samples, clearance))

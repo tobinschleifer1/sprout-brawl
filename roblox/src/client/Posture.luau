@@ -186,6 +186,14 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 			-- distance leaves over, so a lowered body bends the planted knee and a lifted foot
 			-- folds the swinging one. Nothing stretches the leg's art.
 			local dx, dy = target.ex - rx, target.ey - ry
+			-- Out of reach (the body risen off a pushing leg): the leg is straight and the foot
+			-- comes up to meet it - straight up, on the toe, so a planted foot never slides.
+			-- (a run only: a walk's trailing toe keeps its old few percent of reach)
+			if (foot.run or 0) > 0 and dx * dx + dy * dy > foot.len * foot.len then
+				local up = ry - math.sqrt(math.max(0, foot.len * foot.len - dx * dx))
+				target.ey += (up - target.ey) * foot.run
+				dy = target.ey - ry
+			end
 			bend = 2 * math.acos(math.min(1, math.sqrt(dx * dx + dy * dy) / foot.len))
 		end
 		local solved = Posture.limb(rx, ry, target.ex, target.ey, bend, -1)

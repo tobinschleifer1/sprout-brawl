@@ -326,6 +326,27 @@ do
 		end
 	end
 	assert(fold >= 0.85, `late in its swing the running leg is still folded to {fold} of its length`)
+	-- Williams' run (the owner's reference): the pushing leg straightens fully at the up (toe-off),
+	-- the landing leg is nearly straight at contact, and the down takes the weight on a bent knee.
+	local function knee(d: number, i: number): number
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx = d, bare.runSpeed
+		local ch = Channels.For(st, bare, nil, 7 / 60)
+		local L = Posture.For(ch, st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60).legs[i]
+		local P = L.pose
+		local reach = math.sqrt((P.ex - L.x) ^ 2 + (P.ey - L.y) ^ 2)
+		local full = math.sqrt((P.jx - L.x) ^ 2 + (P.jy - L.y) ^ 2) + math.sqrt((P.ex - P.jx) ^ 2 + (P.ey - P.jy) ^ 2)
+		return math.deg(2 * math.acos(math.min(1, reach / full)))
+	end
+	for i = 1, 2 do
+		local start = (i - 1) * G.step -- (leg i's contact)
+		local up, contact, down = knee(start + G.support * G.step, i), knee(start, i), knee(start + 0.18 * G.step, i)
+		assert(up < 5, `leg {i} pushes off with its knee bent {up} degrees, not straight`)
+		assert(contact < 30, `leg {i} lands with its knee bent {contact} degrees`)
+		assert(down > 40 and down < 70, `leg {i} takes the down on a {down}-degree knee`)
+	end
 	assert(fwd > -back * 1.15, `a running arm swings no further forward ({fwd}) than back ({back})`)
 end
 print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties; both arms counter-swing their legs on the stride", samples, clearance))

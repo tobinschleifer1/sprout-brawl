@@ -33,8 +33,42 @@ function Movement.bob(s: any, char: any): number
 	local k = h / 5.2
 	local passing = Movement.gait(char).support / 2
 	local walk = k * (-0.03 + 0.035 * math.cos(2 * math.pi * (q - passing)))
-	local runs = k * (-0.10 - 0.125 * math.cos(2 * math.pi * (q - 0.28)))
+	local runs = k * Movement.runHeight(q)
 	return walk + (runs - walk) * run
+end
+
+-- The run's height through one step, on Richard Williams' keys (The Animator's Survival Kit; the
+-- owner's reference, 2026-11-08): contact, the down (lowest, the knee taking the weight), the
+-- passing, the up (the push-off, the planted leg straightening fully behind) and the flight. The
+-- old curve peaked late and low, so no leg ever straightened. `q` is 0-1 from a contact; heights
+-- are studs for a 5.2-stud body. Smoothed through the keys (periodic Catmull-Rom).
+Movement.RUN_KEYS = {
+	{ 0.00, -0.08 }, -- contact
+	{ 0.18, -0.22 }, -- the down
+	{ 0.42, -0.15 }, -- passing
+	{ 0.62, 0.10 }, -- the up: toe-off (Movement.gait's support)
+	{ 0.80, 0.12 }, -- flight
+}
+function Movement.runHeight(q: number): number
+	local K = Movement.RUN_KEYS
+	local n = #K
+	local function key(i: number): (number, number)
+		local wrap = math.floor((i - 1) / n)
+		local kk = K[(i - 1) % n + 1]
+		return kk[1] + wrap, kk[2]
+	end
+	local i = n
+	for j = 1, n do if K[j][1] <= q then i = j end end
+	local x0, y0 = key(i - 1)
+	local x1, y1 = key(i)
+	local x2, y2 = key(i + 1)
+	local x3, y3 = key(i + 2)
+	local t = (q - x1) / (x2 - x1)
+	-- (non-uniform keys: the tangents are slopes over each neighbour's span)
+	local m1 = (y2 - y0) / (x2 - x0) * (x2 - x1)
+	local m2 = (y3 - y1) / (x3 - x1) * (x2 - x1)
+	local t2, t3 = t * t, t * t * t
+	return (2 * t3 - 3 * t2 + 1) * y1 + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * y2 + (t3 - t2) * m2
 end
 
 function Movement.For(ch: any, s: any, char: any): any
@@ -82,7 +116,7 @@ function Movement.For(ch: any, s: any, char: any): any
 				support = false
 			end
 			local lane = math.clamp(x / x0, -1, 1)
-			m.feet[i] = { x = x, y = y - m.bob, len = G.leg, rootX = lane * r * 0.30, lane = lane, support = support }
+			m.feet[i] = { x = x, y = y - m.bob, len = G.leg, rootX = lane * r * 0.30, lane = lane, support = support, run = run }
 		end
 		-- Each arm counter-swings the leg on its own side, on the feet's clock (distance, not time):
 		-- the rear arm against the near leg (1), the front arm against the far leg (2) - so it is

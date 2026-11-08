@@ -285,6 +285,28 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Weapons2D.draw(c, unitId :: string, wpal, pose)
 		Canvas2D.restore(c)
 	end
+	-- The weapon itself, at the grip. It goes with the hand that holds it (KitBody): the front hand is
+	-- the far arm, so there it is drawn behind the body and over that arm; a pair's back-hand strike
+	-- puts it in the rear, near hand, over everything. Its trail and effects stay over the body.
+	local mainDrawn = false
+	local function drawMain()
+		mainDrawn = true
+		Canvas2D.save(c)
+		Canvas2D.translate(c, gx, gy)
+		Canvas2D.rotate(c, -ch.lean)
+		local lag = Fighter2D.bladeLag(s, char, move, t, wpose)
+		if lag ~= 0 then
+			local drawn: any = table.clone(wpose)
+			drawn.angle += lag
+			Weapons2D.draw(c, unitId, wpal, drawn)
+		else
+			Weapons2D.draw(c, unitId, wpal, wpose)
+		end
+		Canvas2D.restore(c)
+	end
+	local held = wid and not wpose.hide and not (wid == "Chakram" and s.rings == 0) and wid ~= "RocketBoots"
+	local mainNear = dual ~= nil and dual.off ~= nil and dual.off.hand == "front"
+	local offNear = dual ~= nil and dual.off ~= nil and dual.off.hand == "back"
 	-- a gait carries its own bounce, in step with the feet (Movement.bob)
 	local bob = if posture and posture.bob ~= nil then posture.bob else ch.bob
 	Canvas2D.save(c)
@@ -321,7 +343,11 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 				Canvas2D.sprite(c, "weapon|" .. (unitId :: string), sp.rects, sp.x0, sp.y1, 1 / 8, 1 / 8, sp.cols, sp.rows, if i == 2 then 0.85 else 1)
 				Canvas2D.restore(c)
 			end
-		end, if dual and dual.off and dual.off.hand == "front" then drawOff else nil)
+		end, function()
+			-- the far (front) hand's: behind the body, over the arm
+			if dual and dual.off and not offNear then drawOff() end
+			if held and not mainNear then drawMain() end
+		end, nil)
 	else
 		for _, leg in { { ch.legL, -r * 0.30, 0.74 }, { ch.legR, r * 0.30, 1 } } do
 			Canvas2D.save(c)
@@ -349,7 +375,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 
 	-- a Chakram with both rings thrown has nothing in its hands (Roblox only: Snapshot `rings`)
 	-- (and Rocket Boots are on the feet, drawn with the legs above, not in the hand)
-	if wid and not wpose.hide and not (wid == "Chakram" and s.rings == 0) and wid ~= "RocketBoots" then
+	if held then
 		if wpose.drag and s.onGround and platformTop then
 			local rch = Weapons2D.REACH[wid] or 2.4
 			local wx = s.x + (gx + math.cos(wpose.angle - ch.lean) * rch) * s.facing
@@ -376,19 +402,17 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		Canvas2D.translate(c, gx, gy)
 		Canvas2D.rotate(c, -ch.lean)
 		UltimateVfx.drawUltimate(c, wid, wpal, wpose, t)
-		local lag = Fighter2D.bladeLag(s, char, move, t, wpose)
-		if lag ~= 0 then
-			local drawn: any = table.clone(wpose)
-			drawn.angle += lag
-			Weapons2D.draw(c, unitId, wpal, drawn)
-		else
-			Weapons2D.draw(c, unitId, wpal, wpose)
-		end
+		Canvas2D.restore(c)
+		-- (in the near hand, or on the block rig, whose weapon arm is its near one: over everything)
+		if not mainDrawn then drawMain() end
+		Canvas2D.save(c)
+		Canvas2D.translate(c, gx, gy)
+		Canvas2D.rotate(c, -ch.lean)
 		UltimateVfx.drawMuzzle(c, wid, wpal, wpose, t)
 		Canvas2D.restore(c)
 	end
 	-- the rear (near) hand's second weapon is the nearest thing drawn
-	if dual and dual.off and dual.off.hand == "back" then drawOff() end
+	if offNear then drawOff() end
 	Canvas2D.restore(c)   -- bob
 	Canvas2D.restore(c)   -- fighter
 	if scuff then

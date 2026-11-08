@@ -6,7 +6,8 @@ local Rig = require(script.Parent.Rig)
 local KIT_PARTS = require(script.Parent.PostureArt).parts
 local KitBody = {}
 function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: boolean,
-	kitPiece: (string, number, boolean?) -> (), foot: ((number, Rig.Limb) -> ())?, farHand: (() -> ())?)
+	kitPiece: (string, number, boolean?) -> (), foot: ((number, Rig.Limb) -> ())?, farHand: (() -> ())?,
+	nearHand: (() -> ())?)
 	-- Endpoints are already in the fighter's frame. Width never inherits a torso squash or the
 	-- length stretch of a segment: every arm/leg keeps the same number of PW-wide columns.
 	local function seg(x0: number, y0: number, x1: number, y1: number, id: string, far: boolean)
@@ -28,13 +29,15 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 		end
 	end
 
-	-- The right leg (2) is the far one, drawn first and shaded; the left (1) is nearer the camera,
-	-- drawn over it and lit (PostureArt.NEAR_LIGHT).
-	for _, i in { 2, 1 } do
-		local leg = p.legs[i]
-		limb(leg.x, leg.y, leg.pose, "thigh", "shin", i == 2)
-		if foot then foot(i, leg.pose) end
+	-- The right leg (2) is the far one, drawn first, behind the body, and shaded; the left (1) is
+	-- nearer the camera, lit (PostureArt.NEAR_LIGHT) and drawn over the body like the near arm
+	-- (the owner, 2026-11-08), below.
+	local function leg(i: number)
+		local L = p.legs[i]
+		limb(L.x, L.y, L.pose, "thigh", "shin", i == 2)
+		if foot then foot(i, L.pose) end
 	end
+	leg(2)
 	Canvas2D.save(c)
 	Canvas2D.translate(c, p.hipX, p.hipY)
 	Canvas2D.rotate(c, p.hipRot)
@@ -43,9 +46,9 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 	-- The arms keep the legs' sides: the near leg (1) is on the rear side, so the rear arm is the
 	-- near one and the front (weapon) arm is the far one, behind the body and shaded. With them the
 	-- other way round the lit arm and the lit leg were on opposite sides, and the body read as
-	-- twisted the wrong way (the owner, 2026-11-08). The weapon is still drawn over the body.
+	-- twisted the wrong way (the owner, 2026-11-08). What a hand holds goes with it: in the far hand,
+	-- behind the body but over the arm holding it; in the near hand, over everything.
 	limb(p.frontX, p.frontY, p.front, "upperarm", "forearm", true)
-	-- what the far hand holds sits behind the body with it (DualWield's second weapon)
 	if farHand then farHand() end
 
 	Canvas2D.save(c)
@@ -67,6 +70,8 @@ function KitBody.draw(c: any, h: number, PW: number, ch: any, p: any, half: bool
 	Canvas2D.scale(c, ch.sx, ch.sy)
 	kitPiece("head", PW)
 	Canvas2D.restore(c)
+	leg(1)
 	limb(p.backX, p.backY, p.back, "upperarm", "forearm", false)
+	if nearHand then nearHand() end
 end
 return KitBody

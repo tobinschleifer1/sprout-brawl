@@ -238,4 +238,94 @@ for _, action in { { "getup", 10 }, { "attack", 8 } } do
 	local p, raw = pose(state("ledgeaction", action[2], { ledgeAction = action[1] }))
 	for _, leg in p.legs do near(leg.pose.ey + raw.bob, 0, "ledge action feet miss platform arrival") end
 end
-print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties", samples, clearance))
+-- The arms counter-swing their own side's leg, both on the feet's clock (the owner, 2026-11-08: the
+-- far arm swung by the frame count, out of step, and was never forward as the near leg reached
+-- forward). Empty-handed, through a stride: the far (front) hand leads as the near foot leads, the
+-- near (rear) hand as the far foot does. The frame is held still while the distance runs, so an arm
+-- on the frame count's clock does not swing here at all.
+do
+	local bare = table.clone(char)
+	bare.weapon = nil
+	local function at(x: number, frame: number): any
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", frame, frame, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx = x, bare.runSpeed
+		local ch = Channels.For(st, bare, nil, frame / 60)
+		return Posture.For(ch, st, bare, WeaponPose.For(st, bare, nil, frame / 60), nil, frame / 60)
+	end
+	local function corr(a: { number }, b: { number }): number
+		local ma, mb = 0, 0
+		for k = 1, #a do ma += a[k] / #a; mb += b[k] / #b end
+		local sab, saa, sbb = 0, 0, 0
+		for k = 1, #a do sab += (a[k] - ma) * (b[k] - mb); saa += (a[k] - ma) ^ 2; sbb += (b[k] - mb) ^ 2 end
+		return sab / math.sqrt(saa * sbb)
+	end
+	local lead, far, nearHand = {}, {}, {}
+	for k = 0, 31 do
+		local p = at(k / 32 * 2 * G.step, 7)
+		table.insert(lead, p.legs[1].pose.ex - p.legs[2].pose.ex)
+		table.insert(far, p.front.ex - p.frontX)
+		table.insert(nearHand, p.back.ex - p.backX)
+	end
+	local cf, cb = corr(lead, far), corr(lead, nearHand)
+	assert(cf > 0.9, `the far arm does not lead as the near leg leads (correlation {cf})`)
+	assert(cb < -0.9, `the near arm does not swing back as the near leg leads (correlation {cb})`)
+	local lo, hi = math.huge, -math.huge
+	for _, v in far do lo = math.min(lo, v); hi = math.max(hi, v) end
+	assert(hi - lo > r * 0.8, `the far arm hardly swings ({hi - lo} studs)`)
+	-- At the front of its swing an arm's shoulder comes forward and down (the owner posed it: it read
+	-- too high), the whole arm with it, hand and all; swung back, it is where it always was.
+	local function shift(k: number): (any, any)
+		local x = k / 32 * 2 * G.step
+		local ahead, drop = Posture.SWING_AHEAD, Posture.SWING_DROP
+		Posture.SWING_AHEAD, Posture.SWING_DROP = 0, 0
+		local still = at(x, 7)
+		Posture.SWING_AHEAD, Posture.SWING_DROP = ahead, drop
+		return still, at(x, 7)
+	end
+	local function extreme(list: { number }, sign: number): number
+		local best = 1
+		for k = 1, #list do if list[k] * sign > list[best] * sign then best = k end end
+		return best - 1
+	end
+	for _, arm in { { "front", far }, { "back", nearHand } } do
+		local name, list = arm[1], arm[2]
+		local still, moved = shift(extreme(list, 1))
+		local dx, dy = moved[name .. "X"] - still[name .. "X"], moved[name .. "Y"] - still[name .. "Y"]
+		assert(dx > h * 0.02 and -dy > h * 0.025, `the {name} shoulder swung forward moved only ({dx}, {dy})`)
+		local L, S = moved[name], still[name]
+		assert(math.abs((L.ex - S.ex) - dx) < 1e-9 and math.abs((L.ey - S.ey) - dy) < 1e-9, `the {name} hand stayed while its shoulder moved`)
+		still, moved = shift(extreme(list, -1))
+		assert(moved[name .. "X"] == still[name .. "X"] and moved[name .. "Y"] == still[name .. "Y"], `the {name} shoulder moved swung back`)
+	end
+end
+-- The run's shape, posed by the owner (2026-11-08): the swinging leg straightens before it lands -
+-- over the last fifth of its swing it is never folded below 85% of its length (it was 81%) - and a
+-- running arm swings further forward than back.
+do
+	local bare = table.clone(char)
+	bare.weapon = nil
+	local fold, fwd, back = math.huge, -math.huge, math.huge
+	for k = 0, 199 do
+		local d = k / 200 * 2 * G.step
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx = d, bare.runSpeed
+		local ch = Channels.For(st, bare, nil, 7 / 60)
+		local m = Movement.For(ch, st, bare)
+		fwd, back = math.max(fwd, m.back), math.min(back, m.back)
+		local u = ((d / G.step) % 2 - G.support) / (2 - G.support)
+		if u >= 0.8 then
+			local L = Posture.For(ch, st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60).legs[1]
+			local P = L.pose
+			local reach = math.sqrt((P.ex - L.x) ^ 2 + (P.ey - L.y) ^ 2)
+			local full = math.sqrt((P.jx - L.x) ^ 2 + (P.jy - L.y) ^ 2) + math.sqrt((P.ex - P.jx) ^ 2 + (P.ey - P.jy) ^ 2)
+			fold = math.min(fold, reach / full)
+		end
+	end
+	assert(fold >= 0.85, `late in its swing the running leg is still folded to {fold} of its length`)
+	assert(fwd > -back * 1.15, `a running arm swings no further forward ({fwd}) than back ({back})`)
+end
+print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties; both arms counter-swing their legs on the stride", samples, clearance))

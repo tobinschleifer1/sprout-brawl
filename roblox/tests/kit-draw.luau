@@ -188,8 +188,10 @@ assert(math.abs(ch.bob) > 0.05, `the test's moment has too little bob ({ch.bob})
 -- The weapon's frame as Weapons2D.draw is entered: Fighter2D has just translated to the grip.
 local grip: any = nil
 local weaponDraw = Weapons2D.draw
+local weaponAt: number? = nil
 Weapons2D.draw = function(cv: any, ...)
 	grip = { cv.m.e, cv.m.f }
+	weaponAt = #sprites
 	return weaponDraw(cv, ...)
 end
 table.clear(sprites); blocks = 0; blockHeads = 0; weapons = 0
@@ -256,6 +258,16 @@ do
 	for k, sp in sprites do at[sp] = k end
 	assert(at[seg.upperarm.near] > at[by.chest[1]] and at[seg.forearm.near] > at[by.head[1]], "the near arm is drawn under the body")
 	assert(at[seg.upperarm.far] < at[by.chest[1]] and at[seg.forearm.far] < at[by.abdomen[1]], "the far arm is drawn over the body")
+	-- And the legs the same way: the near leg over the hips and body, the far one under them.
+	assert(at[seg.thigh.near] > at[by.chest[1]] and at[seg.shin.near] > at[by.pelvis[1]], "the near leg is drawn under the body")
+	assert(at[seg.thigh.far] < at[by.pelvis[1]] and at[seg.shin.far] < at[by.pelvis[1]], "the far leg is drawn over the body")
+	assert(at[seg.upperarm.near] > at[seg.thigh.near], "the near leg is drawn over the near arm")
+	-- The sword goes with the hand holding it (the owner, 2026-11-08): in the far hand, behind the
+	-- body but over the arm - drawn after every far-arm sprite and before the torso.
+	assert(weaponAt, "the weapon was never drawn")
+	local w = weaponAt :: number
+	assert(w >= at[seg.upperarm.far] and w >= at[seg.forearm.far], "the sword is drawn under the arm holding it")
+	assert(w < at[by.abdomen[1]] and w < at[by.chest[1]], "the sword in the far hand is drawn over the body")
 end
 -- The hand is the grip: the weapon arm (the far one) ends exactly where the sword is drawn from.
 assert(grip, "the weapon was never drawn")

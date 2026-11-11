@@ -36,8 +36,8 @@ more for its cost.
 | # | Subject | Last score | State |
 |---|---|---|---|
 | 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | 5.05 at round 2 | round 3 built; its review waits on the bots' round 2 |
-| 2 | Bot AI: how bots fight, per weapon and level | 4.1 at round 1 | round 2 |
-| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | 5.3 at round 1 | round 2 built |
+| 2 | Bot AI: how bots fight, per weapon and level | 4.1 at round 1 | round 2 built, in review |
+| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | 5.9 at round 2 | round 3 |
 | 4 | Stages: layouts, hazards, disasters (their look was the maps rounds, 6.08 / 6.25 at round 5) | 4.6 at round 1 | round 2 |
 | 5 | The match: items, weapon drops, formats, rules, rooms | never scored | |
 | 6 | New players and the tutorial | 6.8 at round 1 | |
@@ -66,3 +66,4 @@ more for its cost.
 | 2026-11-11 | Weapons | 2 | **5.05** (getting better) | aim halves the art/box disagreement; Grimoire, Scythe, Redline fixed; the bottom three wait on the bot's kill move (`weapons-round2-review.md`) |
 | 2026-11-11 | Bots | 1 | **4.1** (bad) | dead-opponent freeze, drowning, main-only stage sense, side+heavy kill press, no neutral heavies, unreachable air finishers (`bots-round1-review.md`) |
 | 2026-11-11 | Stages | 1 | **4.6** (getting better) | Undertow's tide drowns on its own, disasters never kill, a disaster wipes kill credit (`stages-round1-review.md`) |
+| 2026-11-11 | Combat core | 2 | **5.9** (getting better) | wall locks, block freeze and ledge fixed; the Flail's Snare crashes the sim; the wall cap also cuts vertical launches (`combat-round2-review.md`) |

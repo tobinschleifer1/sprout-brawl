@@ -10,6 +10,7 @@ local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
 local Match = Loader.load("Match")
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 local Stages = Loader.load("Data/Stages")
 local Input = Loader.load("Input")
@@ -29,7 +30,7 @@ for n, p in T.probes do
 	guard = false
 	local fighters = {}
 	for i, look in { "Classic", "Noir" } do
-		table.insert(fighters, { char = Loadout.build(look, "Sword"), skin = 0, team = i - 1, source = `p{i - 1}`, isBot = false, name = `P{i}` })
+		table.insert(fighters, { char = Loadout.build(look, "Sword", true), skin = 0, team = i - 1, source = `p{i - 1}`, isBot = false, name = `P{i}` })
 	end
 	local m = Match.new({ mode = "StockFFA", stage = data, input = input, seed = 1, stocks = 3, fighters = fighters })
 	while m.state == "countdown" do m:step() end

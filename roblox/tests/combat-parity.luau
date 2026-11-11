@@ -65,6 +65,7 @@ local Fighter = Loader.load("Fighter")
 local Stage = Loader.load("Stage")
 local Combat = Loader.load("Combat")
 local Input = Loader.load("Input")
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 local StageData = Loader.load("Data/Stages")
 local ItemData = Loader.load("Data/Items")
@@ -102,7 +103,7 @@ for _, spec in T.scenarios do
 	local stage = Stage.new(data, 4242)
 	local fighters = {}
 	for i, who in spec.who do
-		local f = Fighter.new({ index = i - 1, char = Loadout.build(who[1], who[2]),
+		local f = Fighter.new({ index = i - 1, char = Loadout.build(who[1], who[2], true),
 			x = num(spec.at[i]), y = 0.5, stocks = 3, name = `P{i - 1}` })
 		f:setState("idle")
 		f.invincible = 0

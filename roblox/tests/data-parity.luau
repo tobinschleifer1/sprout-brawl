@@ -21,6 +21,7 @@ local Weapons = Loader.load("Data/Weapons")
 local Avatars = Loader.load("Data/Avatars")
 local Stages = Loader.load("Data/Stages")
 local Items = Loader.load("Data/Items")
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 
 local fixture = serde.decode("json", fs.readFile("tests/data-fixture.json"))
@@ -143,7 +144,7 @@ end
 -- overrides and rounds - three chances to be subtly wrong in a way nothing else here would see.
 local loadouts = 0
 for _, row in fixture.loadouts do
-	local L = Loadout.build(row.avatar, row.weapon)
+	local L = Loadout.build(row.avatar, row.weapon, true)
 	loadouts += 1
 	for _, k in { "id", "name", "archetype" } do
 		leaves += 1
@@ -188,7 +189,7 @@ do
 end
 
 -- and the move tables must be SHARED with the weapon, not copied, exactly as in the JavaScript
-local sample = Loadout.build("Classic", "Sword")
+local sample = Loadout.build("Classic", "Sword", true)
 leaves += 1
 if not rawequal(sample.moves, Weapons.BY_ID.Sword.moves) then
 	fail("Loadout.build copied the move table instead of sharing it")

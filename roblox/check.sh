@@ -194,6 +194,7 @@ echo "== faces: expressions from the player's own face (Roblox only) =="
 lune run tests/expressions
 echo "== the Chakram (Roblox-only weapon): rings out, home and caught =="
 lune run tests/chakram
+lune run tests/weapon-tuning
 echo "== Rocket Boots (Roblox-only weapon): thrust fuel and Redline Reversal =="
 lune run tests/rocketboots
 lune run tests/canvas-writes

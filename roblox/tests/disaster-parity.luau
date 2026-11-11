@@ -15,6 +15,7 @@ local Loader = require("./loader")
 
 local Match = Loader.load("Match")
 local Input = Loader.load("Input")
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 local StageData = Loader.load("Data/Stages")
 
@@ -76,7 +77,7 @@ for _, spec in T.scenarios do
 		get = function(_, source: string): any return script[source] or Input.emptyFrame() end }
 	local fighters = {}
 	for i, who in WHO do
-		table.insert(fighters, { char = Loadout.build(who[1], who[2]), skin = 0, team = i - 1,
+		table.insert(fighters, { char = Loadout.build(who[1], who[2], true), skin = 0, team = i - 1,
 			source = `p{i - 1}`, isBot = false, name = `P{i - 1}` })
 	end
 	local m = Match.new({ mode = "StockFFA", stage = StageData.BY_ID[spec.stage], input = input,

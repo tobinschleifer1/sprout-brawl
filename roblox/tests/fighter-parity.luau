@@ -27,6 +27,7 @@ local Loader = require("./loader")
 local Fighter = Loader.load("Fighter")
 local Stage = Loader.load("Stage")
 local Input = Loader.load("Input")
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 local StageData = Loader.load("Data/Stages")
 
@@ -217,7 +218,7 @@ for _, spec in T.scenarios do
 	local data = table.clone(StageData.BY_ID[spec.stage])
 	data.hazards = {}
 	local stage = Stage.new(data)
-	local char = patched(Loadout.build(spec.avatar, spec.weapon), spec.patch)
+	local char = patched(Loadout.build(spec.avatar, spec.weapon, true), spec.patch)
 	local f = Fighter.new({ index = 0, char = char, x = tonumber(spec.x), y = tonumber(spec.y),
 		stocks = 3, name = "P" })
 	if not spec.keepRespawn then
@@ -319,7 +320,7 @@ for _, spec in T.scenarios do
 		local data = table.clone(StageData.BY_ID[spec.stage])
 		data.hazards = {}
 		local stage = Stage.new(data)
-		local char = patched(Loadout.build(spec.avatar, spec.weapon), spec.patch)
+		local char = patched(Loadout.build(spec.avatar, spec.weapon, true), spec.patch)
 		local f = Fighter.new({ index = 0, char = char, x = tonumber(spec.x), y = tonumber(spec.y),
 			stocks = 3, name = "P" })
 		if not spec.keepRespawn then

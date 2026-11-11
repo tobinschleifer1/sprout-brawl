@@ -7,9 +7,10 @@ local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
 local Parkour = Loader.load("Parkour")
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 local T = serde.decode("json", fs.readFile("tests/parkour-fixture.json"))
-local char = Loadout.build("Classic", T.weapon)
+local char = Loadout.build("Classic", T.weapon, true)
 local checked = 0
 for n, case in T.cases do
 	local pk = Parkour.new(Parkour.DATA.course, char, case.from, case.opts)

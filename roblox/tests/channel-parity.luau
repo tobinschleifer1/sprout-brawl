@@ -16,6 +16,7 @@ local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
 
+-- (`true`: the web's weapons, before the Roblox-only tuning - these replays hold the engine to the web)
 local Loadout = Loader.load("Loadout")
 local Fighter = Loader.load("Fighter")
 local Channels = Loader.loadFrom("src/client/", "Channels")
@@ -53,7 +54,7 @@ local chars: { [string]: any } = {}
 local function charFor(avatar: string, weapon: string): any
 	local key = avatar .. "/" .. weapon
 	if not chars[key] then
-		chars[key] = Loadout.build(avatar, weapon)
+		chars[key] = Loadout.build(avatar, weapon, true)
 	end
 	return chars[key]
 end

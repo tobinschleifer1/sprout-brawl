@@ -31,7 +31,7 @@ reached by round three it carries on.
 |---|---|---|---|
 | 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | 4.45 at round 1 | round 2 |
 | 2 | Bot AI: how bots fight, per weapon and level | never scored (round 1 lost twice to restarts) | round 1 |
-| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | round 1 |
+| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | 5.3 at round 1 | round 2 |
 | 4 | Stage hazards and disasters | rounds 1-2 (`../hazard-design-review.md`), round 3 outstanding | |
 | 5 | Items and weapon drops | never scored | |
 | 6 | Match formats and rules: stocks, FFA, teams, ranked, rooms | never scored | |
@@ -64,3 +64,4 @@ mostly need one confirming round each.
 | Date | Subject | Round | Score | Notes |
 |---|---|---|---|---|
 | 2026-11-11 | Weapons | 1 | **4.45** (bad) | baseline; art and hitbox disagree on 155/216 moves, Grimoire's Runebrand dominates, Blasters/Longbow/Whip are weak weapons, the bot never presses neutral heavy (`weapons-round1-review.md`) |
+| 2026-11-11 | Combat core | 1 | **5.3** (getting better) | true combos against walls, block hitlag freezes only the attacker (a bug), shield grab needs no drop, first ledge getup fully invincible (`combat-round1-review.md`) |

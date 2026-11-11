@@ -11,6 +11,11 @@ RobloxRules.on = true
 -- reach: 20-45-hit true combos at 300% against Saltflat's bunker, 9-12 at 600% with no KO.
 RobloxRules.WALL_STUN = 8
 
+-- Falling into water (Undertow's tide) gives back what a fall into it spent: a helpless fighter
+-- can act again, with its recovery and a jump. A swimmer who had used them could never leave the
+-- water at low tide and drowned on the rise (the stages review; the owner, 2026-11-11).
+RobloxRules.WATER_RESTORES = true
+
 -- Acting from the ledge ends the grab's invincibility, so each option's own window governs. The
 -- first grab's 30 frames covered the whole getup (0 of its 25 frames vulnerable).
 RobloxRules.LEDGE_ACTION_CLEARS = true

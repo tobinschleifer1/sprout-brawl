@@ -21,6 +21,7 @@
 --     day something feeds this integers, it stops being theoretical.
 --   * `splice(i, 1)` walks backwards over a 0-indexed array; the Luau loops are 1-indexed.
 
+local RobloxRules = require(script.Parent.RobloxRules)
 local Config = require(script.Parent.Config)
 
 local FRAME = Config.FRAME
@@ -411,6 +412,12 @@ HAZARDS.tide = {
 				local surfaceHere = level + math.sin(s.swell * 1.1 + f.x * 0.12) * h.swell
 				local outside = math.abs(f.x) > h.edge or f.y < m.bottom
 				local inWater = f.y < surfaceHere and outside
+				-- (Roblox only) the fall into the water gives back the recovery it spent
+				if inWater and not f.inWater and RobloxRules.on and RobloxRules.WATER_RESTORES then
+					f.recoveryUsed = false
+					f.jumpsLeft = math.max(f.jumpsLeft, 1)
+					if f.state == "helpless" then f:setState("air") end
+				end
 				f.inWater = inWater
 				if inWater and f.state ~= "hitstun" and not f.tumbling then
 					local under = surfaceHere - f.y

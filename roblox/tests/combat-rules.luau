@@ -99,4 +99,29 @@ Rules.on = true
 local robloxInv = getupInvincible()
 assert(webInv >= 30 and robloxInv == 0, `a getup kept {robloxInv} frames of the grab's invincibility (the web keeps {webInv})`)
 
-print(`PASS combat rules: a block freezes both sides; against Saltflat's bunker a mashed light strings {fixed} true hits (the web's rules: {locked}); a getup drops the grab's {webInv} invincible frames`)
+-- 4. Water gives back the recovery a fall into it spent (the stages review: a helpless swimmer
+--    could never leave Undertow's water and drowned on the rise).
+local undertow
+for _, st in Stages.LIST do if st.id == "Undertow" then undertow = st end end
+local function intoWater(): (string, boolean, number)
+	local m, a = match(undertow, "Sword", "Sword")
+	local edge = 0
+	for _, hz in undertow.hazards or {} do if hz.edge then edge = hz.edge end end
+	assert(edge > 0, "Undertow has no tide with an edge")
+	a.x, a.y, a.vx, a.vy, a.onGround, a.platform = edge + 4, 2, 0, 0, false, nil
+	a:setState("helpless"); a.recoveryUsed = true; a.jumpsLeft = 0
+	for _ = 1, 240 do
+		m:step()
+		if a.inWater then break end
+	end
+	assert(a.inWater, "the swimmer never reached the water")
+	return a.state, a.recoveryUsed, a.jumpsLeft
+end
+Rules.on = false
+local webState = intoWater()
+Rules.on = true
+local wetState, wetUsed, wetJumps = intoWater()
+assert(webState == "helpless", `with the web's rules the swimmer is {webState}: this test no longer sees what water fixes`)
+assert(wetState ~= "helpless" and not wetUsed and wetJumps >= 1, `water left the swimmer {wetState}, recovery used {wetUsed}, {wetJumps} jumps`)
+
+print(`PASS combat rules: a block freezes both sides; against Saltflat's bunker a mashed light strings {fixed} true hits (the web's rules: {locked}); a getup drops the grab's {webInv} invincible frames; water gives a helpless swimmer back its recovery`)

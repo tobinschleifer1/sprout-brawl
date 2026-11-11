@@ -15,8 +15,14 @@ end
 
 -- A run's stride is longer than a walk's, and lands further ahead (Williams' contact reaches well
 -- out in front): added to the step and the contact, of the height, at a full run. The stride used
--- to be 0.58 of the height at every speed - 7.6 steps a second at full speed, a scurry.
-Movement.RUN_STEP, Movement.RUN_CONTACT = 0.24, 0.09
+-- to be 0.58 of the height at every speed - 7.6 steps a second at full speed, a scurry. At 0.82
+-- the straight pushing leg could not reach the ground from the up, and its foot floated (the
+-- owner, 2026-11-11); 0.715 is the longest that reaches.
+Movement.RUN_STEP, Movement.RUN_CONTACT = 0.135, 0.09
+-- How much of a walk's heel peel a full run keeps. A running leg pushes off tilted well back, which
+-- already stands the shoe (the shin's art) on its toe; the walk's whole peel lifted the toe off the
+-- ground as well.
+Movement.RUN_PEEL = 0.6
 
 -- Smoothed through keys { x, value, value... } (Catmull-Rom; the keys are unevenly spaced, so each
 -- tangent is a slope over its neighbours' span). Periodic keys wrap round 0-1; otherwise each end
@@ -59,7 +65,8 @@ end
 Movement.RUN_SWING = {
 	{ 0.00, 0.00, 0.00 }, -- the up: toe-off
 	{ 0.13, -0.10, 0.34 }, -- flight: still going back as it leaves the ground
-	{ 0.275, 0.06, 0.62 }, -- the other foot's contact: the heel kicked up behind
+	{ 0.275, 0.02, 0.62 }, -- the other foot's contact: the heel kicked up behind (a little further
+	-- back than his, so it stays as far behind the hip in a shorter stride)
 	{ 0.41, 0.22, 0.44 }, -- the other's down: folded tight, coming through
 	{ 0.58, 0.56, 0.28 }, -- passing under the body, the knee leading
 	{ 0.725, 0.85, 0.27 }, -- the other's up: the knee high in front
@@ -186,7 +193,7 @@ function Movement.For(ch: any, s: any, char: any): any
 		m.phase = base * math.pi + math.pi / 2 -- chest/hips counter the same stride as the feet
 		m.bob = Movement.bob(s, char)
 		m.feet = {}
-		local heelMax = h * 0.04
+		local heelMax = h * 0.04 * (1 - (1 - Movement.RUN_PEEL) * run)
 		for i = 1, 2 do
 			-- c runs 0-2 per foot: planted from its contact (0) to toe-off (DP), then the swing.
 			local c = (base + (i - 1)) % 2

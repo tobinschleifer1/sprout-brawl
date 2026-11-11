@@ -220,7 +220,11 @@ local function check(s, ch, t)
 				Canvas.rotate(ref, -raw.lean); Canvas.scale(ref, raw.sx, raw.sy)
 				Canvas.translate(ref, ch.radius * 0.55 + math.cos(wp.angle) * ch.height * 0.30 * ext,
 					ch.height * 0.36 + math.sin(wp.angle) * ch.height * 0.30 * ext)
-				near(grip[1], ref.m.e, "authored grip x moved"); near(grip[2], ref.m.f, "authored grip y moved")
+				-- (a pair carried in a run rides in the swinging fist instead, which "hand/grip" above
+				-- holds it to exactly: Posture's `pump`)
+				if not p.pump then
+					near(grip[1], ref.m.e, "authored grip x moved"); near(grip[2], ref.m.f, "authored grip y moved")
+				end
 			end
 			local chest, abdomen = by.chestN, by.abdomenN
 			local wx, wy = abdomen.P(0, abdomen.y1)

@@ -85,10 +85,16 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	end
 	local chestH = trunk * 11 / 18
 	local armed = char.weapon ~= nil
-	local armAng = if armed then wpose.angle else ch.armR.z - math.pi / 2 + ch.armR.x
+	-- A pair carried in a run (DualWield: Gauntlets, Daggers, Blasters, Chakram) pumps both arms with
+	-- the stride, as an empty pair of hands does, a weapon in each fist along its forearm. Held in its
+	-- guard and its weapon pose instead, the rear fist sat over the face and the front arm stuck
+	-- straight out for the whole run (the owner, 2026-11-11). An attack takes the poses back.
+	local pumping = armed and running and s.onGround == true and motion.frontBend ~= nil and not ch.emote
+		and DualWield.paired(char)
+	local armAng = if armed and not pumping then wpose.angle else ch.armR.z - math.pi / 2 + ch.armR.x
 	-- an empty front hand in a run swings with the feet (Movement), hanging as the rear arm does: the
 	-- torso's lean is undone here, as the rear arm's angle carries only a third of it
-	if not armed and motion.front and not ch.emote then armAng = -math.pi / 2 + motion.front + ch.lean * 0.65 end
+	if (not armed or pumping) and motion.front and not ch.emote then armAng = -math.pi / 2 + motion.front + ch.lean * 0.65 end
 	local ext = if ch.armR.ext ~= 0 then ch.armR.ext else 1
 	local hx, hy = r * 0.55 + math.cos(armAng) * h * 0.30 * ext, trunk + math.sin(armAng) * h * 0.30 * ext
 	local gx, gy = Posture.torsoPoint(ch, h, hx, hy)
@@ -104,7 +110,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	-- (the whole arm moves: a swinging hand is placed from its shoulder, below)
 	if motion.front and not ch.emote then
 		local function reach(swing: number): number return math.clamp(swing / Posture.SWING_PEAK, 0, 1) end
-		if not armed then
+		if not armed or pumping then
 			local k = reach(motion.front)
 			frontX += h * Posture.SWING_AHEAD * k
 			frontY -= h * Posture.SWING_DROP * k
@@ -121,7 +127,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local frontBend = math.rad(if ch.emote then ch.emote.frontBend else 8 + 48 * math.max(0, (ch.armR.bend or 0) - 0.2))
 	-- Bent at the elbow (Movement), a gait's arm keeps its length: the hand comes in towards the
 	-- shoulder by what the bend takes up, rather than the arm stretching to reach it.
-	local swingsFront = not armed and motion.frontBend ~= nil and not ch.emote
+	local swingsFront = (not armed or pumping) and motion.frontBend ~= nil and not ch.emote
 	if swingsFront then frontBend = motion.frontBend end
 	local backSwing = ch.armL.z + ch.armL.x
 	-- Free support arms hang and counter-swing; keep authored reaches in ledge hangs, grabs,
@@ -150,6 +156,9 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		-- The second weapon follows the authored rear hand, rather than replacing it with a guard.
 		offX, offY = bx, by
 		dual.off.angle = backAng + ch.lean
+	elseif dual and dual.off and pumping then
+		-- the second weapon rides in the swinging rear hand (its angle, along the forearm, below)
+		offX, offY = bx, by
 	elseif dual and dual.off then
 		offX, offY = Posture.torsoPoint(ch, h, dual.off.x, dual.off.y)
 		if dual.off.hand == "back" then
@@ -185,6 +194,12 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		back = Posture.limb(backX, backY, bx, by, backBend, 1),
 		legs = {},
 	}
+	if pumping then
+		-- each weapon along its forearm, from elbow to hand (in WeaponPose's frame, which the lean turns)
+		local function along(L: any): number return math.atan2(L.ey - L.jy, L.ex - L.jx) + ch.lean end
+		p.pump, p.mainAngle = true, along(p.front)
+		if dual and dual.off then dual.off.angle = along(p.back) end
+	end
 	local planted = s.onGround == true and ch.rigRotZ == 0
 	for i, leg in { { ch.legL, -r * 0.30, ch.kneeL }, { ch.legR, r * 0.30, ch.kneeR } } do
 		local rot, dx, tuck = leg[1], leg[2], leg[3] or 0

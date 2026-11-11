@@ -154,4 +154,27 @@ for _, wid in { "Sword", "Hammer", "Longbow" } do
 	assert(#d == 1 and d[1].id == wid and not d[1].off, `{wid} is drawn as a pair`)
 	assert(pose(c, state(c, "idle")).dual == nil, `{wid} is posed as a pair`)
 end
+-- Carried in a run (the owner, 2026-11-11: the rear fist sat over the face and the front arm stuck
+-- straight out the whole run): both arms pump with the stride, the second weapon in the swinging
+-- rear hand, no fist above the shoulders; an attack still takes the guard back.
+for _, wid in { "Gauntlets", "Daggers", "Blasters", "Chakram" } do
+	local c = Loadout.build("Classic", wid)
+	local h = c.height
+	local lo = { math.huge, math.huge }
+	local hi = { -math.huge, -math.huge }
+	for k = 0, 23 do
+		local s = state(c, "run", nil, nil, { vx = c.runSpeed, stridePhase = k / 12 })
+		local p = pose(c, s)
+		assert(p.pump, `{wid}'s run does not carry its pair`)
+		assert(math.abs(p.offX - p.back.ex) < 1e-9 and math.abs(p.offY - p.back.ey) < 1e-9, `{wid}'s second weapon is not in the rear hand`)
+		for i, L in { p.front, p.back } do
+			lo[i], hi[i] = math.min(lo[i], L.ex), math.max(hi[i], L.ex)
+			assert(L.ey < h * 0.70, `{wid}'s {if i == 1 then "front" else "rear"} fist rises to {L.ey / h} of the height, over the shoulders`)
+		end
+	end
+	assert(hi[1] - lo[1] > c.radius * 0.8 and hi[2] - lo[2] > c.radius * 0.8,
+		`{wid}'s fists hardly swing in the run ({hi[1] - lo[1]}, {hi[2] - lo[2]} studs)`)
+	local hit = pose(c, state(c, "attack", "LightNeutral1", 3, { vx = c.runSpeed }))
+	assert(not hit.pump, `{wid} carries its pair through an attack`)
+end
 print(string.format("PASS dual wield: one unit in each hand for %d moves of the four paired weapons; hands alternate as the table says, the free hand guards and chambers, back-hand strikes twist and ease out, both-hands moves pair up; a Chakram holds the rings it has; single weapons untouched; one dagger has the pair's reach", checked))

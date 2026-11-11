@@ -74,6 +74,8 @@ overlap = [
     ('every pair lags', 'Fighter2D', 'local k = Fighter2D.OVERLAP[if char.weapon then char.weapon.id else ""]\n\tif not k or wpose.emote or not off', 'local k = 0.4\n\tif not k or wpose.emote or not off', 'the second gauntlet trails'),
 ]
 dual = [
+    ('pair held stiff in the run', 'Posture', '\tlocal pumping = armed and running', '\tlocal pumping = false and armed and running', 'does not carry its pair'),
+    ('second weapon left at its guard', 'Posture', '(its angle, along the forearm, below)\n\t\toffX, offY = bx, by\n', '(its angle, along the forearm, below)\n\t\toffX, offY = Posture.torsoPoint(ch, h, dual.off.x, dual.off.y)\n', 'is not in the rear hand'),
     ('daggers in one hand', 'DualWield', 'DualWield.PAIRED = { Daggers = true,', 'DualWield.PAIRED = { Daggers = false,', 'one in each hand'),
     ('pair picture per hand', 'Weapons2D', 'if single and single[base] then return single[base] end', '', "draws the pair's picture"),
     ('jab, jab, jab', 'DualWield', 'LightNeutral1 = "front", LightNeutral2 = "back"', 'LightNeutral1 = "front", LightNeutral2 = "front"', 'front, back, both'),

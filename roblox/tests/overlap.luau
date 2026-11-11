@@ -130,7 +130,7 @@ do
 	local t = s.frameCount / 60
 	local authored = WeaponPose.For(s, char, move, t)
 	local lag = Fighter2D.bladeLag(s, char, move, t, authored)
-	local wp = HitAim.apply(s, char, move, Channels.For(s, char, move, t), authored, Weapons2D.REACH.Sword) or authored
+	local wp = HitAim.apply(s, char, move, Channels.For(s, char, move, t), authored, Weapons2D.REACH.Sword, t) or authored
 	assert(math.abs(lag) > 0.05, "this frame does not lag enough to test the drawing")
 	local seen
 	local real = Weapons2D.draw

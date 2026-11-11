@@ -128,7 +128,7 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 		return
 	end
 	if wid and not emote then
-		wpose = HitAim.apply(s, char, move, ch, wpose, Weapons2D.REACH[Weapons2D.baseOf(wid)] or 2.4) or wpose
+		wpose = HitAim.apply(s, char, move, ch, wpose, Weapons2D.REACH[Weapons2D.baseOf(wid)] or 2.4, t) or wpose
 	end
 
 	local h, r = char.height, char.radius

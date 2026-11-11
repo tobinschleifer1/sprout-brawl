@@ -64,3 +64,5 @@ more for its cost.
 | 2026-11-11 | Weapons | 1 | **4.45** (bad) | baseline; art and hitbox disagree on 155/216 moves, Grimoire's Runebrand dominates, Blasters/Longbow/Whip are weak weapons, the bot never presses neutral heavy (`weapons-round1-review.md`) |
 | 2026-11-11 | Combat core | 1 | **5.3** (getting better) | true combos against walls, block hitlag freezes only the attacker (a bug), shield grab needs no drop, first ledge getup fully invincible (`combat-round1-review.md`) |
 | 2026-11-11 | Weapons | 2 | **5.05** (getting better) | aim halves the art/box disagreement; Grimoire, Scythe, Redline fixed; the bottom three wait on the bot's kill move (`weapons-round2-review.md`) |
+| 2026-11-11 | Bots | 1 | **4.1** (bad) | dead-opponent freeze, drowning, main-only stage sense, side+heavy kill press, no neutral heavies, unreachable air finishers (`bots-round1-review.md`) |
+| 2026-11-11 | Stages | 1 | **4.6** (getting better) | Undertow's tide drowns on its own, disasters never kill, a disaster wipes kill credit (`stages-round1-review.md`) |

@@ -269,6 +269,13 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local hx = r * 0.55 + math.cos(armAng) * h * 0.30 * ext
 	local hy = SHO - HIP + math.sin(armAng) * h * 0.30 * ext
 	local gx, gy = Posture.torsoPoint(ch, h, hx, hy)
+	if posture and posture.pump then
+		-- a pair carried in a run: the main weapon rides in the swinging front fist (Posture)
+		gx, gy = posture.front.ex, posture.front.ey
+		local carried: any = table.clone(wpose)
+		carried.angle, carried.trail = posture.mainAngle, nil
+		wpose = carried
+	end
 	-- What the fighter wears (Inventory loadout, set on the char by the client; Roblox only): a weapon
 	-- skin draws the weapon's own grid in its colours, and colours the trail and glow too.
 	local worn = char.cosmetics

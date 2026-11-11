@@ -23,7 +23,8 @@ local OVERREACH, OUTSIDE = 2.0, 1.5
 -- Measured with the aim (2026-11-11), of 200 moves. Without it this test counts 134, 122 and 165
 -- (the review, on its own sample of 216: 137, 110 and 155). Most of what is left is a weapon drawn
 -- longer than its box (the Pike's lights, the Flail): the box, not the drawing, is short.
-local MOST_OVERREACH, MOST_OUTSIDE, MOST_EITHER = 44, 65, 96
+-- (weapons round 3: the Pike's boxes reach its drawn tip, 44, 65, 96 -> 43, 62, 94)
+local MOST_OVERREACH, MOST_OUTSIDE, MOST_EITHER = 43, 62, 94
 Fighter2D.effects = nil
 
 local PPU = 40
@@ -112,16 +113,42 @@ for _, w in Weapons.LIST do
 		if b then outside += 1 end
 		if a or b then either += 1; table.insert(worst, { `{w.id} {id}`, reach, out }) end
 
-		-- the aim, directly: at contact the weapon points from the shoulder at the box's centre
+		-- the aim, directly. On the middle active frame the weapon points from the shoulder at the
+		-- box's centre; across the active frames it sweeps as authored (the same turn added to every
+		-- live frame: holding it on the box froze the swing, round 2's review)
+		local reachOf = Weapons2D.REACH[Weapons2D.baseOf(w.id)] or 2.4
 		local ch = Channels.For(s, char, m, 0)
 		local authored = WeaponPose.For(s, char, m, 0)
-		local aimed = HitAim.apply(s, char, m, ch, authored, Weapons2D.REACH[Weapons2D.baseOf(w.id)] or 2.4)
+		local aimed = HitAim.apply(s, char, m, ch, authored, reachOf, 0)
 		assert(aimed, `{w.id} {id} is not aimed at contact`)
-		local _, hb = HitAim.target(s, m)
-		local sx, sy = Posture.torsoPoint(ch, char.height, char.radius * 0.55, char.height * 0.36)
+		local lo, hi = math.huge, -math.huge
+		for _, box in m.hitboxes do lo = math.min(lo, box.frames[1]); hi = math.max(hi, box.frames[2]) end
+		local function at(abs: number): (any, any, any)
+			local g = Fighter.new({ index = 0, char = char, x = 0, y = 0, stocks = 3 })
+			g.facing, g.onGround = 1, m.grounded ~= false
+			g.y = if g.onGround then 0 else 2.5
+			g:setState(if g.onGround then "idle" else "air")
+			g:startMove(id)
+			g.mf = abs - (m.startup - g.startupEff)
+			local gs = Snapshot.decode(Snapshot.encode(g))
+			local gch = Channels.For(gs, char, m, 0)
+			local raw = WeaponPose.For(gs, char, m, 0)
+			return gs, gch, raw, HitAim.apply(gs, char, m, gch, raw, reachOf, 0)
+		end
+		local sm, chm, _, aimm = at(lo + math.floor((hi - lo) / 2))
+		local _, hb = HitAim.target(sm, m)
+		local sx, sy = Posture.torsoPoint(chm, char.height, char.radius * 0.55, char.height * 0.36)
 		local want = math.atan2(hb.offset[2] - sy, hb.offset[1] - sx)
-		local d = (aimed.angle - ch.lean - want + math.pi) % (2 * math.pi) - math.pi
-		assert(math.abs(d) < 1e-6, `{w.id} {id} points {math.deg(d)} degrees off its box at contact`)
+		local d = (aimm.angle - chm.lean - want + math.pi) % (2 * math.pi) - math.pi
+		assert(math.abs(d) < 1e-6, `{w.id} {id} points {math.deg(d)} degrees off its box on its middle active frame`)
+		if hi > lo then
+			local _, _, raw1, aim1 = at(lo)
+			local _, _, raw2, aim2 = at(hi)
+			local function wrap(a: number): number return (a + math.pi) % (2 * math.pi) - math.pi end
+			local sweep, drawn = wrap(raw2.angle - raw1.angle), wrap(aim2.angle - aim1.angle)
+			assert(math.abs(wrap(drawn - sweep)) < math.rad(10),
+				`{w.id} {id} sweeps {math.deg(drawn)} degrees through its active frames, authored {math.deg(sweep)}`)
+		end
 		if authored.trail then
 			assert((aimed.trailFar or 0) >= (Weapons2D.REACH[Weapons2D.baseOf(w.id)] or 2.4) * (authored.scale or 1) - 1e-9,
 				`{w.id} {id}'s trail no longer reaches as far as the blade`)

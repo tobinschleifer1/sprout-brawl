@@ -35,15 +35,31 @@ WeaponTuning.FOR = {
 	-- 100%, so anyone inside the tip was safe. The lash now shoves them out to the tip's distance
 	-- (launch 17, flatter; measured 10% -> 19%). The up and down lashes keep their angles.
 	Whip = { moves = {
+		-- (round 3) Bullwhip Snap, the Whip's most-pressed move, took 16 frames to start: 12 (the
+		-- review measured 12% -> 18%; its boxes move with it)
+		SigSide = { startup = 12 },
 		LightNeutral1 = { hitboxes = LASH20 }, LightNeutral2 = { hitboxes = LASH20 }, LightNeutral3 = { hitboxes = LASH20 },
 		LightSide1 = { hitboxes = LASH20 }, LightSide2 = { hitboxes = LASH20 },
 		LightUp = { hitboxes = LASH }, LightDown = { hitboxes = LASH },
 	} },
 	-- "The lightest, fastest fighter in the game" was the Daggers (weight 72 to 78, run 1.261 to
 	-- 1.196). Three jumps to two (measured 76% -> 70%).
+	-- Weapons round 3, from round 2's review. The Pike was drawn up to 3.7 studs longer than its
+	-- boxes reach: the art said one thing and the hit another, on the roster's spacer, at 34%. Its
+	-- boxes now reach its drawn tip (LightUp and Pike Wall upward, LightDown forward, Spin Guard
+	-- round both sides).
+	Pike = { moves = {
+		LightUp = { hitboxes = { { offset = { 1.4, 7.2 }, size = { 1.8, 9.2 } } } },
+		LightDown = { hitboxes = { { offset = { 5.45, 0.9 }, size = { 8.7, 1.6 } } } },
+		SigNeutral = { hitboxes = { { offset = { 2.2, 6.9 }, size = { 3.0, 12.0 } } } },
+		AirNeutral = { hitboxes = { { size = { 12.4, 5.0 } } } },
+	} },
 	-- "The slowest, heaviest weapon in the game" was the Hammer's claim, and the Hammer's numbers
 	-- (weight 125 to 118, run 0.748 to 0.82).
 	Axe = { blurb = "A two-handed axe that drags on the floor between swings. Every heavy is a lift and a drop rather than a swing: gravity does the work." },
+	-- (Round 3 tried the jab and the hook a frame slower, which round 2's review suggested, after
+	-- jumps and damage moved them from the top little or nothing: 79% in a 56-game spot check
+	-- against 77%, so not that either.)
 	Gauntlets = { stats = { set = { jumps = 2 } },
 		blurb = "Steel fists and the shortest reach in the game: live in their face. Land four hits in a row and Overdrive makes everything faster still." },
 } :: { [string]: any }

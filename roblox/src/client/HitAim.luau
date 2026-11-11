@@ -6,7 +6,15 @@
 -- this bends it toward the box over the move's active frames, from the first one (the windup is
 -- the move's telegraph, and easing in over the last frames of startup turned it forward early) and
 -- out over the first EASE_OUT of recovery. The hitboxes do not move.
+--
+-- The turn is worked out once, on the middle active frame (the authored blade against the largest
+-- box live then), and the same turn is added to every live frame: the swing keeps sweeping, through
+-- its box, centred on it at the middle. Holding the blade on the box's centre instead froze it: round 2's review found
+-- 13 of the 30 moves that sweep 30 degrees or more through their active frames left sweeping under
+-- 5 (the Flail's Finisher 96 to 8).
 local Posture = require(script.Parent.Posture)
+local WeaponPose = require(script.Parent.WeaponPose)
+local Channels = require(script.Parent.Channels)
 local HitAim = {}
 HitAim.EASE_IN, HitAim.EASE_OUT = 1, 4
 
@@ -57,15 +65,30 @@ end
 
 -- `wpose` aimed (a copy; the one passed in is untouched), or nil when nothing changes. The angle is
 -- in WeaponPose's frame, which the torso's lean turns: the world direction is angle - lean.
-function HitAim.apply(s: any, char: any, move: any, ch: any, wpose: any, reach: number): any?
+-- The turn the aim adds on every live frame: the one that points the move's middle active frame
+-- (as authored, its own lean and shoulder) at the largest box live then.
+function HitAim.turn(s: any, char: any, move: any, t: number?): number
+	local lo, hi = math.huge, -math.huge
+	for _, hb in move.hitboxes do lo, hi = math.min(lo, hb.frames[1]), math.max(hi, hb.frames[2]) end
+	local s1 = table.clone(s)
+	s1.moveFrame = lo + math.floor((hi - lo) / 2) - (move.startup - (s.startupEff or move.startup))
+	local _, hb = HitAim.target(s1, move)
+	local ch = Channels.For(s1, char, move, t or 0)
+	local pose = WeaponPose.For(s1, char, move, t or 0)
+	local sx, sy = Posture.torsoPoint(ch, char.height, char.radius * 0.55, char.height * 0.36)
+	return wrap(math.atan2(hb.offset[2] - sy, hb.offset[1] - sx) + ch.lean - pose.angle)
+end
+
+function HitAim.apply(s: any, char: any, move: any, ch: any, wpose: any, reach: number, t: number?): any?
 	if s.state ~= "attack" or not HitAim.aims(char, move) or wpose.hide or wpose.emote then return nil end
 	local w, hb = HitAim.target(s, move)
 	if not hb then return nil end
 	local h, r = char.height, char.radius
 	local sx, sy = Posture.torsoPoint(ch, h, r * 0.55, h * 0.36)
+	local turn = w * HitAim.turn(s, char, move, t)
+	-- (the trail reaches toward the box live now)
 	local cx, cy = hb.offset[1], hb.offset[2]
 	local aim = math.atan2(cy - sy, cx - sx) + ch.lean
-	local turn = w * wrap(aim - wpose.angle)
 	local out: any = table.clone(wpose)
 	out.angle = wpose.angle + turn
 	if wpose.trail then

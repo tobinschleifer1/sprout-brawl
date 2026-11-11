@@ -60,4 +60,25 @@ for _, w in Weapons.LIST do
 		end
 	end
 end
+-- (round 2's review) The Gauntlets' blurb claims the shortest reach: mean melee reach, the
+-- furthest any of a move's boxes extends in front.
+local function meanReach(w: any): number
+	local sum, n = 0, 0
+	for _, m in w.moves do
+		if (m.kind or "melee") == "melee" and m.hitboxes and #m.hitboxes > 0 and m.id ~= "Ultimate" then
+			local far = 0
+			for _, hb in m.hitboxes do far = math.max(far, hb.offset[1] + hb.size[1] / 2) end
+			sum += far; n += 1
+		end
+	end
+	return if n > 0 then sum / n else math.huge
+end
+for _, w in Weapons.LIST do
+	if string.find(string.lower(w.blurb or ""), "shortest reach", 1, true) then
+		for _, other in Weapons.LIST do
+			assert(meanReach(other) >= meanReach(w), `{w.id} says it has the shortest reach, but {other.id}'s is shorter`)
+		end
+		checked += 1
+	end
+end
 print(`PASS weapon design: Runebrand {math.floor(rune)}, Reaper's Arc tip {math.floor(tip)} over handle {math.floor(handle)}, every Whip lash pushes out under its tip, Scattergun {math.floor(scatter)}, Orbit Throw {math.floor(orbit)}; {checked} superlatives in the blurbs true`)

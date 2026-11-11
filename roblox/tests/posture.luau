@@ -200,7 +200,7 @@ local function check(s, ch, t)
 				if emote then Emotes.apply(raw, wp, emote, ch) end
 				-- (a melee move's live frames aim the arm at its hitbox, as the renderer does: HitAim)
 				if not emote and ch.weapon then
-					wp = HitAim.apply(s, ch, move, raw, wp, Weapons.REACH[Weapons.baseOf(ch.weapon.id)] or 2.4) or wp
+					wp = HitAim.apply(s, ch, move, raw, wp, Weapons.REACH[Weapons.baseOf(ch.weapon.id)] or 2.4, t) or wp
 				end
 				local ext = if raw.armR.ext ~= 0 then raw.armR.ext else 1
 				local ref = canvas(scale)

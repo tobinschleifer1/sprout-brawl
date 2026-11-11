@@ -30,7 +30,7 @@ reached by round three it carries on.
 | # | Subject | Last score | State |
 |---|---|---|---|
 | 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | 4.45 at round 1 | round 2 |
-| 2 | Bot AI: how bots fight, per weapon and level | never scored (round 1 lost twice to restarts) | round 1 |
+| 2 | Bot AI: how bots fight, per weapon and level | 4.1 at round 1 | round 2 |
 | 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | |
 | 4 | Stage hazards and disasters | rounds 1-2 (`../hazard-design-review.md`), round 3 outstanding | |
 | 5 | Items and weapon drops | never scored | |
@@ -64,3 +64,5 @@ mostly need one confirming round each.
 | Date | Subject | Round | Score | Notes |
 |---|---|---|---|---|
 | 2026-11-11 | Weapons | 1 | **4.45** (bad) | baseline; art and hitbox disagree on 155/216 moves, Grimoire's Runebrand dominates, Blasters/Longbow/Whip are weak weapons, the bot never presses neutral heavy (`weapons-round1-review.md`) |
+| 2026-11-11 | Bots | 1 | **4.1** (bad) | dead-opponent freeze, drowning, main-only stage sense, side+heavy kill press, no neutral heavies, unreachable air finishers (`bots-round1-review.md`) |
+| 2026-11-11 | Stages | 1 | **4.6** (getting better) | Undertow's tide drowns on its own, disasters never kill, a disaster wipes kill credit (`stages-round1-review.md`, on `feature/design-stages`) |

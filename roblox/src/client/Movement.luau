@@ -17,6 +17,10 @@ end
 -- out in front): added to the step and the contact, of the height, at a full run. The stride used
 -- to be 0.58 of the height at every speed - 7.6 steps a second at full speed, a scurry.
 Movement.RUN_STEP, Movement.RUN_CONTACT = 0.24, 0.09
+-- How much of a walk's heel peel a full run keeps. A running leg pushes off tilted well back, which
+-- already stands the shoe (the shin's art) on its toe; the walk's whole peel lifted the toe off the
+-- ground as well.
+Movement.RUN_PEEL = 0.65
 
 -- Smoothed through keys { x, value, value... } (Catmull-Rom; the keys are unevenly spaced, so each
 -- tangent is a slope over its neighbours' span). Periodic keys wrap round 0-1; otherwise each end
@@ -159,7 +163,10 @@ Movement.RUN_KEYS = {
 	{ 0.00, -0.25 }, -- contact
 	{ 0.18, -0.27 }, -- the down
 	{ 0.42, -0.22 }, -- passing
-	{ 0.62, -0.06 }, -- the up: toe-off (Movement.gait's support)
+	-- the up: toe-off (Movement.gait's support). As low as the contact: from any higher the long
+	-- stride's straight pushing leg could not reach the ground, and its foot floated (the owner,
+	-- 2026-11-11). The body rises in the flight instead.
+	{ 0.62, -0.235 },
 	{ 0.80, 0.02 }, -- flight
 }
 function Movement.runHeight(q: number): number
@@ -186,7 +193,7 @@ function Movement.For(ch: any, s: any, char: any): any
 		m.phase = base * math.pi + math.pi / 2 -- chest/hips counter the same stride as the feet
 		m.bob = Movement.bob(s, char)
 		m.feet = {}
-		local heelMax = h * 0.04
+		local heelMax = h * 0.04 * (1 - (1 - Movement.RUN_PEEL) * run)
 		for i = 1, 2 do
 			-- c runs 0-2 per foot: planted from its contact (0) to toe-off (DP), then the swing.
 			local c = (base + (i - 1)) % 2

@@ -27,23 +27,22 @@ reached by round three it carries on.
 
 ## Subjects, in order
 
+Fifteen subjects became eleven on 2026-11-11, neighbours merged so that each review covers more for
+its cost (the owner: up to three reviewers at once, but keep usage down).
+
 | # | Subject | Last score | State |
 |---|---|---|---|
 | 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | 4.45 at round 1 | round 2 |
-| 2 | Bot AI: how bots fight, per weapon and level | never scored (round 1 lost twice to restarts) | round 1 |
-| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | |
-| 4 | Stage hazards and disasters | rounds 1-2 (`../hazard-design-review.md`), round 3 outstanding | |
-| 5 | Items and weapon drops | never scored | |
-| 6 | Match formats and rules: stocks, FFA, teams, ranked, rooms | never scored | |
-| 7 | Maps | 6.08 / 6.25 at round 5; round 6 brief never reviewed | |
-| 8 | New players and the tutorial | 6.8 at round 1 | |
-| 9 | Progression, economy, crates, retention | 7.0 at retention round 4 | |
-| 10 | Lobby and plaza | 7.43 at round 9 | |
-| 11 | UI | 8.08 / 7.6 at arcade round 9 | |
-| 12 | Characters, cosmetics and the character studio | never scored | |
-| 13 | Movement and animation: run, jumps, air, attack poses | never scored as a whole (the run was reworked 2026-11-08..11) | |
-| 14 | The climb (parkour) | never scored | |
-| 15 | Social: parties, invites, rooms with friends | never scored | |
+| 2 | Bot AI: how bots fight, per weapon and level | never scored | round 1 |
+| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | round 1 |
+| 4 | Stages: layouts, hazards, disasters (their look was the maps rounds, 6.08 / 6.25 at round 5) | hazards 6.5 on the web build | round 1 |
+| 5 | The match: items, weapon drops, formats, rules, rooms | never scored | |
+| 6 | New players and the tutorial | 6.8 at round 1 | |
+| 7 | Progression, economy, crates, retention | 7.0 at retention round 4 | |
+| 8 | Lobby, plaza, social and parties | 7.43 at lobby round 9 | |
+| 9 | UI | 8.08 / 7.6 at arcade round 9 | |
+| 10 | Characters, cosmetics and the character studio | never scored | |
+| 11 | Movement and animation (run, jumps, air, attack poses), and the climb | never scored | |
 
 The order runs from the owner's ask (weapons) to what most changes how a fight plays (the bots,
 then combat), then the systems around the fight. Subjects already near 8 come late, since they

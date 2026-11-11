@@ -23,6 +23,8 @@ local Rbx = require("@lune/roblox")
 local shapes = Recorder.install(Canvas)
 
 -- RENDER_SCALE=<px per stud> draws larger, for looking closely (the frame grows to match)
+-- RENDER_HITBOXES=1 outlines, at contact, every hitbox live on that frame (red), so the art can be
+-- judged against what the move actually hits
 local SCALE = tonumber(process.env.RENDER_SCALE) or 26
 local W, H = math.floor(260 * SCALE / 26), math.floor(220 * SCALE / 26)
 local out, weapon = process.args[1], process.args[2]
@@ -40,7 +42,19 @@ end
 Fighter2D.effects = nil
 
 local frames = {}
-local function draw(f: any, label: string)
+local HITBOXES = process.env.RENDER_HITBOXES == "1"
+local RED = Rbx.Color3.fromHex("#ff3b3b")
+local function outline(c: any, f: any, m: any, abs: number)
+	for _, hb in m.hitboxes or {} do
+		if abs >= hb.frames[1] and abs <= hb.frames[2] then
+			local w, h = hb.size[1], hb.size[2]
+			local x1, y1, t = f.x + hb.offset[1] * f.facing - w / 2, f.y + hb.offset[2] - h / 2, 0.07
+			Canvas.rect(c, x1, y1, w, t, RED, 0.95); Canvas.rect(c, x1, y1 + h - t, w, t, RED, 0.95)
+			Canvas.rect(c, x1, y1, t, h, RED, 0.95); Canvas.rect(c, x1 + w - t, y1, t, h, RED, 0.95)
+		end
+	end
+end
+local function draw(f: any, label: string, m: any?, abs: number?)
 	table.clear(shapes)
 	local c = Recorder.canvas(Canvas, W, H)
 	Canvas.screen(c)
@@ -49,6 +63,7 @@ local function draw(f: any, label: string)
 	Canvas.rect(c, -6, -1, 14, 1, Rbx.Color3.fromHex("#4a5a46"), 1)     -- the floor
 	local s = Snapshot.decode(Snapshot.encode(f))
 	Fighter2D.draw(c, s, char, 0, 0)
+	if HITBOXES and m and abs then outline(c, f, m, abs) end
 	table.insert(frames, { frame = #frames, label = label, shapes = table.clone(shapes) })
 end
 
@@ -75,7 +90,7 @@ for _, id in moves do
 		f.mf = if at == "cocked" then f.startupEff
 			elseif at == "contact" then f.startupEff + math.max(1, math.ceil(mm.active / 2))
 			else f.startupEff + mm.active + math.floor(mm.recovery * 0.4)
-		draw(f, `{id} {at}`)
+		draw(f, `{id} {at}`, m, if at == "contact" then m.startup + math.max(1, math.ceil(m.active / 2)) else nil)
 	end
 end
 fs.writeFile(out, serde.encode("json", { w = W, h = H, frames = frames }))

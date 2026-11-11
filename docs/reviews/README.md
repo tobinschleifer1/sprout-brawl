@@ -57,7 +57,9 @@ The UI loop - change, prove, render, brief two reviewers, repeat - is the `ui-re
 (`.claude/skills/ui-review/SKILL.md`).
 
 - `ui-arcade-round{1..9}.md` and their `-review.md` summaries — the arcade UI rework (8.08 / 7.6 at round 9)
-- `weapons-six-round1.md` — the six weapons added from the owner's brief (round 1 outstanding)
+- `design-pass.md` — the November 2026 design pass: every system in turn, its order and log
+- `weapons-round1.md` — the whole 15-weapon roster in the Roblox build (the design pass's first subject)
+- `weapons-six-round1.md` — the six weapons added from the owner's brief (never reviewed; superseded by `weapons-round1.md`)
 - `weapons-axe-pike-round1.md` — the Battle Axe and the Warpike
 - `../hazard-design-review.md` — stage hazards (rounds 1–2 done, round 3 outstanding)
 - bot AI — round 1 was launched twice and lost both times to process restarts; no brief written yet

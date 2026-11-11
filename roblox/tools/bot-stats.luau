@@ -7,7 +7,9 @@
 -- differs. Both record, per fighter: KOs and self-destructs (a KO with no hit taken in the 4 s
 -- before it), ledge grabs, every move started (by id), and frames spent shielding, dodging and
 -- grabbing. 3 stocks, no items, every stage in turn, capped at ten minutes. Merge and print with
--- tools/bot-stats.mjs.
+-- tools/bot-stats.mjs. A self-destruct is the match's own verdict: a KO event nobody is credited
+-- with (Match credits the last hit within 8 s). The fighter's own record is no use for this: the KO
+-- clears it (Fighter.knockOut) before the state turns to "ko".
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 local serde = require("@lune/serde")
@@ -17,7 +19,6 @@ local Weapons = Loader.load("Weapons")
 local Stages = Loader.load("Data/Stages").LIST
 local out, mode = process.args[1], process.args[2] or "ladder"
 local N = tonumber(process.args[3] or "10") or 10
-local SD_FRAMES = 240
 
 local function blank(): any
 	return { matches = 0, wins = 0, kos = 0, sds = 0, ledges = 0, frames = 0, shield = 0, dodge = 0, grab = 0, moves = {}, damage = 0, timeouts = 0 }
@@ -32,18 +33,23 @@ local function play(a: any, b: any, seed: number, swap: boolean, sa: any, sb: an
 	m.state = "fight"
 	local stats = if swap then { sb, sa } else { sa, sb }
 	local was, lastMove, lastPct = {}, {}, {}
-	local frames = 0
+	local frames, seen = 0, 0
 	while not m.results and frames < 600 * 60 do
 		m:step(); frames += 1
+		if #m.events < seen then seen = 0 end
+		for e = seen + 1, #m.events do
+			local ev = m.events[e]
+			if ev.type == "ko" then
+				local st = stats[ev.fighter + 1]
+				if ev.by == -1 or ev.by == ev.fighter then st.sds += 1 else st.kos += 1 end
+			end
+		end
+		seen = #m.events
 		for i, f in m.fighters do
 			local st = stats[i]
 			local s = f.state
 			if s ~= was[i] then
-				if s == "ko" then
-					local fresh = f.lastHitBy ~= nil and (f.frameCount - f.lastHitFrame) <= SD_FRAMES
-					if fresh then st.kos += 1 else st.sds += 1 end
-				elseif s == "ledge" then st.ledges += 1
-				end
+				if s == "ledge" then st.ledges += 1 end
 				was[i] = s
 			end
 			if f.state == "attack" and f.move and f.move ~= lastMove[i] then

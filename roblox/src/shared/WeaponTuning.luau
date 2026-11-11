@@ -5,6 +5,9 @@
 -- fighters from the untuned roster (Loadout.build's `untuned`), so they keep checking the engine
 -- against the web's numbers while the game plays these.
 local WeaponTuning = {}
+-- the Whip's lash (each light's second box), flattened or not
+local LASH = { [2] = { base = 16, growth = 0.4 } }
+local LASH20 = { [2] = { base = 16, growth = 0.4, angle = 20 } }
 
 -- [weapon id] = { stats = {...}, mechanic = {...}, moves = { [move id] = { field = value,
 -- hitboxes = { [i] = { offset = { x, y }, size = { w, h }, frames = { a, b } } } } } }
@@ -14,7 +17,36 @@ local WeaponTuning = {}
 -- keeps its hitboxes on its active frames: they move with it unless the patch gives their frames.
 -- A move whose active window changes must give them. `total` is recomputed, as the web derives it.
 -- Each entry names the review round that asked for it.
-WeaponTuning.FOR = {} :: { [string]: any }
+WeaponTuning.FOR = {
+	-- Weapons round 2, from round 1's review (docs/reviews/weapons-round1-review.md).
+	-- Runebrand made 158 of the Grimoire's 194 KOs: a 41-stud projectile launching 122 at 100%. At
+	-- 12/28/3.6 it launches 86. (The review measured the Grimoire falling from 82% to 69%. Cutting
+	-- its range, its startup or the weight barely moved it.)
+	Grimoire = { moves = { SigSide = { damage = 12, base = 28, growth = 3.6 } } },
+	-- Reaper's Arc's handle half launched 124 to the tip's 128, so spacing for the tip paid nothing.
+	-- The handle now hits soft and reaches less (launch 66), and the tip is the reward (73% -> 64%).
+	Scythe = { moves = { SigSide = { hitboxes = { [2] = { offset = { 3.6, 2.8 }, size = { 5.8, 3.6 },
+		add = { damage = 11, base = 22, growth = 3.0 } } } } } },
+	-- The Blasters could not finish a stock: 0.86 KOs a game, the median KO at 157%. Its chip shots
+	-- hit for one more, and Scattergun, its honest finisher, launches 146 at 100% (was 132).
+	Blasters = { moves = { LightNeutral1 = { damage = 3 }, LightNeutral2 = { damage = 4 }, LightSide1 = { damage = 4 },
+		SigDown = { base = 34, growth = 6.4 } } },
+	-- The Whip had no close game: the lash (each light's second box) did 2 damage and launched 7 at
+	-- 100%, so anyone inside the tip was safe. The lash now shoves them out to the tip's distance
+	-- (launch 17, flatter; measured 10% -> 19%). The up and down lashes keep their angles.
+	Whip = { moves = {
+		LightNeutral1 = { hitboxes = LASH20 }, LightNeutral2 = { hitboxes = LASH20 }, LightNeutral3 = { hitboxes = LASH20 },
+		LightSide1 = { hitboxes = LASH20 }, LightSide2 = { hitboxes = LASH20 },
+		LightUp = { hitboxes = LASH }, LightDown = { hitboxes = LASH },
+	} },
+	-- "The lightest, fastest fighter in the game" was the Daggers (weight 72 to 78, run 1.261 to
+	-- 1.196). Three jumps to two (measured 76% -> 70%).
+	-- "The slowest, heaviest weapon in the game" was the Hammer's claim, and the Hammer's numbers
+	-- (weight 125 to 118, run 0.748 to 0.82).
+	Axe = { blurb = "A two-handed axe that drags on the floor between swings. Every heavy is a lift and a drop rather than a swing: gravity does the work." },
+	Gauntlets = { stats = { set = { jumps = 2 } },
+		blurb = "Steel fists and the shortest reach in the game: live in their face. Land four hits in a row and Overdrive makes everything faster still." },
+} :: { [string]: any }
 
 local function copy(v: any): any
 	if type(v) ~= "table" then return v end

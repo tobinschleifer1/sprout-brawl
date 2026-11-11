@@ -233,7 +233,9 @@ Weapons2D.TRAILS = {
 	trail_vipgold = { "#FFD24A", "#FFFFFF", "#E8A61C" },
 } :: { [string]: { string } }
 
-function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any, scale: number?, worn: string?)
+-- `far` (Roblox only, HitAim): how far from the shoulder the trail's leading end reaches, when the
+-- move hits further out than the blade is long; the arc spirals out to it near its end.
+function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any, scale: number?, worn: string?, far: number?)
 	if not trail or not weaponId then
 		return
 	end
@@ -245,7 +247,10 @@ function Weapons2D.drawTrail(c: any, weaponId: string?, palette: any, trail: any
 	for i = 0, steps - 1 do
 		local u = i / (steps - 1)
 		local a = a0 + (a1 - a0) * u
-		local rad = r * (0.55 + 0.45 * u)
+		-- (only the leading third reaches out: an arc that grew all the way round passed under the
+		-- box on a rising swing)
+		local out = math.clamp((u - 0.65) / 0.35, 0, 1)
+		local rad = r * (0.55 + 0.45 * u) + (if far and far > r then (far - r) * out * out * (3 - 2 * out) else 0)
 		local thick = (if trail.heavy then 0.9 else 0.55) * (0.4 + 0.6 * u)
 		local alpha = trail.alpha * (0.10 + 0.75 * u * u)
 		local colour = if u > 0.82 then WHITE elseif colours then Canvas2D.hex(colours[i % #colours + 1], glow) else glow

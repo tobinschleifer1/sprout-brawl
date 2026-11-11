@@ -10,7 +10,11 @@
 --   1254  a whip's pull put a victim stepping off an edge back over the island just under its surface,
 --         where no landing catches you: they fell through the floor
 local process = require("@lune/process")
-local r = process.exec("lune", { "run", "tools/fuzz-matches" }, { env = { FUZZ_SEEDS = "2,131,137,244,285,1016,1311,1254", FUZZ_STRICT = "1" } })
+-- (on the weapons as they were found: the Roblox-only tuning changes every match, and these seeds
+-- stopped replaying the ways in - seed 137 wandered into a different match entirely, recorded in
+-- docs/reviews/design-pass.md for the combat subject: two fighters pinned against Saltflat's bunker,
+-- whose wall soaks up every sideways launch, so neither can be knocked out)
+local r = process.exec("lune", { "run", "tools/fuzz-matches" }, { env = { FUZZ_SEEDS = "2,131,137,244,285,1016,1311,1254", FUZZ_STRICT = "1", FUZZ_UNTUNED = "1" } })
 print(r.stdout)
 if not r.ok then error("fuzzed matches found fighters inside solid ground (or another broken invariant):\n" .. r.stdout .. r.stderr, 0) end
 print("PASS solid ground: eight matches that found ways into solids, replayed with every invariant checked each frame")

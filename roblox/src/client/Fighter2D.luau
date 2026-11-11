@@ -10,6 +10,7 @@ local Weapons2D = require(script.Parent.Weapons2D)
 local UltimateVfx = require(script.Parent.UltimateVfx)
 local Avatar2D = require(script.Parent.Avatar2D)
 local Posture = require(script.Parent.Posture)
+local HitAim = require(script.Parent.HitAim)
 local PostureArt = require(script.Parent.PostureArt)
 local Secondary = require(script.Parent.Secondary)
 local KitBody = require(script.Parent.KitBody)
@@ -117,11 +118,17 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 	local glow = if Fighter2D.glows then Fighter2D.glows[s.index] else nil
 	if glow and not ch.tint then ch.tint = glow.colour end     -- the pose's own flash wins
 	local wpose = WeaponPose.For(s, char, move, t)
+	-- the swing as authored, for the blade's follow-through lag (bladeLag compares it with a moment
+	-- ago), before it is aimed at what the move hits (HitAim, Roblox only)
+	local authored = wpose
 	local emote = Emotes.For(s, char, Fighter2D.emotes and Fighter2D.emotes[s.index])
 	if emote then Emotes.apply(ch, wpose, emote, char) end
 	local wid = if char.weapon then char.weapon.id else nil
 	if not ch.visible then
 		return
+	end
+	if wid and not emote then
+		wpose = HitAim.apply(s, char, move, ch, wpose, Weapons2D.REACH[Weapons2D.baseOf(wid)] or 2.4) or wpose
 	end
 
 	local h, r = char.height, char.radius
@@ -369,14 +376,14 @@ function Fighter2D.draw(c: any, s: any, char: any, t: number, platformTop: numbe
 			Canvas2D.save(c)
 			Canvas2D.translate(c, tx, ty)
 			Canvas2D.rotate(c, -ch.lean)
-			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale, worn and worn.trail)
+			Weapons2D.drawTrail(c, wid, wpal, wpose.trail, wpose.scale, worn and worn.trail, wpose.trailFar)
 			Canvas2D.restore(c)
 		end
 		Canvas2D.save(c)
 		Canvas2D.translate(c, gx, gy)
 		Canvas2D.rotate(c, -ch.lean)
 		UltimateVfx.drawUltimate(c, wid, wpal, wpose, t)
-		local lag = Fighter2D.bladeLag(s, char, move, t, wpose)
+		local lag = Fighter2D.bladeLag(s, char, move, t, authored)
 		if lag ~= 0 then
 			local drawn: any = table.clone(wpose)
 			drawn.angle += lag

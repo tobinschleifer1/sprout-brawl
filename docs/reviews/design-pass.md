@@ -49,6 +49,16 @@ The order runs from the owner's ask (weapons) to what most changes how a fight p
 then combat), then the systems around the fight. Subjects already near 8 come late, since they
 mostly need one confirming round each.
 
+## Found on the way, for later subjects
+
+- **Combat core: walls soak up launches.** Under the round-2 weapon tuning, fuzz seed 137 (Blasters,
+  impossible, against Whip, hard, on Saltflat) never ended. Both fighters were pressed against the
+  right face of the bunker (solid #3, x -20..-12). The wall soaked up every sideways launch: at 277%
+  and 499%, Bullwhip Snap lifted its victim 2 studs and moved it nowhere. A fighter against a wall
+  cannot be knocked out sideways, which is a stalemate with bots and a safe spot for a human. A
+  wall bounce or a wall tech is the usual answer. `tests/solid-ground` now replays its seeds on the
+  untuned roster, the matches they were found in.
+
 ## Log
 
 | Date | Subject | Round | Score | Notes |

@@ -255,4 +255,4 @@ do
 	if #draw("Sword") ~= 1 then fail("a sword stopped drawing its one weapon sprite") end
 end
 
-print("PASS rocket boots: worn, one boot sprite on each foot on the floor and none in the hand; in the roster with art; fuel spent at ignition by the cost, nothing for an interrupted kick; signatures refused without fuel, kicks free; refill only after the wait on the ground, never in the air; recovery burns fuel or sputters, never none, once per airtime; Redline carries forward, back, forward, held on the platform, once a window; full tank each stock; bots never ask for what they cannot afford")
+print("PASS rocket boots: worn, one boot sprite on each foot on the floor and none in the hand; in the roster with art; fuel spent at ignition by the cost, nothing for an interrupted kick; signatures refused without fuel, kicks free; refill only after the wait on the ground, never in the air; recovery burns fuel or sputters, never none, once per airtime; Redline carries forward, back, forward, held on the platform, once a window (its kill: tests/ultimate-kills); full tank each stock; bots never ask for what they cannot afford")

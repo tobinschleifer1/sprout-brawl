@@ -13,6 +13,9 @@ local Avatars = Loader.load("Data/Avatars")
 local N = tonumber(process.args[1] or "40") or 40
 local SEED0 = tonumber(process.args[2] or "1") or 1
 -- FUZZ_TRACE=seed:fighter:frame prints that fighter's last 40 frames before `frame` in that match
+-- FUZZ_UNTUNED=1 plays the web's weapons, before the Roblox-only tuning (WeaponTuning.luau): a seed
+-- found on the old numbers only replays the same match on them
+local UNTUNED = process.env.FUZZ_UNTUNED == "1"
 local TS, TF, TA = string.match(process.env.FUZZ_TRACE or "", "^(%d+):(%d+):(%d+)$")
 TS, TF, TA = tonumber(TS), tonumber(TF), tonumber(TA)
 
@@ -47,9 +50,9 @@ for _, seed in seeds do
 	for i = 1, n do
 		local w1, w2 = Weapons.LIST[r(#Weapons.LIST)].id, Weapons.LIST[r(#Weapons.LIST)].id
 		local av = avatarIds[r(#avatarIds)]
-		local armed = if cfg.weaponDrops then Loadout.buildArmed(av, { w1, w2 }) else nil
+		local armed = if cfg.weaponDrops then Loadout.buildArmed(av, { w1, w2 }, UNTUNED) else nil
 		local level = LEVELS[r(#LEVELS)]
-		table.insert(cfg.fighters, { char = if armed then armed.char else Loadout.build(av, w1), kit = armed and armed.kit,
+		table.insert(cfg.fighters, { char = if armed then armed.char else Loadout.build(av, w1, UNTUNED), kit = armed and armed.kit,
 			fists = armed and armed.fists, team = (i - 1) % 2, isBot = true, botLevel = level, source = `bot{i}`, name = `CPU {i}` })
 		table.insert(desc, `{w1}{if cfg.weaponDrops then "+" .. w2 else ""}/{level}`)
 	end

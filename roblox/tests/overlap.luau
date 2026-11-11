@@ -8,6 +8,8 @@ local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
 local Weapons2D = Loader.loadFrom("src/client/", "Weapons2D")
 local Movement = Loader.loadFrom("src/client/", "Movement")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
+local Channels = Loader.loadFrom("src/client/", "Channels")
+local HitAim = Loader.loadFrom("src/client/", "HitAim")
 -- a recording canvas, as tools/render-posture draws through the shipping renderer
 local Recorder = require("../tools/recorder")
 Recorder.install(Canvas)
@@ -120,12 +122,15 @@ for j = 0, 120 do
 end
 assert(up > 10 and down > 10, `only {up} rising and {down} falling run samples`)
 
--- In the drawing: the blade is drawn at its posed angle plus the lag, from the same grip.
+-- In the drawing: the blade is drawn at its posed angle plus the lag, from the same grip. The lag
+-- comes from the swing as authored; the pose it is added to is aimed at the move's hitbox while
+-- the move is live (HitAim), as this frame is.
 do
 	local s, move = attack(char, "LightSide2", 6)
 	local t = s.frameCount / 60
-	local wp = WeaponPose.For(s, char, move, t)
-	local lag = Fighter2D.bladeLag(s, char, move, t, wp)
+	local authored = WeaponPose.For(s, char, move, t)
+	local lag = Fighter2D.bladeLag(s, char, move, t, authored)
+	local wp = HitAim.apply(s, char, move, Channels.For(s, char, move, t), authored, Weapons2D.REACH.Sword) or authored
 	assert(math.abs(lag) > 0.05, "this frame does not lag enough to test the drawing")
 	local seen
 	local real = Weapons2D.draw

@@ -384,15 +384,16 @@ local CHAKRAM = {
 				total = 38,
 				kind = "melee",
 			},
-			-- Orbit Throw: one ring out 22 studs and home, hitting on both passes.
+			-- Orbit Throw: one ring out 22 studs and home, hitting on both passes. A ring that takes
+			-- stocks (launch 66 at 100%; it was 28, and the ultimate made 60% of the Chakram's KOs).
 			SigSide = {
 				label = "Orbit Throw",
 				startup = 14,
 				active = 2,
 				recovery = 18,
-				damage = 6,
-				base = 16,
-				growth = 1.6,
+				damage = 9,
+				base = 24,
+				growth = 3.6,
 				angle = 38,
 				grounded = true,
 				kind = "projectile",
@@ -561,13 +562,16 @@ local BOOTS = {
 			lunge = 2, fuelCost = 15, hitboxes = { { frames = { 15, 19 }, offset = { 2.7, 0.8 }, size = { 4.4, 1.6 } } } }),
 		SigNeutral = kick({ id = "SigNeutral", label = "Ignition Heel", startup = 15, active = 4, recovery = 28, damage = 14, base = 32, growth = 5, angle = 85, grounded = true, heavy = true,
 			fuelCost = 25, hitboxes = { { frames = { 16, 19 }, offset = { 1.3, 4.0 }, size = { 3.4, 4.8 } } } }),
-		Ultimate = kick({ id = "Ultimate", label = "Redline Reversal", kind = "redline", startup = 24, active = 22, recovery = 36, damage = 20, base = 38, growth = 7, angle = 40,
+		-- The first two kicks are flat and light (their own growth: they inherited the move's 7 and
+		-- popped the victim over the third, so it never KO'd from 0 to 400%); the third is the kill,
+		-- from about 145% (weapons round 1's review; the roster's ultimates KO at 132-213%).
+		Ultimate = kick({ id = "Ultimate", label = "Redline Reversal", kind = "redline", startup = 24, active = 22, recovery = 36, damage = 20, base = 30, growth = 4, angle = 40,
 			grounded = true, heavy = true, ultimate = true,
 			-- forward 4 studs, back 4, forward 6, one window each (Combat.onMoveActiveFrame, redline)
 			redline = { { 25, 28, 4 }, { 33, 36, -4 }, { 41, 46, 6 } },
 			hitboxes = {
-				{ frames = { 25, 28 }, offset = { 2.8, 2.3 }, size = { 4, 3 }, damage = 6, base = 8, angle = 80 },
-				{ frames = { 33, 36 }, offset = { -2.8, 2.3 }, size = { 4, 3 }, damage = 6, base = 8, angle = 80 },
+				{ frames = { 25, 28 }, offset = { 2.8, 2.3 }, size = { 4, 3 }, damage = 6, base = 3, growth = 0.1, angle = 20 },
+				{ frames = { 33, 36 }, offset = { -2.8, 2.3 }, size = { 4, 3 }, damage = 6, base = 3, growth = 0.1, angle = 20 },
 				{ frames = { 41, 46 }, offset = { 3, 2.3 }, size = { 4.4, 3.2 } },
 			} }),
 	},

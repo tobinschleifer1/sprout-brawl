@@ -13,6 +13,7 @@ local WeaponPose = Loader.loadFrom("src/client/", "WeaponPose")
 local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
 local Draw = Loader.loadFrom("src/client/", "Fighter2D")
 local Weapons = Loader.loadFrom("src/client/", "Weapons2D")
+local HitAim = Loader.loadFrom("src/client/", "HitAim")
 local Fighter, Loadout, Snapshot = Loader.load("Fighter"), Loader.load("Loadout"), Loader.load("Snapshot")
 local Kits, WeaponData = Loader.load("Data/AvatarKit"), Loader.load("Data/Weapons")
 local function near(a, b, label) assert(math.abs(a - b) < 1e-8, `{label}: {a} != {b}`) end
@@ -197,6 +198,10 @@ local function check(s, ch, t)
 				-- still match the independently transformed anchor exactly.
 				local emote = Emotes.For(s, ch)
 				if emote then Emotes.apply(raw, wp, emote, ch) end
+				-- (a melee move's live frames aim the arm at its hitbox, as the renderer does: HitAim)
+				if not emote and ch.weapon then
+					wp = HitAim.apply(s, ch, move, raw, wp, Weapons.REACH[Weapons.baseOf(ch.weapon.id)] or 2.4) or wp
+				end
 				local ext = if raw.armR.ext ~= 0 then raw.armR.ext else 1
 				local ref = canvas(scale)
 				Canvas.translate(ref, s.x + raw.shakeX, s.y + raw.yOff)

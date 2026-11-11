@@ -35,8 +35,14 @@ local function swing(s: any, move: any, delay: number): number
 end
 
 -- How far (of the height) a running arm's shoulder comes forward and drops at the front of its
--- swing, which is SWING_PEAK (Movement's largest swing at a full run).
-Posture.SWING_AHEAD, Posture.SWING_DROP, Posture.SWING_PEAK = 0.045, 0.035, 0.99
+-- swing, which is SWING_PEAK (Movement's largest swing at a full run: the hand's direction, the
+-- upper arm's plus half the elbow's bend).
+Posture.SWING_AHEAD, Posture.SWING_DROP = 0.045, 0.035
+Posture.SWING_PEAK = Movement.ARM_PEAK
+-- How much further a full run leans the trunk forward than Channels' run does (radians; the head
+-- takes half). Williams' run leans about 20 degrees, hip to neck; Channels' lean alone, bent mostly
+-- at the chest, read as running upright.
+Posture.RUN_LEAN = 0.18
 
 function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: number): any
 	local h, r = char.height, char.radius
@@ -65,9 +71,10 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	local chestSwing = math.sin(phase - 0.6) * speed
 	local hipX = r * (0.07 * stride + 0.035 * breath - 0.06 * drive) + motion.hipX
 	local hipRot = 0.055 * stride + 0.055 * drive
-	local waistRot = -ch.lean * 0.45 + hipRot * 0.4 + (if kick then kick.lean * 0.5 else 0)
+	local runLean = Posture.RUN_LEAN * (motion.run or 0)
+	local waistRot = -ch.lean * 0.45 + hipRot * 0.4 + (if kick then kick.lean * 0.5 else 0) - runLean
 	local lean = if kick then kick.lean else 0 -- a high kick tilts the torso back, away from it
-	local chestRot = -ch.lean - 0.11 * drive - 0.075 * chestSwing + motion.chest + lean
+	local chestRot = -ch.lean - 0.11 * drive - 0.075 * chestSwing + motion.chest + lean - runLean
 	local chestSX = ch.sx * (1 - 0.055 * math.abs(drive) - 0.035 * math.abs(chestSwing))
 	local chestSY = ch.sy * (1 + 0.014 * breath)
 	local waistX, waistY = point(0, trunk * 7 / 18, waistRot, ch.sx, ch.sy)
@@ -94,15 +101,13 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	-- In a run, an arm swinging forward brings its shoulder forward and down with it: hung from the
 	-- top corner of the chest, the upper arm's top otherwise rose above the shoulder line as it
 	-- turned. The owner set the amount by posing the near arm at the front of its swing (2026-11-08).
-	-- (the whole arm moves: the front hand, placed apart from its shoulder, is moved the same below)
-	local frontShiftX, frontShiftY = 0, 0
+	-- (the whole arm moves: a swinging hand is placed from its shoulder, below)
 	if motion.front and not ch.emote then
 		local function reach(swing: number): number return math.clamp(swing / Posture.SWING_PEAK, 0, 1) end
 		if not armed then
 			local k = reach(motion.front)
-			frontShiftX, frontShiftY = h * Posture.SWING_AHEAD * k, -h * Posture.SWING_DROP * k
-			frontX += frontShiftX
-			frontY += frontShiftY
+			frontX += h * Posture.SWING_AHEAD * k
+			frontY -= h * Posture.SWING_DROP * k
 		end
 		if motion.back then
 			local k = reach(motion.back)
@@ -114,6 +119,10 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	frontY += h * 0.012 * math.sin(armAng)
 	backY -= h * 0.006 * math.sin(armAng)
 	local frontBend = math.rad(if ch.emote then ch.emote.frontBend else 8 + 48 * math.max(0, (ch.armR.bend or 0) - 0.2))
+	-- Bent at the elbow (Movement), a gait's arm keeps its length: the hand comes in towards the
+	-- shoulder by what the bend takes up, rather than the arm stretching to reach it.
+	local swingsFront = not armed and motion.frontBend ~= nil and not ch.emote
+	if swingsFront then frontBend = motion.frontBend end
 	local backSwing = ch.armL.z + ch.armL.x
 	-- Free support arms hang and counter-swing; keep authored reaches in ledge hangs, grabs,
 	-- celebrations and airborne reactions, where the hand has an actual job to do.
@@ -123,9 +132,19 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 	if motion.back then backSwing = motion.back end
 	local backAng = -math.pi / 2 + backSwing - ch.lean * 0.35
 	local backBend = math.rad(if ch.emote then ch.emote.backBend else 8 + math.min(16, math.abs(backSwing) * 14))
+	local backReach = 1
+	if motion.backBend and not ch.emote then backBend, backReach = motion.backBend, math.cos(motion.backBend / 2) end
 	if ch.emote then motion.armLength *= ch.emote.backExt end
-	local bx, by = backX + math.cos(backAng) * h * motion.armLength, backY + math.sin(backAng) * h * motion.armLength
-	local fx, fy = gx + frontShiftX, gy + frontShiftY
+	local bx = backX + math.cos(backAng) * h * motion.armLength * backReach
+	local by = backY + math.sin(backAng) * h * motion.armLength * backReach
+	local fx, fy = gx, gy
+	if swingsFront then
+		-- (from the shoulder itself, so it takes the run's lean and its swing's shift with it; the
+		-- same angle as the hand placed in the torso's frame above)
+		local a = armAng - ch.lean
+		fx = frontX + math.cos(a) * h * 0.30 * math.cos(frontBend / 2)
+		fy = frontY + math.sin(a) * h * 0.30 * math.cos(frontBend / 2)
+	end
 	local offX, offY
 	if dual and dual.off and ch.emote then
 		-- The second weapon follows the authored rear hand, rather than replacing it with a guard.
@@ -158,7 +177,7 @@ function Posture.For(ch: any, s: any, char: any, wpose: any, move: any, t: numbe
 		waistX = waistX, waistY = waistY, waistRot = waistRot,
 		chestRot = chestRot, chestSX = chestSX, chestSY = chestSY,
 		headX = neckX, headY = neckY,
-		headRot = -ch.lean * 0.55 - ch.head * 0.4 + lean * 0.6 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head,
+		headRot = -ch.lean * 0.55 - ch.head * 0.4 + lean * 0.6 - 0.07 * delayed - 0.035 * math.sin(phase - 1.1) * speed + motion.head - runLean * 0.5,
 		rigRotZ = motion.rigRotZ, yOff = motion.yOff, bob = motion.bob,
 		frontX = frontX, frontY = frontY, backX = backX, backY = backY,
 		front = Posture.limb(frontX, frontY, fx, fy, frontBend, 1),

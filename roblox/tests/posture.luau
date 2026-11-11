@@ -98,8 +98,11 @@ do
 	local squat = posture(Snapshot.decode(Snapshot.encode(setup(char, "jumpsquat", 3, true))), char, 0)
 	assert(bend(squat.legs[1].x, squat.legs[1].y, squat.legs[1].pose) > 18, "crouch knee never bends")
 	for _, frame in { 3, 13 } do
-		local p, raw = posture(Snapshot.decode(Snapshot.encode(setup(char, "run", frame, true))), char, frame / 60)
-		assert((p.chestRot + raw.lean) * p.hipRot < -0.001, "run chest/hips do not counter-rotate")
+		local s = Snapshot.decode(Snapshot.encode(setup(char, "run", frame, true)))
+		local p, raw = posture(s, char, frame / 60)
+		-- (net of the lean: Channels' and the run's own, Posture.RUN_LEAN)
+		local lean = raw.lean + Posture.RUN_LEAN * Movement.runOf(s, char)
+		assert((p.chestRot + lean) * p.hipRot < -0.001, "run chest/hips do not counter-rotate")
 	end
 	local hang = posture(Snapshot.decode(Snapshot.encode(setup(char, "ledge", 6, false))), char, 0)
 	assert(hang.back.ey - hang.backY > char.height * 0.2, "ledge support hand stopped reaching overhead")
@@ -140,9 +143,16 @@ local function pivot(sp, half, tip)
 end
 local draws = 0
 local function check(s, ch, t)
-	local p = posture(s, ch, t)
-	-- a free rear arm stays relaxed; one holding the second of a pair works (tests/dual-wield)
-	assert(p.dual or bend(p.backX, p.backY, p.back) <= 24.01, "back arm folds more than 24 degrees")
+	local p, raw = posture(s, ch, t)
+	-- a free rear arm stays relaxed; one holding the second of a pair works (tests/dual-wield); a
+	-- running one is bent at the elbow exactly as its stride says (Movement, Williams' arm)
+	local stride = if s.state == "run" and s.onGround then Movement.For(raw, s, ch) else nil
+	if p.dual then
+	elseif stride then
+		assert(math.abs(bend(p.backX, p.backY, p.back) - math.deg(stride.backBend)) < 1e-6, "running back arm is not bent as its stride says")
+	else
+		assert(bend(p.backX, p.backY, p.back) <= 24.01, "back arm folds more than 24 degrees")
+	end
 	local art = Art.sprites(ch.avatar.code)
 	for _, scale in { 8, 26 } do
 		local half = scale == 8

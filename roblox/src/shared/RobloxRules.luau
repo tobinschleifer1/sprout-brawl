@@ -16,6 +16,9 @@ RobloxRules.WALL_STUN = 8
 -- water at low tide and drowned on the rise (the stages review; the owner, 2026-11-11).
 RobloxRules.WATER_RESTORES = true
 
+-- The bots' Roblox-only layers (BotLayers.luau), after the replayed bot's choice.
+RobloxRules.BOT_LAYERS = true
+
 -- Acting from the ledge ends the grab's invincibility, so each option's own window governs. The
 -- first grab's 30 frames covered the whole getup (0 of its 25 frames vulnerable).
 RobloxRules.LEDGE_ACTION_CLEARS = true

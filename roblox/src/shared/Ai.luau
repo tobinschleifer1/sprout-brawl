@@ -15,6 +15,8 @@
 --   * `enemies[0]` is `enemies[1]`, and the order of that list decides which target a bot picks
 --     when two are equidistant.
 
+local RobloxRules = require(script.Parent.RobloxRules)
+local BotLayers = require(script.Parent.BotLayers)
 local Input = require(script.Parent.Input)
 local Config = require(script.Parent.Config)
 local COMBO = Config.COMBO
@@ -376,9 +378,22 @@ local computeBotInput: (any, any) -> any
 -- input passes through untouched.
 function Ai.computeBotInput(f: any, match: any): any
 	local frame = computeBotInput(f, match)
+	-- (Roblox only, BotLayers: after the replayed bot's choice, while RobloxRules is on, and before
+	-- the Chakram's and the Boots' gates, which hold for whatever the layers press)
+	if frame and RobloxRules.on and RobloxRules.BOT_LAYERS and not f.noBotLayers and f.botLevel ~= "dummy" then
+		local L = LEVELS[f.botLevel] or LEVELS.normal
+		local H = history(match)
+		frame = BotLayers.apply(f, match, frame, L, function(v) return seen(H, v, L.sight) end, function() return RNG() end)
+	end
 	if frame and frame.heavy and f.mech and f.mech.id == "Return" and (f.mech.rings or 0) <= 0
 		and (f.onGround or f.state == "attack") then
 		frame.heavy, frame.heavyHeld, frame.light = false, false, true
+	end
+	-- (and the ultimate, which throws a ring too: a bot with a full meter and its rings out pressed
+	-- it, and dry-fired)
+	if frame and frame.ult and f.mech and f.mech.id == "Return" and f.char.moves.Ultimate
+		and (f.mech.rings or 0) < (f.char.moves.Ultimate.rings or 0) then
+		frame.ult = false
 	end
 	-- Only ThrustFuel signatures reserve recovery fuel; ordinary weapons never take this path.
 	-- Aerial heavy outside an attack is recovery/groundpound, not a paid signature.

@@ -117,7 +117,8 @@ do
 	b.x += GR.step -- the next step
 	local pc = Posture.For(raw, b, char, { angle = 0 }, nil, 0)
 	assert(pa.hipRot * pc.hipRot < -0.001, "hips never exchange weight on the next step")
-	assert((pc.chestRot + raw.lean) * pc.hipRot < -0.001, "chest fails to counter next step")
+	-- (net of the lean: Channels' and the run's own, Posture.RUN_LEAN)
+	assert((pc.chestRot + raw.lean + Posture.RUN_LEAN * Movement.runOf(b, char)) * pc.hipRot < -0.001, "chest fails to counter next step")
 end
 
 -- The keys. Contact: the step's first planted frame. The leading leg reaches forward, on the
@@ -305,12 +306,11 @@ do
 	end
 end
 -- The run's shape, posed by the owner (2026-11-08): the swinging leg straightens before it lands -
--- over the last fifth of its swing it is never folded below 85% of its length (it was 81%) - and a
--- running arm swings further forward than back.
+-- over the last fifth of its swing it is never folded below 85% of its length (it was 81%).
 do
 	local bare = table.clone(char)
 	bare.weapon = nil
-	local fold, fwd, back = math.huge, -math.huge, math.huge
+	local fold = math.huge
 	for k = 0, 199 do
 		local d = k / 200 * 2 * GR.step
 		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
@@ -318,8 +318,6 @@ do
 		local st = Snapshot.decode(Snapshot.encode(f))
 		st.x, st.vx = d, bare.runSpeed
 		local ch = Channels.For(st, bare, nil, 7 / 60)
-		local m = Movement.For(ch, st, bare)
-		fwd, back = math.max(fwd, m.back), math.min(back, m.back)
 		local u = ((d / GR.step) % 2 - G.support) / (2 - G.support)
 		if u >= 0.8 then
 			local L = Posture.For(ch, st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60).legs[1]
@@ -351,27 +349,61 @@ do
 		assert(contact < 30, `leg {i} lands with its knee bent {contact} degrees`)
 		assert(down > 40 and down < 70, `leg {i} takes the down on a {down}-degree knee`)
 	end
-	-- the arm swings wider in a run, each way by its own amount (forward ARM_FORWARD, back ARM_BACK -
-	-- the owner wanted the arm well back, as in Williams' up), measured against the plain swing
-	local function swingRange(): (number, number)
-		local hi, lo = -math.huge, math.huge
-		for k = 0, 63 do
-			local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
-			f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
-			local st = Snapshot.decode(Snapshot.encode(f))
-			st.x, st.vx = k / 64 * 2 * GR.step, bare.runSpeed
-			local m = Movement.For(Channels.For(st, bare, nil, 7 / 60), st, bare)
-			hi, lo = math.max(hi, m.back), math.min(lo, m.back)
-		end
-		return hi, lo
+	-- Williams' swing (the owner's reference, 2026-11-11): as the other foot lands, the heel is kicked
+	-- up high behind - over half a leg off the ground, well behind its hip - and through the down it
+	-- is still behind, folded; it comes through after that. (The old swing was under the hip by the
+	-- down.) And the whole trunk leans into it, hip to neck.
+	local function leaning(q: number): any
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx, st.stridePhase = 0, bare.runSpeed, q
+		return Posture.For(Channels.For(st, bare, nil, 7 / 60), st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60)
 	end
-	local wideF, wideB = swingRange()
-	local af, ab = Movement.ARM_FORWARD, Movement.ARM_BACK
-	Movement.ARM_FORWARD, Movement.ARM_BACK = 0, 0
-	local plainF, plainB = swingRange()
-	Movement.ARM_FORWARD, Movement.ARM_BACK = af, ab
-	assert(wideF > plainF * 1.1, `a running arm swings no further forward ({wideF}) than the plain swing ({plainF})`)
-	assert(wideB < plainB * 1.25, `a running arm swings no further back ({wideB}) than the plain swing ({plainB})`)
+	for i = 1, 2 do
+		local land, down = leaning(i % 2), leaning(i % 2 + 0.18) -- (the other leg's contact, and its down)
+		local L, D = land.legs[i], down.legs[i]
+		assert(L.pose.ey + land.bob > G.leg * 0.55 and L.pose.ex - L.x < -G.leg * 0.4,
+			`as the other foot lands, foot {i} is {(L.pose.ey + land.bob) / G.leg} legs up and {(L.pose.ex - L.x) / G.leg} from its hip`)
+		assert(D.pose.ex - D.x < -G.leg * 0.25, `through the down, foot {i} has come through to {(D.pose.ex - D.x) / G.leg} legs from its hip`)
+	end
+	for _, q in { 0, 0.18, 0.42, 0.62, 0.8 } do
+		local p = leaning(q)
+		local lean = math.deg(math.atan2(p.headX - p.hipX, p.headY - p.hipY))
+		assert(lean > 16, `a run leans only {lean} degrees, hip to neck`)
+	end
+	-- Williams' arms (the owner's reference, 2026-11-11), measured on the drawn arm, both of them: as
+	-- the foot on its own side lands, the upper arm is swung well back, nearly level behind the
+	-- shoulder, the forearm hanging; as the other foot lands it is forward, the elbow bent past a
+	-- right angle and the fist up in front of it. Bent, an arm keeps its length: its hand comes in.
+	local function arms(q: number): any
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx, st.stridePhase = 0, bare.runSpeed, q
+		local p = Posture.For(Channels.For(st, bare, nil, 7 / 60), st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60)
+		local out = {}
+		for _, side in { { "back", 1 }, { "front", 2 } } do
+			local sx, sy, L = p[side[1] .. "X"], p[side[1] .. "Y"], p[side[1]]
+			local ux, uy, fx, fy = L.jx - sx, L.jy - sy, L.ex - L.jx, L.ey - L.jy
+			local upper, fore = math.sqrt(ux * ux + uy * uy), math.sqrt(fx * fx + fy * fy)
+			assert(math.abs(upper - h * 0.15) < 1e-6 and math.abs(fore - h * 0.15) < 1e-6,
+				`the running {side[1]} arm is {upper} and {fore} long, not {h * 0.15} each`)
+			out[side[2]] = {
+				upper = math.deg(math.atan2(ux, -uy)), -- from straight down, forward positive
+				bend = math.deg(math.acos(math.clamp((ux * fx + uy * fy) / (upper * fore), -1, 1))),
+				up = L.ey - L.jy, ahead = L.ex - L.jx,
+			}
+		end
+		return out
+	end
+	for i = 1, 2 do
+		-- (leg i lands at i - 1 steps; the other leg one step later)
+		local back, fwd = arms(i - 1)[i], arms(i)[i]
+		assert(back.upper < -60 and back.up < 0, `arm {i} is swung back only {back.upper} degrees as its foot lands`)
+		assert(fwd.upper > -10 and fwd.bend > 90 and fwd.up > 0 and fwd.ahead > 0,
+			`arm {i} is not forward with its fist up as the other foot lands ({fwd.upper} degrees, bent {fwd.bend})`)
+	end
 end
 -- Speeding up far from the stage's middle: the run's step grows with speed, so steps counted as
 -- distance over the step of the moment would spin the feet through the cycle (40 studs out, a few

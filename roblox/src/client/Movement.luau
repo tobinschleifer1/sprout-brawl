@@ -12,16 +12,89 @@ end
 -- The stride, in proportion to the fighter. The legs keep one length (`leg`) through the whole
 -- cycle; the step is set so a planted foot never needs more than that: it lands `contact` ahead
 -- of the hip and leaves after `support` of the step. The rest of each step is flight.
--- The run's shape: how much sooner (of the swing) the foot reaches its contact and comes down, and
--- how much further a running arm swings forward than back.
-Movement.REACH_EARLY, Movement.LIFT_EARLY, Movement.ARM_FORWARD = 0.22, 0.2, 0.15
 
 -- A run's stride is longer than a walk's, and lands further ahead (Williams' contact reaches well
 -- out in front): added to the step and the contact, of the height, at a full run. The stride used
 -- to be 0.58 of the height at every speed - 7.6 steps a second at full speed, a scurry.
 Movement.RUN_STEP, Movement.RUN_CONTACT = 0.24, 0.09
--- And a running arm swings further back than a walking one.
-Movement.ARM_BACK = 0.35
+
+-- Smoothed through keys { x, value, value... } (Catmull-Rom; the keys are unevenly spaced, so each
+-- tangent is a slope over its neighbours' span). Periodic keys wrap round 0-1; otherwise each end
+-- carries on along its last span.
+local function spline(K: { { number } }, q: number, col: number, periodic: boolean): number
+	local n = #K
+	local function key(i: number): (number, number)
+		if periodic then
+			local wrap = math.floor((i - 1) / n)
+			local kk = K[(i - 1) % n + 1]
+			return kk[1] + wrap, kk[col]
+		elseif i < 1 then
+			return 2 * K[1][1] - K[2][1], 2 * K[1][col] - K[2][col]
+		elseif i > n then
+			return 2 * K[n][1] - K[n - 1][1], 2 * K[n][col] - K[n - 1][col]
+		end
+		return K[i][1], K[i][col]
+	end
+	local i = if periodic then n else 1
+	for j = 1, if periodic then n else n - 1 do if K[j][1] <= q then i = j end end
+	local x0, y0 = key(i - 1)
+	local x1, y1 = key(i)
+	local x2, y2 = key(i + 1)
+	local x3, y3 = key(i + 2)
+	local t = (q - x1) / (x2 - x1)
+	local m1 = (y2 - y0) / (x2 - x0) * (x2 - x1)
+	local m2 = (y3 - y1) / (x3 - x1) * (x2 - x1)
+	local t2, t3 = t * t, t * t * t
+	return (2 * t3 - 3 * t2 + 1) * y1 + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * y2 + (t3 - t2) * m2
+end
+
+-- The swinging foot through a run, on Richard Williams' run (The Animator's Survival Kit, the
+-- owner's reference, 2026-11-11), measured off his drawings: `u` from toe-off (0) to the next
+-- contact (1); how far it has come of the way from where it left the ground to where it lands; and
+-- its height, in leg lengths. The heel kicks up high behind as the other foot lands and stays
+-- behind through the down, then the knee drives it through and up in front, and it reaches out for
+-- the ground. The old swing came forward from the start, low, and was under the body by halfway.
+-- (the last two keys are straighter than Williams' flight: the owner's pose, 2026-11-08, has the
+-- leg reaching straight for the ground before it lands)
+Movement.RUN_SWING = {
+	{ 0.00, 0.00, 0.00 }, -- the up: toe-off
+	{ 0.13, -0.10, 0.34 }, -- flight: still going back as it leaves the ground
+	{ 0.275, 0.06, 0.62 }, -- the other foot's contact: the heel kicked up behind
+	{ 0.41, 0.22, 0.44 }, -- the other's down: folded tight, coming through
+	{ 0.58, 0.56, 0.28 }, -- passing under the body, the knee leading
+	{ 0.725, 0.85, 0.27 }, -- the other's up: the knee high in front
+	{ 0.855, 0.98, 0.16 }, -- flight: reaching for the ground
+	{ 1.00, 1.00, 0.00 }, -- contact
+}
+function Movement.runSwing(u: number): (number, number)
+	return spline(Movement.RUN_SWING, u, 2, false), spline(Movement.RUN_SWING, u, 3, false)
+end
+
+-- A running arm, on Williams' keys too: through its stride (0 as the foot on its own side lands,
+-- 0.5 as the other one does), the upper arm's angle from straight down (degrees, forward positive)
+-- and the elbow's bend. All the way back as its foot lands, the upper arm nearly level behind; it
+-- whips forward nearly straight, and is held forward with the elbow bent and the fist up in front
+-- of the chest; then it goes back, opening. The arms used to swing straight, as far forward as
+-- back, and read as sticks.
+Movement.RUN_ARM = {
+	{ 0.000, -75, 55 }, -- its foot's contact: all the way back
+	{ 0.083, -55, 40 }, -- the down
+	{ 0.167, -28, 35 }, -- coming through, nearly straight
+	{ 0.250, -5, 60 },
+	{ 0.333, 5, 90 }, -- the up
+	{ 0.417, 10, 100 },
+	{ 0.500, 12, 105 }, -- the other foot's contact: forward, the fist at the chest
+	{ 0.583, 10, 95 },
+	{ 0.667, -5, 70 },
+	{ 0.750, -28, 55 }, -- going back
+	{ 0.833, -45, 50 }, -- the other's up
+	{ 0.917, -60, 50 },
+}
+function Movement.runArm(q: number): (number, number)
+	return math.rad(spline(Movement.RUN_ARM, q % 1, 2, true)), math.rad(spline(Movement.RUN_ARM, q % 1, 3, true))
+end
+-- (the furthest forward the hand's direction comes: Posture.SWING_PEAK)
+Movement.ARM_PEAK = math.rad(12 + 105 / 2)
 
 -- How much of a run this is (0 a walk, 1 a full run), from the speed.
 function Movement.runOf(s: any, char: any): number
@@ -90,25 +163,7 @@ Movement.RUN_KEYS = {
 	{ 0.80, 0.02 }, -- flight
 }
 function Movement.runHeight(q: number): number
-	local K = Movement.RUN_KEYS
-	local n = #K
-	local function key(i: number): (number, number)
-		local wrap = math.floor((i - 1) / n)
-		local kk = K[(i - 1) % n + 1]
-		return kk[1] + wrap, kk[2]
-	end
-	local i = n
-	for j = 1, n do if K[j][1] <= q then i = j end end
-	local x0, y0 = key(i - 1)
-	local x1, y1 = key(i)
-	local x2, y2 = key(i + 1)
-	local x3, y3 = key(i + 2)
-	local t = (q - x1) / (x2 - x1)
-	-- (non-uniform keys: the tangents are slopes over each neighbour's span)
-	local m1 = (y2 - y0) / (x2 - x0) * (x2 - x1)
-	local m2 = (y3 - y1) / (x3 - x1) * (x2 - x1)
-	local t2, t3 = t * t, t * t * t
-	return (2 * t3 - 3 * t2 + 1) * y1 + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * y2 + (t3 - t2) * m2
+	return spline(Movement.RUN_KEYS, q, 2, true)
 end
 
 function Movement.For(ch: any, s: any, char: any): any
@@ -143,15 +198,19 @@ function Movement.For(ch: any, s: any, char: any): any
 				y = heelMax * smooth((c - DP * 0.6) / (DP * 0.4))
 				support = y == 0
 			else
-				-- The swing, classic style: the heel kicks up behind first (the lift peaks before
-				-- the passing point), then the leg unfolds and reaches forward into the next contact.
-				-- A run reaches sooner: the foot is out at its contact a little before the end of the
-				-- swing and drops early, so the leg straightens before it lands (the owner, 2026-11-08,
-				-- posing the run: "it looks like it's running more").
+				-- The swing. A walk's, classic style: the heel kicks up behind first (the lift peaks
+				-- before the passing point), then the leg unfolds and reaches forward into the next
+				-- contact. A run's is Williams' (RUN_SWING).
 				local u = (c - DP) / (2 - DP)
 				local xl = x0 - S * DP
-				x = xl + (x0 - xl) * smooth(math.min(1, u / (1 - Movement.REACH_EARLY * run)))
-				y = heelMax * (1 - u) ^ 2 + h * (0.087 + 0.07 * run) * math.sin(math.pi * u ^ (0.8 - Movement.LIFT_EARLY * run))
+				local along, lift = smooth(u), h * 0.087 * math.sin(math.pi * u ^ 0.8)
+				if run > 0 then
+					local ra, rl = Movement.runSwing(u)
+					along += (ra - along) * run
+					lift += (G.leg * rl - lift) * run
+				end
+				x = xl + (x0 - xl) * along
+				y = heelMax * (1 - u) ^ 2 + lift
 				support = false
 			end
 			local lane = math.clamp(x / x0, -1, 1)
@@ -161,14 +220,22 @@ function Movement.For(ch: any, s: any, char: any): any
 		-- the rear arm against the near leg (1), the front arm against the far leg (2) - so it is
 		-- forward as the near leg reaches forward. The front arm used to swing by Channels' clock
 		-- (frameCount), out of step with the feet and hidden behind the body (the owner, 2026-11-08).
-		local swing = 0.32 + 0.38 * run
-		-- (forward, a running arm swings further than it goes back)
-		local function arm(footX: number): number
-			local a = -math.clamp(footX / x0, -1.4, 1.4) * swing - 0.12
-			return a * (1 + (if a > 0 then Movement.ARM_FORWARD else Movement.ARM_BACK) * run)
+		-- Each gives the hand's direction from the shoulder (radians from straight down, forward
+		-- positive) and the elbow's bend: a walking arm hangs nearly straight and swings against its
+		-- foot; a running one is Williams' (RUN_ARM).
+		local function arm(i: number): (number, number)
+			local walk = -math.clamp(m.feet[i].x / x0, -1.4, 1.4) * 0.32 - 0.12
+			local bend = math.rad(8 + math.min(16, math.abs(walk) * 14))
+			if run > 0 then
+				local upper, elbow = Movement.runArm((base + (i - 1)) / 2)
+				walk += (upper + elbow / 2 - walk) * run
+				bend += (elbow - bend) * run
+			end
+			return walk, bend
 		end
-		m.back = arm(m.feet[1].x)
-		m.front = arm(m.feet[2].x)
+		m.back, m.backBend = arm(1)
+		m.front, m.frontBend = arm(2)
+		m.run = run
 		m.head = -0.025 * math.sin(q * 2 * math.pi - 0.8)
 	elseif state == "jumpsquat" then
 		local load = smooth(sf / Config.MOVE.jumpsquat)

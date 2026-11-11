@@ -430,4 +430,69 @@ do
 	end
 	assert(worst < h * 0.2, `speeding up, a foot jumped {worst} studs in a frame`)
 end
+-- The push-off foot is on the ground (the owner, 2026-11-11: at the up it floated about a third of a
+-- stud). Through a run's planted step the foot is drawn where the gait plants it - Posture never has
+-- to lift it to meet a leg too short to reach - and as it leaves the ground its shoe is drawn as low
+-- as it was when it landed. The shoe is the shin's art, hanging past the leg's end and turning with
+-- it, so the sole is measured off the drawn sprite.
+do
+	local Canvas = Loader.loadFrom("src/client/", "Canvas2D")
+	local Fighter2D = Loader.loadFrom("src/client/", "Fighter2D")
+	local bare = table.clone(char)
+	bare.weapon = nil
+	local function posed(q: number, ratio: number): any
+		local f = Fighter.new({ index = 0, char = bare, x = 0, y = 0, stocks = 3 })
+		f.state, f.sf, f.frameCount, f.invincible, f.facing, f.onGround = "run", 7, 7, 0, 1, true
+		local st = Snapshot.decode(Snapshot.encode(f))
+		st.x, st.vx, st.stridePhase = 0, bare.runSpeed * ratio, q
+		return st
+	end
+	for _, ratio in { 0.6, 0.8, 1 } do
+		local DP = Movement.gait(bare, Movement.runOf({ vx = bare.runSpeed * ratio }, bare)).support
+		for k = 0, 199 do
+			local q = k / 100
+			local st = posed(q, ratio)
+			local ch = Channels.For(st, bare, nil, 7 / 60)
+			local m = Movement.For(ch, st, bare)
+			local p = Posture.For(ch, st, bare, WeaponPose.For(st, bare, nil, 7 / 60), nil, 7 / 60)
+			for i = 1, 2 do
+				if (q + i - 1) % 2 < DP then
+					local lift = p.legs[i].pose.ey - m.feet[i].y
+					assert(lift < 1e-9, `running at {ratio} of full speed, planted foot {i} is lifted {lift} studs off the ground to meet its leg`)
+				end
+			end
+		end
+	end
+	-- the lowest opaque point of each drawn shin, in studs: { near leg (1), far leg (2) }
+	local PPU = 40
+	local function soles(st: any): { number }
+		local found = {}
+		local kept = {}
+		for _, k in { "sprite", "rect", "ellipse", "circle", "tri", "line" } do kept[k] = Canvas[k]; Canvas[k] = function() end end
+		Canvas.sprite = function(c, key, rects, x0, y1, pw, ph)
+			if string.match(key, "|(%a+)|") ~= "shin" then return end
+			local M, low = c.m, math.huge
+			Canvas.eachSpriteRect(rects, x0, y1, pw, ph, function(x, y, w, hh, _, a)
+				if a < 0.5 then return end
+				for _, pt in { { x, y }, { x + w, y }, { x, y + hh }, { x + w, y + hh } } do
+					low = math.min(low, -(M.b * pt[1] + M.d * pt[2] + M.f) / PPU)
+				end
+			end)
+			table.insert(found, 1, low) -- (the far leg is drawn first)
+		end
+		local c = setmetatable({ used = 0, stack = {}, alpha = 1, alphaStack = {}, m = { a = PPU, b = 0, c = 0, d = -PPU, e = 0, f = 0 },
+			gui = { AbsoluteSize = { X = 400, Y = 400 } }, finish = function() end }, { __index = Canvas })
+		Fighter2D.draw(c, st, bare, 10, 0)
+		for k, v in kept do Canvas[k] = v end
+		assert(#found == 2, `{#found} shins drawn`)
+		return found
+	end
+	local DP = GR.support
+	for i = 1, 2 do
+		local landed = soles(posed(i - 1, 1))[i]
+		local leaving = soles(posed(i - 1 + DP - 1e-3, 1))[i]
+		-- (0.04 studs: under a pixel and a half even this close)
+		assert(leaving <= landed + 0.04, `foot {i} pushes off with its shoe {leaving - landed} studs higher than it landed`)
+	end
+end
 print(string.format("PASS movement: %d gait samples, support world-lock, fixed-length legs with forward knees, contact and passing keys, a bounce on the step, minimum passing clearance %.3f studs; walk/run, load/rise/hang/fall/commit/settle, defence, directed impact, tuck, getup and ledge properties; the stride holds through speeding up; both arms counter-swing their legs on the stride", samples, clearance))

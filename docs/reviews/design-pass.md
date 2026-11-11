@@ -29,8 +29,8 @@ reached by round three it carries on.
 
 | # | Subject | Last score | State |
 |---|---|---|---|
-| 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | never scored (`weapons-six-round1`, `weapons-axe-pike-round1` were written and never run) | round 1 |
-| 2 | Bot AI: how bots fight, per weapon and level | never scored (round 1 lost twice to restarts) | next |
+| 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | 4.45 at round 1 | round 2 |
+| 2 | Bot AI: how bots fight, per weapon and level | never scored (round 1 lost twice to restarts) | round 1 |
 | 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | |
 | 4 | Stage hazards and disasters | rounds 1-2 (`../hazard-design-review.md`), round 3 outstanding | |
 | 5 | Items and weapon drops | never scored | |
@@ -53,4 +53,4 @@ mostly need one confirming round each.
 
 | Date | Subject | Round | Score | Notes |
 |---|---|---|---|---|
-| 2026-11-11 | Weapons | 1 | pending | baseline of the roster as built; brief `weapons-round1.md` |
+| 2026-11-11 | Weapons | 1 | **4.45** (bad) | baseline; art and hitbox disagree on 155/216 moves, Grimoire's Runebrand dominates, Blasters/Longbow/Whip are weak weapons, the bot never presses neutral heavy (`weapons-round1-review.md`) |

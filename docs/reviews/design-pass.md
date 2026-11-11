@@ -31,7 +31,7 @@ reached by round three it carries on.
 |---|---|---|---|
 | 1 | Weapons: the 15-weapon roster, its moves, mechanics, balance, art against hitbox | 4.45 at round 1 | round 2 |
 | 2 | Bot AI: how bots fight, per weapon and level | never scored (round 1 lost twice to restarts) | round 1 |
-| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | |
+| 3 | Combat core: hitstun, knockback, shield, dodge, ledge, combos and breaks | never scored | round 1 |
 | 4 | Stage hazards and disasters | rounds 1-2 (`../hazard-design-review.md`), round 3 outstanding | |
 | 5 | Items and weapon drops | never scored | |
 | 6 | Match formats and rules: stocks, FFA, teams, ranked, rooms | never scored | |

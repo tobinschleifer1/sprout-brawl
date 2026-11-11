@@ -6,6 +6,8 @@
 local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
+-- (the web's rules: the Roblox-only ones are off, as these replays hold the engine to the web)
+Loader.load("RobloxRules").on = false
 local Plaza = Loader.load("Plaza")
 local T = serde.decode("json", fs.readFile("tests/plaza-fixture.json"))
 local DATA = Plaza.WEB          -- (the web's market: the Roblox lobby's has no arcade or gates)

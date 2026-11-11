@@ -348,10 +348,11 @@ function Combat.resolveHit(self, attacker: any, victim: any, move: any, hb: any,
 		-- An ultimate costs 20 landed hits and the whole meter. Holding one button should not be a
 		-- clean answer, so they chew through a full shield instead.
 		local shieldDmg = damage * ((if hb then hb.shieldDamageMul else nil) or move.shieldDamageMul or 1)
+		local lag = if direct then Knockback.hitlag(damage, move.heavy) else 0
 		victim:applyBlock({ damage = shieldDmg,
-			facing = if opts.facing ~= nil then opts.facing else attacker.facing, perfect = perfect })
+			facing = if opts.facing ~= nil then opts.facing else attacker.facing, perfect = perfect, hitlag = lag })
 		if direct then
-			attacker.hitlag = Knockback.hitlag(damage, move.heavy)
+			attacker.hitlag = lag
 			attacker.moveLanded = true
 		end
 		Combat.emit(self, { type = "block", x = cx, y = cy, perfect = perfect, victim = victim.index })

@@ -354,7 +354,9 @@ function throwAt(weapon, pc = 0, d = 5) {
   const KITS = [['Sword', 'Hammer'], ['Daggers', 'Axe'], ['Pike', 'Shield'], ['Scythe', 'Flail']];
   let arms = 0, throws = 0, armed = 0, alive = 0, ended = 0;
   const waits = [];
-  const games = 3;
+  // 12, not 3: three matches' median wait swung 2.6 s -> 7.7 s on a one-frame change to how a block
+  // freezes (2026-11-11), where twelve give 4.1 s and 3.6 s. The property is the bots', not the seed's.
+  const games = 12;
   for (let g = 0; g < games; g++) {
     const m = skipCountdown(makeMatch({ armed: KITS.map((k, i) => [['Classic', 'Noir', 'Ember', 'Moss'][i], k]), seed: 100 + g, stocks: 2 }));
     m.fighters.forEach((f) => { f.isBot = true; f.botLevel = 'normal'; });

@@ -78,7 +78,9 @@ function heavyAt(percent) {
   // 72 matches: at 24 one change to the fight (armour) moved the measured precision eight points.
   // A marked hit followed by another hit before anything happened is undecided - the next hit is
   // the one that sends them - and is left out rather than counted as wrong.
-  const SAMPLE = 72;
+  // 216, not 72 (2026-11-11): a block coming to freeze the defender moved 72 matches' recall to 39% (the
+  // bar is 40%) where 216 measure 45% before it and 42% after.
+  const SAMPLE = 216;
   const KITS = [['Sword', 'Hammer'], ['Daggers', 'Axe'], ['Pike', 'Shield'], ['Scythe', 'Flail']];
   let marked = 0, markedKO = 0, sideKOs = 0, sideMarked = 0, undecided = 0;
   for (let g = 0; g < SAMPLE; g++) {

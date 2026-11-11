@@ -202,6 +202,11 @@ local function run(lag: number, opts: { lagComp: boolean, instant: boolean, weap
 	-- server's now is the defender's "now" at work (Config.LAG_COMP), not a disagreement.
 	local function guardMoved(seq: number, key: string): boolean
 		local victim = tonumber(string.match(key, "@(%d+)")) :: number
+		-- The server blocking a swing at a foe the client drew open is a shield raised since the
+		-- view, even when the guard after the step reads open again: a heavy that breaks the shield
+		-- leaves them stunned. (Found when a block came to freeze the defender, 2026-11-11, which
+		-- moved a Hammer's heavy onto a fresh shield it then broke.)
+		if (drawn[seq] or {})[victim] ~= "shield" and table.find(landed[seq] or {}, `block@{victim}`) then return true end
 		return (served[seq] or {})[victim] ~= (drawn[seq] or {})[victim]
 	end
 	local function same(seq: number): boolean

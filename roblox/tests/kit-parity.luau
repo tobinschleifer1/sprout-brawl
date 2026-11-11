@@ -10,6 +10,8 @@
 local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
+-- (the web's rules: the Roblox-only ones are off, as these replays hold the engine to the web)
+Loader.load("RobloxRules").on = false
 local AvatarKit = Loader.load("AvatarKit")
 local Compose = Loader.loadFrom("src/client/", "AvatarCompose")
 local T = serde.decode("json", fs.readFile("tests/kit-fixture.json"))

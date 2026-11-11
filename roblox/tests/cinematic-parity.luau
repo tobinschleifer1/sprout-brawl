@@ -9,6 +9,8 @@
 local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
+-- (the web's rules: the Roblox-only ones are off, as these replays hold the engine to the web)
+Loader.load("RobloxRules").on = false
 local U = Loader.loadFrom("src/client/", "UltCinematic")
 local T = serde.decode("json", fs.readFile("tests/cinematic-fixture.json"))
 

@@ -16,6 +16,7 @@
 -- this with a stub on both sides so the state machine is tested in isolation.
 
 local Config = require(script.Parent.Config)
+local RobloxRules = require(script.Parent.RobloxRules)
 local Knockback = require(script.Parent.Knockback)
 local Input = require(script.Parent.Input)
 
@@ -1256,7 +1257,11 @@ function methods.breakShield(self)
 	methods.emit(self, { type = "shieldbreak" })
 end
 
+-- `hitlag`: a blocked swing freezes the defender as long as the attacker, as a hit does. It froze
+-- only the attacker, so the defender's blockstun ran on through the freeze and every move was 3-12
+-- frames worse on shield than onBlock says (the combat review, 2026-11-11).
 function methods.applyBlock(self, o: any)
+	if o.hitlag and o.hitlag > 0 then self.hitlag = math.max(self.hitlag, o.hitlag) end
 	local stun = Knockback.blockstun(o.damage)
 	self.blockstun = if o.perfect then math.floor(stun / 2) else stun
 	if not o.perfect then
@@ -1466,6 +1471,8 @@ function methods._physics(self, ctx)
 			self.vx = -self.vx * Config.BOUNCE.restitution
 		else
 			self.vx = 0
+			-- (Roblox only) the wall took the launch, so it takes the stun with it
+			if launched and RobloxRules.on then self.hitstun = math.min(self.hitstun, RobloxRules.WALL_STUN) end
 		end
 	end
 	if res.bumped then
@@ -1652,6 +1659,8 @@ function methods._ledgeDrop(self)
 end
 
 function methods._startLedgeAction(self, kind: string)
+	-- (Roblox only) each option's own invincible window governs, not the grab's
+	if RobloxRules.on and RobloxRules.LEDGE_ACTION_CLEARS then self.invincible = 0 end
 	self.la = { kind = kind, L = self.ledge }
 	self.hitVictims = {}
 	methods.setState(self, "ledgeaction")

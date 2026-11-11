@@ -241,8 +241,9 @@ export class Combat {
       // button should not be a clean answer: three of the four used to be blocked for 0% with
       // most of a shield left. They now chew through a full shield instead.
       const shieldDmg = damage * ((hb && hb.shieldDamageMul) || move.shieldDamageMul || 1);
-      victim.applyBlock({ damage: shieldDmg, facing: opts.facing ?? attacker.facing, perfect });
-      if (direct) { attacker.hitlag = hitlagFor(damage, move.heavy); attacker.moveLanded = true; }
+      const lag = direct ? hitlagFor(damage, move.heavy) : 0;
+      victim.applyBlock({ damage: shieldDmg, facing: opts.facing ?? attacker.facing, perfect, hitlag: lag });
+      if (direct) { attacker.hitlag = lag; attacker.moveLanded = true; }
       this.emit({ type: 'block', x: cx, y: cy, perfect, victim: victim.index });
       return true;
     }

@@ -198,6 +198,7 @@ lune run tests/weapon-tuning
 lune run tests/weapon-design
 lune run tests/hit-aim
 lune run tests/ultimate-kills
+lune run tests/combat-rules
 echo "== Rocket Boots (Roblox-only weapon): thrust fuel and Redline Reversal =="
 lune run tests/rocketboots
 lune run tests/canvas-writes

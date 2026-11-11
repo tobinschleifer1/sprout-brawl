@@ -881,7 +881,11 @@ export class Fighter {
     this.emit({ type: 'shieldbreak' });
   }
 
-  applyBlock({ damage, facing, perfect }) {
+  // `hitlag`: a blocked swing freezes the defender as long as the attacker, as a hit does. It froze
+  // only the attacker, so the defender's blockstun ran on through the freeze and every move was 3-12
+  // frames worse on shield than onBlock says (the combat review, 2026-11-11).
+  applyBlock({ damage, facing, perfect, hitlag }) {
+    if (hitlag) this.hitlag = Math.max(this.hitlag, hitlag);
     const stun = blockstunFor(damage);
     this.blockstun = perfect ? Math.floor(stun / 2) : stun;
     if (!perfect) this.shield -= damage * SHIELD.damageMul;

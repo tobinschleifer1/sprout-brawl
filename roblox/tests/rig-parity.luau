@@ -5,6 +5,8 @@
 local fs = require("@lune/fs")
 local serde = require("@lune/serde")
 local Loader = require("./loader")
+-- (the web's rules: the Roblox-only ones are off, as these replays hold the engine to the web)
+Loader.load("RobloxRules").on = false
 local Rig = Loader.loadFrom("src/client/", "Rig")
 
 local T = serde.decode("json", fs.readFile("tests/rig-fixture.json"))
